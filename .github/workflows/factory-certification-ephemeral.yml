@@ -548,35 +548,99 @@ jobs:
             1
           );
 
+          insert into public.products (
+            id, sku, product_name, name, category, hsn_code, is_active, visible_in_catalog, is_catalogue_ready,
+            moq_value, increment_value, base_price, price_b2b
+          ) values (
+            '93200000-0000-0000-0000-000000000001',
+            'GATE-CERT-001',
+            'Factory Gate Certification Product',
+            'Factory Gate Certification Product',
+            'sweets',
+            '1905',
+            true,
+            true,
+            true,
+            1,
+            1,
+            100,
+            100
+          );
+
+          insert into public.order_items (
+            id, order_id, product_id, quantity, pack_size, carton_type
+          ) values (
+            '93100000-0000-0000-0000-000000000001',
+            '93000000-0000-0000-0000-000000000001',
+            '93200000-0000-0000-0000-000000000001',
+            1,
+            'unit',
+            'carton'
+          );
+
           insert into public.sales_order_commercial_versions (
             id, order_id, version_number, source_channel, commercial_snapshot,
             snapshot_fingerprint, sales_order_value, advance_required,
             advance_rule_version, change_reason, correlation_id, idempotency_key, created_by
-          ) values (
+          )
+          select
             '96000000-0000-0000-0000-000000000001',
             '93000000-0000-0000-0000-000000000001',
-            1, 'MANUAL', '{}'::jsonb, md5('{}'::jsonb::text), 100, 0,
-            'advance-30pct-nearest-inr-500/v2', 'Disposable gate certification',
-            'factory-gate-cert-commercial', 'factory-gate-cert-commercial',
+            1,
+            'MANUAL',
+            commercial.snapshot,
+            md5(commercial.snapshot::text),
+            100,
+            0,
+            'advance-30pct-nearest-inr-500/v2',
+            'Disposable gate certification',
+            'factory-gate-cert-commercial',
+            'factory-gate-cert-commercial',
             '91000000-0000-0000-0000-000000000002'
-          );
+          from (
+            select jsonb_build_object(
+              'lines', jsonb_build_array(jsonb_build_object(
+                'order_item_id', '93100000-0000-0000-0000-000000000001',
+                'product_id', '93200000-0000-0000-0000-000000000001',
+                'sku', 'GATE-CERT-001',
+                'product_name', 'Factory Gate Certification Product',
+                'quantity', 1,
+                'uom', 'unit',
+                'unit_price', 100,
+                'gst_rate', 0,
+                'tax_inclusive', false
+              )),
+              'packing_charge', 0,
+              'other_approved_charges', 0,
+              'discount_total', 0,
+              'sales_order_value', 100
+            ) as snapshot
+          ) commercial;
 
           insert into public.sales_order_proforma_invoices (
             id, order_id, commercial_version_id, commercial_version_number,
             frozen_commercial_snapshot, frozen_snapshot_fingerprint, status,
             customer_visible_pi_number,
             reason, source, correlation_id, idempotency_key, created_by, issued_by, issued_at
-          ) values (
+          )
+          select
             '96100000-0000-0000-0000-000000000001',
-            '93000000-0000-0000-0000-000000000001',
-            '96000000-0000-0000-0000-000000000001',
-            1, '{}'::jsonb, md5('{}'::jsonb::text), 'ISSUED',
+            version.order_id,
+            version.id,
+            version.version_number,
+            version.commercial_snapshot,
+            version.snapshot_fingerprint,
+            'ISSUED',
             'PI2026/09-001',
-            'Disposable gate certification', 'FINANCE',
-            'factory-gate-cert-pi', 'factory-gate-cert-pi',
+            'Disposable gate certification',
+            'FINANCE',
+            'factory-gate-cert-pi',
+            'factory-gate-cert-pi',
             '91000000-0000-0000-0000-000000000002',
-            '91000000-0000-0000-0000-000000000002', statement_timestamp()
-          );
+            '91000000-0000-0000-0000-000000000002',
+            statement_timestamp()
+          from public.sales_order_commercial_versions version
+          where version.id = '96000000-0000-0000-0000-000000000001';
 
           insert into public.dispatch_cartons (
             id, order_id, barcode_string, box_number, total_boxes, status
@@ -589,28 +653,42 @@ jobs:
             dpl_version, dpl_fingerprint, dpl_snapshot, finalized_at, received_by,
             received_role, source_channel, source_reference, evidence_reference,
             correlation_id, idempotency_key
-          ) values (
+          )
+          select
             '96200000-0000-0000-0000-000000000001',
             '93000000-0000-0000-0000-000000000001',
             '92000000-0000-0000-0000-000000000001',
             '96000000-0000-0000-0000-000000000001',
-            'FACTORY-GATE-CERT-DPL', 1, repeat('b',64),
-            jsonb_build_object(
-              'order_id','93000000-0000-0000-0000-000000000001',
-              'commercial_version_id','96000000-0000-0000-0000-000000000001',
-              'external_dpl_id','FACTORY-GATE-CERT-DPL',
-              'dpl_version',1,
-              'lines',jsonb_build_array(jsonb_build_object('certification',true)),
-              'carton_ids',jsonb_build_array(
+            'FACTORY-GATE-CERT-DPL',
+            1,
+            encode(digest(dpl.snapshot::text, 'sha256'), 'hex'),
+            dpl.snapshot,
+            statement_timestamp(),
+            '91000000-0000-0000-0000-000000000002',
+            'FINANCE_EXEC',
+            'B2B_DISPATCH',
+            'FACT-C3-CERT',
+            'factory-gate-cert-dpl-evidence',
+            'factory-gate-cert-dpl',
+            'factory-gate-cert-dpl'
+          from (
+            select jsonb_build_object(
+              'order_id', '93000000-0000-0000-0000-000000000001',
+              'commercial_version_id', '96000000-0000-0000-0000-000000000001',
+              'external_dpl_id', 'FACTORY-GATE-CERT-DPL',
+              'dpl_version', 1,
+              'lines', jsonb_build_array(jsonb_build_object(
+                'order_item_id', '93100000-0000-0000-0000-000000000001',
+                'product_id', '93200000-0000-0000-0000-000000000001',
+                'actual_dispatch_qty', 1,
+                'uom', 'unit'
+              )),
+              'carton_ids', jsonb_build_array(
                 '94000000-0000-0000-0000-000000000001',
                 '94000000-0000-0000-0000-000000000002'
               )
-            ),
-            statement_timestamp(), '91000000-0000-0000-0000-000000000002',
-            'FINANCE_EXEC', 'B2B_DISPATCH', 'FACT-C3-CERT',
-            'factory-gate-cert-dpl-evidence', 'factory-gate-cert-dpl',
-            'factory-gate-cert-dpl'
-          );
+            ) as snapshot
+          ) dpl;
 
           insert into public.sales_order_pi_final_payment_requests (
             id, order_id, company_id, proforma_invoice_id, commercial_version_id,
@@ -620,21 +698,39 @@ jobs:
             balance_due_at_issue, payment_action, payment_instructions, document_reference,
             request_fingerprint, reason, source_channel, source_reference, correlation_id,
             idempotency_key, issued_by, issued_role, issued_at
-          ) values (
+          )
+          select
             '96600000-0000-0000-0000-000000000001',
-            '93000000-0000-0000-0000-000000000001',
-            '92000000-0000-0000-0000-000000000001',
+            receipt.order_id,
+            receipt.company_id,
             '96100000-0000-0000-0000-000000000001',
-            '96000000-0000-0000-0000-000000000001',
-            '96200000-0000-0000-0000-000000000001',
-            1, 'PI2026/09-001', repeat('b',64), 'INR', 100, 0, 100,
-            100, 0, 0, 0, 'BANK_TRANSFER',
-            'Disposable gate certification final payment', 'factory-gate-cert-final-payment',
-            repeat('d',64), 'Disposable gate certification', 'FINANCE', 'FACT-C3-CERT',
-            'factory-gate-cert-final-payment', 'factory-gate-cert-final-payment',
-            '91000000-0000-0000-0000-000000000002', 'FINANCE_EXEC',
+            receipt.commercial_version_id,
+            receipt.id,
+            1,
+            'PI2026/09-001',
+            receipt.dpl_fingerprint,
+            'INR',
+            100,
+            0,
+            100,
+            100,
+            0,
+            0,
+            0,
+            'BANK_TRANSFER',
+            'Disposable gate certification final payment',
+            'factory-gate-cert-final-payment',
+            encode(digest('factory-gate-cert-final-payment', 'sha256'), 'hex'),
+            'Disposable gate certification',
+            'FINANCE',
+            'FACT-C3-CERT',
+            'factory-gate-cert-final-payment',
+            'factory-gate-cert-final-payment',
+            '91000000-0000-0000-0000-000000000002',
+            'FINANCE_EXEC',
             statement_timestamp() - interval '1 hour'
-          );
+          from public.finance_dpl_receipts receipt
+          where receipt.id = '96200000-0000-0000-0000-000000000001';
 
           insert into public.final_invoices (
             id, order_id, company_id, proforma_invoice_id, commercial_version_id,
