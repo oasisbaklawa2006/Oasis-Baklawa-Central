@@ -199,3 +199,35 @@ const { error: pkgBalanceError } = await supabase.from("inventory_stock_balances
 }, { onConflict: "product_id,sku,location_code" });
 assertNoSupabaseError(pkgBalanceError, "Golden-order 3PGS stock-balance fixture upsert failed");
 console.log("Seeded FACT-E2E prerequisite company/catalogue/stock and a governed Buyer-created golden order.");
+
+// Prerequisite master/reference data (never a business-transition row) for the
+// full governed 3PGS-inward and Assembly-output receiving chains: Core's
+// can_access_b2b_inventory_store() requires an explicit
+// b2b_inventory_store_assignments row for any role not in its global
+// SUPER_ADMIN/ADMIN/OPERATIONS_MANAGER/INVENTORY_MANAGER allowlist, and
+// allocate/confirm_b2b_inventory_putaway require a real, active
+// b2b_inventory_bins row for the destination store. 'manage' authority
+// covers both the 'receive' check (accept_b2b_inventory_receipt) and the
+// 'manage' check (finalise_b2b_inventory_grn / link_procurement_receipt) --
+// see can_access_b2b_inventory_store's own OR clause.
+const { data: storeThirdPartyUser, error: storeThirdPartyUserError } = await supabase
+  .from("users").select("id").ilike("role", "store_3rd_party").like("email", "factory-cert-%").limit(1).maybeSingle();
+assertNoSupabaseError(storeThirdPartyUserError, "STORE_3RD_PARTY identity lookup failed");
+if (!storeThirdPartyUser?.id) throw new Error("STORE_3RD_PARTY disposable identity not found; create-test-identities.mjs must run first");
+const { data: storeReadyGoodsUser, error: storeReadyGoodsUserError } = await supabase
+  .from("users").select("id").ilike("role", "store_ready_goods").like("email", "factory-cert-%").limit(1).maybeSingle();
+assertNoSupabaseError(storeReadyGoodsUserError, "STORE_READY_GOODS identity lookup failed");
+if (!storeReadyGoodsUser?.id) throw new Error("STORE_READY_GOODS disposable identity not found; create-test-identities.mjs must run first");
+
+const { error: storeAssignmentsError } = await supabase.from("b2b_inventory_store_assignments").upsert([
+  { user_id: storeThirdPartyUser.id, store_code: "3PGS", authority: "manage" },
+  { user_id: storeReadyGoodsUser.id, store_code: "FINISHED_GOODS", authority: "manage" },
+], { onConflict: "user_id,store_code" });
+assertNoSupabaseError(storeAssignmentsError, "Golden-order inventory store assignment fixture upsert failed");
+
+const { error: binsError } = await supabase.from("b2b_inventory_bins").upsert([
+  { store_code: "3PGS", zone_code: "A", rack_code: "1", shelf_code: "1", bin_code: "FACT-E2E-3PGS-BIN-01", storage_class: "ambient", active: true },
+  { store_code: "FINISHED_GOODS", zone_code: "A", rack_code: "1", shelf_code: "1", bin_code: "FACT-E2E-FG-BIN-01", storage_class: "ambient", active: true },
+], { onConflict: "store_code,bin_code" });
+assertNoSupabaseError(binsError, "Golden-order inventory bin fixture upsert failed");
+console.log("Seeded FACT-E2E prerequisite 3PGS/FINISHED_GOODS store assignments and put-away bins.");

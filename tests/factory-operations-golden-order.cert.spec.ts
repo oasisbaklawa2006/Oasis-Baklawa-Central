@@ -413,33 +413,12 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
     record(ledger.negative_paths, "issue_unpicked_reservation_rejected", "issue_rgs_stock", "STORE_READY_GOODS", bogusIssueCorrelationId, bogusIssueError ? "PASS" : "FAIL", bogusIssueError?.message ?? "RPC unexpectedly succeeded");
   });
 
-  // ---- Stage: 3PGS bridge -- reservation truth-check + the real system
-  // boundary this run proves rather than fabricates.
-  //
-  // reserve_3pgs_requirement_stock's own gate (can_manage_b2b_inventory)
-  // accepts HOD_ASSEMBLY, but its internal reserve_rgs_stock call requires
-  // is_inventory_manage_role()/is_inventory_receive_role() -- HOD_ASSEMBLY
-  // qualifies for that too, confirmed by reading both bodies.
-  //
-  // Genuinely crediting 3PGS available_qty so this reservation gets a
-  // nonzero reserved_qty requires the full governed receiving pipeline:
-  // create/record/accept_b2b_inventory_receipt -> (accept only HOLDS the
-  // accepted qty, net available_qty unchanged, pending physical put-away) ->
-  // an undiscovered put-away-task RPC layer -> finalise_b2b_inventory_grn
-  // (which itself requires every put-away task completed and reconciled).
-  // That subsystem is out of scope for this certification -- attempting it
-  // is what this run's own prior iterations surfaced, and the honest result
-  // is recorded here rather than forced.
-  //
-  // Instead this proves the real, currently-enforced system boundary: with
-  // the 3PGS component's shortfall genuinely unresolved,
-  // authorize_partial_assembly_issue REJECTS -- its own exception text
-  // states the 3PGS module does not yet action this requirement type for
-  // partial-issue bypass. This is exactly the runbook's Step 8 negative
-  // path ("attempt to complete the job with an unacknowledged component
-  // shortfall outstanding -- confirm the job cannot close"), proven with
-  // the actual RPC rather than assumed. ----
-  await test.step("3PGS: reservation truth-check + partial-issue blocked on unresolved shortfall", async () => {
+  // ---- Stage: 3PGS bridge -- genuine zero-stock proof, then real fulfilment
+  // through the governed procurement->receiving->reserve->issue->acknowledge
+  // chain (Core's fulfil_assembly_3pgs_requirement credits the component and
+  // resumes the job only from receiver-acknowledged custody evidence -- no
+  // direct stock/component mutation is ever used here). ----
+  await test.step("3PGS: zero-stock reservation proof, then genuine procurement-backed fulfilment", async () => {
     await switchRole(page, hodAssembly);
     const { client } = await createAuthenticatedCertificationClient(page);
 
@@ -450,7 +429,8 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
       p_correlation_id: reserveCorrelationId,
     });
     expect(reserveError, reserveError?.message).toBeNull();
-    record(ledger.stages, "3pgs_reserve_requirement", "reserve_3pgs_requirement_stock", "HOD_ASSEMBLY", reserveCorrelationId, "PASS", `reservation_id=${pkgReservation?.id}, reserved_qty=${pkgReservation?.reserved_qty}`);
+    expect(Number(pkgReservation?.reserved_qty ?? -1), "with zero 3PGS stock available, the first reservation must reserve nothing").toBe(0);
+    record(ledger.stages, "3pgs_reserve_requirement_zero_stock", "reserve_3pgs_requirement_stock", "HOD_ASSEMBLY", reserveCorrelationId, "PASS", `reservation_id=${pkgReservation?.id}, reserved_qty=0`);
 
     // NEGATIVE: cannot issue against a nonexistent reservation.
     const bogusIssueCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-3pgs-bogus-issue`;
@@ -467,7 +447,7 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
     // Resume the FINISHED_GOODS side: production has already delivered real
     // stock via the custody chain above, so re-running reserve_assembly_
     // components now fully resolves that component while the 3PGS one
-    // remains short.
+    // remains genuinely short.
     const resumeCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-resume-reserve`;
     const { data: resumedJob, error: resumeError } = await client.rpc("reserve_assembly_components", {
       p_assembly_job_id: assemblyJobId,
@@ -485,26 +465,434 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
       .single();
     expect(Number(fgComponentAfter?.reserved_qty ?? 0), "the FINISHED_GOODS component must be fully resolved").toBe(Number(fgComponentAfter?.required_qty ?? -1));
 
-    const { data: pkgComponentAfter } = await client
+    const { data: pkgComponentBefore } = await client
       .from("b2b_assembly_components")
       .select("reserved_qty,required_qty")
       .eq("id", pkgComponentId)
       .single();
     expect(
-      Number(pkgComponentAfter?.reserved_qty ?? 0) < Number(pkgComponentAfter?.required_qty ?? 0),
-      "the 3PGS component must genuinely remain short -- no fabricated resolution",
+      Number(pkgComponentBefore?.reserved_qty ?? 0) < Number(pkgComponentBefore?.required_qty ?? 0),
+      "the 3PGS component must genuinely remain short before procurement -- no fabricated resolution",
     ).toBe(true);
 
-    // NEGATIVE: the real system boundary -- partial issue is refused while
-    // any 3PGS/packaging component shortfall is unresolved.
-    const partialIssueCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-partial-issue`;
-    const { error: partialIssueError } = await client.rpc("authorize_partial_assembly_issue", {
-      p_assembly_job_id: assemblyJobId,
-      p_reason: "FACT-E2E golden-order certification: 3PGS component genuinely unresolved in this disposable run",
-      p_correlation_id: partialIssueCorrelationId,
+    // ---- Genuine 3PGS inward: procurement requirement -> vendor assignment
+    // -> full governed receiving pipeline (create/record/accept receipt ->
+    // put-away allocate/confirm -> GRN finalisation, which is the ONLY step
+    // that actually credits inventory_stock_balances.available_qty) ->
+    // link back to the procurement requirement. All as STORE_3RD_PARTY, the
+    // 3PGS store's own operating role (can_manage_b2b_inventory /
+    // can_receive_b2b_inventory, plus the explicit 'manage' store assignment
+    // seeded by seed-production-fixtures.mjs so can_access_b2b_inventory_store
+    // is satisfied). ----
+    await switchRole(page, store3rdParty);
+    const { client: pgsClient } = await createAuthenticatedCertificationClient(page);
+    const { data: requirementRow } = await pgsClient
+      .from("b2b_assembly_3pgs_requirements")
+      .select("requirement_number,requested_qty")
+      .eq("id", pkgRequirementId)
+      .single();
+    const requirementNumber = requirementRow?.requirement_number as string;
+    const shortageQty = Number(requirementRow?.requested_qty ?? 4);
+
+    const procurementCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-procurement-create`;
+    const { data: procurementReq, error: procurementError } = await pgsClient.rpc("create_procurement_requirement", {
+      p_source_type: "pna",
+      p_source_reference: requirementNumber,
+      p_product_id: "20000000-0000-4000-8000-000000000201",
+      p_sku: "CERT-3PGS-PKG-001",
+      p_destination_store_code: "3PGS",
+      p_shortage_qty: shortageQty,
+      p_correlation_id: procurementCorrelationId,
     });
-    expect(partialIssueError, "authorize_partial_assembly_issue must reject while a 3PGS component shortfall is unresolved").not.toBeNull();
-    record(ledger.negative_paths, "partial_issue_blocked_on_unresolved_3pgs_shortfall", "authorize_partial_assembly_issue", "HOD_ASSEMBLY", partialIssueCorrelationId, partialIssueError ? "PASS" : "FAIL", partialIssueError?.message ?? "RPC unexpectedly succeeded");
+    expect(procurementError, procurementError?.message).toBeNull();
+    record(ledger.stages, "3pgs_create_procurement_requirement", "create_procurement_requirement", "STORE_3RD_PARTY", procurementCorrelationId, "PASS", `procurement_requirement_id=${procurementReq?.id}`);
+
+    const vendorCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-procurement-vendor`;
+    const { error: vendorError } = await pgsClient.rpc("assign_procurement_vendor", {
+      p_requirement_id: procurementReq?.id,
+      p_vendor_reference: "FACT-E2E-VENDOR-001",
+      p_expected_at: null,
+      p_correlation_id: vendorCorrelationId,
+    });
+    expect(vendorError, vendorError?.message).toBeNull();
+    record(ledger.stages, "3pgs_assign_procurement_vendor", "assign_procurement_vendor", "STORE_3RD_PARTY", vendorCorrelationId, "PASS", "vendor_reference=FACT-E2E-VENDOR-001");
+
+    const createReceiptCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-3pgs-receipt-create`;
+    const { data: pkgReceipt, error: createReceiptError } = await pgsClient.rpc("create_b2b_inventory_receipt", {
+      p_receipt_number: `FACT-E2E-${RUN_SUFFIX}-3PGS-RCPT`,
+      p_receipt_source: "supplier",
+      p_destination_store_code: "3PGS",
+      p_source_document_type: "procurement_requirement",
+      p_source_document_reference: requirementNumber,
+      p_lines: [{ product_id: "20000000-0000-4000-8000-000000000201", sku: "CERT-3PGS-PKG-001", expected_qty: shortageQty }],
+      p_correlation_id: createReceiptCorrelationId,
+    });
+    expect(createReceiptError, createReceiptError?.message).toBeNull();
+    record(ledger.stages, "3pgs_create_inventory_receipt", "create_b2b_inventory_receipt", "STORE_3RD_PARTY", createReceiptCorrelationId, "PASS", `receipt_id=${pkgReceipt?.id}`);
+
+    const { data: receiptLine } = await pgsClient
+      .from("b2b_inventory_receipt_lines")
+      .select("id")
+      .eq("receipt_id", pkgReceipt?.id)
+      .single();
+
+    const recordReceiptCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-3pgs-receipt-record`;
+    const { error: recordReceiptError } = await pgsClient.rpc("record_b2b_inventory_receipt", {
+      p_receipt_id: pkgReceipt?.id,
+      p_lines: [{ line_id: receiptLine?.id, received_qty: shortageQty }],
+      p_correlation_id: recordReceiptCorrelationId,
+    });
+    expect(recordReceiptError, recordReceiptError?.message).toBeNull();
+    record(ledger.stages, "3pgs_record_inventory_receipt", "record_b2b_inventory_receipt", "STORE_3RD_PARTY", recordReceiptCorrelationId, "PASS", `received_qty=${shortageQty}`);
+
+    const { data: pkgBalanceBeforeAccept } = await pgsClient
+      .from("inventory_stock_balances")
+      .select("version,available_qty")
+      .eq("product_id", "20000000-0000-4000-8000-000000000201")
+      .eq("location_code", "3PGS")
+      .maybeSingle();
+
+    const acceptReceiptCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-3pgs-receipt-accept`;
+    const { error: acceptReceiptError } = await pgsClient.rpc("accept_b2b_inventory_receipt", {
+      p_receipt_id: pkgReceipt?.id,
+      p_lines: [{
+        line_id: receiptLine?.id,
+        accepted_qty: shortageQty,
+        damaged_qty: 0,
+        rejected_qty: 0,
+        expected_balance_version: pkgBalanceBeforeAccept?.version ?? 0,
+      }],
+      p_correlation_id: acceptReceiptCorrelationId,
+    });
+    expect(acceptReceiptError, acceptReceiptError?.message).toBeNull();
+    record(ledger.stages, "3pgs_accept_inventory_receipt", "accept_b2b_inventory_receipt", "STORE_3RD_PARTY", acceptReceiptCorrelationId, "PASS", `accepted_qty=${shortageQty}`);
+
+    // Accept only HOLDS the accepted quantity (net available_qty unchanged)
+    // pending put-away + GRN finalisation -- verified here so a genuine
+    // regression in that hold semantics fails visibly at this stage rather
+    // than surfacing confusingly at the reserve step below.
+    const { data: pkgBalanceAfterAccept } = await pgsClient
+      .from("inventory_stock_balances")
+      .select("available_qty")
+      .eq("product_id", "20000000-0000-4000-8000-000000000201")
+      .eq("location_code", "3PGS")
+      .single();
+    expect(
+      Number(pkgBalanceAfterAccept?.available_qty ?? -1),
+      "accept_b2b_inventory_receipt holds stock pending GRN -- available_qty must not increase yet",
+    ).toBe(Number(pkgBalanceBeforeAccept?.available_qty ?? 0));
+
+    const { data: threePgsBin } = await pgsClient
+      .from("b2b_inventory_bins")
+      .select("id,bin_code")
+      .eq("store_code", "3PGS")
+      .eq("bin_code", "FACT-E2E-3PGS-BIN-01")
+      .single();
+
+    const putawayAllocCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-3pgs-putaway-alloc`;
+    const { data: putawayTasks, error: putawayAllocError } = await pgsClient.rpc("allocate_b2b_inventory_putaway", {
+      p_receipt_id: pkgReceipt?.id,
+      p_allocations: [{ line_id: receiptLine?.id, bin_id: threePgsBin?.id, disposition: "accepted", quantity: shortageQty }],
+      p_correlation_id: putawayAllocCorrelationId,
+    });
+    expect(putawayAllocError, putawayAllocError?.message).toBeNull();
+    const putawayTaskId = (putawayTasks as { id: string }[] | null)?.[0]?.id;
+    record(ledger.stages, "3pgs_allocate_putaway", "allocate_b2b_inventory_putaway", "STORE_3RD_PARTY", putawayAllocCorrelationId, "PASS", `task_id=${putawayTaskId}`);
+
+    const putawayConfirmCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-3pgs-putaway-confirm`;
+    const { error: putawayConfirmError } = await pgsClient.rpc("confirm_b2b_inventory_putaway", {
+      p_task_id: putawayTaskId,
+      p_bin_code: threePgsBin?.bin_code,
+      p_quantity: shortageQty,
+      p_correlation_id: putawayConfirmCorrelationId,
+    });
+    expect(putawayConfirmError, putawayConfirmError?.message).toBeNull();
+    record(ledger.stages, "3pgs_confirm_putaway", "confirm_b2b_inventory_putaway", "STORE_3RD_PARTY", putawayConfirmCorrelationId, "PASS", `placed_qty=${shortageQty}`);
+
+    const grnCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-3pgs-grn`;
+    const { error: grnError } = await pgsClient.rpc("finalise_b2b_inventory_grn", {
+      p_receipt_id: pkgReceipt?.id,
+      p_grn_number: `FACT-E2E-${RUN_SUFFIX}-3PGS-GRN`,
+      p_correlation_id: grnCorrelationId,
+    });
+    expect(grnError, grnError?.message).toBeNull();
+    record(ledger.stages, "3pgs_finalise_grn", "finalise_b2b_inventory_grn", "STORE_3RD_PARTY", grnCorrelationId, "PASS", "grn finalised");
+
+    const { data: pkgBalanceAfterGrn, error: pkgBalanceAfterGrnError } = await pgsClient
+      .from("inventory_stock_balances")
+      .select("available_qty")
+      .eq("product_id", "20000000-0000-4000-8000-000000000201")
+      .eq("location_code", "3PGS")
+      .single();
+    expect(pkgBalanceAfterGrnError, pkgBalanceAfterGrnError?.message).toBeNull();
+    expect(
+      Number(pkgBalanceAfterGrn?.available_qty ?? 0),
+      "GRN finalisation is the step that actually credits 3PGS available_qty",
+    ).toBeGreaterThanOrEqual(shortageQty);
+
+    const linkCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-3pgs-link`;
+    const { error: linkError } = await pgsClient.rpc("link_procurement_receipt", {
+      p_requirement_id: procurementReq?.id,
+      p_receipt_id: pkgReceipt?.id,
+      p_fulfilled_qty: shortageQty,
+      p_correlation_id: linkCorrelationId,
+    });
+    expect(linkError, linkError?.message).toBeNull();
+    record(ledger.stages, "3pgs_link_procurement_receipt", "link_procurement_receipt", "STORE_3RD_PARTY", linkCorrelationId, "PASS", `fulfilled_qty=${shortageQty}`);
+
+    // ---- Now that 3PGS genuinely holds real stock, reserve/issue/acknowledge
+    // the P&A requirement for real. reserve_3pgs_requirement_stock's
+    // committed-quantity math only counts the first (zero-qty) reservation's
+    // reserved+fulfilled, both 0, so this fresh call reserves the full
+    // outstanding amount from the now-real balance. ----
+    await switchRole(page, hodAssembly);
+    const { client: assemblyClient } = await createAuthenticatedCertificationClient(page);
+
+    const freshReserveCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-3pgs-reserve-real`;
+    const { data: realReservation, error: freshReserveError } = await assemblyClient.rpc("reserve_3pgs_requirement_stock", {
+      p_requirement_id: pkgRequirementId,
+      p_priority: "normal",
+      p_correlation_id: freshReserveCorrelationId,
+    });
+    expect(freshReserveError, freshReserveError?.message).toBeNull();
+    expect(Number(realReservation?.reserved_qty ?? 0), "with real 3PGS stock now available, the fresh reservation must reserve the full shortfall").toBe(shortageQty);
+    record(ledger.stages, "3pgs_reserve_requirement_real_stock", "reserve_3pgs_requirement_stock", "HOD_ASSEMBLY", freshReserveCorrelationId, "PASS", `reservation_id=${realReservation?.id}, reserved_qty=${realReservation?.reserved_qty}`);
+
+    const issueCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-3pgs-issue`;
+    const { data: issueEvent, error: issueError } = await assemblyClient.rpc("issue_3pgs_requirement_stock", {
+      p_requirement_id: pkgRequirementId,
+      p_reservation_id: realReservation?.id,
+      p_issue_qty: shortageQty,
+      p_correlation_id: issueCorrelationId,
+    });
+    expect(issueError, issueError?.message).toBeNull();
+    record(ledger.stages, "3pgs_issue_requirement_stock", "issue_3pgs_requirement_stock", "HOD_ASSEMBLY", issueCorrelationId, "PASS", `issue_event_id=${issueEvent?.id}`);
+
+    // Receiver must be a DIFFERENT actor than the issuer (HOD_ASSEMBLY) --
+    // STORE_3RD_PARTY, the 3PGS store's own role, acknowledges physical
+    // custody actually leaving 3PGS for Assembly.
+    await switchRole(page, store3rdParty);
+    const { client: ackClient } = await createAuthenticatedCertificationClient(page);
+    const acknowledgeCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-3pgs-acknowledge`;
+    const { data: acknowledgedRequirement, error: acknowledgeError } = await ackClient.rpc("acknowledge_3pgs_requirement_receipt", {
+      p_issue_event_id: issueEvent?.id,
+      p_received_qty: shortageQty,
+      p_correlation_id: acknowledgeCorrelationId,
+    });
+    expect(acknowledgeError, acknowledgeError?.message).toBeNull();
+    expect(acknowledgedRequirement?.status, "the 3PGS requirement must be fulfilled once acknowledged custody covers the full requested quantity").toBe("fulfilled");
+    record(ledger.stages, "3pgs_acknowledge_requirement_receipt", "acknowledge_3pgs_requirement_receipt", "STORE_3RD_PARTY", acknowledgeCorrelationId, "PASS", `status=${acknowledgedRequirement?.status}`);
+
+    const { data: pkgComponentAfter } = await ackClient
+      .from("b2b_assembly_components")
+      .select("reserved_qty,required_qty")
+      .eq("id", pkgComponentId)
+      .single();
+    expect(Number(pkgComponentAfter?.reserved_qty ?? 0), "the 3PGS component must now be genuinely, fully resolved").toBe(Number(pkgComponentAfter?.required_qty ?? -1));
+
+    const { data: jobAfterFulfilment } = await ackClient
+      .from("b2b_assembly_jobs")
+      .select("status")
+      .eq("id", assemblyJobId)
+      .single();
+    expect(jobAfterFulfilment?.status, "with every component genuinely resolved, the job must advance to materials_reserved").toBe("materials_reserved");
+  });
+
+  // ---- Stage: P&A execution -- issue components, record consumption,
+  // complete the job, and QC-accept its output. Every step here operates on
+  // P&A's own temporary output custody, never RGS/3PGS/FINISHED_GOODS stock
+  // directly (accept_assembly_output's own comment: that credit only ever
+  // happens through a later, real physical handover). ----
+  await test.step("P&A: issue_assembly_components -> record_assembly_consumption -> complete_assembly_job -> accept_assembly_output", async () => {
+    await switchRole(page, hodAssembly);
+    const { client } = await createAuthenticatedCertificationClient(page);
+
+    const issueComponentsCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-issue-components`;
+    const { data: issuedJob, error: issueComponentsError } = await client.rpc("issue_assembly_components", {
+      p_assembly_job_id: assemblyJobId,
+      p_correlation_id: issueComponentsCorrelationId,
+    });
+    expect(issueComponentsError, issueComponentsError?.message).toBeNull();
+    expect(issuedJob?.status, "components must be issued once every requirement is materials_reserved").toBe("issued");
+    record(ledger.stages, "pna_issue_assembly_components", "issue_assembly_components", "HOD_ASSEMBLY", issueComponentsCorrelationId, "PASS", `status=${issuedJob?.status}`);
+
+    const fgConsumptionCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-consume-fg`;
+    const { error: fgConsumptionError } = await client.rpc("record_assembly_consumption", {
+      p_component_id: fgComponentId,
+      p_consumed_qty: 5,
+      p_wasted_qty: 0,
+      p_returned_qty: 0,
+      p_correlation_id: fgConsumptionCorrelationId,
+    });
+    expect(fgConsumptionError, fgConsumptionError?.message).toBeNull();
+    record(ledger.stages, "pna_record_consumption_fg", "record_assembly_consumption", "HOD_ASSEMBLY", fgConsumptionCorrelationId, "PASS", "consumed_qty=5");
+
+    const pkgConsumptionCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-consume-pkg`;
+    const { error: pkgConsumptionError } = await client.rpc("record_assembly_consumption", {
+      p_component_id: pkgComponentId,
+      p_consumed_qty: 4,
+      p_wasted_qty: 0,
+      p_returned_qty: 0,
+      p_correlation_id: pkgConsumptionCorrelationId,
+    });
+    expect(pkgConsumptionError, pkgConsumptionError?.message).toBeNull();
+    record(ledger.stages, "pna_record_consumption_pkg", "record_assembly_consumption", "HOD_ASSEMBLY", pkgConsumptionCorrelationId, "PASS", "consumed_qty=4");
+
+    const completeCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-complete-job`;
+    const { data: completedJob, error: completeError } = await client.rpc("complete_assembly_job", {
+      p_assembly_job_id: assemblyJobId,
+      p_completed_qty: 5,
+      p_correlation_id: completeCorrelationId,
+    });
+    expect(completeError, completeError?.message).toBeNull();
+    expect(completedJob?.status, "completion moves the job to QC, not directly to a closed state").toBe("qc_pending");
+    record(ledger.stages, "pna_complete_assembly_job", "complete_assembly_job", "HOD_ASSEMBLY", completeCorrelationId, "PASS", `status=${completedJob?.status}`);
+
+    const acceptOutputCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-accept-output`;
+    const { data: acceptedJob, error: acceptOutputError } = await client.rpc("accept_assembly_output", {
+      p_assembly_job_id: assemblyJobId,
+      p_accepted_qty: 5,
+      p_rejected_qty: 0,
+      p_correlation_id: acceptOutputCorrelationId,
+    });
+    expect(acceptOutputError, acceptOutputError?.message).toBeNull();
+    expect(acceptedJob?.status, "a fully accepted output must reach the accepted state").toBe("accepted");
+    record(ledger.stages, "pna_accept_assembly_output", "accept_assembly_output", "HOD_ASSEMBLY", acceptOutputCorrelationId, "PASS", `status=${acceptedJob?.status}`);
+  });
+
+  // ---- Stage: receiver-acknowledged custody handover of P&A's accepted
+  // output to the FINISHED_GOODS store, then Core #177's binding of that
+  // acknowledged handover into the existing governed inventory-receipt
+  // authority -- the ONLY thing that actually credits FINISHED_GOODS stock
+  // for an assembled output. ----
+  await test.step("P&A->FINISHED_GOODS: initiate/acknowledge handover -> Core #177 receipt binding -> GRN credits stock", async () => {
+    const { client } = await createAuthenticatedCertificationClient(page);
+
+    const initiateHandoverCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-initiate-handover`;
+    const { data: handover, error: initiateHandoverError } = await client.rpc("initiate_assembly_handover", {
+      p_assembly_job_id: assemblyJobId,
+      p_destination_type: "RGS",
+      p_destination_reference: "FINISHED_GOODS",
+      p_dispatched_qty: 5,
+      p_carton_count: 1,
+      p_evidence_reference: `factory-cert://golden-order/${RUN_SUFFIX}-handover.jpg`,
+      p_correlation_id: initiateHandoverCorrelationId,
+    });
+    expect(initiateHandoverError, initiateHandoverError?.message).toBeNull();
+    const handoverId = handover?.id as string;
+    record(ledger.stages, "pna_initiate_assembly_handover", "initiate_assembly_handover", "HOD_ASSEMBLY", initiateHandoverCorrelationId, "PASS", `handover_id=${handoverId}`);
+
+    // Receiver must be a different actor than the dispatcher (HOD_ASSEMBLY).
+    await switchRole(page, storeReadyGoods);
+    const { client: rgsClient } = await createAuthenticatedCertificationClient(page);
+    const acknowledgeHandoverCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-acknowledge-handover`;
+    const { data: acknowledgedHandover, error: acknowledgeHandoverError } = await rgsClient.rpc("acknowledge_assembly_handover", {
+      p_handover_id: handoverId,
+      p_received_qty: 5,
+      p_evidence_reference: `factory-cert://golden-order/${RUN_SUFFIX}-received.jpg`,
+      p_correlation_id: acknowledgeHandoverCorrelationId,
+    });
+    expect(acknowledgeHandoverError, acknowledgeHandoverError?.message).toBeNull();
+    expect(acknowledgedHandover?.status, "a fully received handover must reach the acknowledged state").toBe("acknowledged");
+    record(ledger.stages, "pna_acknowledge_assembly_handover", "acknowledge_assembly_handover", "STORE_READY_GOODS", acknowledgeHandoverCorrelationId, "PASS", `status=${acknowledgedHandover?.status}`);
+
+    // Core #177: bind this exact acknowledged handover into the existing
+    // governed receipt authority -- product/SKU/destination/bound quantity
+    // are all server-derived from the handover, never caller-supplied.
+    const createHandoverReceiptCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-handover-receipt-create`;
+    const { data: handoverReceipt, error: createHandoverReceiptError } = await rgsClient.rpc("create_b2b_inventory_receipt_from_assembly_handover", {
+      p_handover_id: handoverId,
+      p_receipt_number: `FACT-E2E-${RUN_SUFFIX}-FG-RCPT`,
+      p_expected_qty: 5,
+      p_correlation_id: createHandoverReceiptCorrelationId,
+    });
+    expect(createHandoverReceiptError, createHandoverReceiptError?.message).toBeNull();
+    record(ledger.stages, "fg_create_receipt_from_handover", "create_b2b_inventory_receipt_from_assembly_handover", "STORE_READY_GOODS", createHandoverReceiptCorrelationId, "PASS", `receipt_id=${handoverReceipt?.id}`);
+
+    const { data: handoverReceiptLine } = await rgsClient
+      .from("b2b_inventory_receipt_lines")
+      .select("id")
+      .eq("receipt_id", handoverReceipt?.id)
+      .single();
+
+    const recordHandoverReceiptCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-handover-receipt-record`;
+    const { error: recordHandoverReceiptError } = await rgsClient.rpc("record_b2b_inventory_receipt", {
+      p_receipt_id: handoverReceipt?.id,
+      p_lines: [{ line_id: handoverReceiptLine?.id, received_qty: 5 }],
+      p_correlation_id: recordHandoverReceiptCorrelationId,
+    });
+    expect(recordHandoverReceiptError, recordHandoverReceiptError?.message).toBeNull();
+    record(ledger.stages, "fg_record_receipt_from_handover", "record_b2b_inventory_receipt", "STORE_READY_GOODS", recordHandoverReceiptCorrelationId, "PASS", "received_qty=5");
+
+    const { data: fgBalanceBeforeAccept } = await rgsClient
+      .from("inventory_stock_balances")
+      .select("version,available_qty")
+      .eq("product_id", "20000000-0000-4000-8000-000000000101")
+      .eq("location_code", "FINISHED_GOODS")
+      .maybeSingle();
+
+    const acceptHandoverReceiptCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-handover-receipt-accept`;
+    const { error: acceptHandoverReceiptError } = await rgsClient.rpc("accept_b2b_inventory_receipt", {
+      p_receipt_id: handoverReceipt?.id,
+      p_lines: [{
+        line_id: handoverReceiptLine?.id,
+        accepted_qty: 5,
+        damaged_qty: 0,
+        rejected_qty: 0,
+        expected_balance_version: fgBalanceBeforeAccept?.version ?? 0,
+      }],
+      p_correlation_id: acceptHandoverReceiptCorrelationId,
+    });
+    expect(acceptHandoverReceiptError, acceptHandoverReceiptError?.message).toBeNull();
+    record(ledger.stages, "fg_accept_receipt_from_handover", "accept_b2b_inventory_receipt", "STORE_READY_GOODS", acceptHandoverReceiptCorrelationId, "PASS", "accepted_qty=5");
+
+    const { data: fgBin } = await rgsClient
+      .from("b2b_inventory_bins")
+      .select("id,bin_code")
+      .eq("store_code", "FINISHED_GOODS")
+      .eq("bin_code", "FACT-E2E-FG-BIN-01")
+      .single();
+
+    const fgPutawayAllocCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-fg-putaway-alloc`;
+    const { data: fgPutawayTasks, error: fgPutawayAllocError } = await rgsClient.rpc("allocate_b2b_inventory_putaway", {
+      p_receipt_id: handoverReceipt?.id,
+      p_allocations: [{ line_id: handoverReceiptLine?.id, bin_id: fgBin?.id, disposition: "accepted", quantity: 5 }],
+      p_correlation_id: fgPutawayAllocCorrelationId,
+    });
+    expect(fgPutawayAllocError, fgPutawayAllocError?.message).toBeNull();
+    const fgPutawayTaskId = (fgPutawayTasks as { id: string }[] | null)?.[0]?.id;
+    record(ledger.stages, "fg_allocate_putaway", "allocate_b2b_inventory_putaway", "STORE_READY_GOODS", fgPutawayAllocCorrelationId, "PASS", `task_id=${fgPutawayTaskId}`);
+
+    const fgPutawayConfirmCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-fg-putaway-confirm`;
+    const { error: fgPutawayConfirmError } = await rgsClient.rpc("confirm_b2b_inventory_putaway", {
+      p_task_id: fgPutawayTaskId,
+      p_bin_code: fgBin?.bin_code,
+      p_quantity: 5,
+      p_correlation_id: fgPutawayConfirmCorrelationId,
+    });
+    expect(fgPutawayConfirmError, fgPutawayConfirmError?.message).toBeNull();
+    record(ledger.stages, "fg_confirm_putaway", "confirm_b2b_inventory_putaway", "STORE_READY_GOODS", fgPutawayConfirmCorrelationId, "PASS", "placed_qty=5");
+
+    const fgGrnCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-fg-grn`;
+    const { error: fgGrnError } = await rgsClient.rpc("finalise_b2b_inventory_grn", {
+      p_receipt_id: handoverReceipt?.id,
+      p_grn_number: `FACT-E2E-${RUN_SUFFIX}-FG-GRN`,
+      p_correlation_id: fgGrnCorrelationId,
+    });
+    expect(fgGrnError, fgGrnError?.message).toBeNull();
+    record(ledger.stages, "fg_finalise_grn", "finalise_b2b_inventory_grn", "STORE_READY_GOODS", fgGrnCorrelationId, "PASS", "grn finalised");
+
+    const { data: fgBalanceAfterGrn, error: fgBalanceAfterGrnError } = await rgsClient
+      .from("inventory_stock_balances")
+      .select("available_qty")
+      .eq("product_id", "20000000-0000-4000-8000-000000000101")
+      .eq("location_code", "FINISHED_GOODS")
+      .single();
+    expect(fgBalanceAfterGrnError, fgBalanceAfterGrnError?.message).toBeNull();
+    expect(
+      Number(fgBalanceAfterGrn?.available_qty ?? 0),
+      "assembled output must genuinely credit FINISHED_GOODS available_qty only via GRN finalisation, closing the previously-reported P&A output-credit gap",
+    ).toBeGreaterThan(Number(fgBalanceBeforeAccept?.available_qty ?? 0));
   });
 
   // ---- Stage: Dispatch consignment/carton/scan/evidence/lock/DPL/Finance ----
@@ -547,6 +935,68 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
     record(ledger.stages, "dispatch_open_carton", "open_b2b_dispatch_carton", "DISPATCH_MANAGER", null, "PASS", `carton_id=${cartonId}`);
   });
 
+  // ---- Stage: Core #174 source-to-Dispatch accepted-ready custody. Before
+  // this, a freshly created consignment line's accepted_ready_qty defaults
+  // to 0 and no RPC ever raised it -- record_b2b_dispatch_carton_item_scan's
+  // own packed_qty<=accepted_ready_qty gate made every scan unreachable.
+  // declare/record/accept close that gap by driving the pre-existing (but
+  // previously unreachable) b2b_dispatch_handoffs custody chain. ----
+  await test.step("Dispatch: Core #174 source handoff declare -> record -> accept (raises accepted_ready_qty)", async () => {
+    await switchRole(page, hodAssembly);
+    const { client: sourceClient } = await createAuthenticatedCertificationClient(page);
+
+    const declareCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-handoff-declare`;
+    const { data: sourceHandoff, error: declareError } = await sourceClient.rpc("declare_b2b_dispatch_source_handoff", {
+      p_consignment_id: consignmentId,
+      p_source_department: "PACKING_ASSEMBLY",
+      p_source_location: "PACKING_ASSEMBLY",
+      p_lines: [{ order_item_id: GOLDEN_ORDER_ITEM_ID, declared_qty: 5 }],
+      p_correlation_id: declareCorrelationId,
+    });
+    expect(declareError, declareError?.message).toBeNull();
+    const sourceHandoffId = sourceHandoff?.id as string;
+    record(ledger.stages, "dispatch_declare_source_handoff", "declare_b2b_dispatch_source_handoff", "HOD_ASSEMBLY", declareCorrelationId, "PASS", `handoff_id=${sourceHandoffId}`);
+
+    // Dispatch records physical receipt of the declared handoff (must be a
+    // different actor than the declaring source).
+    await switchRole(page, dispatchManager);
+    const { client: dispatchClient } = await createAuthenticatedCertificationClient(page);
+    const recordHandoffCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-handoff-record`;
+    const { error: recordHandoffError } = await dispatchClient.rpc("record_b2b_dispatch_handoff_receipt", {
+      p_handoff_id: sourceHandoffId,
+      p_lines: [{ order_item_id: GOLDEN_ORDER_ITEM_ID, physically_received_qty: 5 }],
+      p_correlation_id: recordHandoffCorrelationId,
+    });
+    expect(recordHandoffError, recordHandoffError?.message).toBeNull();
+    record(ledger.stages, "dispatch_record_source_handoff_receipt", "record_b2b_dispatch_handoff_receipt", "DISPATCH_MANAGER", recordHandoffCorrelationId, "PASS", "physically_received_qty=5");
+
+    const { data: consignmentLineBefore } = await dispatchClient
+      .from("b2b_dispatch_consignment_lines")
+      .select("accepted_ready_qty")
+      .eq("consignment_id", consignmentId)
+      .single();
+
+    const acceptHandoffCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-handoff-accept`;
+    const { error: acceptHandoffError } = await dispatchClient.rpc("accept_b2b_dispatch_handoff", {
+      p_handoff_id: sourceHandoffId,
+      p_lines: [{ order_item_id: GOLDEN_ORDER_ITEM_ID, accepted_qty: 5, held_qty: 0, rejected_qty: 0 }],
+      p_correlation_id: acceptHandoffCorrelationId,
+    });
+    expect(acceptHandoffError, acceptHandoffError?.message).toBeNull();
+    record(ledger.stages, "dispatch_accept_source_handoff", "accept_b2b_dispatch_handoff", "DISPATCH_MANAGER", acceptHandoffCorrelationId, "PASS", "accepted_qty=5");
+
+    const { data: consignmentLineAfter, error: consignmentLineAfterError } = await dispatchClient
+      .from("b2b_dispatch_consignment_lines")
+      .select("accepted_ready_qty")
+      .eq("consignment_id", consignmentId)
+      .single();
+    expect(consignmentLineAfterError, consignmentLineAfterError?.message).toBeNull();
+    expect(
+      Number(consignmentLineAfter?.accepted_ready_qty ?? 0),
+      "accepting the source handoff must be what genuinely raises accepted_ready_qty, closing the previously-reported Core #174 gap",
+    ).toBeGreaterThan(Number(consignmentLineBefore?.accepted_ready_qty ?? 0));
+  });
+
   await test.step("Dispatch: scan -> evidence -> lock (with negative paths)", async () => {
     const { client } = await createAuthenticatedCertificationClient(page);
     const { data: line } = await client
@@ -566,17 +1016,12 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
       p_correlation_id: scanCorrelationId,
     });
     expect(scanError, scanError?.message).toBeNull();
-    // record_b2b_dispatch_carton_item_scan rejects (scan_result != 'verified')
-    // rather than raising an exception when packing would exceed the
-    // consignment line's accepted_ready_qty -- fail here with the RPC's own
-    // diagnostic rather than letting a silent no-op surface confusingly at
-    // the later lock step.
     if (scanResult?.scan_result !== "verified") {
       record(ledger.stages, "dispatch_scan_item", "record_b2b_dispatch_carton_item_scan", "DISPATCH_MANAGER", scanCorrelationId, "FAIL", `scan_result=${scanResult?.scan_result}, reason=${scanResult?.reason ?? "none"}`);
     }
     expect(
       scanResult?.scan_result,
-      `Scan rejected: ${scanResult?.reason ?? "unknown"}. If this is 'blocked_excess' with accepted-ready quantity 0, it evidences a genuine Core-side gap: b2b_dispatch_consignment_lines.accepted_ready_qty defaults to 0 and no governed RPC in the currently merged migration set (grepped exhaustively) ever raises it above 0 for a freshly created consignment line -- create_b2b_dispatch_consignment's own INSERT omits it. This blocks scan/evidence/lock/DPL/Finance-submission for any newly created consignment, not just this fixture, and is outside Central's fixable/allowed scope (Core migration change required).`,
+      `Scan rejected: ${scanResult?.reason ?? "unknown"}`,
     ).toBe("verified");
     record(ledger.stages, "dispatch_scan_item", "record_b2b_dispatch_carton_item_scan", "DISPATCH_MANAGER", scanCorrelationId, "PASS", `scan_result=${scanResult?.scan_result}`);
 
