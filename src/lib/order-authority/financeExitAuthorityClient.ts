@@ -65,6 +65,40 @@ export type FinanceExitFacts = {
   complaintWindowOpen: boolean | null;
 };
 
+export type FinalPaymentAction = "PAY_NOW" | "BANK_TRANSFER" | "CONTACT_FINANCE";
+export type FinalPaymentDeliveryChannel = "WHATSAPP" | "IN_APP" | "EMAIL" | "SMS" | "OTHER";
+export type FinalPaymentDeliveryStatus = "QUEUED" | "SENT" | "DELIVERED" | "FAILED";
+
+export type FinalPaymentRequestFacts = {
+  available: boolean;
+  orderId: string;
+  companyId: string | null;
+  requestId: string | null;
+  piId: string | null;
+  piNumber: string | null;
+  revisionNumber: number | null;
+  effectiveStatus: string | null;
+  financeDplReceiptId: string | null;
+  commercialVersionId: string | null;
+  dplFingerprint: string | null;
+  currency: string | null;
+  taxableTotal: number | null;
+  taxTotal: number | null;
+  finalPayableTotal: number | null;
+  verifiedPaymentTotal: number | null;
+  walletAppliedTotal: number | null;
+  approvedCreditTotal: number | null;
+  creditedOrPaidTotal: number | null;
+  balanceDue: number | null;
+  settled: boolean;
+  paymentAction: FinalPaymentAction | null;
+  paymentLink: string | null;
+  paymentInstructions: string | null;
+  documentReference: string | null;
+  issuedAt: string | null;
+  latestDelivery: Record<string, unknown> | null;
+};
+
 export type DispatchTransportMode = "ROAD" | "COURIER" | "AIR" | "RAIL" | "HAND_CARRY" | "CUSTOMER_PICKUP" | "OTHER";
 
 function optionalString(value: unknown): string | null {
@@ -126,6 +160,170 @@ export async function receiveSubmittedB2bDpls(orderId: string, evidenceReference
     p_actor_id: normalized.actorId,
   });
   return row(governed(data, error, "receiveSubmittedB2bDpls"), "receiveSubmittedB2bDpls");
+}
+
+export async function getFinalPaymentRequest(orderId: string): Promise<FinalPaymentRequestFacts> {
+  const normalizedOrderId = required(orderId, "order id");
+  const { data, error } = await supabase.rpc("get_sales_order_pi_final_payment_request_v1", { p_order_id: normalizedOrderId });
+  const value = row(governed(data, error, "getFinalPaymentRequest"), "getFinalPaymentRequest");
+  const available = value.available === true;
+  if (!available) {
+    return {
+      available: false,
+      orderId: normalizedOrderId,
+      companyId: null,
+      requestId: null,
+      piId: null,
+      piNumber: null,
+      revisionNumber: null,
+      effectiveStatus: null,
+      financeDplReceiptId: null,
+      commercialVersionId: null,
+      dplFingerprint: null,
+      currency: null,
+      taxableTotal: null,
+      taxTotal: null,
+      finalPayableTotal: null,
+      verifiedPaymentTotal: null,
+      walletAppliedTotal: null,
+      approvedCreditTotal: null,
+      creditedOrPaidTotal: null,
+      balanceDue: null,
+      settled: false,
+      paymentAction: null,
+      paymentLink: null,
+      paymentInstructions: null,
+      documentReference: null,
+      issuedAt: null,
+      latestDelivery: null,
+    };
+  }
+  const paymentAction = optionalString(value.payment_action);
+  if (paymentAction && !["PAY_NOW", "BANK_TRANSFER", "CONTACT_FINANCE"].includes(paymentAction)) {
+    throw new FinanceExitAuthorityError("Core returned an invalid final-payment action");
+  }
+  return {
+    available: true,
+    orderId: required(String(value.order_id ?? ""), "Core final-payment order id"),
+    companyId: optionalString(value.company_id),
+    requestId: optionalString(value.final_payment_request_id),
+    piId: optionalString(value.pi_id),
+    piNumber: optionalString(value.customer_visible_pi_number),
+    revisionNumber: numberOrNull(value.revision_number),
+    effectiveStatus: optionalString(value.effective_status),
+    financeDplReceiptId: optionalString(value.finance_dpl_receipt_id),
+    commercialVersionId: optionalString(value.commercial_version_id),
+    dplFingerprint: optionalString(value.dpl_fingerprint),
+    currency: optionalString(value.currency),
+    taxableTotal: numberOrNull(value.taxable_total),
+    taxTotal: numberOrNull(value.tax_total),
+    finalPayableTotal: numberOrNull(value.final_payable_total),
+    verifiedPaymentTotal: numberOrNull(value.verified_payment_total),
+    walletAppliedTotal: numberOrNull(value.wallet_applied_total),
+    approvedCreditTotal: numberOrNull(value.approved_credit_total),
+    creditedOrPaidTotal: numberOrNull(value.credited_or_paid_total),
+    balanceDue: numberOrNull(value.balance_due),
+    settled: value.settled === true,
+    paymentAction: paymentAction as FinalPaymentAction | null,
+    paymentLink: optionalString(value.payment_link),
+    paymentInstructions: optionalString(value.payment_instructions),
+    documentReference: optionalString(value.document_reference),
+    issuedAt: optionalString(value.issued_at),
+    latestDelivery: value.latest_delivery && typeof value.latest_delivery === "object" ? value.latest_delivery as Record<string, unknown> : null,
+  };
+}
+
+export async function issueFinalPaymentRequest(input: {
+  orderId: string;
+  piId: string;
+  commercialVersionId: string;
+  financeDplReceiptId: string;
+  documentReference: string;
+  paymentAction: FinalPaymentAction;
+  paymentLink?: string | null;
+  paymentInstructions: string;
+  reason: string;
+  sourceChannel?: string;
+  sourceReference?: string | null;
+  actorId: string;
+}) {
+  const normalized = {
+    orderId: required(input.orderId, "order id"),
+    piId: required(input.piId, "PI id"),
+    commercialVersionId: required(input.commercialVersionId, "commercial version id"),
+    financeDplReceiptId: required(input.financeDplReceiptId, "Finance DPL receipt id"),
+    documentReference: required(input.documentReference, "PI document reference"),
+    paymentAction: input.paymentAction,
+    paymentLink: input.paymentLink?.trim() || null,
+    paymentInstructions: required(input.paymentInstructions, "payment instructions"),
+    reason: required(input.reason, "reason"),
+    sourceChannel: required(input.sourceChannel ?? "CENTRAL_FINANCE", "source channel"),
+    sourceReference: input.sourceReference?.trim() || null,
+    actorId: required(input.actorId, "actor id"),
+  };
+  if (normalized.paymentAction === "PAY_NOW" && !normalized.paymentLink) {
+    throw new FinanceExitAuthorityError("payment link is required for PAY_NOW");
+  }
+  const identityIds = await ids("final-payment-pi", Object.values(normalized));
+  const { data, error } = await supabase.rpc("issue_sales_order_pi_final_payment_request_v1", {
+    p_order_id: normalized.orderId,
+    p_pi_id: normalized.piId,
+    p_commercial_version_id: normalized.commercialVersionId,
+    p_finance_dpl_receipt_id: normalized.financeDplReceiptId,
+    p_document_reference: normalized.documentReference,
+    p_payment_action: normalized.paymentAction,
+    p_payment_link: normalized.paymentLink,
+    p_payment_instructions: normalized.paymentInstructions,
+    p_reason: normalized.reason,
+    p_source_channel: normalized.sourceChannel,
+    p_source_reference: normalized.sourceReference,
+    p_correlation_id: identityIds.correlationId,
+    p_idempotency_key: identityIds.idempotencyKey,
+    p_actor_id: normalized.actorId,
+  });
+  return row(governed(data, error, "issueFinalPaymentRequest"), "issueFinalPaymentRequest");
+}
+
+export async function recordFinalPaymentDelivery(input: {
+  requestId: string;
+  channel: FinalPaymentDeliveryChannel;
+  destinationReference: string;
+  providerMessageId?: string | null;
+  status: FinalPaymentDeliveryStatus;
+  evidenceReference: string;
+  deliveredAt?: string | null;
+  actorId: string;
+}) {
+  const normalized = {
+    requestId: required(input.requestId, "final-payment request id"),
+    channel: input.channel,
+    destinationReference: required(input.destinationReference, "delivery destination"),
+    providerMessageId: input.providerMessageId?.trim() || null,
+    status: input.status,
+    evidenceReference: required(input.evidenceReference, "delivery evidence reference"),
+    deliveredAt: input.deliveredAt?.trim() || null,
+    actorId: required(input.actorId, "actor id"),
+  };
+  if (normalized.status === "DELIVERED" && !normalized.deliveredAt) {
+    throw new FinanceExitAuthorityError("delivery timestamp is required for DELIVERED status");
+  }
+  if (normalized.status !== "DELIVERED" && normalized.deliveredAt) {
+    throw new FinanceExitAuthorityError("delivery timestamp is valid only for DELIVERED status");
+  }
+  const identityIds = await ids("final-payment-delivery", Object.values(normalized));
+  const { data, error } = await supabase.rpc("record_sales_order_pi_final_payment_delivery_v1", {
+    p_final_payment_request_id: normalized.requestId,
+    p_channel: normalized.channel,
+    p_destination_reference: normalized.destinationReference,
+    p_provider_message_id: normalized.providerMessageId,
+    p_delivery_status: normalized.status,
+    p_evidence_reference: normalized.evidenceReference,
+    p_delivered_at: normalized.deliveredAt,
+    p_correlation_id: identityIds.correlationId,
+    p_idempotency_key: identityIds.idempotencyKey,
+    p_actor_id: normalized.actorId,
+  });
+  return row(governed(data, error, "recordFinalPaymentDelivery"), "recordFinalPaymentDelivery");
 }
 
 export async function issueFinalInvoice(input: {
