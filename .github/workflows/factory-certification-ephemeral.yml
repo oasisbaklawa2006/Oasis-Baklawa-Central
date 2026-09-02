@@ -774,6 +774,9 @@ jobs:
             'factory-gate-cert-eway', 'factory-gate-cert-eway'
           );
 
+          set local request.jwt.claim.sub = '91000000-0000-0000-0000-000000000002';
+          set local request.jwt.claim.role = 'authenticated';
+
           insert into public.finance_clearance_events (
             id, order_id, company_id, proforma_invoice_id, commercial_version_id,
             clearance_type, decision, commercial_value, required_advance,
