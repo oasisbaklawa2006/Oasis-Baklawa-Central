@@ -117,20 +117,23 @@ jobs:
 
       - name: Unit and migration contract tests
         if: steps.changes.outputs.app == 'true' || steps.changes.outputs.migration == 'true' || steps.changes.outputs.tooling == 'true' || steps.changes.outputs.tests == 'true'
-        run: npm run test
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run test 2>&1 | tee /tmp/unit-test.log
+
+      - name: Upload unit-test diagnostic log
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-log-${{ github.run_id }}-${{ github.run_attempt }}
+          path: /tmp/unit-test.log
+          if-no-files-found: warn
+          retention-days: 1
 
       - name: Production build
         if: steps.changes.outputs.app == 'true' || steps.changes.outputs.ui == 'true' || steps.changes.outputs.tooling == 'true'
         env:
-          # Publishable/anon values only (never a service-role key) -- these
-          # are safe to bake into a client bundle by Supabase's own design
-          # (the live production site already ships this exact anon key to
-          # every visitor's browser; real access control is RLS, not secrecy
-          # of this value). Without these the built app's supabase-js client
-          # throws "supabaseUrl is required" at module load in every browser
-          # context, which silently broke this CI build's ability to render
-          # ANY route -- including the ones visual-audit.spec.ts already
-          # screenshots -- before this fix.
           VITE_SUPABASE_URL: https://tcxvcatsqqertcnycuop.supabase.co
           VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_UbNV2X25YHY3cupjpoLsjw_RhlDG4f_
         run: npm run build
@@ -160,25 +163,6 @@ jobs:
           APP_URL: http://127.0.0.1:4173
           TEST_PREVIEW_URL: http://127.0.0.1:4173
         run: npx playwright test tests/visual-audit.spec.ts --project=desktop-chrome-size --trace=on
-
-      # Lane 1 (Central issue #368) authenticated e2e chain coverage
-      # (tests/lane1-live-smoke.spec.ts) is deliberately NOT wired into this
-      # automatic pull_request-triggered gate. It authenticates with real
-      # production QA passwords; folding it in here would mean any commit on
-      # any PR branch could modify this spec file (or the login page it
-      # drives) to exfiltrate those live credentials to an attacker-chosen
-      # host the moment CI runs, before any human reviews the diff -- a
-      # same-repo-PR credential-exfiltration path with no mitigation, unlike
-      # its existing home, lane1-live-smoke.yml, which is workflow_dispatch
-      # -only and therefore requires a trusted maintainer to deliberately
-      # trigger it against a fixed, non-overridable target
-      # (https://b2b.oasisbaklawa.com only). This is a proven, real
-      # incompatibility (flagged by CodeRabbit's security review on this PR)
-      # -- not an oversight -- and is analogous to why
-      # tests/lane2-pna-e2e-chain.spec.ts also stays off this gate. Making
-      # Lane 1 B3 safe to promote would require a disposable non-production
-      # tenant/credential set for PR-triggered runs, which is a separate,
-      # larger change outside this PR's scope.
 
       - name: Docs-only fast pass
         if: steps.changes.outputs.app != 'true' && steps.changes.outputs.ui != 'true' && steps.changes.outputs.migration != 'true' && steps.changes.outputs.tooling != 'true' && steps.changes.outputs.tests != 'true'
