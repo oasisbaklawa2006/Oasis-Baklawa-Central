@@ -454,12 +454,14 @@ jobs:
           insert into public.sales_order_proforma_invoices (
             id, order_id, commercial_version_id, commercial_version_number,
             frozen_commercial_snapshot, frozen_snapshot_fingerprint, status,
+            customer_visible_pi_number,
             reason, source, correlation_id, idempotency_key, created_by, issued_by, issued_at
           ) values (
             '96100000-0000-0000-0000-000000000001',
             '93000000-0000-0000-0000-000000000001',
             '96000000-0000-0000-0000-000000000001',
             1, '{}'::jsonb, repeat('a',64), 'ISSUED',
+            'PI2026/09-001',
             'Disposable gate certification', 'FINANCE',
             'factory-gate-cert-pi', 'factory-gate-cert-pi',
             '91000000-0000-0000-0000-000000000002',
