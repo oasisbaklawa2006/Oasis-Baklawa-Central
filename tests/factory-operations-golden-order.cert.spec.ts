@@ -496,7 +496,7 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
 
     const procurementCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-procurement-create`;
     const { data: procurementReq, error: procurementError } = await pgsClient.rpc("create_procurement_requirement", {
-      p_source_type: "pna",
+      p_source_type: "assembly_3pgs_requirement",
       p_source_reference: requirementNumber,
       p_product_id: "20000000-0000-4000-8000-000000000201",
       p_sku: "CERT-3PGS-PKG-001",
