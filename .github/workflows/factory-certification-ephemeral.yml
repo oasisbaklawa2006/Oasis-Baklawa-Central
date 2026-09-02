@@ -598,6 +598,7 @@ jobs:
             '91000000-0000-0000-0000-000000000002'
           from (
             select jsonb_build_object(
+              'order_id', '93000000-0000-0000-0000-000000000001',
               'lines', jsonb_build_array(jsonb_build_object(
                 'order_item_id', '93100000-0000-0000-0000-000000000001',
                 'product_id', '93200000-0000-0000-0000-000000000001',
