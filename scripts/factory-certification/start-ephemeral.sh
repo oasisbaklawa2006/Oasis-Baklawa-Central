@@ -28,6 +28,18 @@ trap 'rm -f "${STATUS_FILE}"' EXIT
 
 pushd "${CORE_REPO}" >/dev/null
 
+# Enable TOTP MFA enrollment/verification on the disposable local stack only.
+# This edits the CI runner's local, uncommitted checkout of Core's
+# supabase/config.toml -- never committed or pushed back to oasis-supabase-core
+# -- because the Supabase CLI defaults TOTP enrollment to disabled and every
+# hosted/production project's MFA policy is configured separately in the
+# Supabase dashboard, never read from this file. Without this, FACT-E2E's AAL2
+# step-up identity bootstrap (create-test-identities.mjs) fails outright with
+# "MFA enroll is disabled for TOTP" before any golden-order stage can run.
+if ! grep -q '^\[auth\.mfa\.totp\]' supabase/config.toml; then
+  printf '\n[auth.mfa.totp]\nenroll_enabled = true\nverify_enabled = true\n' >> supabase/config.toml
+fi
+
 # Match Core's own Migration CI semantics: start performs a zero-state replay,
 # and db reset --local proves the complete migration chain again.
 supabase start
