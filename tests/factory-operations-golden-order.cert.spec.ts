@@ -177,7 +177,7 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
     const { data: job, error: jobError } = await client
       .from("production_jobs")
       .select("id,status,canonical_department")
-      .eq("demand_reference", rgsReservationId)
+      .eq("reservation_id", rgsReservationId)
       .maybeSingle();
     expect(jobError, jobError?.message).toBeNull();
     expect(job?.id, "a production shortage-demand job must exist for the FINISHED_GOODS component").toBeTruthy();
