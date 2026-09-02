@@ -523,3 +523,17 @@ non-loopback Vercel deployment: supply repository secrets
 `TEST_PREVIEW_URL`, `TEST_BUYER_EMAIL`, and `TEST_BUYER_PASSWORD` for a separate
 non-production tenant. Disposable CI generates credentials automatically and never
 touches production.
+
+### Main synchronization (2026-09-02)
+
+Synchronized `codex/app-e2e-tranche5-central-binding` onto current Central `main`
+`9435676b88d11888d39f3302a2c4f17495a6ae50` (#436 Finance Exit Codacy remediation).
+
+- Synchronized head: `478c1e678c369b25bbec05ea54b75fbeac822ce7`
+- Overlap resolved: `src/pages/admin/AdminB2bSecurityGate.tsx` only (#425/#436
+  event-handler authority; no Buyer/Core-binding changes).
+- Pre-push local verification on synchronized head: TypeScript **PASS**, focused
+  Buyer/client/presentation suites **55/55 PASS**, changed-file ESLint **PASS**,
+  production build **PASS**, repo boundary check **PASS**.
+- Exact-head CI reruns triggered on push for Release Quality Gate, Buyer Golden
+  Path Certification, and Repo Ownership Boundaries.
