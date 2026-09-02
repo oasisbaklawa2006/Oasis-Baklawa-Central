@@ -23,6 +23,24 @@ const PAYMENT_STAGE_LABELS: Record<string, string> = {
   not_required: "Payment not required",
 };
 
+const FINANCE_STATUS_LABELS: Record<string, string> = {
+  commercial_version_pending: "Order details are being prepared",
+  pi_pending: "Proforma invoice is being prepared",
+  pi_ready_for_issue: "Proforma invoice is ready for issue",
+  advance_pending: "Advance payment is needed",
+  finance_review_pending: "Payment review in progress",
+  cleared: "Cleared for preparation",
+  hold: "Finance review required",
+  clearance_revoked: "Finance clearance needs review",
+};
+
+const GENERAL_QUERY_STATUS_LABELS: Record<string, string> = {
+  SUBMITTED: "Submitted",
+  ACKNOWLEDGED: "Acknowledged",
+  RESOLVED: "Resolved",
+  CLOSED: "Closed",
+};
+
 const TIMELINE_RANK: Record<string, number> = {
   submitted: 1,
   so_created: 1,
@@ -52,6 +70,33 @@ export function customerOrderAction(stage: string | null | undefined): string | 
   if (normalized === "awaiting_receipt" || normalized === "rejected") return "Payment update needed";
   if (normalized === "receipt_submitted") return "Payment review in progress";
   return null;
+}
+
+/** Converts the Core Finance status vocabulary into customer-safe wording. */
+export function customerFinanceStatusLabel(status: string | null | undefined): string {
+  return FINANCE_STATUS_LABELS[(status || "").toLowerCase()] || "Finance status will appear when available";
+}
+
+/** Returns the only customer action permitted by an authoritative Finance status. */
+export function customerFinanceAction(status: string | null | undefined): string | null {
+  const normalized = (status || "").toLowerCase();
+  if (normalized === "advance_pending") return "Advance payment is needed";
+  if (normalized === "pi_pending" || normalized === "pi_ready_for_issue") return "Proforma invoice is being prepared";
+  if (normalized === "finance_review_pending") return "Payment review in progress";
+  if (normalized === "hold" || normalized === "clearance_revoked") return "Finance review required";
+  return null;
+}
+
+/** Keeps general-query lifecycle labels bounded to the public contract vocabulary. */
+export function customerGeneralQueryStatusLabel(status: string | null | undefined): string {
+  return GENERAL_QUERY_STATUS_LABELS[(status || "").toUpperCase()] || "Submitted";
+}
+
+/** Maps Core document availability to neutral Buyer copy without exposing internals. */
+export function customerDocumentAvailabilityLabel(status: string | null | undefined): string {
+  if ((status || "").toLowerCase() === "issued") return "Available";
+  if ((status || "").toLowerCase() === "preparing") return "Preparing";
+  return "Not available yet";
 }
 
 /** Builds the presentation-only order pipeline from already safe Core fields. */

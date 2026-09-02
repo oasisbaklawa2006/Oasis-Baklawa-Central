@@ -1,0 +1,209 @@
+name: Buyer Golden Path Certification
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/buyer-golden-path-certification.yml'
+      - 'playwright.buyer-cert.config.ts'
+      - 'scripts/buyer-certification/**'
+      - 'tests/app-e2e-buyer-golden-path.cert.spec.ts'
+      - 'tests/buyer-certification/**'
+      - 'src/pages/customer/BuyerApp.tsx'
+      - 'src/lib/customerApp/**'
+      - 'APP_E2E_FRONT_BUYER_COMPLETION_LEDGER.md'
+      - 'docs/APP_E2E_BUYER_SYNTHETIC_FIXTURE.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buyer-golden-path-certification-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  disposable-buyer-golden-path:
+    name: Disposable Buyer golden path certification
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      BUYER_CERT_CORE_REPO: ${{ github.workspace }}/oasis-supabase-core
+      BUYER_CERT_ALLOW_LOCAL_RESET: "true"
+      BUYER_CERT_CREDENTIAL_FILE: /tmp/oasis-buyer-certification.env
+      TEST_PREVIEW_URL: http://127.0.0.1:4173
+      BUYER_CERT_COMMIT_SHA: ${{ github.sha }}
+
+    steps:
+      - name: Checkout Central certification branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Checkout canonical Core schema authority
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          repository: oasisbaklawa2006/oasis-supabase-core
+          ref: main
+          path: oasis-supabase-core
+
+      - name: Set up pinned Supabase CLI
+        uses: supabase/setup-cli@ab058987d8d6c725971f6cf9d0b5c98467e30bd1 # v1.7.1
+        with:
+          version: 2.101.0
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install Central dependencies
+        run: npm ci
+
+      - name: Validate certification scripts before execution
+        shell: bash
+        run: |
+          bash -n scripts/buyer-certification/start-ephemeral.sh
+          bash -n scripts/buyer-certification/stop-ephemeral.sh
+          node --check scripts/buyer-certification/seed-synthetic-buyer.mjs
+
+      - name: Start disposable Core and synthetic Buyer fixture
+        shell: bash
+        run: bash scripts/buyer-certification/start-ephemeral.sh
+
+      - name: Export local backend and synthetic Buyer credentials to this job only
+        shell: bash
+        run: |
+          pushd oasis-supabase-core >/dev/null
+          supabase status -o env > "${RUNNER_TEMP}/buyer-supabase.env"
+          popd >/dev/null
+          # shellcheck disable=SC1090
+          source "${RUNNER_TEMP}/buyer-supabase.env"
+          {
+            echo "BUYER_CERT_SUPABASE_URL=${API_URL}"
+            echo "BUYER_CERT_SUPABASE_ANON_KEY=${ANON_KEY}"
+            echo "VITE_SUPABASE_URL=${API_URL}"
+            echo "VITE_SUPABASE_PUBLISHABLE_KEY=${ANON_KEY}"
+            echo "BUYER_CERT_ENVIRONMENT_ID=buyer-cert-gha-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          } >> "${GITHUB_ENV}"
+
+          while IFS= read -r cred_line; do
+            if [[ "${cred_line}" =~ ^export\ TEST_BUYER_PASSWORD=\'([^\']*)\'$ ]]; then
+              echo "::add-mask::${BASH_REMATCH[1]}"
+            fi
+          done < "${BUYER_CERT_CREDENTIAL_FILE}"
+
+          sed -n -E "s/^export ([A-Z0-9_]+)='([^']*)'$/\1=\2/p" "${BUYER_CERT_CREDENTIAL_FILE}" >> "${GITHUB_ENV}"
+
+      - name: Build Central against disposable local Core
+        run: npm run build
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Start built Central locally
+        shell: bash
+        run: |
+          npm run preview -- --host 127.0.0.1 --port 4173 > "${RUNNER_TEMP}/buyer-central-preview.log" 2>&1 &
+          preview_pid=$!
+          echo "${preview_pid}" > "${RUNNER_TEMP}/buyer-central-preview.pid"
+          for _ in $(seq 1 60); do
+            if ! kill -0 "${preview_pid}" >/dev/null 2>&1; then
+              echo "Central certification preview exited before becoming ready." >&2
+              cat "${RUNNER_TEMP}/buyer-central-preview.log"
+              exit 1
+            fi
+            if curl -fsS http://127.0.0.1:4173/login >/dev/null; then
+              echo "Buyer certification target is ready."
+              exit 0
+            fi
+            sleep 1
+          done
+          cat "${RUNNER_TEMP}/buyer-central-preview.log"
+          exit 1
+
+      - name: Run authenticated Buyer golden path at 375/390/430
+        id: buyer_golden_path
+        continue-on-error: true
+        run: npx playwright test tests/app-e2e-buyer-golden-path.cert.spec.ts -c playwright.buyer-cert.config.ts
+
+      - name: Enforce three executed mobile golden-path passes and zero skips
+        if: always()
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = 'buyer-golden-path-results.json';
+          if (!fs.existsSync(path)) {
+            throw new Error('BUYER_GOLDEN_PATH_RESULT_MISSING: Playwright JSON report was not produced');
+          }
+          const report = JSON.parse(fs.readFileSync(path, 'utf8'));
+          const statuses = [];
+          const visit = (value) => {
+            if (!value || typeof value !== 'object') return;
+            if (Array.isArray(value)) {
+              for (const item of value) visit(item);
+              return;
+            }
+            if (Array.isArray(value.results)) {
+              for (const result of value.results) {
+                if (typeof result?.status === 'string') statuses.push(result.status);
+              }
+            }
+            for (const [key, child] of Object.entries(value)) {
+              if (key !== 'results') visit(child);
+            }
+          };
+          visit(report.suites ?? report);
+          const counts = statuses.reduce((acc, status) => {
+            acc[status] = (acc[status] ?? 0) + 1;
+            return acc;
+          }, {});
+          console.log('Buyer golden-path result counts:', counts);
+          if (statuses.length !== 3) {
+            throw new Error(`BUYER_GOLDEN_PATH_COUNT_MISMATCH: expected exactly 3 viewport results, got ${statuses.length}`);
+          }
+          if ((counts.passed ?? 0) !== 3 || (counts.skipped ?? 0) !== 0 || (counts.failed ?? 0) !== 0 || (counts.timedOut ?? 0) !== 0) {
+            throw new Error(`BUYER_GOLDEN_PATH_NOT_EXECUTED_PASS: ${JSON.stringify(counts)}`);
+          }
+          NODE
+          if [[ "${{ steps.buyer_golden_path.outcome }}" != "success" ]]; then
+            echo "Buyer golden-path Playwright step failed before enforcement." >&2
+            exit 1
+          fi
+
+      - name: Upload machine-readable Buyer golden-path evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: buyer-golden-path-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            buyer-golden-path-results.json
+            buyer-golden-path-evidence-*.json
+            buyer-certification-artifacts/
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Upload sanitized Central startup log on failure
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: buyer-central-preview-log-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/buyer-central-preview.log
+          if-no-files-found: ignore
+          retention-days: 3
+
+      - name: Stop Central preview
+        if: always()
+        shell: bash
+        run: |
+          if [[ -f "${RUNNER_TEMP}/buyer-central-preview.pid" ]]; then
+            kill "$(cat "${RUNNER_TEMP}/buyer-central-preview.pid")" 2>/dev/null || true
+          fi
+
+      - name: Destroy disposable Core database without backup
+        if: always()
+        shell: bash
+        run: bash scripts/buyer-certification/stop-ephemeral.sh
