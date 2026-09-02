@@ -1,47 +1,23 @@
-# APP-E2E Tranche 5 — Synthetic Buyer certification fixture
+# APP-E2E Buyer synthetic fixture
 
-This document describes the **disposable, non-production** Buyer fixture used for
-authenticated golden-path certification in Central PRs. It must never be created
-in production or bound to real customer identities.
+This document describes the disposable, non-production fixture used by the
+authenticated Buyer golden-path certification.
+
+## Safety boundary
+
+The fixture is created only in an isolated local Supabase replay. It must never
+use a real customer identity or write to production.
 
 ## Fixture identity
 
-| Field | Value |
-| --- | --- |
-| Email | `synthetic.buyer.cert@oasis-disposable.test` |
-| Auth user id | `30000000-0000-4000-8000-000000000010` |
-| Company | `SYNTHETIC BUYER CERTIFICATION CO` |
-| Company id | `30000000-0000-4000-8000-000000000001` |
-| Catalogue SKU | `CERT-BUYER-GOLDEN-001` |
-| Pre-seeded SO | `SO-CERT-PRESEED-001` |
+- Email: `synthetic.buyer.cert@oasis-disposable.test`
+- Buyer ID: `30000000-0000-4000-8000-000000000010`
+- Company: `SYNTHETIC BUYER CERTIFICATION CO`
+- Product SKU: `CERT-BUYER-GOLDEN-001`
+- Pre-seeded SO: `SO-CERT-PRESEED-001`
 
-Passwords are generated per run and written only to `/tmp/oasis-buyer-certification.env`
-with mode `0600`. They are masked in GitHub Actions logs.
-
-## Environment boundary
-
-- Schema authority: canonical `oasis-supabase-core` replayed with `supabase start` +
-  `supabase db reset --local`.
-- Frontend target: `http://127.0.0.1:4173` preview build wired to the local anon key.
-- Production Supabase (`tcxvcatsqqertcnycuop.supabase.co`) is never mutated.
-- No service-role key is exposed to Playwright or retained in artifacts.
-
-## Required Playwright / CI variables
-
-| Variable | Source |
-| --- | --- |
-| `TEST_PREVIEW_URL` | `http://127.0.0.1:4173` in disposable CI; repository secret for manual preview runs |
-| `TEST_BUYER_EMAIL` | Generated credential export or repository secret |
-| `TEST_BUYER_PASSWORD` | Generated credential export or repository secret (masked in CI) |
-| `BUYER_CERT_SUPABASE_URL` | Local API URL from `supabase status` |
-| `BUYER_CERT_SUPABASE_ANON_KEY` | Local anon key from `supabase status` |
-| `BUYER_CERT_ENVIRONMENT_ID` | `buyer-cert-gha-<run>-<attempt>` in CI |
-
-Optional manual preview override:
-
-- `BUYER_CERT_ALLOW_REMOTE_PREVIEW=true` with `TEST_PREVIEW_URL=https://<branch>.vercel.app`
-  only when using **separate** non-production credentials supplied through repository
-  secrets. Never reuse production Buyer accounts.
+Credentials are exported to `/tmp/oasis-buyer-certification.env` with mode
+`0600`, masked in CI, and removed by teardown.
 
 ## Local bootstrap
 
@@ -55,7 +31,18 @@ export VITE_SUPABASE_URL="$BUYER_CERT_SUPABASE_URL"
 export VITE_SUPABASE_PUBLISHABLE_KEY="$BUYER_CERT_SUPABASE_ANON_KEY"
 npm run build
 npm run preview -- --host 127.0.0.1 --port 4173 >/tmp/buyer-central-preview.log 2>&1 &
-for _ in $(seq 1 60); do curl -fsS http://127.0.0.1:4173/login >/dev/null && break; sleep 1; done
+ready=false
+for _ in $(seq 1 60); do
+  if curl -fsS http://127.0.0.1:4173/login >/dev/null; then
+    ready=true
+    break
+  fi
+  sleep 1
+done
+if [[ "${ready}" != "true" ]]; then
+  echo "Preview did not become ready at http://127.0.0.1:4173/login" >&2
+  exit 1
+fi
 npx playwright test tests/app-e2e-buyer-golden-path.cert.spec.ts -c playwright.buyer-cert.config.ts
 kill "$(lsof -t -i:4173)" 2>/dev/null || true
 bash scripts/buyer-certification/stop-ephemeral.sh
