@@ -65,7 +65,9 @@ const AdminB2bSecurityGate = () => {
       const active = document.activeElement;
       if (inputRef.current && (active === document.body || active == null)) inputRef.current.focus();
     }, 1000);
-    return () => window.clearInterval(timer);
+    return () => {
+      window.clearInterval(timer);
+    };
   }, []);
 
   const addHistory = (barcode: string, consignment: string, status: ScreenState, text: string) => {
@@ -176,9 +178,15 @@ const AdminB2bSecurityGate = () => {
   };
 
   const freezeDispatchProof = async () => {
-    if (!user?.id) return toast.error("Authenticated dispatch/gate actor required");
+    if (!user?.id) {
+      toast.error("Authenticated dispatch/gate actor required");
+      return;
+    }
     const evidenceReferences = refs(dispatchEvidence);
-    if (evidenceReferences.length === 0) return toast.error("At least one dispatch evidence reference is required");
+    if (evidenceReferences.length === 0) {
+      toast.error("At least one dispatch evidence reference is required");
+      return;
+    }
     const orderId = evidenceOrder();
     setDispatchProofProcessing(true);
     try {
@@ -220,8 +228,8 @@ const AdminB2bSecurityGate = () => {
         <visual.Icon className={`mb-6 h-28 w-28 ${visual.text}`} strokeWidth={1.5} />
         <h1 className={`text-center text-5xl font-black tracking-tight md:text-7xl ${visual.text}`}>{visual.title}</h1>
         <p className="mt-5 max-w-3xl text-center text-lg font-medium text-white/80">{message}</p>
-        <form onSubmit={handleScan} className="mt-10 w-full max-w-xl">
-          <input ref={inputRef} value={input} onChange={(event) => setInput(event.target.value)} autoFocus autoComplete="off"
+        <form onSubmit={(event) => { void handleScan(event); }} className="mt-10 w-full max-w-xl">
+          <input ref={inputRef} value={input} onChange={(event) => { setInput(event.target.value); }} autoFocus autoComplete="off"
             placeholder="Scanner / carton barcode" className="w-full rounded-2xl border border-white/20 bg-black/40 px-5 py-5 text-center font-mono text-xl text-white outline-none focus:border-white" />
         </form>
         {processing && <p className="mt-5 text-sm"><Loader2 className="mr-2 inline h-4 w-4 animate-spin" />Revalidating Core gate authority…</p>}
@@ -249,18 +257,18 @@ const AdminB2bSecurityGate = () => {
           <p className="mt-1 text-xs text-slate-500">Core accepts this only after every Finance-frozen DPL carton has independently passed the gate.</p>
           <div className="mt-3 space-y-2">
             <input value={evidenceOrderId} readOnly placeholder="Scan a B2B carton to bind order UUID" className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm" />
-            <input value={transporter} onChange={(e) => setTransporter(e.target.value)} placeholder="Transporter / carrier" className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm" />
-            <select value={transportMode} onChange={(e) => setTransportMode(e.target.value as DispatchTransportMode)} className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm">
+            <input value={transporter} onChange={(event) => { setTransporter(event.target.value); }} placeholder="Transporter / carrier" className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm" />
+            <select value={transportMode} onChange={(event) => { setTransportMode(event.target.value as DispatchTransportMode); }} className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm">
               <option value="ROAD">Road</option><option value="COURIER">Courier</option><option value="AIR">Air</option><option value="RAIL">Rail</option><option value="HAND_CARRY">Hand carry</option><option value="CUSTOMER_PICKUP">Customer pickup</option><option value="OTHER">Other</option>
             </select>
-            <input value={lrAwbBilty} onChange={(e) => setLrAwbBilty(e.target.value)} placeholder="LR / AWB / Bilty" className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm" />
-            <input value={vehicleNumber} onChange={(e) => setVehicleNumber(e.target.value)} placeholder={vehicleRequired ? "Vehicle number (required)" : "Vehicle number, if applicable"} className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm" />
-            <input value={driverName} onChange={(e) => setDriverName(e.target.value)} placeholder={roadCredentialsRequired ? "Driver name (required)" : "Driver / handler name, if applicable"} className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm" />
-            <input value={driverPhone} onChange={(e) => setDriverPhone(e.target.value)} placeholder={roadCredentialsRequired ? "Driver phone (required)" : "Driver / handler phone, if applicable"} className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm" />
-            <input value={trackingReference} onChange={(e) => setTrackingReference(e.target.value)} placeholder="Tracking / consignment reference, if applicable" className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm" />
-            <input value={dispatchEvidence} onChange={(e) => setDispatchEvidence(e.target.value)} placeholder="Gate/departure evidence refs, comma separated" className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm" />
-            <input type="datetime-local" value={dispatchedAt} onChange={(e) => setDispatchedAt(e.target.value)} className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm" />
-            <button type="button" onClick={() => void freezeDispatchProof()} disabled={dispatchProofProcessing || !latestScannedOrderId || !!handoffFacts?.dispatchProofId}
+            <input value={lrAwbBilty} onChange={(event) => { setLrAwbBilty(event.target.value); }} placeholder="LR / AWB / Bilty" className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm" />
+            <input value={vehicleNumber} onChange={(event) => { setVehicleNumber(event.target.value); }} placeholder={vehicleRequired ? "Vehicle number (required)" : "Vehicle number, if applicable"} className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm" />
+            <input value={driverName} onChange={(event) => { setDriverName(event.target.value); }} placeholder={roadCredentialsRequired ? "Driver name (required)" : "Driver / handler name, if applicable"} className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm" />
+            <input value={driverPhone} onChange={(event) => { setDriverPhone(event.target.value); }} placeholder={roadCredentialsRequired ? "Driver phone (required)" : "Driver / handler phone, if applicable"} className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm" />
+            <input value={trackingReference} onChange={(event) => { setTrackingReference(event.target.value); }} placeholder="Tracking / consignment reference, if applicable" className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm" />
+            <input value={dispatchEvidence} onChange={(event) => { setDispatchEvidence(event.target.value); }} placeholder="Gate/departure evidence refs, comma separated" className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm" />
+            <input type="datetime-local" value={dispatchedAt} onChange={(event) => { setDispatchedAt(event.target.value); }} className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm" />
+            <button type="button" onClick={() => { void freezeDispatchProof(); }} disabled={dispatchProofProcessing || !latestScannedOrderId || !!handoffFacts?.dispatchProofId}
               className="w-full rounded-md bg-emerald-600 px-3 py-2 text-sm font-semibold disabled:opacity-50">
               {dispatchProofProcessing && <Loader2 className="mr-2 inline h-4 w-4 animate-spin" />} Freeze dispatch proof
             </button>
