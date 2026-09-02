@@ -179,17 +179,9 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
       .select("id,status,canonical_department")
       .eq("demand_reference", rgsReservationId)
       .maybeSingle();
-    if (!jobError && job?.id) {
-      productionJobId = job.id as string;
-    } else {
-      const { data: byReservation } = await client
-        .from("production_jobs")
-        .select("id,status,canonical_department")
-        .order("created_at", { ascending: false })
-        .limit(1);
-      productionJobId = byReservation?.[0]?.id ?? null;
-    }
-    expect(productionJobId, "a production shortage-demand job must exist for the FINISHED_GOODS component").toBeTruthy();
+    expect(jobError, jobError?.message).toBeNull();
+    expect(job?.id, "a production shortage-demand job must exist for the FINISHED_GOODS component").toBeTruthy();
+    productionJobId = job!.id as string;
 
     const { data: requirement, error: requirementError } = await client
       .from("b2b_assembly_3pgs_requirements")
@@ -252,16 +244,35 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
     record(ledger.stages, "production_start_job", "start_production_job", "PROD_ARABIC_SWEETS", startCorrelationId, "PASS", "status=in_production");
 
     let previousStage: string | null = null;
+    let advanceCount = 0;
     for (let i = 0; i < 6; i += 1) {
       const advanceCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-advance-${i}`;
       const { data, error } = await client.rpc("advance_production_job_stage", {
         p_job_id: productionJobId,
         p_correlation_id: advanceCorrelationId,
       });
-      if (error) break;
+      if (error) {
+        expect(
+          advanceCount,
+          `advance_production_job_stage failed before any successful progression: ${error.message}`,
+        ).toBeGreaterThan(0);
+        break;
+      }
+      advanceCount += 1;
       if (data?.stage === previousStage) break;
       previousStage = data?.stage as string;
     }
+    const { data: jobAfterAdvance, error: jobAfterAdvanceError } = await client
+      .from("production_jobs")
+      .select("status,stage")
+      .eq("id", productionJobId)
+      .single();
+    expect(jobAfterAdvanceError, jobAfterAdvanceError?.message).toBeNull();
+    expect(
+      jobAfterAdvance?.status,
+      "production job must remain in_production after stage progression before output can be recorded",
+    ).toBe("in_production");
+    expect(previousStage, "production job must reach a terminal stage before output can be recorded").toBeTruthy();
     record(ledger.stages, "production_advance_stage", "advance_production_job_stage", "PROD_ARABIC_SWEETS", null, "PASS", `final_stage=${previousStage}`);
 
     const outputCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-output`;
@@ -345,7 +356,7 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
       p_correlation_id: acceptCorrelationId,
     });
     expect(acceptError, acceptError?.message).toBeNull();
-    record(ledger.stages, "custody_accept_receipt", "accept_rgs_production_receipt", "STORE_READY_GOODS", acceptCorrelationId, "PASS", "accepted_qty=5");
+    record(ledger.stages, "custody_accept_receipt", "accept_rgs_production_receipt", "STORE_READY_GOODS", acceptCorrelationId, "PASS", `accepted_qty=${producedQty}`);
 
     const { data: balanceAfter, error: balanceError } = await rgsClient
       .from("inventory_stock_balances")

@@ -357,7 +357,117 @@ jobs:
           if (ledger.production_accessed !== false || ledger.environment !== 'disposable-local-core') {
             throw new Error('GOLDEN_ORDER_LEDGER_ENVIRONMENT_INVALID: ledger must attest a disposable-local-core run with no production access');
           }
-          console.log('FACT-E2E golden-order ledger:', { status: ledger.status, total_stages: ledger.total_stages, total_negative_paths: ledger.total_negative_paths });
+          if (ledger.schema_version !== 1) {
+            throw new Error(`GOLDEN_ORDER_LEDGER_SCHEMA_INVALID: expected schema_version=1, got ${ledger.schema_version}`);
+          }
+
+          const requiredStages = [
+            'pna_create_assembly_job',
+            'pna_reserve_assembly_components',
+            'production_accept_job',
+            'production_start_job',
+            'production_advance_stage',
+            'production_record_output',
+            'production_declare_ready',
+            'custody_dispatch_to_rgs',
+            'custody_record_receipt',
+            'custody_accept_receipt',
+            'rgs_reservation_truth_check',
+            '3pgs_reserve_requirement_zero_stock',
+            'pna_resume_reserve_assembly_components',
+            '3pgs_create_procurement_requirement',
+            '3pgs_assign_procurement_vendor',
+            '3pgs_create_inventory_receipt',
+            '3pgs_record_inventory_receipt',
+            '3pgs_accept_inventory_receipt',
+            '3pgs_allocate_putaway',
+            '3pgs_confirm_putaway',
+            '3pgs_finalise_grn',
+            '3pgs_link_procurement_receipt',
+            '3pgs_reserve_requirement_real_stock',
+            '3pgs_issue_requirement_stock',
+            '3pgs_acknowledge_requirement_receipt',
+            'pna_issue_assembly_components',
+            'pna_record_consumption_fg',
+            'pna_record_consumption_pkg',
+            'pna_complete_assembly_job',
+            'pna_accept_assembly_output',
+            'pna_initiate_assembly_handover',
+            'pna_acknowledge_assembly_handover',
+            'fg_create_receipt_from_handover',
+            'fg_record_receipt_from_handover',
+            'fg_accept_receipt_from_handover',
+            'fg_allocate_putaway',
+            'fg_confirm_putaway',
+            'fg_finalise_grn',
+            'dispatch_create_consignment',
+            'dispatch_open_carton',
+            'dispatch_declare_source_handoff',
+            'dispatch_record_source_handoff_receipt',
+            'dispatch_accept_source_handoff',
+            'dispatch_scan_item',
+            'dispatch_record_evidence',
+            'dispatch_lock_carton',
+            'dispatch_create_dpl',
+            'dispatch_supersede_dpl',
+            'dispatch_submit_to_finance',
+          ];
+          const requiredNegativePaths = [
+            'wrong_department_production_accept_rejected',
+            'accept_unrecorded_receipt_rejected',
+            'pick_beyond_reserved_qty_rejected',
+            'issue_unpicked_reservation_rejected',
+            '3pgs_issue_nonexistent_reservation_rejected',
+            'unauthorized_consignment_create_rejected',
+            'idempotent_scan_retry_no_duplicate',
+            'quantity_overflow_scan_rejected',
+            'lock_before_evidence_rejected',
+            'stale_version_lock_rejected',
+            'post_lock_mutation_rejected',
+            'blank_reason_supersession_rejected',
+            'unauthorized_dpl_submit_rejected',
+          ];
+
+          const assertExactStageSet = (actualNames, requiredNames, label) => {
+            const actual = actualNames.slice().sort();
+            const required = requiredNames.slice().sort();
+            const missing = required.filter((name) => !actual.includes(name));
+            const extra = actual.filter((name) => !required.includes(name));
+            const duplicates = actualNames.filter((name, index) => actualNames.indexOf(name) !== index);
+            if (missing.length > 0 || extra.length > 0 || duplicates.length > 0) {
+              throw new Error(`GOLDEN_ORDER_LEDGER_${label}_INVALID: ${JSON.stringify({ missing, extra, duplicates })}`);
+            }
+            if (actual.length !== required.length) {
+              throw new Error(`GOLDEN_ORDER_LEDGER_${label}_COUNT_MISMATCH: expected ${required.length}, got ${actual.length}`);
+            }
+          };
+
+          const stageNames = (ledger.stages ?? []).map((entry) => entry.stage);
+          const negativePathNames = (ledger.negative_paths ?? []).map((entry) => entry.stage);
+          assertExactStageSet(stageNames, requiredStages, 'STAGES');
+          assertExactStageSet(negativePathNames, requiredNegativePaths, 'NEGATIVE_PATHS');
+
+          if (ledger.total_stages !== requiredStages.length || ledger.total_negative_paths !== requiredNegativePaths.length) {
+            throw new Error(`GOLDEN_ORDER_LEDGER_TOTALS_INVALID: ${JSON.stringify({
+              total_stages: ledger.total_stages,
+              expected_stages: requiredStages.length,
+              total_negative_paths: ledger.total_negative_paths,
+              expected_negative_paths: requiredNegativePaths.length,
+            })}`);
+          }
+          if ((ledger.stages ?? []).length !== requiredStages.length || (ledger.negative_paths ?? []).length !== requiredNegativePaths.length) {
+            throw new Error(`GOLDEN_ORDER_LEDGER_ARRAY_LENGTH_INVALID: ${JSON.stringify({
+              stages_length: (ledger.stages ?? []).length,
+              negative_paths_length: (ledger.negative_paths ?? []).length,
+            })}`);
+          }
+
+          console.log('FACT-E2E golden-order ledger:', {
+            status: ledger.status,
+            schema_version: ledger.schema_version,
+            total_stages: ledger.total_stages,
+            total_negative_paths: ledger.total_negative_paths,
+          });
           NODE
           if [[ "${{ steps.golden_order.outcome }}" != "success" ]]; then
             echo "FACT-E2E golden-order Playwright command itself failed." >&2

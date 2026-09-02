@@ -36,8 +36,31 @@ pushd "${CORE_REPO}" >/dev/null
 # Supabase dashboard, never read from this file. Without this, FACT-E2E's AAL2
 # step-up identity bootstrap (create-test-identities.mjs) fails outright with
 # "MFA enroll is disabled for TOTP" before any golden-order stage can run.
-if ! grep -q '^\[auth\.mfa\.totp\]' supabase/config.toml; then
-  printf '\n[auth.mfa.totp]\nenroll_enabled = true\nverify_enabled = true\n' >> supabase/config.toml
+CONFIG_TOML="supabase/config.toml"
+if grep -q '^\[auth\.mfa\.totp\]' "${CONFIG_TOML}"; then
+  awk '
+    BEGIN { in_totp = 0; enroll_set = 0; verify_set = 0 }
+    /^\[auth\.mfa\.totp\]$/ { in_totp = 1; print; next }
+    /^\[/ {
+      if (in_totp) {
+        if (!enroll_set) print "enroll_enabled = true"
+        if (!verify_set) print "verify_enabled = true"
+      }
+      in_totp = 0
+    }
+    in_totp && /^enroll_enabled[[:space:]]*=/ { print "enroll_enabled = true"; enroll_set = 1; next }
+    in_totp && /^verify_enabled[[:space:]]*=/ { print "verify_enabled = true"; verify_set = 1; next }
+    { print }
+    END {
+      if (in_totp) {
+        if (!enroll_set) print "enroll_enabled = true"
+        if (!verify_set) print "verify_enabled = true"
+      }
+    }
+  ' "${CONFIG_TOML}" > "${CONFIG_TOML}.tmp"
+  mv "${CONFIG_TOML}.tmp" "${CONFIG_TOML}"
+else
+  printf '\n[auth.mfa.totp]\nenroll_enabled = true\nverify_enabled = true\n' >> "${CONFIG_TOML}"
 fi
 
 # Match Core's own Migration CI semantics: start performs a zero-state replay,
