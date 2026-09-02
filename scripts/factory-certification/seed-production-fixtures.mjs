@@ -186,7 +186,8 @@ assertNoSupabaseError(goldenItemsError, "Golden-order item verification read fai
 if (!Array.isArray(goldenItems) || goldenItems.length !== 1 || goldenItems[0].id !== GOLDEN_ORDER_ITEM_ID || Number(goldenItems[0].quantity) !== 5) {
   throw new Error(`Golden-order governed checkout did not create the deterministic quantity-5 item: ${JSON.stringify(goldenItems)}`);
 }
-await appendFile(credentialFile, `export FACTORY_CERT_GOLDEN_ORDER_ID='${GOLDEN_ORDER_ID}'\nexport FACTORY_CERT_GOLDEN_ORDER_ITEM_ID='${GOLDEN_ORDER_ITEM_ID}'\n`, { encoding: "utf8" });
+// Codacy requires a literal path; the guard above already rejects any other value.
+await appendFile("/tmp/oasis-factory-certification.env", `export FACTORY_CERT_GOLDEN_ORDER_ID='${GOLDEN_ORDER_ID}'\nexport FACTORY_CERT_GOLDEN_ORDER_ITEM_ID='${GOLDEN_ORDER_ITEM_ID}'\n`, { encoding: "utf8" });
 console.log(`Created governed deterministic golden Sales Order ${checkoutRows[0].order_number} through Buyer checkout.`);
 
 const { error: pkgProductError } = await supabase.from("products").upsert({
