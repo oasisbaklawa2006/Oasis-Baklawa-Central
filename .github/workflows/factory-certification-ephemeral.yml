@@ -535,7 +535,7 @@ jobs:
           insert into public.orders (
             id, company_id, status, order_number, sales_order_value, advance_required,
             advance_paid, payment_status, payment_cleared, final_invoice_url,
-            order_origin, tracking_token, commercial_current_version
+            order_origin, tracking_token
           ) values (
             '93000000-0000-0000-0000-000000000001',
             '92000000-0000-0000-0000-000000000001',
@@ -544,8 +544,7 @@ jobs:
             100, 0, 100, 'paid', true,
             'https://example.invalid/factory-gate-cert-invoice',
             'MANUAL',
-            'factory-gate-cert-tracking-001',
-            1
+            'factory-gate-cert-tracking-001'
           );
 
           insert into public.products (
@@ -616,6 +615,10 @@ jobs:
               'sales_order_value', 100
             ) as snapshot
           ) commercial;
+
+          update public.orders
+          set commercial_current_version = 1
+          where id = '93000000-0000-0000-0000-000000000001';
 
           insert into public.sales_order_proforma_invoices (
             id, order_id, commercial_version_id, commercial_version_number,
