@@ -1111,9 +1111,13 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
     expect(lockError, lockError?.message).toBeNull();
     record(ledger.stages, "dispatch_lock_carton", "lock_b2b_dispatch_carton", "DISPATCH_MANAGER", lockCorrelationId, "PASS", "locked");
 
-    // NEGATIVE: post-lock mutation rejected.
+    // NEGATIVE: post-lock mutation rejected. record_b2b_dispatch_carton_item_scan
+    // soft-rejects (scan_result <> 'verified', no thrown error) once the
+    // carton's status leaves ('open','under_packing','photo_required') --
+    // same non-throwing shape as the overflow/idempotent-retry checks above,
+    // not an RPC-level error.
     const postLockScanCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-post-lock-scan`;
-    const { error: postLockScanError } = await client.rpc("record_b2b_dispatch_carton_item_scan", {
+    const { data: postLockScanResult, error: postLockScanError } = await client.rpc("record_b2b_dispatch_carton_item_scan", {
       p_carton_id: cartonId,
       p_consignment_line_id: lineId,
       p_barcode_value: `FACT-E2E-${RUN_SUFFIX}-POST-LOCK`,
@@ -1121,8 +1125,9 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
       p_quantity: 1,
       p_correlation_id: postLockScanCorrelationId,
     });
-    expect(postLockScanError, "no further scan may succeed against a locked carton").not.toBeNull();
-    record(ledger.negative_paths, "post_lock_mutation_rejected", "record_b2b_dispatch_carton_item_scan", "DISPATCH_MANAGER", postLockScanCorrelationId, postLockScanError ? "PASS" : "FAIL", postLockScanError?.message ?? "RPC unexpectedly succeeded");
+    const postLockRejected = Boolean(postLockScanError) || postLockScanResult?.scan_result !== "verified";
+    expect(postLockRejected, "no further scan may succeed against a locked carton").toBe(true);
+    record(ledger.negative_paths, "post_lock_mutation_rejected", "record_b2b_dispatch_carton_item_scan", "DISPATCH_MANAGER", postLockScanCorrelationId, postLockRejected ? "PASS" : "FAIL", postLockScanError?.message ?? `scan_result=${postLockScanResult?.scan_result}`);
   });
 
   await test.step("Dispatch: DPL create -> supersede -> submit to Finance", async () => {
