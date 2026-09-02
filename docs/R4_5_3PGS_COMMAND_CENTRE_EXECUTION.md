@@ -2,7 +2,7 @@
 
 Controlling issues: #407 and #368.
 
-Current-main reconciliation: R4.5 is synchronized through Central `main` `8d24c99464558ccfcd9ca0cb7be538025f7f638c`, which includes merged FACT-C3 #423 and Buyer #431.
+Current-main reconciliation: R4.5 is synchronized onto Central `main` `9435676b88d11888d39f3302a2c4f17495a6ae50` at PR head `0ba75a89684b8b87d180570ee66af3e7bf0cb57b`. Historical checkpoint `8d24c99464558ccfcd9ca0cb7be538025f7f638c` (merged FACT-C3 #423 + Buyer #431) was the earlier merge-base before the final rebase onto current `main`.
 
 ## Purpose
 

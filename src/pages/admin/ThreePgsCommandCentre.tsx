@@ -9,8 +9,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { dispatchDb as governedReadDb } from "@/lib/dispatchGovernedRpc";
 import {
   EMPTY_THREE_PGS_SNAPSHOT,
+  THREE_PGS_OPERATOR_QUEUE_ANCHOR,
   THREE_PGS_STORE_CODE,
-  isFinalisedGrn,
+  receiptDisplayGrn,
+  receiptHasFinalisedGrn,
   threePgsCommandCentreMetrics,
 } from "./threePgsCommandCentreModel";
 import type {
@@ -116,7 +118,7 @@ export default function ThreePgsCommandCentre() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button asChild size="sm" variant="outline"><Link to="/admin/3pgs-procurement-queue">Open operator queue</Link></Button>
+          <Button asChild size="sm" variant="outline"><Link to={`/admin/3pgs-procurement-queue#${THREE_PGS_OPERATOR_QUEUE_ANCHOR}`}>Open operator queue</Link></Button>
           <Button asChild size="sm" variant="outline"><Link to="/admin/inventory-receiving">Open receiving / GRN</Link></Button>
           <Button size="sm" variant="outline" onClick={() => { void load(); }} disabled={loading}>
             <RefreshCw className={`mr-1 h-4 w-4 ${loading ? "animate-spin" : ""}`} aria-hidden />Refresh
@@ -174,8 +176,8 @@ export default function ThreePgsCommandCentre() {
         <CardHeader className="pb-2"><CardTitle className="text-sm">Inbound / GRN control</CardTitle><CardDescription className="text-xs">Recent 3PGS receipts with finalisation state derived from canonical GRNs.</CardDescription></CardHeader>
         <CardContent className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Receipt</TableHead><TableHead>Status</TableHead><TableHead>GRN</TableHead><TableHead>Finalised</TableHead></TableRow></TableHeader><TableBody>
           {snapshot.receipts.map((receipt) => {
-            const grn = snapshot.grns.find((row) => row.receipt_id === receipt.id);
-            const finalised = grn !== undefined && isFinalisedGrn(grn);
+            const grn = receiptDisplayGrn(receipt.id, snapshot.grns);
+            const finalised = receiptHasFinalisedGrn(receipt.id, snapshot.grns);
             return <TableRow key={receipt.id}><TableCell>{receipt.receipt_number}</TableCell><TableCell><Badge variant="outline">{receipt.status.replace(/_/g, " ")}</Badge></TableCell><TableCell>{grn?.grn_number ?? "—"}</TableCell><TableCell>{finalised ? "Yes" : "No"}</TableCell></TableRow>;
           })}
         </TableBody></Table></CardContent>

@@ -1,4 +1,5 @@
 export const THREE_PGS_STORE_CODE = "3PGS";
+export const THREE_PGS_OPERATOR_QUEUE_ANCHOR = "three-pgs-operator-queue";
 
 const CLOSED_PROCUREMENT_STATUSES = new Set(["received", "cancelled", "closed"]);
 const OPEN_ASSEMBLY_STATUSES = new Set(["open", "partially_fulfilled"]);
@@ -85,6 +86,19 @@ export const EMPTY_THREE_PGS_SNAPSHOT: Snapshot = {
 
 export function isFinalisedGrn(grn: Grn): boolean {
   return grn.status === "finalised" || grn.finalised_at !== null;
+}
+
+export function receiptGrnsFor(receiptId: string, grns: Grn[]): Grn[] {
+  return grns.filter((row) => row.receipt_id === receiptId);
+}
+
+export function receiptHasFinalisedGrn(receiptId: string, grns: Grn[]): boolean {
+  return receiptGrnsFor(receiptId, grns).some(isFinalisedGrn);
+}
+
+export function receiptDisplayGrn(receiptId: string, grns: Grn[]): Grn | undefined {
+  const relatedGrns = receiptGrnsFor(receiptId, grns);
+  return relatedGrns.find(isFinalisedGrn) ?? relatedGrns[0];
 }
 
 export function threePgsCommandCentreMetrics(snapshot: Snapshot) {

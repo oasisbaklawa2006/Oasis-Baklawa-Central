@@ -1,5 +1,6 @@
 import ThreePgsCommandCentre from "./ThreePgsCommandCentre";
 import ThreePgsProcurementQueue from "./ThreePgsProcurementQueue";
+import { THREE_PGS_OPERATOR_QUEUE_ANCHOR } from "./threePgsCommandCentreModel";
 
 /**
  * R4.5 route-level composition at the existing canonical 3PGS route.
@@ -12,7 +13,7 @@ export default function ThreePgsProcurementQueueComposition() {
   return (
     <div className="space-y-8">
       <ThreePgsCommandCentre />
-      <div className="border-t border-border pt-4">
+      <div id={THREE_PGS_OPERATOR_QUEUE_ANCHOR} className="border-t border-border pt-4 scroll-mt-24">
         <ThreePgsProcurementQueue />
       </div>
     </div>
