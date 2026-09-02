@@ -612,6 +612,30 @@ jobs:
             'factory-gate-cert-dpl'
           );
 
+          insert into public.sales_order_pi_final_payment_requests (
+            id, order_id, company_id, proforma_invoice_id, commercial_version_id,
+            finance_dpl_receipt_id, revision_number, customer_visible_pi_number,
+            dpl_fingerprint, currency, taxable_total, tax_total, final_payable_total,
+            verified_payment_at_issue, wallet_applied_at_issue, approved_credit_at_issue,
+            balance_due_at_issue, payment_action, payment_instructions, document_reference,
+            request_fingerprint, reason, source_channel, source_reference, correlation_id,
+            idempotency_key, issued_by, issued_role, issued_at
+          ) values (
+            '96600000-0000-0000-0000-000000000001',
+            '93000000-0000-0000-0000-000000000001',
+            '92000000-0000-0000-0000-000000000001',
+            '96100000-0000-0000-0000-000000000001',
+            '96000000-0000-0000-0000-000000000001',
+            '96200000-0000-0000-0000-000000000001',
+            1, 'PI2026/09-001', repeat('b',64), 'INR', 100, 0, 100,
+            100, 0, 0, 0, 'BANK_TRANSFER',
+            'Disposable gate certification final payment', 'factory-gate-cert-final-payment',
+            repeat('d',64), 'Disposable gate certification', 'FINANCE', 'FACT-C3-CERT',
+            'factory-gate-cert-final-payment', 'factory-gate-cert-final-payment',
+            '91000000-0000-0000-0000-000000000002', 'FINANCE_EXEC',
+            statement_timestamp() - interval '1 hour'
+          );
+
           insert into public.final_invoices (
             id, order_id, company_id, proforma_invoice_id, commercial_version_id,
             finance_dpl_receipt_id, invoice_number, invoice_date, currency,
