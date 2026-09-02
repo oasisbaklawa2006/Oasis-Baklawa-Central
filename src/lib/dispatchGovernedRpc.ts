@@ -23,6 +23,7 @@ export const dispatchGovernedRpc = supabase as unknown as {
 type DispatchQuery<Row> = PromiseLike<{ data: Row[] | null; error: { message: string } | null }> & {
   select: (columns: string) => DispatchQuery<Row>;
   eq: (column: string, value: unknown) => DispatchQuery<Row>;
+  in: (column: string, values: readonly unknown[]) => DispatchQuery<Row>;
   order: (column: string, options?: { ascending?: boolean }) => DispatchQuery<Row>;
   limit: (count: number) => DispatchQuery<Row>;
 };
