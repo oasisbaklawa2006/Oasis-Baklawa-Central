@@ -731,7 +731,14 @@ jobs:
             'factory-gate-cert-final-payment',
             '91000000-0000-0000-0000-000000000002',
             'FINANCE_EXEC',
-            statement_timestamp() - interval '1 hour'
+            -- A 1-hour offset intermittently placed this in "tomorrow" in
+            -- Asia/Kolkata (UTC+5:30) whenever the CI runner's UTC clock was
+            -- past ~18:30, since enforce_final_invoice_latest_final_payment_request_v1()
+            -- compares (issued_at AT TIME ZONE 'Asia/Kolkata')::date against
+            -- final_invoices.invoice_date (current_date, in whatever timezone
+            -- the session runs in) -- causing FINAL_INVOICE_DATE_PRECEDES_FINAL_PAYMENT_REQUEST.
+            -- A 2-day offset is safely in the past in every timezone.
+            statement_timestamp() - interval '2 days'
           from public.finance_dpl_receipts receipt
           where receipt.id = '96200000-0000-0000-0000-000000000001';
 
