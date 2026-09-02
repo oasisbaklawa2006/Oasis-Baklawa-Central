@@ -555,7 +555,7 @@ jobs:
           ) values (
             '96000000-0000-0000-0000-000000000001',
             '93000000-0000-0000-0000-000000000001',
-            1, 'MANUAL', '{}'::jsonb, repeat('a',64), 100, 0,
+            1, 'MANUAL', '{}'::jsonb, md5('{}'::jsonb::text), 100, 0,
             'advance-30pct-nearest-inr-500/v2', 'Disposable gate certification',
             'factory-gate-cert-commercial', 'factory-gate-cert-commercial',
             '91000000-0000-0000-0000-000000000002'
@@ -570,7 +570,7 @@ jobs:
             '96100000-0000-0000-0000-000000000001',
             '93000000-0000-0000-0000-000000000001',
             '96000000-0000-0000-0000-000000000001',
-            1, '{}'::jsonb, repeat('a',64), 'ISSUED',
+            1, '{}'::jsonb, md5('{}'::jsonb::text), 'ISSUED',
             'PI2026/09-001',
             'Disposable gate certification', 'FINANCE',
             'factory-gate-cert-pi', 'factory-gate-cert-pi',
