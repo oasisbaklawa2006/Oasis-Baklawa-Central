@@ -1,6 +1,6 @@
-import { createHmac } from "node:crypto";
 import { expect, type Page } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
+import { computeTotpCode } from "../../scripts/factory-certification/totp.mjs";
 import type { DatabaseWithCanonicalProductionDepartment } from "../../src/lib/production-jobs/productionJobsDatabase";
 import type { FactoryRouteEntry } from "../../src/lib/factoryOperationsRouteRegistry";
 import { FACTORY_OPERATIONS_ROUTES } from "../../src/lib/factoryOperationsRouteRegistry";
@@ -292,43 +292,6 @@ export function readFactoryCertificationTotpSecret(role: string): string | null 
   const spec = factoryCertificationCredentialSpec(role);
   const secret = process.env[`FACTORY_CERT_${spec.role}_TOTP_SECRET`]?.trim();
   return secret || null;
-}
-
-function decodeBase32(base32Secret: string): Buffer {
-  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
-  let bits = "";
-  for (const char of base32Secret.toUpperCase().replaceAll("=", "")) {
-    const value = alphabet.indexOf(char);
-    if (value === -1) continue;
-    bits += value.toString(2).padStart(5, "0");
-  }
-  const bytes: number[] = [];
-  for (let i = 0; i + 8 <= bits.length; i += 8) {
-    bytes.push(parseInt(bits.slice(i, i + 8), 2));
-  }
-  return Buffer.from(bytes);
-}
-
-/**
- * Compute an RFC 6238 TOTP code (30s step, 6 digits, HMAC-SHA1 -- Supabase
- * Auth's TOTP defaults) for a base32 secret at a given instant. Mirrors
- * scripts/factory-certification/local-supabase-client.mjs's computeTotpCode
- * so runtime step-up uses fresh codes from the SAME enrolled factor, not a
- * stored/replayed one.
- */
-export function computeTotpCode(base32Secret: string, atTimeMs: number = Date.now()): string {
-  const key = decodeBase32(base32Secret);
-  const counter = Math.floor(Math.floor(atTimeMs / 1000) / 30);
-  const counterBuffer = Buffer.alloc(8);
-  counterBuffer.writeBigUInt64BE(BigInt(counter));
-  const hmac = createHmac("sha1", key).update(counterBuffer).digest();
-  const offset = hmac[hmac.length - 1] & 0x0f;
-  const binaryCode =
-    ((hmac[offset] & 0x7f) << 24) |
-    ((hmac[offset + 1] & 0xff) << 16) |
-    ((hmac[offset + 2] & 0xff) << 8) |
-    (hmac[offset + 3] & 0xff);
-  return String(binaryCode % 1_000_000).padStart(6, "0");
 }
 
 /**
