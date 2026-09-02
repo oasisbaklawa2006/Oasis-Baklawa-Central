@@ -8,12 +8,14 @@
 import {
   assertNoSupabaseError,
   createLocalSupabaseAdminClient,
+  runLocalPostgresRoleStatement,
 } from "./local-supabase-client.mjs";
 
 const baseUrl = process.env.FACTORY_CERT_SUPABASE_URL?.trim();
 const serviceRoleKey = process.env.FACTORY_CERT_LOCAL_SERVICE_ROLE_KEY?.trim();
-if (!baseUrl || !serviceRoleKey) {
-  throw new Error("FACTORY_CERT_SUPABASE_URL and FACTORY_CERT_LOCAL_SERVICE_ROLE_KEY are required");
+const localDbUrl = process.env.FACTORY_CERT_LOCAL_DB_URL?.trim();
+if (!baseUrl || !serviceRoleKey || !localDbUrl) {
+  throw new Error("FACTORY_CERT_SUPABASE_URL, FACTORY_CERT_LOCAL_SERVICE_ROLE_KEY and FACTORY_CERT_LOCAL_DB_URL are required");
 }
 
 const { client: supabase } = createLocalSupabaseAdminClient({
@@ -192,33 +194,48 @@ const { error: goldenCompanyError } = await supabase.from("companies").upsert(
 );
 assertNoSupabaseError(goldenCompanyError, "Golden-order company fixture upsert failed");
 
-// Core's protect_order_authority_fields() trigger (see
-// 20260809060000_wave1b_server_authority_foundation.sql) rejects any
-// non-'postgres'-role INSERT into public.orders whose status is outside
-// draft/submitted, or whose payment_cleared/advance_paid/finance_verified_*
-// fields are already set -- those transitions are Finance-authority-only
-// and must happen via governed RPCs, never a raw insert. The certification
-// service-role client is not the postgres role, so this fixture stays at
-// the insert-permitted draft/unpaid state; none of the governed RPCs the
-// golden-order spec calls (create_b2b_dispatch_consignment onward) require
-// a later order status or payment state.
-const { error: goldenOrderError } = await supabase.from("orders").upsert(
-  {
-    id: GOLDEN_ORDER_ID,
-    company_id: GOLDEN_ORDER_COMPANY_ID,
-    status: "draft",
-    order_number: "FACT-E2E-GOLDEN-001",
-    sales_order_value: 500,
-    advance_required: 0,
-    advance_paid: 0,
-    payment_status: "pending",
-    payment_cleared: false,
-    order_origin: "MANUAL",
-    tracking_token: "fact-e2e-golden-tracking-001",
-  },
-  { onConflict: "id" },
+// Two Core triggers gate a raw INSERT into public.orders, and both carve out
+// exactly one bypass: a literal session_user='postgres' connection with no
+// authenticated JWT context.
+//
+// - protect_order_authority_fields() (20260809060000_wave1b_server_authority_foundation.sql)
+//   rejects any non-'postgres'-role INSERT whose status is outside
+//   draft/submitted, or whose payment_cleared/advance_paid/finance_verified_*
+//   fields are already set -- those transitions are Finance-authority-only.
+// - assign_order_number_on_insert() (20260901005700_app_e2e_order_creation_scope_hardening.sql)
+//   rejects any INSERT that carries an explicit order_number unless the
+//   caller is that same literal postgres session; every other caller must go
+//   through a governed order-creation RPC (submit_customer_order_v1 /
+//   promote_sales_order_draft_to_order_governed_v1), which allocate the
+//   number themselves and are not suitable for seeding a deterministic
+//   fixture id/order_number pair.
+//
+// The certification service-role client authenticates through PostgREST and
+// runs as role 'service_role', not 'postgres', so it can satisfy neither
+// bypass. This one row is therefore written via a direct native-Postgres
+// connection as the literal postgres role (see runLocalPostgresRoleStatement)
+// instead -- exactly the carve-out both triggers document, not a bypass of
+// governance. It stays at the insert-permitted draft/unpaid state; none of
+// the governed RPCs the golden-order spec calls require a later order status
+// or payment state at seed time (F0/F1 clearance and release happen later in
+// the spec itself, through the real governed RPCs).
+runLocalPostgresRoleStatement(
+  localDbUrl,
+  `INSERT INTO public.orders (
+     id, company_id, status, order_number, sales_order_value, advance_required,
+     advance_paid, payment_status, payment_cleared, order_origin, tracking_token
+   ) VALUES (
+     '${GOLDEN_ORDER_ID}', '${GOLDEN_ORDER_COMPANY_ID}', 'draft', 'FACT-E2E-GOLDEN-001', 500, 0,
+     0, 'pending', false, 'MANUAL', 'fact-e2e-golden-tracking-001'
+   )
+   ON CONFLICT (id) DO UPDATE SET
+     company_id = EXCLUDED.company_id, status = EXCLUDED.status, order_number = EXCLUDED.order_number,
+     sales_order_value = EXCLUDED.sales_order_value, advance_required = EXCLUDED.advance_required,
+     advance_paid = EXCLUDED.advance_paid, payment_status = EXCLUDED.payment_status,
+     payment_cleared = EXCLUDED.payment_cleared, order_origin = EXCLUDED.order_origin,
+     tracking_token = EXCLUDED.tracking_token;`,
+  "Golden-order order fixture upsert",
 );
-assertNoSupabaseError(goldenOrderError, "Golden-order order fixture upsert failed");
 
 const { error: goldenOrderItemError } = await supabase.from("order_items").upsert(
   {

@@ -42,10 +42,19 @@ source "${STATUS_FILE}"
 : "${API_URL:?Supabase CLI status did not expose API_URL}"
 : "${ANON_KEY:?Supabase CLI status did not expose ANON_KEY}"
 : "${SERVICE_ROLE_KEY:?Supabase CLI status did not expose SERVICE_ROLE_KEY}"
+: "${DB_URL:?Supabase CLI status did not expose DB_URL}"
 
 export FACTORY_CERT_SUPABASE_URL="${API_URL}"
 export FACTORY_CERT_SUPABASE_ANON_KEY="${ANON_KEY}"
 export FACTORY_CERT_LOCAL_SERVICE_ROLE_KEY="${SERVICE_ROLE_KEY}"
+# Direct native-Postgres connection to the disposable local stack, used only
+# by seed-production-fixtures.mjs's postgres-role bootstrap path (Core's
+# assign_order_number_on_insert trigger, 20260901005700_app_e2e_order_creation_scope_hardening.sql,
+# permits a raw orders INSERT with an explicit order_number only from a
+# literal session_user='postgres' connection with no JWT context -- the
+# service-role PostgREST client runs as role 'service_role', not 'postgres',
+# and cannot satisfy this). Loopback-only, same as the PostgREST client above.
+export FACTORY_CERT_LOCAL_DB_URL="${DB_URL}"
 export FACTORY_CERT_ENVIRONMENT_ID="${FACTORY_CERT_ENVIRONMENT_ID:-factory-cert-local-$(date +%Y%m%d%H%M%S)}"
 
 # The credential path is deliberately fixed. Accepting an environment-derived
