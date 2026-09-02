@@ -752,20 +752,27 @@ jobs:
           -- (owner-role direct mutation with no JWT context) applies, rather
           -- than requiring a governed order_payment_authority_scopes row.
           insert into public.order_payments (
-            id, order_id, company_id, payment_type, amount, currency,
-            proforma_invoice_id, commercial_version_id, status,
-            verified_amount, verified_by, verified_at
+            id, order_id, company_id, proforma_invoice_id, commercial_version_id,
+            payment_type, amount, verified_amount, currency, status,
+            source_channel, source_reference, proof_evidence_reference, proof_received_at,
+            verified_by, verified_at, verification_evidence_reference,
+            reference_no, idempotency_key, payment_date
           ) values (
             '96700000-0000-0000-0000-000000000001',
             '93000000-0000-0000-0000-000000000001',
             '92000000-0000-0000-0000-000000000001',
-            'balance', 100, 'INR',
             '96100000-0000-0000-0000-000000000001',
             '96000000-0000-0000-0000-000000000001',
-            'verified',
-            100,
+            'balance', 100, 100, 'INR', 'verified',
+            'FINANCE', 'factory-gate-cert-payment',
+            'factory-gate-cert-payment-proof',
+            statement_timestamp() - interval '3 days',
             '91000000-0000-0000-0000-000000000002',
-            statement_timestamp()
+            statement_timestamp() - interval '2 days',
+            'factory-gate-cert-payment-verification',
+            'FACTORY-GATE-CERT-PAY-001',
+            'factory-gate-cert-payment',
+            current_date - 2
           );
 
           -- enforce_final_invoice_latest_final_payment_request_v1()'s coverage check
