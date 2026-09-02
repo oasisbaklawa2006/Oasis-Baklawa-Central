@@ -529,11 +529,16 @@ touches production.
 Synchronized `codex/app-e2e-tranche5-central-binding` onto current Central `main`
 `9435676b88d11888d39f3302a2c4f17495a6ae50` (#436 Finance Exit Codacy remediation).
 
-- Synchronized head: `478c1e678c369b25bbec05ea54b75fbeac822ce7`
+- Synchronized head: `a7ced66e57dc5cdab2f82de648a3ec1a4efa9609`
 - Overlap resolved: `src/pages/admin/AdminB2bSecurityGate.tsx` only (#425/#436
   event-handler authority; no Buyer/Core-binding changes).
 - Pre-push local verification on synchronized head: TypeScript **PASS**, focused
   Buyer/client/presentation suites **55/55 PASS**, changed-file ESLint **PASS**,
   production build **PASS**, repo boundary check **PASS**.
-- Exact-head CI reruns triggered on push for Release Quality Gate, Buyer Golden
-  Path Certification, and Repo Ownership Boundaries.
+- Exact-head CI on `a7ced66e`:
+  - Release Quality Gate run `33651211204`: **PASS**
+  - Buyer Golden Path Certification run `33651211186`: **PASS** (375/390/430)
+  - Repo Ownership Boundaries run `33651211162`: **PASS**
+  - CodeQL, Codacy, Snyk, CodeRabbit, Vercel: **PASS**
+- Prior collaborator approval on stale head `b341de8f` is superseded; fresh
+  independent approval required on exact synchronized head per Mission Control.
