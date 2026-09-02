@@ -37,19 +37,19 @@ pushd "${CORE_REPO}" >/dev/null
 # step-up identity bootstrap (create-test-identities.mjs) fails outright with
 # "MFA enroll is disabled for TOTP" before any golden-order stage can run.
 CONFIG_TOML="supabase/config.toml"
-if grep -q '^\[auth\.mfa\.totp\]' "${CONFIG_TOML}"; then
+if grep -Eq '^[[:space:]]*\[auth\.mfa\.totp\][[:space:]]*(#.*)?$' "${CONFIG_TOML}"; then
   awk '
     BEGIN { in_totp = 0; enroll_set = 0; verify_set = 0 }
-    /^\[auth\.mfa\.totp\]$/ { in_totp = 1; print; next }
-    /^\[/ {
+    /^[[:space:]]*\[auth\.mfa\.totp\][[:space:]]*(#.*)?$/ { in_totp = 1; print; next }
+    /^[[:space:]]*\[/ {
       if (in_totp) {
         if (!enroll_set) print "enroll_enabled = true"
         if (!verify_set) print "verify_enabled = true"
       }
       in_totp = 0
     }
-    in_totp && /^enroll_enabled[[:space:]]*=/ { print "enroll_enabled = true"; enroll_set = 1; next }
-    in_totp && /^verify_enabled[[:space:]]*=/ { print "verify_enabled = true"; verify_set = 1; next }
+    in_totp && /^[[:space:]]*enroll_enabled[[:space:]]*=/ { print "enroll_enabled = true"; enroll_set = 1; next }
+    in_totp && /^[[:space:]]*verify_enabled[[:space:]]*=/ { print "verify_enabled = true"; verify_set = 1; next }
     { print }
     END {
       if (in_totp) {
