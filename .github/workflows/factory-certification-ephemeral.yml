@@ -743,6 +743,31 @@ jobs:
           from public.finance_dpl_receipts receipt
           where receipt.id = '96200000-0000-0000-0000-000000000001';
 
+          -- get_sales_order_final_payment_coverage_v1() sums verified
+          -- order_payments for this PI; without a settled payment the
+          -- final-invoice trigger correctly fails closed with
+          -- FINAL_INVOICE_FINAL_PAYMENT_NOT_SETTLED. Insert it while auth.uid()
+          -- is still NULL so guard_order_payment_authority_mutation()'s own
+          -- "migrations/maintenance run without identity" escape hatch
+          -- (owner-role direct mutation with no JWT context) applies, rather
+          -- than requiring a governed order_payment_authority_scopes row.
+          insert into public.order_payments (
+            id, order_id, company_id, payment_type, amount, currency,
+            proforma_invoice_id, commercial_version_id, status,
+            verified_amount, verified_by, verified_at
+          ) values (
+            '96700000-0000-0000-0000-000000000001',
+            '93000000-0000-0000-0000-000000000001',
+            '92000000-0000-0000-0000-000000000001',
+            'balance', 100, 'INR',
+            '96100000-0000-0000-0000-000000000001',
+            '96000000-0000-0000-0000-000000000001',
+            'verified',
+            100,
+            '91000000-0000-0000-0000-000000000002',
+            statement_timestamp()
+          );
+
           -- enforce_final_invoice_latest_final_payment_request_v1()'s coverage check
           -- calls get_order_payment_facts_v1(), which requires auth.uid() to be a
           -- real authenticated actor (raises ORDER_PAYMENT_AUTHENTICATION_REQUIRED
