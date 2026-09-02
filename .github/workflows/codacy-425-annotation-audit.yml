@@ -1,0 +1,25 @@
+name: PR 425 Codacy Annotation Audit
+
+on:
+  push:
+    branches:
+      - chatgpt/pr425-codacy-corrective
+
+permissions:
+  contents: read
+  checks: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Print exact Codacy annotations from merged head
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            --paginate \
+            /repos/oasisbaklawa2006/Oasis-Baklawa-Central/check-runs/100174381676/annotations \
+          | jq -r '.[] | [(.annotation_level // ""), (.path // ""), ((.start_line // 0)|tostring), ((.end_line // 0)|tostring), (.title // ""), (.message // ""), (.raw_details // "")] | @tsv'
