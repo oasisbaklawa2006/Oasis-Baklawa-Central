@@ -8,14 +8,12 @@
 import {
   assertNoSupabaseError,
   createLocalSupabaseAdminClient,
-  runLocalPostgresRoleStatement,
 } from "./local-supabase-client.mjs";
 
 const baseUrl = process.env.FACTORY_CERT_SUPABASE_URL?.trim();
 const serviceRoleKey = process.env.FACTORY_CERT_LOCAL_SERVICE_ROLE_KEY?.trim();
-const localDbUrl = process.env.FACTORY_CERT_LOCAL_DB_URL?.trim();
-if (!baseUrl || !serviceRoleKey || !localDbUrl) {
-  throw new Error("FACTORY_CERT_SUPABASE_URL, FACTORY_CERT_LOCAL_SERVICE_ROLE_KEY and FACTORY_CERT_LOCAL_DB_URL are required");
+if (!baseUrl || !serviceRoleKey) {
+  throw new Error("FACTORY_CERT_SUPABASE_URL and FACTORY_CERT_LOCAL_SERVICE_ROLE_KEY are required");
 }
 
 const { client: supabase } = createLocalSupabaseAdminClient({
@@ -169,16 +167,12 @@ if (!golden || Number(golden.assigned_qty) !== 6 || Number(golden.produced_qty ?
 
 console.log(`Seeded ${seeded.length} deterministic Production-TV jobs; golden short id E3ED28B0 is present.`);
 
-// Deterministic fixtures for the FACT-E2E continuous golden-order
-// certification (tests/factory-operations-golden-order.cert.spec.ts).
-// These are prerequisite catalogue/stock rows only -- no order_items,
-// production_jobs, b2b_dispatch_*, or b2b_assembly_* row here represents a
-// governed business transition; every one of those is created exclusively
-// by the spec calling the governed RPCs under test.
+// Deterministic prerequisites for the FACT-E2E continuous golden-order
+// certification. Business transitions remain governed RPC calls in the spec.
 const GOLDEN_ORDER_COMPANY_ID = "30000000-0000-4000-8000-000000000001";
 const GOLDEN_ORDER_ID = "30000000-0000-4000-8000-000000000002";
 const GOLDEN_ORDER_ITEM_ID = "30000000-0000-4000-8000-000000000003";
-const GOLDEN_ORDER_FG_COMPONENT_PRODUCT_ID = products[0].id; // reuse CERT-ARABIC-001 (arabic_sweets)
+const GOLDEN_ORDER_FG_COMPONENT_PRODUCT_ID = products[0].id;
 const GOLDEN_ORDER_3PGS_COMPONENT_PRODUCT_ID = "20000000-0000-4000-8000-000000000201";
 
 const { error: goldenCompanyError } = await supabase.from("companies").upsert(
@@ -194,62 +188,43 @@ const { error: goldenCompanyError } = await supabase.from("companies").upsert(
 );
 assertNoSupabaseError(goldenCompanyError, "Golden-order company fixture upsert failed");
 
-// Two Core triggers gate a raw INSERT into public.orders, and both carve out
-// exactly one bypass: a literal session_user='postgres' connection with no
-// authenticated JWT context.
-//
-// - protect_order_authority_fields() (20260809060000_wave1b_server_authority_foundation.sql)
-//   rejects any non-'postgres'-role INSERT whose status is outside
-//   draft/submitted, or whose payment_cleared/advance_paid/finance_verified_*
-//   fields are already set -- those transitions are Finance-authority-only.
-// - assign_order_number_on_insert() (20260901005700_app_e2e_order_creation_scope_hardening.sql)
-//   rejects any INSERT that carries an explicit order_number unless the
-//   caller is that same literal postgres session; every other caller must go
-//   through a governed order-creation RPC (submit_customer_order_v1 /
-//   promote_sales_order_draft_to_order_governed_v1), which allocate the
-//   number themselves and are not suitable for seeding a deterministic
-//   fixture id/order_number pair.
-//
-// The certification service-role client authenticates through PostgREST and
-// runs as role 'service_role', not 'postgres', so it can satisfy neither
-// bypass. This one row is therefore written via a direct native-Postgres
-// connection as the literal postgres role (see runLocalPostgresRoleStatement)
-// instead -- exactly the carve-out both triggers document, not a bypass of
-// governance. It stays at the insert-permitted draft/unpaid state; none of
-// the governed RPCs the golden-order spec calls require a later order status
-// or payment state at seed time (F0/F1 clearance and release happen later in
-// the spec itself, through the real governed RPCs).
-runLocalPostgresRoleStatement(
-  localDbUrl,
-  `INSERT INTO public.orders (
-     id, company_id, status, order_number, sales_order_value, advance_required,
-     advance_paid, payment_status, payment_cleared, order_origin, tracking_token
-   ) VALUES (
-     '${GOLDEN_ORDER_ID}', '${GOLDEN_ORDER_COMPANY_ID}', 'draft', 'FACT-E2E-GOLDEN-001', 500, 0,
-     0, 'pending', false, 'MANUAL', 'fact-e2e-golden-tracking-001'
-   )
-   ON CONFLICT (id) DO UPDATE SET
-     company_id = EXCLUDED.company_id, status = EXCLUDED.status, order_number = EXCLUDED.order_number,
-     sales_order_value = EXCLUDED.sales_order_value, advance_required = EXCLUDED.advance_required,
-     advance_paid = EXCLUDED.advance_paid, payment_status = EXCLUDED.payment_status,
-     payment_cleared = EXCLUDED.payment_cleared, order_origin = EXCLUDED.order_origin,
-     tracking_token = EXCLUDED.tracking_token;`,
-  "Golden-order order fixture upsert",
-);
+// Keep the deterministic order id, but let Core's canonical insert trigger
+// allocate order_number. This avoids a native-Postgres fixture bypass and
+// exercises the same server-owned numbering boundary as normal callers.
+const { error: goldenOrderError } = await supabase.from("orders").insert({
+  id: GOLDEN_ORDER_ID,
+  company_id: GOLDEN_ORDER_COMPANY_ID,
+  status: "draft",
+  sales_order_value: 500,
+  advance_required: 0,
+  advance_paid: 0,
+  payment_status: "pending",
+  payment_cleared: false,
+  order_origin: "MANUAL",
+  tracking_token: "fact-e2e-golden-tracking-001",
+});
+assertNoSupabaseError(goldenOrderError, "Golden-order order fixture insert failed");
 
-const { error: goldenOrderItemError } = await supabase.from("order_items").upsert(
-  {
-    id: GOLDEN_ORDER_ITEM_ID,
-    order_id: GOLDEN_ORDER_ID,
-    product_id: GOLDEN_ORDER_FG_COMPONENT_PRODUCT_ID,
-    quantity: 5,
-    pack_size: "1kg",
-    carton_type: "CARTON",
-    notes: "FACT-E2E golden-order continuous certification fixture",
-  },
-  { onConflict: "id" },
-);
-assertNoSupabaseError(goldenOrderItemError, "Golden-order order_item fixture upsert failed");
+const { data: goldenOrder, error: goldenOrderReadError } = await supabase
+  .from("orders")
+  .select("id,order_number,status")
+  .eq("id", GOLDEN_ORDER_ID)
+  .single();
+assertNoSupabaseError(goldenOrderReadError, "Golden-order order fixture verification read failed");
+if (!goldenOrder?.order_number || goldenOrder.status !== "draft") {
+  throw new Error("Golden-order Core-owned order numbering/status verification failed");
+}
+
+const { error: goldenOrderItemError } = await supabase.from("order_items").insert({
+  id: GOLDEN_ORDER_ITEM_ID,
+  order_id: GOLDEN_ORDER_ID,
+  product_id: GOLDEN_ORDER_FG_COMPONENT_PRODUCT_ID,
+  quantity: 5,
+  pack_size: "1kg",
+  carton_type: "CARTON",
+  notes: "FACT-E2E golden-order continuous certification fixture",
+});
+assertNoSupabaseError(goldenOrderItemError, "Golden-order order_item fixture insert failed");
 
 const { error: pkgProductError } = await supabase.from("products").upsert(
   {
@@ -263,9 +238,6 @@ const { error: pkgProductError } = await supabase.from("products").upsert(
 );
 assertNoSupabaseError(pkgProductError, "Golden-order 3PGS packaging product fixture upsert failed");
 
-// Deliberate shortfalls so the golden-order spec's single reserve_assembly_components
-// call is forced down BOTH the RGS/Production shortage path (FINISHED_GOODS-sourced
-// component) and the 3PGS bridge path (3PGS-sourced component) in the same run.
 const { error: fgBalanceError } = await supabase.from("inventory_stock_balances").upsert(
   {
     product_id: GOLDEN_ORDER_FG_COMPONENT_PRODUCT_ID,
