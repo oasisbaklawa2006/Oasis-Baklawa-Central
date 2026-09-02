@@ -81,15 +81,29 @@ function assertLocalPostgresUrl(rawDbUrl, callerLabel) {
  * can never satisfy. Every value interpolated into `sql` must be a fixed
  * constant this script itself controls, never external input.
  *
+ * The connection string is never passed as a process argument (a plain
+ * command-line argument is visible to every other local process via
+ * /proc or `ps`, including any password embedded in the URL) -- its parts
+ * are passed via the PG* environment variables psql itself reads instead.
+ *
  * @param {string} dbUrl local-only postgres:// connection string
  * @param {string} sql complete SQL statement to execute
  * @param {string} callerLabel human-readable caller name for diagnostics
  */
 export function runLocalPostgresRoleStatement(dbUrl, sql, callerLabel) {
   const validatedUrl = assertLocalPostgresUrl(dbUrl, callerLabel);
+  const parsed = new URL(validatedUrl);
   try {
-    execFileSync("psql", [validatedUrl, "-v", "ON_ERROR_STOP=1", "-q", "-c", sql], {
+    execFileSync("psql", ["-v", "ON_ERROR_STOP=1", "-q", "-c", sql], {
       stdio: ["ignore", "pipe", "pipe"],
+      env: {
+        ...process.env,
+        PGHOST: parsed.hostname,
+        PGPORT: parsed.port || "5432",
+        PGUSER: decodeURIComponent(parsed.username),
+        PGPASSWORD: decodeURIComponent(parsed.password),
+        PGDATABASE: decodeURIComponent(parsed.pathname.replace(/^\//, "")) || "postgres",
+      },
     });
   } catch (error) {
     const stderr = error?.stderr ? error.stderr.toString("utf8") : String(error?.message ?? error);
