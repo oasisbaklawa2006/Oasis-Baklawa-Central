@@ -30,15 +30,15 @@ const { client: supabase, localSupabaseOrigin } = createLocalSupabaseAdminClient
   callerLabel: "Fixture seeding",
 });
 
-const products = [
-  {
-    id: "20000000-0000-4000-8000-000000000101",
-    product_name: "Factory Cert Arabic Baklawa",
-    name: "Factory Cert Arabic Baklawa",
-    category: "sweets",
-    sku: "CERT-ARABIC-001",
-    hsn_code: "1905",
-    production_department: "arabic_sweets",
+function certProduct({ id, name, category, sku, hsnCode, productionDepartment }) {
+  return {
+    id,
+    product_name: name,
+    name,
+    category,
+    sku,
+    hsn_code: hsnCode,
+    production_department: productionDepartment,
     is_active: true,
     visible_in_catalog: true,
     is_catalogue_ready: true,
@@ -46,11 +46,15 @@ const products = [
     increment_value: 1,
     base_price: 100,
     price_b2b: 100,
-  },
-  { id: "20000000-0000-4000-8000-000000000102", name: "Factory Cert Chocolate", category: "chocolates", sku: "CERT-CHOC-001", hsn_code: "1806", production_department: "chocolates_confectionery" },
-  { id: "20000000-0000-4000-8000-000000000103", name: "Factory Cert Fusion Sweet", category: "sweets", sku: "CERT-FUSION-001", hsn_code: "1905", production_department: "fusion_sweets" },
-  { id: "20000000-0000-4000-8000-000000000104", name: "Factory Cert Bakery", category: "bakery", sku: "CERT-BAKERY-001", hsn_code: "1905", production_department: "bakery" },
-  { id: "20000000-0000-4000-8000-000000000105", name: "Factory Cert Nuts", category: "nuts", sku: "CERT-NUTS-001", hsn_code: "2008", production_department: "seasoned_nuts_mixes" },
+  };
+}
+
+const products = [
+  certProduct({ id: "20000000-0000-4000-8000-000000000101", name: "Factory Cert Arabic Baklawa", category: "sweets", sku: "CERT-ARABIC-001", hsnCode: "1905", productionDepartment: "arabic_sweets" }),
+  certProduct({ id: "20000000-0000-4000-8000-000000000102", name: "Factory Cert Chocolate", category: "chocolates", sku: "CERT-CHOC-001", hsnCode: "1806", productionDepartment: "chocolates_confectionery" }),
+  certProduct({ id: "20000000-0000-4000-8000-000000000103", name: "Factory Cert Fusion Sweet", category: "sweets", sku: "CERT-FUSION-001", hsnCode: "1905", productionDepartment: "fusion_sweets" }),
+  certProduct({ id: "20000000-0000-4000-8000-000000000104", name: "Factory Cert Bakery", category: "bakery", sku: "CERT-BAKERY-001", hsnCode: "1905", productionDepartment: "bakery" }),
+  certProduct({ id: "20000000-0000-4000-8000-000000000105", name: "Factory Cert Nuts", category: "nuts", sku: "CERT-NUTS-001", hsnCode: "2008", productionDepartment: "seasoned_nuts_mixes" }),
 ];
 
 const { error: productError } = await supabase.from("products").upsert(products, { onConflict: "id" });
