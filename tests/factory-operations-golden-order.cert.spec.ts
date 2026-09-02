@@ -243,25 +243,28 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
     expect(startError, startError?.message).toBeNull();
     record(ledger.stages, "production_start_job", "start_production_job", "PROD_ARABIC_SWEETS", startCorrelationId, "PASS", "status=in_production");
 
+    // The governed stage sequence is prep -> processing -> finishing -> ready
+    // (advance_production_job_stage's own v_stages array in
+    // 20260817224000_fwd_rgs_authority_hardening.sql); once already at
+    // 'ready' the RPC is a documented no-op that returns the job unchanged,
+    // so a repeated stage is only a legitimate stopping condition once the
+    // job has actually reached 'ready' -- every other RPC error is a real
+    // failure and must not be silently tolerated.
     let previousStage: string | null = null;
-    let advanceCount = 0;
     for (let i = 0; i < 6; i += 1) {
       const advanceCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-advance-${i}`;
       const { data, error } = await client.rpc("advance_production_job_stage", {
         p_job_id: productionJobId,
         p_correlation_id: advanceCorrelationId,
       });
-      if (error) {
-        expect(
-          advanceCount,
-          `advance_production_job_stage failed before any successful progression: ${error.message}`,
-        ).toBeGreaterThan(0);
-        break;
-      }
-      advanceCount += 1;
-      if (data?.stage === previousStage) break;
-      previousStage = data?.stage as string;
+      expect(error, error?.message).toBeNull();
+      const stage = data?.stage as string;
+      if (stage === previousStage) break;
+      previousStage = stage;
+      if (stage === "ready") break;
     }
+    expect(previousStage, "the production job must reach the terminal 'ready' stage before output is recorded").toBe("ready");
+
     const { data: jobAfterAdvance, error: jobAfterAdvanceError } = await client
       .from("production_jobs")
       .select("status,stage")
@@ -269,10 +272,13 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
       .single();
     expect(jobAfterAdvanceError, jobAfterAdvanceError?.message).toBeNull();
     expect(
+      jobAfterAdvance?.stage,
+      "production job row must reflect the terminal 'ready' stage after advancing",
+    ).toBe("ready");
+    expect(
       jobAfterAdvance?.status,
       "production job must remain in_production after stage progression before output can be recorded",
     ).toBe("in_production");
-    expect(previousStage, "production job must reach a terminal stage before output can be recorded").toBeTruthy();
     record(ledger.stages, "production_advance_stage", "advance_production_job_stage", "PROD_ARABIC_SWEETS", null, "PASS", `final_stage=${previousStage}`);
 
     const outputCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-output`;
