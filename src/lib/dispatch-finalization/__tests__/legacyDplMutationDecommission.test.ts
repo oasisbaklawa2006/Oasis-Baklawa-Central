@@ -74,20 +74,31 @@ describe("FACT-C3 legacy carton/DPL mutation decommission", () => {
     expect(src).not.toMatch(/from\(["']b2b_dispatch_packing_list_versions["']\)\.(insert|update|upsert|delete)/);
   });
 
-  it("DispatchManagement is the only routed B2B carton/DPL/packed-qty mutation authority -- no legacy writer performs these writes", () => {
-    // FACT-C3 correction: AdminPackingDispatch and AdminAccountsRelease
-    // previously created legacy dispatches/packing_lists/dispatch_cartons
-    // and updated order_items.actual_packed_qty/final_weight_kg directly --
-    // a second, competing B2B authority. Both are now fail-closed and
-    // redirect to the governed DispatchManagement flow via
-    // blockLegacyB2bCartonDplMutation instead of performing these writes.
-    for (const src of [readAdminPackingDispatch(), readAdminAccountsRelease()]) {
-      expect(src).not.toMatch(/from\(["']dispatches["']\)\.insert/);
-      expect(src).not.toMatch(/from\(["']packing_lists["']\)\.insert/);
-      expect(src).not.toMatch(/from\(["']dispatch_cartons["']\)\.insert/);
-      expect(src).not.toMatch(/\.update\(\{[^}]*actual_packed_qty/);
-      expect(src).not.toMatch(/\.update\(\{[^}]*final_weight_kg/);
-      expect(src).toContain("blockLegacyB2bCartonDplMutation");
+  it("legacy Packing remains fail-closed while Finance receives the governed DPL without recreating carton/DPL authority", () => {
+    const packing = readAdminPackingDispatch();
+    for (const forbidden of [
+      /from\(["']dispatches["']\)\.insert/,
+      /from\(["']packing_lists["']\)\.insert/,
+      /from\(["']dispatch_cartons["']\)\.insert/,
+      /\.update\(\{[^}]*actual_packed_qty/,
+      /\.update\(\{[^}]*final_weight_kg/,
+    ]) {
+      expect(packing).not.toMatch(forbidden);
     }
+    expect(packing).toContain("blockLegacyB2bCartonDplMutation");
+
+    const finance = readAdminAccountsRelease();
+    for (const forbidden of [
+      /from\(["']dispatches["']\)\.insert/,
+      /from\(["']packing_lists["']\)\.insert/,
+      /from\(["']dispatch_cartons["']\)\.insert/,
+      /\.update\(\{[^}]*actual_packed_qty/,
+      /\.update\(\{[^}]*final_weight_kg/,
+    ]) {
+      expect(finance).not.toMatch(forbidden);
+    }
+    expect(finance).toContain("receiveSubmittedB2bDpls");
+    expect(finance).toContain("Accept submitted DPLs");
+    expect(finance).not.toContain("blockLegacyB2bCartonDplMutation");
   });
 });
