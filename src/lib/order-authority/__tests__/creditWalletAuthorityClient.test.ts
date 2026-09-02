@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   buildCreditRequestIdentity,
   buildCreditWalletCorrelationId,
@@ -11,6 +11,14 @@ import {
 
 const source = (relativePath: string) =>
   readFileSync(resolve(process.cwd(), "src", relativePath), "utf8");
+
+const digest = vi.fn(async () => new Uint8Array(32).buffer);
+
+beforeAll(() => {
+  vi.stubGlobal("crypto", { subtle: { digest } });
+});
+afterAll(() => vi.unstubAllGlobals());
+beforeEach(() => digest.mockClear());
 
 describe("PF-6B Central credit, wallet and exposure authority contract", () => {
   const wallet = {
@@ -94,8 +102,10 @@ describe("PF-6B Central credit, wallet and exposure authority contract", () => {
     expect(salesDashboard).toContain("getWalletBalance");
     expect(salesDashboard).toContain('wallet_balance: null');
     expect(salesDashboard).not.toContain("wallet_balance || 0");
-    expect(accounts).toContain("getWalletBalance");
-    expect(accounts).toContain("Canonical Core wallet balance unavailable");
+
+    expect(accounts).toContain("getFinanceExitFacts");
+    expect(accounts).toContain("facts?.settlement");
+    expect(accounts).not.toContain("getWalletBalance");
     expect(accounts).not.toContain("wallet_balance ?? 0");
   });
 
