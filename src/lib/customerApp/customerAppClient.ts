@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Database, Json } from "@/integrations/supabase/database.types";
+import { parseGovernedHttpsPaymentLink } from "@/lib/order-authority/governedPaymentLink";
 
 type PublicFunctions = Database["public"]["Functions"];
 type RpcName = keyof PublicFunctions;
@@ -147,6 +148,24 @@ export type BuyerCommercialFacts = {
   updated_at: string;
 };
 
+export type BuyerFinalPaymentPiFacts = {
+  order_id: string;
+  available: boolean;
+  customer_visible_pi_number: string | null;
+  revision_number: number | null;
+  effective_status: string | null;
+  final_payable_total: number | null;
+  balance_due: number | null;
+  settled: boolean | null;
+  payment_action: string | null;
+  payment_link: string | null;
+  payment_instructions: string | null;
+  document_reference: string | null;
+  issued_at: string | null;
+  facts_as_of: string | null;
+  final_invoice_must_not_request_payment: boolean;
+};
+
 export type BuyerFinanceFacts = {
   order_id: string;
   order_number: string;
@@ -247,6 +266,30 @@ function nullableNumber(value: unknown): number | null {
 
 function nullableBoolean(value: unknown): boolean | null {
   return typeof value === "boolean" ? value : null;
+}
+
+/** Normalizes Core #178 customer-safe final-payment PI facts without inventing local PI truth. */
+export function normalizeBuyerFinalPaymentPiFacts(value: unknown): BuyerFinalPaymentPiFacts | null {
+  if (!isRecord(value)) return null;
+  const orderId = nullableString(value.order_id);
+  if (!orderId || value.final_invoice_must_not_request_payment !== true) return null;
+  return {
+    order_id: orderId,
+    available: value.available === true,
+    customer_visible_pi_number: nullableString(value.customer_visible_pi_number),
+    revision_number: nullableNumber(value.revision_number),
+    effective_status: nullableString(value.effective_status),
+    final_payable_total: nullableNumber(value.final_payable_total),
+    balance_due: nullableNumber(value.balance_due),
+    settled: nullableBoolean(value.settled),
+    payment_action: nullableString(value.payment_action),
+    payment_link: parseGovernedHttpsPaymentLink(nullableString(value.payment_link)),
+    payment_instructions: nullableString(value.payment_instructions),
+    document_reference: nullableString(value.document_reference),
+    issued_at: nullableString(value.issued_at),
+    facts_as_of: nullableString(value.facts_as_of),
+    final_invoice_must_not_request_payment: true,
+  };
 }
 
 /** Normalizes Core's customer-safe Finance JSON without exposing arbitrary backend keys. */
@@ -357,6 +400,9 @@ export const customerAppClient = {
   items: () => rpc("customer_order_items_v1"),
   commercialFacts: () => rpc("customer_sales_order_commercial_facts_v1"),
   financeFacts: async (orderId: string) => normalizeBuyerFinanceFacts(await rpc("customer_order_finance_facts_v1", { p_order_id: orderId })),
+  finalPaymentPiFacts: async (orderId: string) => normalizeBuyerFinalPaymentPiFacts(
+    await rpc("get_sales_order_pi_final_payment_request_v1", { p_order_id: orderId }),
+  ),
   proformaInvoices: () => rpc("customer_proforma_invoice_facts_v1"),
   documents: () => rpc("customer_documents_v1"),
   statement: async () => normalizeBuyerStatement(await rpc("customer_statement_v1")),

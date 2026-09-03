@@ -7,6 +7,7 @@ import {
   getGeneralQueryIdempotencyKey,
   getLocalDateInputValue,
   normalizeBuyerFinanceFacts,
+  normalizeBuyerFinalPaymentPiFacts,
   normalizeBuyerGeneralQuery,
   normalizeBuyerStatement,
 } from "./customerAppClient";
@@ -154,5 +155,28 @@ describe("customer checkout idempotency", () => {
       internal_queue_id: "must-not-escape",
     })).toMatchObject({ query_id: "query-1", category: "GENERAL", status: "SUBMITTED" });
     expect(normalizeBuyerGeneralQuery({ query_id: "query-1", subject: "", message: "" })).toBeNull();
+  });
+
+  it("omits unsafe final-payment links from the customer-safe projection", () => {
+    expect(normalizeBuyerFinalPaymentPiFacts({
+      order_id: "order-1",
+      available: true,
+      payment_action: "PAY_NOW",
+      payment_link: "javascript:alert(1)",
+      final_invoice_must_not_request_payment: true,
+    })).toMatchObject({
+      order_id: "order-1",
+      payment_action: "PAY_NOW",
+      payment_link: null,
+    });
+    expect(normalizeBuyerFinalPaymentPiFacts({
+      order_id: "order-1",
+      available: true,
+      payment_action: "PAY_NOW",
+      payment_link: "https://pay.example.test/checkout",
+      final_invoice_must_not_request_payment: true,
+    })).toMatchObject({
+      payment_link: "https://pay.example.test/checkout",
+    });
   });
 });
