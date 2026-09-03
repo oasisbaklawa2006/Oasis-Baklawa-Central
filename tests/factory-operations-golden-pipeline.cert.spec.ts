@@ -354,6 +354,8 @@ test("POINT-38 :: Golden Pipeline governance-board order status E2E", async ({ p
       timeout: 60_000,
     });
     await dismissOnboardingOverlayIfPresent(page);
+    await expect(page.getByRole("heading", { name: "Order Management" })).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator("tbody tr").first()).toBeVisible({ timeout: 30_000 });
     const orderRow = page.locator("tr", { has: page.getByText(orderLabel, { exact: false }) }).first();
     await expect(orderRow, "dispatched order must appear in packing pipeline view").toBeVisible({
       timeout: 30_000,
