@@ -474,6 +474,80 @@ jobs:
             exit 1
           fi
 
+      - name: Run Point-37 governed production-release certification
+        id: point37_production_release
+        continue-on-error: true
+        run: >-
+          npx playwright test
+          tests/factory-operations-order-production-release.cert.spec.ts
+          -c playwright.factory-cert.config.ts
+
+      - name: Preserve Point-37 production-release certification result
+        if: always()
+        shell: bash
+        run: |
+          test -f factory-certification-results.json
+          cp factory-certification-results.json factory-point37-production-release-results.json
+
+      - name: Enforce Point-37 production-release executed and PASS
+        if: always()
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const resultPath = 'factory-point37-production-release-results.json';
+          const ledgerPath = 'factory-point37-production-release.json';
+          if (!fs.existsSync(resultPath)) {
+            throw new Error('POINT37_RESULT_MISSING: Playwright JSON report was not produced');
+          }
+          const report = JSON.parse(fs.readFileSync(resultPath, 'utf8'));
+          const statuses = [];
+          const visit = (value) => {
+            if (!value || typeof value !== 'object') return;
+            if (Array.isArray(value)) {
+              for (const item of value) visit(item);
+              return;
+            }
+            if (Array.isArray(value.results)) {
+              for (const result of value.results) {
+                if (typeof result?.status === 'string') statuses.push(result.status);
+              }
+            }
+            for (const [key, child] of Object.entries(value)) {
+              if (key !== 'results') visit(child);
+            }
+          };
+          visit(report.suites ?? report);
+          const counts = statuses.reduce((acc, status) => {
+            acc[status] = (acc[status] ?? 0) + 1;
+            return acc;
+          }, {});
+          console.log('Point-37 production-release certification result counts:', counts);
+          if (statuses.length !== 1) {
+            throw new Error(`POINT37_COUNT_MISMATCH: expected exactly 1 Point-37 production-release test, got ${statuses.length}`);
+          }
+          if ((counts.passed ?? 0) !== 1 || (counts.skipped ?? 0) !== 0 || (counts.failed ?? 0) !== 0 || (counts.timedOut ?? 0) !== 0 || (counts.interrupted ?? 0) !== 0) {
+            throw new Error(`POINT37_NOT_EXECUTED_PASS: ${JSON.stringify(counts)}`);
+          }
+
+          if (!fs.existsSync(ledgerPath)) {
+            throw new Error('POINT37_LEDGER_MISSING: factory-point37-production-release.json was not produced');
+          }
+          const ledger = JSON.parse(fs.readFileSync(ledgerPath, 'utf8'));
+          const failures = (ledger.checks ?? []).filter((entry) => entry.status === 'FAIL');
+          if (failures.length > 0) {
+            throw new Error(`POINT37_LEDGER_NOT_PASS: ${JSON.stringify({ failures })}`);
+          }
+          console.log('Point-37 production-release ledger:', {
+            checks: (ledger.checks ?? []).length,
+            passed: (ledger.checks ?? []).filter((entry) => entry.status === 'PASS').length,
+          });
+          NODE
+          if [[ "${{ steps.point37_production_release.outcome }}" != "success" ]]; then
+            echo "Point-37 production-release Playwright command itself failed." >&2
+            exit 1
+          fi
+
       - name: Run canonical Core RGS, P&A, 3PGS and Gate authority contracts
         shell: bash
         working-directory: oasis-supabase-core
@@ -1040,6 +1114,8 @@ jobs:
             factory-route-health-list.txt
             factory-golden-order-certification-results.json
             factory-fact-e2e-golden-order.json
+            factory-point37-production-release-results.json
+            factory-point37-production-release.json
             factory-custody-evidence/
           if-no-files-found: warn
           retention-days: 7
