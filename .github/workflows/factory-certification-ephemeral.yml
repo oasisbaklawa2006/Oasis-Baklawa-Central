@@ -291,6 +291,189 @@ jobs:
             exit 1
           fi
 
+      - name: Run continuous FACT-E2E golden order
+        id: golden_order
+        continue-on-error: true
+        run: >-
+          npx playwright test
+          tests/factory-operations-golden-order.cert.spec.ts
+          -c playwright.factory-cert.config.ts
+
+      - name: Preserve FACT-E2E golden-order certification result
+        if: always()
+        shell: bash
+        run: |
+          test -f factory-certification-results.json
+          cp factory-certification-results.json factory-golden-order-certification-results.json
+
+      - name: Enforce FACT-E2E golden order executed and PASS
+        if: always()
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const resultPath = 'factory-golden-order-certification-results.json';
+          const ledgerPath = 'factory-fact-e2e-golden-order.json';
+          if (!fs.existsSync(resultPath)) {
+            throw new Error('GOLDEN_ORDER_RESULT_MISSING: Playwright JSON report was not produced');
+          }
+          const report = JSON.parse(fs.readFileSync(resultPath, 'utf8'));
+          const statuses = [];
+          const visit = (value) => {
+            if (!value || typeof value !== 'object') return;
+            if (Array.isArray(value)) {
+              for (const item of value) visit(item);
+              return;
+            }
+            if (Array.isArray(value.results)) {
+              for (const result of value.results) {
+                if (typeof result?.status === 'string') statuses.push(result.status);
+              }
+            }
+            for (const [key, child] of Object.entries(value)) {
+              if (key !== 'results') visit(child);
+            }
+          };
+          visit(report.suites ?? report);
+          const counts = statuses.reduce((acc, status) => {
+            acc[status] = (acc[status] ?? 0) + 1;
+            return acc;
+          }, {});
+          console.log('FACT-E2E golden-order certification result counts:', counts);
+          if (statuses.length !== 1) {
+            throw new Error(`GOLDEN_ORDER_COUNT_MISMATCH: expected exactly 1 continuous golden-order test, got ${statuses.length}`);
+          }
+          if ((counts.passed ?? 0) !== 1 || (counts.skipped ?? 0) !== 0 || (counts.failed ?? 0) !== 0 || (counts.timedOut ?? 0) !== 0 || (counts.interrupted ?? 0) !== 0) {
+            throw new Error(`GOLDEN_ORDER_NOT_EXECUTED_PASS: ${JSON.stringify(counts)}`);
+          }
+
+          if (!fs.existsSync(ledgerPath)) {
+            throw new Error('GOLDEN_ORDER_LEDGER_MISSING: factory-fact-e2e-golden-order.json was not produced');
+          }
+          const ledger = JSON.parse(fs.readFileSync(ledgerPath, 'utf8'));
+          if (ledger.status !== 'PASS') {
+            throw new Error(`GOLDEN_ORDER_LEDGER_NOT_PASS: ${JSON.stringify({ status: ledger.status, failed_stages: ledger.failed_stages, failed_negative_paths: ledger.failed_negative_paths })}`);
+          }
+          if (ledger.production_accessed !== false || ledger.environment !== 'disposable-local-core') {
+            throw new Error('GOLDEN_ORDER_LEDGER_ENVIRONMENT_INVALID: ledger must attest a disposable-local-core run with no production access');
+          }
+          if (ledger.schema_version !== 1) {
+            throw new Error(`GOLDEN_ORDER_LEDGER_SCHEMA_INVALID: expected schema_version=1, got ${ledger.schema_version}`);
+          }
+
+          const requiredStages = [
+            'pna_create_assembly_job',
+            'pna_reserve_assembly_components',
+            'production_accept_job',
+            'production_start_job',
+            'production_advance_stage',
+            'production_record_output',
+            'production_declare_ready',
+            'custody_dispatch_to_rgs',
+            'custody_record_receipt',
+            'custody_accept_receipt',
+            'rgs_reservation_truth_check',
+            '3pgs_reserve_requirement_zero_stock',
+            'pna_resume_reserve_assembly_components',
+            '3pgs_create_procurement_requirement',
+            '3pgs_assign_procurement_vendor',
+            '3pgs_create_inventory_receipt',
+            '3pgs_record_inventory_receipt',
+            '3pgs_accept_inventory_receipt',
+            '3pgs_allocate_putaway',
+            '3pgs_confirm_putaway',
+            '3pgs_finalise_grn',
+            '3pgs_link_procurement_receipt',
+            '3pgs_reserve_requirement_real_stock',
+            '3pgs_issue_requirement_stock',
+            '3pgs_acknowledge_requirement_receipt',
+            'pna_issue_assembly_components',
+            'pna_record_consumption_fg',
+            'pna_record_consumption_pkg',
+            'pna_complete_assembly_job',
+            'pna_accept_assembly_output',
+            'pna_initiate_assembly_handover',
+            'pna_acknowledge_assembly_handover',
+            'fg_create_receipt_from_handover',
+            'fg_record_receipt_from_handover',
+            'fg_accept_receipt_from_handover',
+            'fg_allocate_putaway',
+            'fg_confirm_putaway',
+            'fg_finalise_grn',
+            'dispatch_create_consignment',
+            'dispatch_open_carton',
+            'dispatch_declare_source_handoff',
+            'dispatch_record_source_handoff_receipt',
+            'dispatch_accept_source_handoff',
+            'dispatch_scan_item',
+            'dispatch_record_evidence',
+            'dispatch_lock_carton',
+            'dispatch_create_dpl',
+            'dispatch_supersede_dpl',
+            'dispatch_submit_to_finance',
+          ];
+          const requiredNegativePaths = [
+            'wrong_department_production_accept_rejected',
+            'accept_unrecorded_receipt_rejected',
+            'pick_beyond_reserved_qty_rejected',
+            'issue_unpicked_reservation_rejected',
+            '3pgs_issue_nonexistent_reservation_rejected',
+            'unauthorized_consignment_create_rejected',
+            'idempotent_scan_retry_no_duplicate',
+            'quantity_overflow_scan_rejected',
+            'lock_before_evidence_rejected',
+            'stale_version_lock_rejected',
+            'post_lock_mutation_rejected',
+            'blank_reason_supersession_rejected',
+            'unauthorized_dpl_submit_rejected',
+          ];
+
+          const assertExactStageSet = (actualNames, requiredNames, label) => {
+            const actual = actualNames.slice().sort();
+            const required = requiredNames.slice().sort();
+            const missing = required.filter((name) => !actual.includes(name));
+            const extra = actual.filter((name) => !required.includes(name));
+            const duplicates = actualNames.filter((name, index) => actualNames.indexOf(name) !== index);
+            if (missing.length > 0 || extra.length > 0 || duplicates.length > 0) {
+              throw new Error(`GOLDEN_ORDER_LEDGER_${label}_INVALID: ${JSON.stringify({ missing, extra, duplicates })}`);
+            }
+            if (actual.length !== required.length) {
+              throw new Error(`GOLDEN_ORDER_LEDGER_${label}_COUNT_MISMATCH: expected ${required.length}, got ${actual.length}`);
+            }
+          };
+
+          const stageNames = (ledger.stages ?? []).map((entry) => entry.stage);
+          const negativePathNames = (ledger.negative_paths ?? []).map((entry) => entry.stage);
+          assertExactStageSet(stageNames, requiredStages, 'STAGES');
+          assertExactStageSet(negativePathNames, requiredNegativePaths, 'NEGATIVE_PATHS');
+
+          if (ledger.total_stages !== requiredStages.length || ledger.total_negative_paths !== requiredNegativePaths.length) {
+            throw new Error(`GOLDEN_ORDER_LEDGER_TOTALS_INVALID: ${JSON.stringify({
+              total_stages: ledger.total_stages,
+              expected_stages: requiredStages.length,
+              total_negative_paths: ledger.total_negative_paths,
+              expected_negative_paths: requiredNegativePaths.length,
+            })}`);
+          }
+          if ((ledger.stages ?? []).length !== requiredStages.length || (ledger.negative_paths ?? []).length !== requiredNegativePaths.length) {
+            throw new Error(`GOLDEN_ORDER_LEDGER_ARRAY_LENGTH_INVALID: ${JSON.stringify({
+              stages_length: (ledger.stages ?? []).length,
+              negative_paths_length: (ledger.negative_paths ?? []).length,
+            })}`);
+          }
+
+          console.log('FACT-E2E golden-order ledger:', {
+            status: ledger.status,
+            schema_version: ledger.schema_version,
+            total_stages: ledger.total_stages,
+            total_negative_paths: ledger.total_negative_paths,
+          });
+          NODE
+          if [[ "${{ steps.golden_order.outcome }}" != "success" ]]; then
+            echo "FACT-E2E golden-order Playwright command itself failed." >&2
+            exit 1
+          fi
+
       - name: Run canonical Core RGS, P&A, 3PGS and Gate authority contracts
         shell: bash
         working-directory: oasis-supabase-core
@@ -352,7 +535,7 @@ jobs:
           insert into public.orders (
             id, company_id, status, order_number, sales_order_value, advance_required,
             advance_paid, payment_status, payment_cleared, final_invoice_url,
-            order_origin, tracking_token, commercial_current_version
+            order_origin, tracking_token
           ) values (
             '93000000-0000-0000-0000-000000000001',
             '92000000-0000-0000-0000-000000000001',
@@ -361,37 +544,107 @@ jobs:
             100, 0, 100, 'paid', true,
             'https://example.invalid/factory-gate-cert-invoice',
             'MANUAL',
-            'factory-gate-cert-tracking-001',
-            1
+            'factory-gate-cert-tracking-001'
+          );
+
+          insert into public.products (
+            id, sku, product_name, name, category, hsn_code, is_active, visible_in_catalog, is_catalogue_ready,
+            moq_value, increment_value, base_price, price_b2b
+          ) values (
+            '93200000-0000-0000-0000-000000000001',
+            'GATE-CERT-001',
+            'Factory Gate Certification Product',
+            'Factory Gate Certification Product',
+            'sweets',
+            '1905',
+            true,
+            true,
+            true,
+            1,
+            1,
+            100,
+            100
+          );
+
+          insert into public.order_items (
+            id, order_id, product_id, quantity, pack_size, carton_type
+          ) values (
+            '93100000-0000-0000-0000-000000000001',
+            '93000000-0000-0000-0000-000000000001',
+            '93200000-0000-0000-0000-000000000001',
+            1,
+            'unit',
+            'carton'
           );
 
           insert into public.sales_order_commercial_versions (
             id, order_id, version_number, source_channel, commercial_snapshot,
             snapshot_fingerprint, sales_order_value, advance_required,
             advance_rule_version, change_reason, correlation_id, idempotency_key, created_by
-          ) values (
+          )
+          select
             '96000000-0000-0000-0000-000000000001',
             '93000000-0000-0000-0000-000000000001',
-            1, 'MANUAL', '{}'::jsonb, repeat('a',64), 100, 0,
-            'advance-30pct-nearest-inr-500/v2', 'Disposable gate certification',
-            'factory-gate-cert-commercial', 'factory-gate-cert-commercial',
+            1,
+            'MANUAL',
+            commercial.snapshot,
+            md5(commercial.snapshot::text),
+            100,
+            0,
+            'advance-30pct-nearest-inr-500/v2',
+            'Disposable gate certification',
+            'factory-gate-cert-commercial',
+            'factory-gate-cert-commercial',
             '91000000-0000-0000-0000-000000000002'
-          );
+          from (
+            select jsonb_build_object(
+              'order_id', '93000000-0000-0000-0000-000000000001',
+              'lines', jsonb_build_array(jsonb_build_object(
+                'order_item_id', '93100000-0000-0000-0000-000000000001',
+                'product_id', '93200000-0000-0000-0000-000000000001',
+                'sku', 'GATE-CERT-001',
+                'product_name', 'Factory Gate Certification Product',
+                'quantity', 1,
+                'uom', 'unit',
+                'unit_price', 100,
+                'gst_rate', 0,
+                'tax_inclusive', false
+              )),
+              'packing_charge', 0,
+              'other_approved_charges', 0,
+              'discount_total', 0,
+              'sales_order_value', 100
+            ) as snapshot
+          ) commercial;
+
+          update public.orders
+          set commercial_current_version = 1
+          where id = '93000000-0000-0000-0000-000000000001';
 
           insert into public.sales_order_proforma_invoices (
             id, order_id, commercial_version_id, commercial_version_number,
             frozen_commercial_snapshot, frozen_snapshot_fingerprint, status,
+            customer_visible_pi_number,
             reason, source, correlation_id, idempotency_key, created_by, issued_by, issued_at
-          ) values (
+          )
+          select
             '96100000-0000-0000-0000-000000000001',
-            '93000000-0000-0000-0000-000000000001',
-            '96000000-0000-0000-0000-000000000001',
-            1, '{}'::jsonb, repeat('a',64), 'ISSUED',
-            'Disposable gate certification', 'FINANCE',
-            'factory-gate-cert-pi', 'factory-gate-cert-pi',
+            version.order_id,
+            version.id,
+            version.version_number,
+            version.commercial_snapshot,
+            version.snapshot_fingerprint,
+            'ISSUED',
+            'PI2026/09-001',
+            'Disposable gate certification',
+            'FINANCE',
+            'factory-gate-cert-pi',
+            'factory-gate-cert-pi',
             '91000000-0000-0000-0000-000000000002',
-            '91000000-0000-0000-0000-000000000002', statement_timestamp()
-          );
+            '91000000-0000-0000-0000-000000000002',
+            statement_timestamp()
+          from public.sales_order_commercial_versions version
+          where version.id = '96000000-0000-0000-0000-000000000001';
 
           insert into public.dispatch_cartons (
             id, order_id, barcode_string, box_number, total_boxes, status
@@ -404,28 +657,132 @@ jobs:
             dpl_version, dpl_fingerprint, dpl_snapshot, finalized_at, received_by,
             received_role, source_channel, source_reference, evidence_reference,
             correlation_id, idempotency_key
-          ) values (
+          )
+          select
             '96200000-0000-0000-0000-000000000001',
             '93000000-0000-0000-0000-000000000001',
             '92000000-0000-0000-0000-000000000001',
             '96000000-0000-0000-0000-000000000001',
-            'FACTORY-GATE-CERT-DPL', 1, repeat('b',64),
-            jsonb_build_object(
-              'order_id','93000000-0000-0000-0000-000000000001',
-              'commercial_version_id','96000000-0000-0000-0000-000000000001',
-              'external_dpl_id','FACTORY-GATE-CERT-DPL',
-              'dpl_version',1,
-              'lines',jsonb_build_array(jsonb_build_object('certification',true)),
-              'carton_ids',jsonb_build_array(
+            'FACTORY-GATE-CERT-DPL',
+            1,
+            encode(digest(dpl.snapshot::text, 'sha256'), 'hex'),
+            dpl.snapshot,
+            statement_timestamp(),
+            '91000000-0000-0000-0000-000000000002',
+            'FINANCE_EXEC',
+            'B2B_DISPATCH',
+            'FACT-C3-CERT',
+            'factory-gate-cert-dpl-evidence',
+            'factory-gate-cert-dpl',
+            'factory-gate-cert-dpl'
+          from (
+            select jsonb_build_object(
+              'order_id', '93000000-0000-0000-0000-000000000001',
+              'commercial_version_id', '96000000-0000-0000-0000-000000000001',
+              'external_dpl_id', 'FACTORY-GATE-CERT-DPL',
+              'dpl_version', 1,
+              'lines', jsonb_build_array(jsonb_build_object(
+                'order_item_id', '93100000-0000-0000-0000-000000000001',
+                'product_id', '93200000-0000-0000-0000-000000000001',
+                'actual_dispatch_qty', 1,
+                'uom', 'unit'
+              )),
+              'carton_ids', jsonb_build_array(
                 '94000000-0000-0000-0000-000000000001',
                 '94000000-0000-0000-0000-000000000002'
               )
-            ),
-            statement_timestamp(), '91000000-0000-0000-0000-000000000002',
-            'FINANCE_EXEC', 'B2B_DISPATCH', 'FACT-C3-CERT',
-            'factory-gate-cert-dpl-evidence', 'factory-gate-cert-dpl',
-            'factory-gate-cert-dpl'
+            ) as snapshot
+          ) dpl;
+
+          insert into public.sales_order_pi_final_payment_requests (
+            id, order_id, company_id, proforma_invoice_id, commercial_version_id,
+            finance_dpl_receipt_id, revision_number, customer_visible_pi_number,
+            dpl_fingerprint, currency, taxable_total, tax_total, final_payable_total,
+            verified_payment_at_issue, wallet_applied_at_issue, approved_credit_at_issue,
+            balance_due_at_issue, payment_action, payment_instructions, document_reference,
+            request_fingerprint, reason, source_channel, source_reference, correlation_id,
+            idempotency_key, issued_by, issued_role, issued_at
+          )
+          select
+            '96600000-0000-0000-0000-000000000001',
+            receipt.order_id,
+            receipt.company_id,
+            '96100000-0000-0000-0000-000000000001',
+            receipt.commercial_version_id,
+            receipt.id,
+            1,
+            'PI2026/09-001',
+            receipt.dpl_fingerprint,
+            'INR',
+            100,
+            0,
+            100,
+            100,
+            0,
+            0,
+            0,
+            'BANK_TRANSFER',
+            'Disposable gate certification final payment',
+            'factory-gate-cert-final-payment',
+            encode(digest('factory-gate-cert-final-payment', 'sha256'), 'hex'),
+            'Disposable gate certification',
+            'FINANCE',
+            'FACT-C3-CERT',
+            'factory-gate-cert-final-payment',
+            'factory-gate-cert-final-payment',
+            '91000000-0000-0000-0000-000000000002',
+            'FINANCE_EXEC',
+            -- A 1-hour offset intermittently placed this in "tomorrow" in
+            -- Asia/Kolkata (UTC+5:30) whenever the CI runner's UTC clock was
+            -- past ~18:30, since enforce_final_invoice_latest_final_payment_request_v1()
+            -- compares (issued_at AT TIME ZONE 'Asia/Kolkata')::date against
+            -- final_invoices.invoice_date (current_date, in whatever timezone
+            -- the session runs in) -- causing FINAL_INVOICE_DATE_PRECEDES_FINAL_PAYMENT_REQUEST.
+            -- A 2-day offset is safely in the past in every timezone.
+            statement_timestamp() - interval '2 days'
+          from public.finance_dpl_receipts receipt
+          where receipt.id = '96200000-0000-0000-0000-000000000001';
+
+          -- get_sales_order_final_payment_coverage_v1() sums verified
+          -- order_payments for this PI; without a settled payment the
+          -- final-invoice trigger correctly fails closed with
+          -- FINAL_INVOICE_FINAL_PAYMENT_NOT_SETTLED. Insert it while auth.uid()
+          -- is still NULL so guard_order_payment_authority_mutation()'s own
+          -- "migrations/maintenance run without identity" escape hatch
+          -- (owner-role direct mutation with no JWT context) applies, rather
+          -- than requiring a governed order_payment_authority_scopes row.
+          insert into public.order_payments (
+            id, order_id, company_id, proforma_invoice_id, commercial_version_id,
+            payment_type, amount, verified_amount, currency, status,
+            source_channel, source_reference, proof_evidence_reference, proof_received_at,
+            verified_by, verified_at, verification_evidence_reference,
+            reference_no, idempotency_key, payment_date
+          ) values (
+            '96700000-0000-0000-0000-000000000001',
+            '93000000-0000-0000-0000-000000000001',
+            '92000000-0000-0000-0000-000000000001',
+            '96100000-0000-0000-0000-000000000001',
+            '96000000-0000-0000-0000-000000000001',
+            'balance', 100, 100, 'INR', 'verified',
+            'FINANCE', 'factory-gate-cert-payment',
+            'factory-gate-cert-payment-proof',
+            statement_timestamp() - interval '3 days',
+            '91000000-0000-0000-0000-000000000002',
+            statement_timestamp() - interval '2 days',
+            'factory-gate-cert-payment-verification',
+            'FACTORY-GATE-CERT-PAY-001',
+            'factory-gate-cert-payment',
+            current_date - 2
           );
+
+          -- enforce_final_invoice_latest_final_payment_request_v1()'s coverage check
+          -- calls get_order_payment_facts_v1(), which requires auth.uid() to be a
+          -- real authenticated actor (raises ORDER_PAYMENT_AUTHENTICATION_REQUIRED
+          -- otherwise) -- this raw psql session has no Supabase JWT context by
+          -- default, so bind one explicitly to the Finance actor already used for
+          -- this fixture's other Finance-authored rows above.
+          set local request.jwt.claim.sub = '91000000-0000-0000-0000-000000000002';
+          set local request.jwt.claim.role = 'authenticated';
 
           insert into public.final_invoices (
             id, order_id, company_id, proforma_invoice_id, commercial_version_id,
@@ -457,6 +814,9 @@ jobs:
             '91000000-0000-0000-0000-000000000002', 'FINANCE_EXEC',
             'factory-gate-cert-eway', 'factory-gate-cert-eway'
           );
+
+          set local request.jwt.claim.sub = '91000000-0000-0000-0000-000000000002';
+          set local request.jwt.claim.role = 'authenticated';
 
           insert into public.finance_clearance_events (
             id, order_id, company_id, proforma_invoice_id, commercial_version_id,
@@ -678,6 +1038,8 @@ jobs:
             factory-production-certification-results.json
             factory-route-health-results.json
             factory-route-health-list.txt
+            factory-golden-order-certification-results.json
+            factory-fact-e2e-golden-order.json
             factory-custody-evidence/
           if-no-files-found: warn
           retention-days: 7
