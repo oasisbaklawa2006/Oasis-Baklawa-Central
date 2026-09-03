@@ -155,9 +155,12 @@ export async function loginToFactoryCertificationTarget(
 /** Dismiss Central's first-login tutorial overlay when it blocks OM interactions. */
 export async function dismissOnboardingOverlayIfPresent(page: Page): Promise<void> {
   const backdrop = page.locator(".fixed.inset-0.z-\\[100\\] .absolute.inset-0.bg-black\\/70");
-  if (await backdrop.isVisible({ timeout: 5000 }).catch(() => false)) {
+  try {
+    await backdrop.waitFor({ state: "visible", timeout: 5000 });
     await backdrop.click();
     await expect(backdrop).toBeHidden({ timeout: 10_000 });
+  } catch {
+    // Overlay absent — no dismissal required.
   }
 }
 

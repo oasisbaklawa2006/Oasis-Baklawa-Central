@@ -375,8 +375,14 @@ test("POINT-37 :: governed confirmed → in_production production release", asyn
     });
     await loginToFactoryCertificationTarget(page, admin);
     const { client } = await createAuthenticatedCertificationClient(page);
-    const { data: goldenRows } = await client.from("orders").select("status").eq("id", goldenOrderId!).limit(1);
-    const goldenStatus = String(goldenRows?.[0]?.status ?? "");
+    const { data: goldenRows, error: goldenError } = await client
+      .from("orders")
+      .select("status")
+      .eq("id", goldenOrderId!)
+      .limit(1);
+    if (goldenError) throw new Error(`BACKEND_READ_FAILED orders(golden): ${goldenError.message}`);
+    expect(goldenRows, `golden order ${goldenOrderId} must exist`).toHaveLength(1);
+    const goldenStatus = String(goldenRows![0].status ?? "");
     test.skip(goldenStatus === "in_production", "golden order already released — negative path not applicable this run");
 
     const { data, error } = await client.rpc("release_order_to_in_production_v1", {

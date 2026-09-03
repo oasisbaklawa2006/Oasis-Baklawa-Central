@@ -287,7 +287,8 @@ try {
     password: point37BuyerPassword,
   });
   assertNoSupabaseError(point37SignInError, "Point-37 buyer sign-in failed");
-  await point37BuyerClient.rpc("clear_customer_order_draft_v1");
+  const { error: point37ClearDraftError } = await point37BuyerClient.rpc("clear_customer_order_draft_v1");
+  assertNoSupabaseError(point37ClearDraftError, "Point-37 governed draft clear failed");
   const { data: point37DraftLineRows, error: point37DraftLineError } = await point37BuyerClient.rpc("add_customer_order_draft_line_v1", {
     p_product_id: GOLDEN_ORDER_FG_COMPONENT_PRODUCT_ID,
     p_quantity: 3,

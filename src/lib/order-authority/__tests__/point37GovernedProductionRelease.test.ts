@@ -90,7 +90,7 @@ describe("Point 37 — governed production release closure", () => {
 
     it("routes confirmed status to in_production in STATUS_FLOW", () => {
       const page = source("src/pages/admin/OrderManagement.tsx");
-      expect(page).toMatch(/status:\s*"confirmed"[\s\S]*?next:\s*"in_production"/);
+      expect(page).toMatch(/status:\s*"confirmed"(?:(?!status:)[\s\S])*?next:\s*"in_production"/);
     });
   });
 

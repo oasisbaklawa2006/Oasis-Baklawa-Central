@@ -100,7 +100,7 @@ describe("orderAuthorityClient", () => {
     expect(result.new_status).toBe("in_production");
     expect(getFinanceOperationsClearanceFactsMock).toHaveBeenCalledWith("o1", "pi-1", "version-1");
     expect(rpcMock).toHaveBeenCalledWith("release_order_to_in_production_v1", { p_order_id: "o1" });
-    expect(rpcMock).not.toHaveBeenCalledWith("release_order_to_manufacturing_v1", expect.anything());
+    expect(rpcMock.mock.calls.map(([name]) => name)).not.toContain("release_order_to_manufacturing_v1");
   });
 
   it("surfaces server blockers from production release after Finance Operations Clearance", async () => {
