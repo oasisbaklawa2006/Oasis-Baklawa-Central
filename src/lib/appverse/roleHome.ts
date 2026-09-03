@@ -43,7 +43,7 @@ const finance: RoleHomeDefinition = { title: "Finance today", subtitle: "Collect
 
 const dispatch: RoleHomeDefinition = { title: "Dispatch today", subtitle: "Readiness, packing, trace evidence and gate completion.", cards: [
   { key: "packing", label: "Packing queue", kind: "queue", route: "/admin/order-management?view=packing", moduleKey: "packing", priority: 1 },
-  { key: "dispatch", label: "Dispatch board", kind: "queue", route: "/admin/execution/dispatch", moduleKey: "dispatch", priority: 1 },
+  { key: "dispatch", label: "Dispatch board", kind: "queue", route: "/admin/dispatch-mgmt", moduleKey: "dispatch", priority: 1 },
   { key: "readiness", label: "Dispatch readiness", kind: "alert", route: "/admin/dispatch-readiness", moduleKey: "dispatch", priority: 1 },
   { key: "scan", label: "Scan timeline", kind: "shortcut", route: "/admin/scan-timeline", moduleKey: "inventory", priority: 2 },
   { key: "gate", label: "Security gate", kind: "shortcut", route: "/security-gate", moduleKey: "packing", priority: 2 },

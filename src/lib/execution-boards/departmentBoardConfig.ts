@@ -51,7 +51,7 @@ export const DEPARTMENT_BOARDS: Record<DepartmentBoardId, DepartmentBoardConfig>
   dispatch: {
     id: "dispatch",
     title: "Dispatch execution",
-    route: "/admin/execution/dispatch",
+    route: "/admin/dispatch-mgmt",
     moduleKey: "dispatch",
     queueTypes: ["dispatch_queue", "scan_exception_queue"],
     ownerDepartment: "dispatch",
