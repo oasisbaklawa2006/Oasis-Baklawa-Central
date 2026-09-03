@@ -67,7 +67,7 @@ const AdminLayout = () => {
         { to: "/admin/reservation-board", icon: ListOrdered, label: "Reservation board (audit)", end: false, moduleKey: "inventory_audit" },
         { to: "/admin/stock-finalization", icon: PackageMinus, label: "Stock finalization (audit)", end: false, moduleKey: "inventory_audit" },
         { to: "/admin/inventory-risk-board", icon: AlertOctagon, label: "Inventory risk board (preview)", end: false, moduleKey: "inventory" },
-        { to: "/admin/scan-timeline", icon: ScanBarcode, label: "Scan timeline (preview)", end: false, moduleKey: "inventory" },
+        { to: "/admin/scan-timeline", icon: ScanBarcode, label: "Scan timeline", end: false, moduleKey: "inventory" },
         { to: "/admin/order-management", icon: ClipboardList, label: t("Order Pipeline"), moduleKey: "orders" },
         { to: "/admin/order-management?view=production", icon: Factory, label: t("Production"), moduleKey: "production" },
         { to: "/admin/order-management?view=packing", icon: PackageCheck, label: t("Packing & Dispatch"), moduleKey: "packing" },
