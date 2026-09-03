@@ -3,6 +3,8 @@ import {
   canAccessThreePgsMobileUrgent,
   canAccessThreePgsOperator,
   canAccessThreePgsSatellite,
+  canAccessThreePgsSatelliteAdminShell,
+  canAccessThreePgsSatelliteSalesRoute,
   canAccessThreePgsTv,
   canAccessThreePgsTvAdminShell,
   resolveThreePgsSatelliteAudience,
@@ -54,5 +56,13 @@ describe("threePgsAccess R4.6", () => {
     expect(canAccessThreePgsTvAdminShell("STORE_3RD_PARTY")).toBe(true);
     expect(canAccessThreePgsTvAdminShell("OPERATIONS_MANAGER")).toBe(true);
     expect(canAccessThreePgsTvAdminShell("DISPATCH_MANAGER")).toBe(false);
+  });
+
+  it("keeps satellite admin-shell reachability narrow without inventory widening", () => {
+    expect(canAccessThreePgsSatelliteAdminShell("HOD_ASSEMBLY")).toBe(true);
+    expect(canAccessThreePgsSatelliteAdminShell("DISPATCH_INCHARGE")).toBe(true);
+    expect(canAccessThreePgsSatelliteAdminShell("SALES_EXECUTIVE")).toBe(false);
+    expect(canAccessThreePgsSatelliteSalesRoute("SALES_EXECUTIVE")).toBe(true);
+    expect(canAccessThreePgsSatelliteSalesRoute("HOD_ASSEMBLY")).toBe(false);
   });
 });

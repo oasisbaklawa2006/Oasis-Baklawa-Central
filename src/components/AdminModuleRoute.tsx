@@ -9,7 +9,7 @@ import { getRoleDestination, normalizePathname } from "@/lib/auth-routing";
 import {
   canAccessThreePgsMobileUrgent,
   canAccessThreePgsOperator,
-  canAccessThreePgsSatellite,
+  canAccessThreePgsSatelliteAdminShell,
   canAccessThreePgsTvAdminShell,
 } from "@/lib/threePgsAccess";
 
@@ -33,8 +33,12 @@ export default function AdminModuleRoute({ moduleKey, children }: AdminModuleRou
     return <Navigate to={getRoleDestination(role)} replace />;
   }
 
-  if (pathname === "/admin/3pgs-visibility" && !canAccessThreePgsSatellite(role)) {
+  if (pathname === "/admin/3pgs-visibility" && !canAccessThreePgsSatelliteAdminShell(role)) {
     return <Navigate to={getRoleDestination(role)} replace />;
+  }
+
+  if (pathname === "/admin/3pgs-visibility") {
+    return <>{children}</>;
   }
 
   if (pathname === "/admin/3pgs-mobile-urgent" && !canAccessThreePgsMobileUrgent(role)) {

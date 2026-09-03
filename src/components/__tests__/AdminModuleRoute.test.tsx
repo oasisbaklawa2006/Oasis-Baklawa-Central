@@ -20,6 +20,22 @@ function renderAt(pathname: string) {
           }
         />
         <Route
+          path="/admin/3pgs-visibility"
+          element={
+            <AdminModuleRoute moduleKey="inventory">
+              <div>3PGS satellite content</div>
+            </AdminModuleRoute>
+          }
+        />
+        <Route
+          path="/admin/3pgs-mobile-urgent"
+          element={
+            <AdminModuleRoute moduleKey="inventory">
+              <div>3PGS mobile urgent content</div>
+            </AdminModuleRoute>
+          }
+        />
+        <Route
           path="/admin/3pgs-tv"
           element={
             <AdminModuleRoute moduleKey="inventory">
@@ -28,6 +44,7 @@ function renderAt(pathname: string) {
           }
         />
         <Route path="/admin" element={<div>Admin landing</div>} />
+        <Route path="/sales/dashboard" element={<div>Sales dashboard</div>} />
         <Route path="/tv/3pgs" element={<div>Kiosk 3PGS TV</div>} />
         <Route path="/admin/ready-goods" element={<div>Ready goods landing</div>} />
         <Route path="/admin/dispatch-mgmt" element={<div>Dispatch landing</div>} />
@@ -80,6 +97,60 @@ describe("AdminModuleRoute 3PGS operator gate", () => {
     mockRole = "STORE_3RD_PARTY";
     renderAt("/admin/3pgs-procurement-queue//");
     expect(screen.getByText("3PGS queue content")).toBeTruthy();
+  });
+});
+
+describe("AdminModuleRoute 3PGS satellite visibility gate", () => {
+  it.each([
+    ["HOD_ASSEMBLY", "pna"],
+    ["ASSEMBLY_MANAGER", "pna"],
+    ["PACKING_SUPERVISOR", "pna"],
+    ["STORE_READY_GOODS", "outlet"],
+    ["STORE_INCHARGE", "outlet"],
+    ["RGS_ADMIN", "outlet"],
+    ["DISPATCH_HEAD", "dispatch"],
+    ["DISPATCH_MANAGER", "dispatch"],
+    ["DISPATCH_INCHARGE", "dispatch"],
+  ] as const)("admits %s (%s audience) without generic inventory module access", (role, _audience) => {
+    mockRole = role;
+    renderAt("/admin/3pgs-visibility");
+    expect(screen.getByText("3PGS satellite content")).toBeTruthy();
+  });
+
+  it("redirects SALES_EXECUTIVE to the sales dashboard instead of widening admin access", () => {
+    mockRole = "SALES_EXECUTIVE";
+    renderAt("/admin/3pgs-visibility");
+    expect(screen.queryByText("3PGS satellite content")).toBeNull();
+    expect(screen.getByText("Sales dashboard")).toBeTruthy();
+    expect(getRoleDestination("SALES_EXECUTIVE")).toBe("/sales/dashboard");
+  });
+
+  it.each([
+    "HOD_ASSEMBLY",
+    "DISPATCH_INCHARGE",
+    "STORE_READY_GOODS",
+  ] as const)("keeps %s off the operator procurement queue", (role) => {
+    mockRole = role;
+    renderAt("/admin/3pgs-procurement-queue");
+    expect(screen.queryByText("3PGS queue content")).toBeNull();
+  });
+
+  it.each([
+    "HOD_ASSEMBLY",
+    "DISPATCH_INCHARGE",
+  ] as const)("keeps %s off the mobile urgent surface", (role) => {
+    mockRole = role;
+    renderAt("/admin/3pgs-mobile-urgent");
+    expect(screen.queryByText("3PGS mobile urgent content")).toBeNull();
+  });
+
+  it.each([
+    "HOD_ASSEMBLY",
+    "DISPATCH_INCHARGE",
+  ] as const)("keeps %s off the admin-shell TV surface", (role) => {
+    mockRole = role;
+    renderAt("/admin/3pgs-tv");
+    expect(screen.queryByText("3PGS TV content")).toBeNull();
   });
 });
 

@@ -4,6 +4,8 @@ import { join } from "node:path";
 import {
   canAccessThreePgsMobileUrgent,
   canAccessThreePgsSatellite,
+  canAccessThreePgsSatelliteAdminShell,
+  canAccessThreePgsSatelliteSalesRoute,
   canAccessThreePgsTv,
   canAccessThreePgsTvAdminShell,
   resolveThreePgsSatelliteAudience,
@@ -41,11 +43,20 @@ test.describe("R4.6 3PGS satellite/mobile/TV closure", () => {
   test("applies role-scoped satellite and mobile guards in AdminModuleRoute", () => {
     const moduleGuard = readAdminModuleRouteSource();
     expect(moduleGuard).toContain('pathname === "/admin/3pgs-visibility"');
-    expect(moduleGuard).toContain("canAccessThreePgsSatellite(role)");
+    expect(moduleGuard).toContain("canAccessThreePgsSatelliteAdminShell(role)");
     expect(moduleGuard).toContain('pathname === "/admin/3pgs-mobile-urgent"');
     expect(moduleGuard).toContain("canAccessThreePgsMobileUrgent(role)");
     expect(moduleGuard).toContain('pathname === "/admin/3pgs-tv"');
     expect(moduleGuard).toContain("canAccessThreePgsTvAdminShell(role)");
+  });
+
+  test("registers the dedicated sales satellite visibility route for SALES_EXECUTIVE", () => {
+    const appSource = readAppSource();
+    expect(appSource).toContain('path="/sales/3pgs-visibility"');
+    expect(appSource).toContain('"SALES_EXECUTIVE"');
+    expect(appSource).toContain("<ThreePgsSatelliteVisibility />");
+    expect(canAccessThreePgsSatelliteSalesRoute("SALES_EXECUTIVE")).toBe(true);
+    expect(canAccessThreePgsSatelliteAdminShell("SALES_EXECUTIVE")).toBe(false);
   });
 
   test("registers the kiosk 3PGS TV route for the dedicated TV audience", () => {
@@ -69,7 +80,11 @@ test.describe("R4.6 3PGS satellite/mobile/TV closure", () => {
   test("keeps satellite visibility separate from operator authority", () => {
     expect(resolveThreePgsSatelliteAudience("HOD_ASSEMBLY")).toBe("pna");
     expect(canAccessThreePgsSatellite("HOD_ASSEMBLY")).toBe(true);
+    expect(canAccessThreePgsSatelliteAdminShell("HOD_ASSEMBLY")).toBe(true);
     expect(canAccessThreePgsMobileUrgent("HOD_ASSEMBLY")).toBe(false);
+    expect(canAccessThreePgsSatelliteAdminShell("DISPATCH_INCHARGE")).toBe(true);
+    expect(resolveThreePgsSatelliteAudience("SALES_EXECUTIVE")).toBe("b2b");
+    expect(canAccessThreePgsSatelliteSalesRoute("SALES_EXECUTIVE")).toBe(true);
   });
 
   test("keeps satellite and outlet roles off the unfiltered 3PGS TV surface", () => {

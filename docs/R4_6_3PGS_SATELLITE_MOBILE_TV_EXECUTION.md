@@ -25,7 +25,8 @@ Shared loader: `src/lib/threePgsSnapshotLoader.ts`.
 
 | Surface | Route | Audience | Behaviour |
 |---|---|---|---|
-| Satellite visibility | `/admin/3pgs-visibility` | P&A, outlet, sales, dispatch roles | Role-filtered read-only projection |
+| Satellite visibility | `/admin/3pgs-visibility` | P&A, outlet, dispatch roles in admin shell | Role-filtered read-only projection; bypasses generic inventory gate |
+| Sales satellite visibility | `/sales/3pgs-visibility` | `SALES_EXECUTIVE` | Dedicated non-admin route exposing only the `b2b` projection |
 | Mobile urgent subset | `/admin/3pgs-mobile-urgent` | 3PGS operator roles | Touch-friendly urgent queue over governed truth |
 | TV wall | `/tv/3pgs` | `STORE_3RD_PARTY`, `TV_3PGS`, `OPERATIONS_MANAGER`, administrators | Chrome-free kiosk route for dedicated TV accounts |
 | Admin-path TV duplicate | `/admin/3pgs-tv` | `STORE_3RD_PARTY`, `OPERATIONS_MANAGER`, administrators with inventory module access | In-shell navigation only; excludes kiosk-only `TV_3PGS` |
@@ -35,7 +36,7 @@ The canonical operator mutation surface remains `ThreePgsProcurementQueue.tsx` a
 ## Role boundaries
 
 - Operator roles: `SUPER_ADMIN`, `ADMIN`, `OPERATIONS_MANAGER`, `STORE_3RD_PARTY`
-- Satellite roles: `HOD_ASSEMBLY`, `ASSEMBLY_MANAGER`, `PACKING_SUPERVISOR`, `STORE_READY_GOODS`, `STORE_INCHARGE`, `RGS_ADMIN`, `SALES_EXECUTIVE`, `DISPATCH_HEAD`, `DISPATCH_MANAGER`, `DISPATCH_INCHARGE`
+- Satellite roles: `HOD_ASSEMBLY`, `ASSEMBLY_MANAGER`, `PACKING_SUPERVISOR`, `STORE_READY_GOODS`, `STORE_INCHARGE`, `RGS_ADMIN`, `DISPATCH_HEAD`, `DISPATCH_MANAGER`, `DISPATCH_INCHARGE` via `/admin/3pgs-visibility`; `SALES_EXECUTIVE` via `/sales/3pgs-visibility`
 - Satellite roles must not inherit the full procurement queue through generic inventory access.
 
 ## Non-goals

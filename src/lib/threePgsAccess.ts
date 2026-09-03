@@ -55,6 +55,22 @@ export function canAccessThreePgsSatellite(role: string | null | undefined): boo
   return resolveThreePgsSatelliteAudience(role) !== null;
 }
 
+/**
+ * Admin-shell satellite visibility. Every satellite role except kiosk-only sales
+ * accounts may bypass the generic inventory module gate for this filtered
+ * read-only surface only.
+ */
+export function canAccessThreePgsSatelliteAdminShell(role: string | null | undefined): boolean {
+  const normalized = normalizeRole(role);
+  if (!normalized || !canAccessThreePgsSatellite(role)) return false;
+  return normalized !== "SALES_EXECUTIVE";
+}
+
+/** Dedicated non-admin route exposing only the b2b satellite projection. */
+export function canAccessThreePgsSatelliteSalesRoute(role: string | null | undefined): boolean {
+  return normalizeRole(role) === "SALES_EXECUTIVE";
+}
+
 export function canAccessThreePgsMobileUrgent(role: string | null | undefined): boolean {
   const normalized = normalizeRole(role);
   return normalized !== null && THREE_PGS_MOBILE_URGENT_ROLES.includes(normalized as (typeof THREE_PGS_MOBILE_URGENT_ROLES)[number]);
