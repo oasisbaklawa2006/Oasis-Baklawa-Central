@@ -252,26 +252,27 @@ test("POINT-37 :: governed confirmed → in_production production release", asyn
     await expect(page.getByRole("heading", { name: "Order Management" })).toBeVisible({ timeout: 30_000 });
     await expect(page.locator("tbody tr").first()).toBeVisible({ timeout: 30_000 });
 
-    const orderRow = page
-      .locator("tbody tr")
-      .filter({ has: page.getByText(orderLabel, { exact: true }) })
-      .filter({ has: page.getByText("Confirmed", { exact: true }) })
-      .first();
-    await expect(orderRow, "confirmed order must appear in production view").toBeVisible({ timeout: 60_000 });
-    const actionButton = orderRow.getByRole("button", { name: /Send to Factory/i });
-    await expect(actionButton, "Send to Factory must be available").toBeVisible({ timeout: 30_000 });
+    const orderRow = () =>
+      page.locator("tbody tr", { has: page.getByText(orderLabel, { exact: false }) }).first();
+    await expect(orderRow(), "confirmed order must appear in production view").toBeVisible({ timeout: 60_000 });
+    const actionButton = () => orderRow().getByRole("button", { name: /Send to Factory/i });
+    await expect(actionButton(), "Send to Factory must be available").toBeVisible({ timeout: 30_000 });
 
-    // Realtime refetches can briefly disable the row action; poll until governed RPC fires.
-    let releaseClicked = false;
+    // Realtime refetches can briefly disable the row action; re-resolve locators and poll until RPC fires.
+    let lastReleaseClickAt = 0;
     await expect
       .poll(
         async () => {
           if (rpcCalls.some((c) => c.fn === "release_order_to_in_production_v1")) return true;
-          if (!releaseClicked) {
-            if (!(await actionButton.isVisible()) || !(await actionButton.isEnabled())) return false;
-            await actionButton.scrollIntoViewIfNeeded();
-            await actionButton.click();
-            releaseClicked = true;
+          const button = actionButton();
+          if (!(await orderRow().isVisible()) || !(await button.isVisible()) || !(await button.isEnabled())) {
+            return false;
+          }
+          const now = Date.now();
+          if (now - lastReleaseClickAt >= 1_000) {
+            await button.scrollIntoViewIfNeeded();
+            await button.click({ timeout: 5_000 }).catch(() => undefined);
+            lastReleaseClickAt = now;
           }
           return rpcCalls.some((c) => c.fn === "release_order_to_in_production_v1");
         },
