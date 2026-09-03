@@ -244,9 +244,11 @@ await upsertUserProfile({
   roleKey: bootstrapRole,
   displayName: "Factory Cert SUPER_ADMIN",
 });
-await upsertLoginProfile({ id: bootstrapId, email: bootstrapEmail, roleKey: bootstrapRole });
-await linkRoleMap(bootstrapId, bootstrapRoleId);
-await verifyUserProfile(bootstrapId, bootstrapRole);
+  await upsertLoginProfile({ id: bootstrapId, email: bootstrapEmail, roleKey: bootstrapRole });
+  await linkRoleMap(bootstrapId, bootstrapRoleId);
+  const { error: bootstrapTutorialError } = await supabase.from("users").update({ has_seen_tutorial: true }).eq("id", bootstrapId);
+  assertNoSupabaseError(bootstrapTutorialError, `has_seen_tutorial patch failed for ${bootstrapRole}`);
+  await verifyUserProfile(bootstrapId, bootstrapRole);
 credentialLines.push(`export FACTORY_CERT_${envRole(bootstrapRole)}_EMAIL=${shellQuote(bootstrapEmail)}`);
 credentialLines.push(`export FACTORY_CERT_${envRole(bootstrapRole)}_PASSWORD=${shellQuote(bootstrapPassword)}`);
 
@@ -285,6 +287,8 @@ for (const roleKey of allRoleKeys) {
   }
 
   await upsertLoginProfile({ id, email, roleKey });
+  const { error: tutorialError } = await supabase.from("users").update({ has_seen_tutorial: true }).eq("id", id);
+  assertNoSupabaseError(tutorialError, `has_seen_tutorial patch failed for ${roleKey}`);
   await verifyUserProfile(id, roleKey);
 
   const envKey = envRole(roleKey);

@@ -5,6 +5,7 @@ import { factoryCertificationCredentialSpec } from "../src/lib/factoryCertificat
 import {
   createAuthenticatedCertificationClient,
   createSteppedUpCertificationClient,
+  dismissOnboardingOverlayIfPresent,
   hasFactoryCertificationBackend,
   hasFactoryCertificationTarget,
   loginToFactoryCertificationTarget,
@@ -226,6 +227,7 @@ test("POINT-37 :: governed confirmed → in_production production release", asyn
       waitUntil: "domcontentloaded",
       timeout: 60_000,
     });
+    await dismissOnboardingOverlayIfPresent(page);
 
     const orderRow = page.locator("tr", { has: page.getByText(orderLabel, { exact: false }) }).first();
     await expect(orderRow, "confirmed order must appear in production view").toBeVisible({ timeout: 30_000 });
@@ -275,6 +277,7 @@ test("POINT-37 :: governed confirmed → in_production production release", asyn
       waitUntil: "domcontentloaded",
       timeout: 60_000,
     });
+    await dismissOnboardingOverlayIfPresent(page);
 
     const orderRow = page.locator("tr", { has: page.getByText(orderLabel, { exact: false }) }).first();
     await expect(orderRow, "confirmed order must appear before release").toBeVisible({ timeout: 30_000 });
