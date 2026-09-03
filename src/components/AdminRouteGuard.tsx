@@ -3,8 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-import { getAllowedModulesForRole, hasModuleAccess } from "@/lib/appverse/roleAccess";
-import { getRequiredModuleForAdminPath } from "@/lib/appverse/routeAccess";
+import { isAuthorizedForAdminPath } from "@/lib/appverse/routeAccess";
 
 export default function AdminRouteGuard({ children }: { children: React.ReactNode }) {
   const { user, role } = useAuth();
@@ -20,9 +19,7 @@ export default function AdminRouteGuard({ children }: { children: React.ReactNod
       return;
     }
 
-    const requiredModule = getRequiredModuleForAdminPath(location.pathname);
-    const allowedModules = getAllowedModulesForRole(role);
-    const authorized = requiredModule !== null && hasModuleAccess(allowedModules, requiredModule);
+    const authorized = isAuthorizedForAdminPath(location.pathname, role);
 
     if (authorized) {
       setChecked(true);

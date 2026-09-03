@@ -85,7 +85,7 @@ async function openWizardAndSelectOrder(page: Page, orderLabel: string) {
   await expect(page.getByRole("heading", { name: /Golden Chain Operator/i })).toBeVisible({
     timeout: 30_000,
   });
-  const orderBtn = page.getByRole("button", { name: new RegExp(orderLabel, "i") }).first();
+  const orderBtn = page.getByRole("button", { name: orderLabel }).first();
   await expect(orderBtn, `order ${orderLabel} must appear in wizard list`).toBeVisible({ timeout: 60_000 });
   await orderBtn.click();
   await expect(page.getByText(orderLabel, { exact: false }).first()).toBeVisible({ timeout: 30_000 });

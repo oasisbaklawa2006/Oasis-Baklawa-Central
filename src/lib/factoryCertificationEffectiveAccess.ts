@@ -4,7 +4,7 @@ import {
   type FactoryRouteEntry,
 } from "./factoryOperationsRouteRegistry";
 import { getAllowedModulesForRole, hasModuleAccess } from "./appverse/roleAccess";
-import { getRequiredModuleForAdminPath } from "./appverse/routeAccess";
+import { canAccessGoldenChainOperatorRoute, getRequiredModuleForAdminPath } from "./appverse/routeAccess";
 import { canAccessThreePgsOperator } from "./threePgsAccess";
 
 /**
@@ -36,6 +36,10 @@ export function isEffectivelyAuthorizedFactoryRole(
   if (!entry.technicallyAllowedRoles.includes(canonicalRole)) return false;
 
   if (!entry.route.startsWith("/admin")) return true;
+
+  if (entry.route === "/admin/golden-chain-operator") {
+    return canAccessGoldenChainOperatorRoute(canonicalRole);
+  }
 
   const requiredModule = getRequiredModuleForAdminPath(entry.route);
   if (!requiredModule) return false;
