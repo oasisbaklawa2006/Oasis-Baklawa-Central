@@ -113,6 +113,44 @@ describe("Core #178 final-payment PI authority client", () => {
     });
   });
 
+  it("rejects PAY_NOW issuance without an absolute https payment link", async () => {
+    await expect(issueFinalPaymentPiRevision({
+      orderId: "order-1",
+      piId: "pi-1",
+      commercialVersionId: "cv-1",
+      financeDplReceiptId: "dpl-1",
+      documentReference: "storage:final-payment-pi.pdf",
+      paymentAction: "PAY_NOW",
+      paymentLink: "javascript:alert(1)",
+      paymentInstructions: "Use the governed bank details",
+      reason: "Finance DPL and frozen commercial terms verified",
+      sourceChannel: "CENTRAL",
+      sourceReference: "accounts-release",
+      correlationId: "corr-1",
+      idempotencyKey: "idem-1",
+      actorId: "actor-1",
+    })).rejects.toThrow("absolute https payment link");
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("omits unsafe payment links from parsed Core facts", () => {
+    const facts = parseFinalPaymentPiFacts({
+      order_id: "order-1",
+      available: true,
+      payment_action: "PAY_NOW",
+      payment_link: "javascript:alert(1)",
+      final_invoice_must_not_request_payment: true,
+    });
+    expect(facts.paymentLink).toBeNull();
+  });
+
+  it("uses typed supabase.rpc without an RpcClient escape hatch", () => {
+    const client = source("lib/order-authority/finalPaymentPiAuthorityClient.ts");
+    expect(client).toContain("supabase.rpc");
+    expect(client).not.toContain("as unknown as RpcClient");
+    expect(client).not.toContain("const db = supabase");
+  });
+
   it("records governed M4 delivery evidence without browser-composed payment truth", async () => {
     rpc.mockResolvedValueOnce({
       data: [{ delivery_id: "delivery-1", already_recorded: false }],
@@ -154,9 +192,10 @@ describe("Core #178 final-payment PI authority client", () => {
 
   it("binds Finance Exit to Core #178 before final invoice issuance", () => {
     const accountsRelease = source("pages/admin/AdminAccountsRelease.tsx");
-    expect(accountsRelease).toContain("getFinalPaymentPiFacts");
+    expect(accountsRelease).toContain("loadGovernedFinanceExitProjection");
     expect(accountsRelease).toContain("issueFinalPaymentPiRevision");
     expect(accountsRelease).toContain("PI requests final payment");
+    expect(accountsRelease).toContain("isGovernedHttpsPaymentLink");
   });
 
   it("binds Buyer reads to Core #178 final-payment PI facts", () => {

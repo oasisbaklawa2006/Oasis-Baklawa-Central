@@ -5900,6 +5900,50 @@ export type Database = {
       }
     }
     Functions: CustomerAppFunctions & {
+      issue_sales_order_pi_final_payment_request_v1: {
+        Args: {
+          p_order_id: string
+          p_pi_id: string
+          p_commercial_version_id: string
+          p_finance_dpl_receipt_id: string
+          p_document_reference: string
+          p_payment_action: string
+          p_payment_link: string | null
+          p_payment_instructions: string
+          p_reason: string
+          p_source_channel: string
+          p_source_reference: string | null
+          p_correlation_id: string
+          p_idempotency_key: string
+          p_actor_id: string
+        }
+        Returns: {
+          final_payment_request_id: string
+          revision_number: number
+          customer_visible_pi_number: string
+          final_payable_total: number
+          balance_due: number
+          already_issued: boolean
+        }[]
+      }
+      record_sales_order_pi_final_payment_delivery_v1: {
+        Args: {
+          p_final_payment_request_id: string
+          p_channel: string
+          p_destination_reference: string
+          p_provider_message_id: string | null
+          p_delivery_status: string
+          p_evidence_reference: string
+          p_delivered_at: string | null
+          p_correlation_id: string
+          p_idempotency_key: string
+          p_actor_id: string
+        }
+        Returns: {
+          delivery_id: string
+          already_recorded: boolean
+        }[]
+      }
       get_whatsapp_clarification_summary: {
         Args: never
         Returns: {

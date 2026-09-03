@@ -26,7 +26,7 @@ describe("Finance Exit surface authority guard", () => {
       expect(page, `out-of-scope/legacy authority token must remain absent: ${forbidden}`).not.toContain(forbidden);
     }
     for (const governed of [
-      "getFinanceExitFacts",
+      "loadGovernedFinanceExitProjection",
       "receiveSubmittedB2bDpls",
       "issueFinalInvoice",
       "recordEwayEvidence",
@@ -40,10 +40,11 @@ describe("Finance Exit surface authority guard", () => {
 
   it("Accounts Release binds final-payment PI authority before final invoice issuance", () => {
     const page = source("src/pages/admin/AdminAccountsRelease.tsx");
-    expect(page).toContain("getFinalPaymentPiFacts");
+    expect(page).toContain("loadGovernedFinanceExitProjection");
     expect(page).toContain("issueFinalPaymentPiRevision");
     expect(page).toContain("PI requests final payment");
     expect(page).toContain("finalPaymentPi.settled !== true");
+    expect(page).toContain("isGovernedHttpsPaymentLink");
   });
 
   it("the canonical security gate route delegates only to the governed B2B exit gate", () => {

@@ -1,11 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
+import { parseGovernedHttpsPaymentLink } from "@/lib/order-authority/governedPaymentLink";
 
 type RpcError = { message: string; code?: string; details?: string; hint?: string };
-type RpcClient = {
-  rpc<T = unknown>(fn: string, args: Record<string, unknown>): Promise<{ data: T | null; error: RpcError | null }>;
-};
-
-const db = supabase as unknown as RpcClient;
 
 export class FinalPaymentPiAuthorityError extends Error {
   readonly code?: string;
@@ -130,11 +126,27 @@ function row(data: unknown, operation: string): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
-async function call<T>(fn: string, args: Record<string, unknown>): Promise<T> {
-  const { data, error } = await db.rpc<T>(fn, args);
+function governed<T>(data: T | null, error: RpcError | null, operation: string): T {
   if (error) throw new FinalPaymentPiAuthorityError(error);
-  if (data === null || data === undefined) throw new FinalPaymentPiAuthorityError(`${fn} returned no governed result`);
+  if (data === null || data === undefined) throw new FinalPaymentPiAuthorityError(`${operation} returned no governed result`);
   return data;
+}
+
+function resolveIssuePaymentLink(
+  paymentAction: FinalPaymentPiPaymentAction,
+  paymentLink: string | null | undefined,
+): string | null {
+  if (paymentAction === "PAY_NOW") {
+    const validated = parseGovernedHttpsPaymentLink(paymentLink);
+    if (!validated) throw new FinalPaymentPiAuthorityError("A valid absolute https payment link is required for PAY_NOW");
+    return validated;
+  }
+  if (paymentLink?.trim()) {
+    const validated = parseGovernedHttpsPaymentLink(paymentLink);
+    if (!validated) throw new FinalPaymentPiAuthorityError("Payment links must be absolute https URLs");
+    return validated;
+  }
+  return null;
 }
 
 async function sha256(value: string): Promise<string> {
@@ -210,7 +222,7 @@ export function parseFinalPaymentPiFacts(value: unknown): FinalPaymentPiFacts {
     balanceDue: numberOrNull(facts.balance_due),
     settled: typeof facts.settled === "boolean" ? facts.settled : null,
     paymentAction: optionalString(facts.payment_action) as FinalPaymentPiPaymentAction | null,
-    paymentLink: optionalString(facts.payment_link),
+    paymentLink: parseGovernedHttpsPaymentLink(optionalString(facts.payment_link)),
     paymentInstructions: optionalString(facts.payment_instructions),
     documentReference: optionalString(facts.document_reference),
     reason: optionalString(facts.reason),
@@ -224,21 +236,22 @@ export function parseFinalPaymentPiFacts(value: unknown): FinalPaymentPiFacts {
 }
 
 export async function getFinalPaymentPiFacts(orderId: string): Promise<FinalPaymentPiFacts> {
-  return parseFinalPaymentPiFacts(await call("get_sales_order_pi_final_payment_request_v1", {
+  const { data, error } = await supabase.rpc("get_sales_order_pi_final_payment_request_v1", {
     p_order_id: required(orderId, "order id"),
-  }));
+  });
+  return parseFinalPaymentPiFacts(governed(data, error, "getFinalPaymentPiFacts"));
 }
 
 export async function issueFinalPaymentPiRevision(input: IssueFinalPaymentPiInput): Promise<IssueFinalPaymentPiResult> {
   const actorId = required(input.actorId, "actor id");
-  const mapped = row(await call("issue_sales_order_pi_final_payment_request_v1", {
+  const { data, error } = await supabase.rpc("issue_sales_order_pi_final_payment_request_v1", {
     p_order_id: required(input.orderId, "order id"),
     p_pi_id: required(input.piId, "PI id"),
     p_commercial_version_id: required(input.commercialVersionId, "commercial version id"),
     p_finance_dpl_receipt_id: required(input.financeDplReceiptId, "Finance DPL receipt id"),
     p_document_reference: required(input.documentReference, "document reference"),
     p_payment_action: input.paymentAction,
-    p_payment_link: input.paymentLink ?? null,
+    p_payment_link: resolveIssuePaymentLink(input.paymentAction, input.paymentLink),
     p_payment_instructions: required(input.paymentInstructions, "payment instructions"),
     p_reason: required(input.reason, "reason"),
     p_source_channel: required(input.sourceChannel, "source channel"),
@@ -246,7 +259,8 @@ export async function issueFinalPaymentPiRevision(input: IssueFinalPaymentPiInpu
     p_correlation_id: required(input.correlationId, "correlation id"),
     p_idempotency_key: required(input.idempotencyKey, "idempotency key"),
     p_actor_id: actorId,
-  }), "issueFinalPaymentPiRevision");
+  });
+  const mapped = row(governed(data, error, "issueFinalPaymentPiRevision"), "issueFinalPaymentPiRevision");
   return {
     finalPaymentRequestId: required(String(mapped.final_payment_request_id ?? ""), "final payment request id"),
     revisionNumber: numberOrNull(mapped.revision_number) ?? 0,
@@ -261,7 +275,7 @@ export async function recordFinalPaymentPiDelivery(
   input: RecordFinalPaymentPiDeliveryInput,
 ): Promise<RecordFinalPaymentPiDeliveryResult> {
   const actorId = required(input.actorId, "actor id");
-  const mapped = row(await call("record_sales_order_pi_final_payment_delivery_v1", {
+  const { data, error } = await supabase.rpc("record_sales_order_pi_final_payment_delivery_v1", {
     p_final_payment_request_id: required(input.finalPaymentRequestId, "final payment request id"),
     p_channel: input.channel,
     p_destination_reference: required(input.destinationReference, "destination reference"),
@@ -272,7 +286,8 @@ export async function recordFinalPaymentPiDelivery(
     p_correlation_id: required(input.correlationId, "correlation id"),
     p_idempotency_key: required(input.idempotencyKey, "idempotency key"),
     p_actor_id: actorId,
-  }), "recordFinalPaymentPiDelivery");
+  });
+  const mapped = row(governed(data, error, "recordFinalPaymentPiDelivery"), "recordFinalPaymentPiDelivery");
   return {
     deliveryId: required(String(mapped.delivery_id ?? ""), "delivery id"),
     alreadyRecorded: mapped.already_recorded === true,

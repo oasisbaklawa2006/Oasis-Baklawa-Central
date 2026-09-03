@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Database, Json } from "@/integrations/supabase/database.types";
+import { parseGovernedHttpsPaymentLink } from "@/lib/order-authority/governedPaymentLink";
 
 type PublicFunctions = Database["public"]["Functions"];
 type RpcName = keyof PublicFunctions;
@@ -282,7 +283,7 @@ export function normalizeBuyerFinalPaymentPiFacts(value: unknown): BuyerFinalPay
     balance_due: nullableNumber(value.balance_due),
     settled: nullableBoolean(value.settled),
     payment_action: nullableString(value.payment_action),
-    payment_link: nullableString(value.payment_link),
+    payment_link: parseGovernedHttpsPaymentLink(nullableString(value.payment_link)),
     payment_instructions: nullableString(value.payment_instructions),
     document_reference: nullableString(value.document_reference),
     issued_at: nullableString(value.issued_at),

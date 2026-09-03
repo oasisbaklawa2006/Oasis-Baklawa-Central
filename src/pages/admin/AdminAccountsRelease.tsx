@@ -10,7 +10,6 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import {
   decideFinanceDispatchClearance,
-  getFinanceExitFacts,
   issueFinalInvoice,
   receiveSubmittedB2bDpls,
   recordEwayEvidence,
@@ -19,11 +18,15 @@ import {
 import {
   buildFinalPaymentPiCorrelationId,
   buildFinalPaymentPiIdempotencyKey,
-  getFinalPaymentPiFacts,
   issueFinalPaymentPiRevision,
   type FinalPaymentPiFacts,
   type FinalPaymentPiPaymentAction,
 } from "@/lib/order-authority/finalPaymentPiAuthorityClient";
+import {
+  financeExitStage,
+  loadGovernedFinanceExitProjection,
+} from "@/lib/order-authority/financeExitProjection";
+import { isGovernedHttpsPaymentLink } from "@/lib/order-authority/governedPaymentLink";
 import { clearOrderForDispatch } from "@/lib/order-authority/orderAuthorityClient";
 
 type FinanceOrder = Pick<
@@ -56,14 +59,7 @@ function deadlineLabel(value: string | null) {
 }
 
 function stage(facts: FinanceExitFacts | null, finalPaymentPi: FinalPaymentPiFacts | null) {
-  if (!facts) return "Select an order";
-  if (facts.dispatchProofId) return "Gate exit recorded — dispatch handoff complete";
-  if (facts.dispatchCleared) return "Finance Dispatch Clearance granted";
-  if (facts.finalInvoiceId && facts.ewayEvidenceId) return "Ready for Dispatch Clearance decision";
-  if (facts.finalInvoiceId) return "E-way decision required";
-  if (finalPaymentPi?.available && finalPaymentPi.settled !== true) return "Final-payment PI revision issued — settlement pending";
-  if (facts.financeDplReceiptId) return "Final-payment PI revision required";
-  return "Submitted DPL receipt required";
+  return financeExitStage(facts, finalPaymentPi);
 }
 
 const AdminAccountsRelease = () => {
@@ -112,13 +108,10 @@ const AdminAccountsRelease = () => {
 
   const refreshFacts = useCallback(async (order: FinanceOrder) => {
     try {
-      const [freshFacts, freshFinalPaymentPi] = await Promise.all([
-        getFinanceExitFacts(order.id),
-        getFinalPaymentPiFacts(order.id),
-      ]);
+      const projection = await loadGovernedFinanceExitProjection(order.id);
       if (selectedIdRef.current === order.id) {
-        setFacts(freshFacts);
-        setFinalPaymentPi(freshFinalPaymentPi);
+        setFacts(projection.facts);
+        setFinalPaymentPi(projection.finalPaymentPi);
       }
     } catch (error) {
       if (selectedIdRef.current === order.id) {
@@ -166,7 +159,7 @@ const AdminAccountsRelease = () => {
     !finalPaymentDocumentReference.trim() ||
     !finalPaymentInstructions.trim() ||
     !finalPaymentReason.trim() ||
-    (finalPaymentAction === "PAY_NOW" && !finalPaymentLink.trim());
+    (finalPaymentAction === "PAY_NOW" && !isGovernedHttpsPaymentLink(finalPaymentLink));
   const invoiceInputIncomplete =
     !invoiceNumber.trim() ||
     !invoiceDate.trim() ||
