@@ -312,6 +312,61 @@ if (!Array.isArray(point37CheckoutRows) || point37CheckoutRows.length !== 1 || p
   throw new Error(`Point-37 governed Buyer checkout returned invalid facts: ${JSON.stringify(point37CheckoutRows)}`);
 }
 
+// PF-6C / resolvePaymentBinding require exactly one READY_FOR_ISSUE or ISSUED PI row on the
+// authority view. Governed Buyer checkout creates the commercial version but does not always
+// surface a bindable PI before Finance issuance.
+runLocalPostgresRoleStatement(localDbUrl,
+  `DO $$
+DECLARE
+  v_order uuid := '${POINT37_ORDER_ID}'::uuid;
+  v_version uuid;
+BEGIN
+  SELECT id INTO v_version
+  FROM public.sales_order_commercial_versions
+  WHERE order_id = v_order
+  ORDER BY version_number DESC
+  LIMIT 1;
+
+  IF v_version IS NULL THEN
+    v_version := public.create_sales_order_commercial_version_v1(
+      v_order,
+      'FACTORY_CERT',
+      'factory-cert-point37-version',
+      'factory-cert-point37-version-1',
+      NULL
+    );
+  END IF;
+
+  SET LOCAL session_replication_role = replica;
+  INSERT INTO public.sales_order_proforma_invoices (
+    id, order_id, commercial_version_id, commercial_version_number, status,
+    frozen_commercial_snapshot, frozen_snapshot_fingerprint, reason, source,
+    correlation_id, idempotency_key
+  )
+  SELECT
+    gen_random_uuid(),
+    v_order,
+    v.id,
+    v.version_number,
+    'READY_FOR_ISSUE',
+    v.commercial_snapshot,
+    v.snapshot_fingerprint,
+    'FACTORY_CERT_POINT37',
+    'TEST',
+    'factory-cert-point37-pi-ready',
+    'factory-cert-point37-pi-ready-1'
+  FROM public.sales_order_commercial_versions v
+  WHERE v.id = v_version
+    AND NOT EXISTS (
+      SELECT 1
+      FROM public.sales_order_proforma_invoices pi
+      WHERE pi.order_id = v_order
+        AND pi.status IN ('READY_FOR_ISSUE', 'ISSUED')
+    );
+  SET LOCAL session_replication_role = DEFAULT;
+END $$;`,
+  "Point-37 PI binding fixture bootstrap");
+
 // Fixture bootstrap only: leave the order at confirmed with verified advance so OM Point-37
 // can exercise release_order_to_in_production_v1 without touching the golden FACT-E2E order.
 // Core's ORDER_STATUS_AUTHORITY_REQUIRED trigger rejects service-role PostgREST updates;
