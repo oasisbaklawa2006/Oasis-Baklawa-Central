@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { canAccessSecurityGate } from "@/lib/auth/securityGatePolicy";
 import { getAllowedModulesForRole } from "./roleAccess";
 import { isAuthorizedForAdminPath } from "./routeAccess";
 
@@ -82,6 +83,12 @@ describe("Dispatch RBAC — five-stage workflow (positive)", () => {
   it.each(DISPATCH_ROLES)("allows $role to reach App-Verse home without executive dashboard", (role) => {
     expect(isAuthorizedForAdminPath("/admin", role)).toBe(true);
     expect(isAuthorizedForAdminPath("/admin/heartbeat", role)).toBe(false);
+  });
+});
+
+describe("Dispatch RBAC — security gate policy", () => {
+  it.each(DISPATCH_ROLES)("denies %s from /security-gate (independent gate release authority)", (role) => {
+    expect(canAccessSecurityGate(role)).toBe(false);
   });
 });
 

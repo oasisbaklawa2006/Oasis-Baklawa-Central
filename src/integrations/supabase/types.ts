@@ -1,5 +1,139 @@
 import type { Database as GeneratedDatabase, Json } from "./database.types";
 
+type FinanceReviewEvidenceTable = {
+  Row: {
+    id: string;
+    order_id: string;
+    review_type: string;
+    review_status: string;
+    evidence_type: string;
+    evidence_ref: string | null;
+    utr_ref: string | null;
+    amount: number | null;
+    currency: string | null;
+    actor_id: string | null;
+    actor_role: string | null;
+    actor_department: string | null;
+    override_reason: string | null;
+    correlation_id: string;
+    metadata: Json;
+    created_at: string;
+  };
+  Insert: {
+    id?: string;
+    order_id: string;
+    review_type: string;
+    review_status: string;
+    evidence_type: string;
+    evidence_ref?: string | null;
+    utr_ref?: string | null;
+    amount?: number | null;
+    currency?: string | null;
+    actor_id?: string | null;
+    actor_role?: string | null;
+    actor_department?: string | null;
+    override_reason?: string | null;
+    correlation_id: string;
+    metadata?: Json;
+    created_at?: string;
+  };
+  Update: {
+    id?: string;
+    order_id?: string;
+    review_type?: string;
+    review_status?: string;
+    evidence_type?: string;
+    evidence_ref?: string | null;
+    utr_ref?: string | null;
+    amount?: number | null;
+    currency?: string | null;
+    actor_id?: string | null;
+    actor_role?: string | null;
+    actor_department?: string | null;
+    override_reason?: string | null;
+    correlation_id?: string;
+    metadata?: Json;
+    created_at?: string;
+  };
+  Relationships: [];
+};
+
+type InventoryReservationsTable = {
+  Row: {
+    id: string;
+    reservation_number: string;
+    order_id: string;
+    queue_item_id: string | null;
+    customer_id: string | null;
+    product_id: string;
+    sku: string;
+    requested_qty: number;
+    reserved_qty: number;
+    fulfilled_qty: number;
+    released_qty: number;
+    reservation_status: string;
+    reservation_priority: string;
+    source_department: string | null;
+    reserved_by: string | null;
+    approved_by: string | null;
+    expires_at: string | null;
+    notes: string | null;
+    correlation_id: string;
+    version: number;
+    created_at: string;
+    updated_at: string;
+  };
+  Insert: {
+    id?: string;
+    reservation_number: string;
+    order_id: string;
+    queue_item_id?: string | null;
+    customer_id?: string | null;
+    product_id: string;
+    sku: string;
+    requested_qty: number;
+    reserved_qty?: number;
+    fulfilled_qty?: number;
+    released_qty?: number;
+    reservation_status: string;
+    reservation_priority?: string;
+    source_department?: string | null;
+    reserved_by?: string | null;
+    approved_by?: string | null;
+    expires_at?: string | null;
+    notes?: string | null;
+    correlation_id: string;
+    version?: number;
+    created_at?: string;
+    updated_at?: string;
+  };
+  Update: {
+    id?: string;
+    reservation_number?: string;
+    order_id?: string;
+    queue_item_id?: string | null;
+    customer_id?: string | null;
+    product_id?: string;
+    sku?: string;
+    requested_qty?: number;
+    reserved_qty?: number;
+    fulfilled_qty?: number;
+    released_qty?: number;
+    reservation_status?: string;
+    reservation_priority?: string;
+    source_department?: string | null;
+    reserved_by?: string | null;
+    approved_by?: string | null;
+    expires_at?: string | null;
+    notes?: string | null;
+    correlation_id?: string;
+    version?: number;
+    created_at?: string;
+    updated_at?: string;
+  };
+  Relationships: [];
+};
+
 /**
  * Backwards-compatible Supabase contract.
  *
@@ -164,6 +298,8 @@ export type Database = Omit<GeneratedDatabase, "public"> & {
   public: Omit<GeneratedDatabase["public"], "Tables" | "Functions"> & {
     Tables: GeneratedDatabase["public"]["Tables"] & {
       operational_scan_records: OperationalScanRecordsTable;
+      finance_review_evidence: FinanceReviewEvidenceTable;
+      inventory_reservations: InventoryReservationsTable;
     };
     Functions: GeneratedDatabase["public"]["Functions"] & FinanceExitFunctions;
   };

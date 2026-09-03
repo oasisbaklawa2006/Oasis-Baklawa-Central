@@ -1,5 +1,6 @@
-import { test, expect } from "@playwright/test";
-import { createClient } from "@supabase/supabase-js";
+import { test, expect, type TestInfo } from "@playwright/test";
+import { createClient, type PostgrestError } from "@supabase/supabase-js";
+import type { Database } from "../src/integrations/supabase/types";
 import { factoryCertificationCredentialSpec } from "../src/lib/factoryCertificationCredentialPolicy";
 import {
   hasFactoryCertificationBackend,
@@ -8,24 +9,23 @@ import {
 } from "./factory-certification/support";
 
 /**
- * P0 #456 — characterize disposable/staging PostgREST RLS for Dispatch roles.
+ * P0 #456 — production-backed PostgREST RLS certification for Dispatch roles.
  *
- * Central's governed write path (financeGovernanceService + reservationRepository)
- * fail-closes before persistence. This cert records whether raw table RLS also
- * denies Dispatch or only `is_internal_staff` (documented Core companion lane).
- *
- * Skips when Factory certification credentials/backend are unavailable.
- * Does not fail CI when RLS is broader — records CORE_RLS_GAP for Mission Control.
+ * Requires deployed Core authority (#183 / migration release #129). Any ALLOWED
+ * direct Dispatch write is a hard certification failure.
  */
+
+type ProbeOutcome = "AUTHORIZATION_DENIED" | "ALLOWED" | "INCONCLUSIVE";
 
 type CharacterizationRecord = {
   surface: string;
   role: string;
   operation: string;
-  outcome: "DENIED" | "ALLOWED";
+  outcome: ProbeOutcome;
   detail: string;
 };
 
+const PROBE_REF = "dispatch-rbac-probe";
 const ledger: { records: CharacterizationRecord[] } = { records: [] };
 
 function record(entry: CharacterizationRecord) {
@@ -39,10 +39,70 @@ function credentialsForRoleOrSkip(role: string) {
   return credentials!;
 }
 
+function classifyInsertError(error: PostgrestError | null): ProbeOutcome {
+  if (!error) return "ALLOWED";
+  const code = error.code ?? "";
+  const message = error.message.toLowerCase();
+  const details = (error.details ?? "").toLowerCase();
+
+  if (
+    code === "42501" ||
+    message.includes("permission denied") ||
+    message.includes("row-level security") ||
+    message.includes("row level security") ||
+    message.includes("policy") ||
+    details.includes("policy")
+  ) {
+    return "AUTHORIZATION_DENIED";
+  }
+
+  if (
+    code === "23503" ||
+    code === "23502" ||
+    code === "23514" ||
+    code === "42703" ||
+    code === "42P01" ||
+    message.includes("foreign key") ||
+    message.includes("violates") ||
+    message.includes("does not exist") ||
+    message.includes("column")
+  ) {
+    return "INCONCLUSIVE";
+  }
+
+  return "INCONCLUSIVE";
+}
+
+function assertProbeOutcome(
+  surface: string,
+  outcome: ProbeOutcome,
+  detail: string,
+  testInfo: TestInfo,
+) {
+  record({
+    surface,
+    role: "DISPATCH_MANAGER",
+    operation: "insert",
+    outcome,
+    detail,
+  });
+
+  if (outcome === "ALLOWED") {
+    throw new Error(`RLS_CERT_FAILURE: ${surface} INSERT allowed for DISPATCH_MANAGER — ${detail}`);
+  }
+  if (outcome === "INCONCLUSIVE") {
+    testInfo.annotations.push({
+      type: "RLS_CERT_INCONCLUSIVE",
+      description: `${surface}: non-authorization error — ${detail}`,
+    });
+    throw new Error(`RLS_CERT_INCONCLUSIVE: ${surface} probe could not classify authorization — ${detail}`);
+  }
+}
+
 async function createDispatchClient() {
   const credentials = credentialsForRoleOrSkip("DISPATCH_MANAGER");
   const backend = resolveFactoryCertificationBackend();
-  const client = createClient(backend.url, backend.anonKey, {
+  const client = createClient<Database>(backend.url, backend.anonKey, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
   });
   const { error } = await client.auth.signInWithPassword({
@@ -53,7 +113,20 @@ async function createDispatchClient() {
   return client;
 }
 
-test.describe("Dispatch RBAC — disposable RLS characterization", () => {
+function resolveFixtureOrderId(): string {
+  const orderId =
+    process.env.FACTORY_CERT_POINT38_ORDER_ID?.trim() ||
+    process.env.FACTORY_CERT_GOLDEN_ORDER_ID?.trim() ||
+    process.env.FACTORY_CERT_POINT37_ORDER_ID?.trim();
+  if (!orderId) {
+    throw new Error(
+      "CERTIFICATION_FIXTURE_REQUIRED: FACTORY_CERT_POINT38_ORDER_ID, FACTORY_CERT_GOLDEN_ORDER_ID, or FACTORY_CERT_POINT37_ORDER_ID",
+    );
+  }
+  return orderId;
+}
+
+test.describe("Dispatch RBAC — production RLS certification", () => {
   test.skip(!hasFactoryCertificationBackend(), "FACTORY_CERT_BACKEND_REQUIRED");
 
   test.afterAll(() => {
@@ -62,77 +135,73 @@ test.describe("Dispatch RBAC — disposable RLS characterization", () => {
     }
   });
 
-  test("DISPATCH_MANAGER direct finance_review_evidence insert is characterized", async ({ page: _page }, testInfo) => {
+  test("DISPATCH_MANAGER direct finance_review_evidence insert is denied by deployed Core RLS", async ({ page: _page }, testInfo) => {
     const client = await createDispatchClient();
-    const orderId = "00000000-0000-4000-8000-00000000f1";
-    const { error } = await client.from("finance_review_evidence").insert({
+    const orderId = resolveFixtureOrderId();
+    const actorId = (await client.auth.getUser()).data.user?.id;
+    if (!actorId) throw new Error("AUTH_REQUIRED: missing actor id");
+
+    const correlationId = `dispatch-rbac-probe-finance-${Date.now()}`;
+    const { data, error } = await client.from("finance_review_evidence").insert({
       order_id: orderId,
       review_type: "credit_review",
       review_status: "pending",
       evidence_type: "credit_review",
-      evidence_ref: "dispatch-rbac-probe",
-      actor_id: (await client.auth.getUser()).data.user?.id,
+      evidence_ref: PROBE_REF,
+      actor_id: actorId,
       actor_role: "DISPATCH_MANAGER",
-      correlation_id: `dispatch-rbac-probe-finance-${Date.now()}`,
-    });
+      correlation_id: correlationId,
+    }).select("id").maybeSingle();
 
-    record({
-      surface: "finance_review_evidence",
-      role: "DISPATCH_MANAGER",
-      operation: "insert",
-      outcome: error ? "DENIED" : "ALLOWED",
-      detail: error?.message ?? "insert succeeded",
-    });
-
-    if (!error) {
-      await client.from("finance_review_evidence").delete().eq("order_id", orderId).eq("evidence_ref", "dispatch-rbac-probe");
-      testInfo.annotations.push({
-        type: "CORE_RLS_GAP",
-        description:
-          "finance_review_evidence INSERT allowed for DISPATCH_MANAGER via is_internal_staff — Core role-scoped deny policy required",
-      });
+    const outcome = classifyInsertError(error);
+    if (outcome === "ALLOWED" && data?.id) {
+      await client.from("finance_review_evidence").delete().eq("id", data.id);
     }
 
-    expect(ledger.records.at(-1)?.surface).toBe("finance_review_evidence");
+    assertProbeOutcome("finance_review_evidence", outcome, error?.message ?? "insert succeeded", testInfo);
+    expect(outcome).toBe("AUTHORIZATION_DENIED");
   });
 
-  test("DISPATCH_MANAGER direct inventory_reservations insert is characterized", async ({ page: _page }, testInfo) => {
+  test("DISPATCH_MANAGER direct inventory_reservations insert is denied by deployed Core RLS", async ({ page: _page }, testInfo) => {
     const client = await createDispatchClient();
+    const orderId = resolveFixtureOrderId();
+    const actorId = (await client.auth.getUser()).data.user?.id;
+    if (!actorId) throw new Error("AUTH_REQUIRED: missing actor id");
+
+    const { data: line, error: lineError } = await client
+      .from("order_items")
+      .select("product_id, sku")
+      .eq("order_id", orderId)
+      .limit(1)
+      .maybeSingle();
+    if (lineError) throw new Error(`FIXTURE_READ_FAILED order_items: ${lineError.message}`);
+    test.skip(!line?.product_id, `CERTIFICATION_FIXTURE_REQUIRED: order ${orderId} has no order_items row`);
+
     const reservationId = crypto.randomUUID();
-    const { error } = await client.from("inventory_reservations").insert({
+    const correlationId = `dispatch-rbac-probe-reservation-${Date.now()}`;
+    const { data, error } = await client.from("inventory_reservations").insert({
       id: reservationId,
       reservation_number: `RBAC-PROBE-${Date.now()}`,
-      order_id: "00000000-0000-4000-8000-00000000f2",
-      product_id: "00000000-0000-4000-8000-000000000020",
-      sku: "RBAC-PROBE",
+      order_id: orderId,
+      product_id: line.product_id,
+      sku: line.sku ?? "RBAC-PROBE",
       requested_qty: 1,
       reserved_qty: 0,
       fulfilled_qty: 0,
       released_qty: 0,
       reservation_status: "pending",
       reservation_priority: "normal",
-      reserved_by: (await client.auth.getUser()).data.user?.id,
-      correlation_id: `dispatch-rbac-probe-reservation-${Date.now()}`,
+      reserved_by: actorId,
+      correlation_id: correlationId,
       version: 1,
-    });
+    }).select("id").maybeSingle();
 
-    record({
-      surface: "inventory_reservations",
-      role: "DISPATCH_MANAGER",
-      operation: "insert",
-      outcome: error ? "DENIED" : "ALLOWED",
-      detail: error?.message ?? "insert succeeded",
-    });
-
-    if (!error) {
-      await client.from("inventory_reservations").delete().eq("id", reservationId);
-      testInfo.annotations.push({
-        type: "CORE_RLS_GAP",
-        description:
-          "inventory_reservations INSERT allowed for DISPATCH_MANAGER via is_internal_staff — Core role-scoped deny policy required",
-      });
+    const outcome = classifyInsertError(error);
+    if (outcome === "ALLOWED" && data?.id) {
+      await client.from("inventory_reservations").delete().eq("id", data.id);
     }
 
-    expect(ledger.records.at(-1)?.surface).toBe("inventory_reservations");
+    assertProbeOutcome("inventory_reservations", outcome, error?.message ?? "insert succeeded", testInfo);
+    expect(outcome).toBe("AUTHORIZATION_DENIED");
   });
 });

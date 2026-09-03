@@ -22,6 +22,7 @@ import AppverseAdminHome from "@/pages/admin/AppverseAdminHome";
 import { signOutAndClearSession } from "@/utils/authSession";
 import { useAdminRealtimeToasts } from "@/hooks/useAdminRealtimeToasts";
 import { shouldHideAdvancedGovernanceNav } from "@/lib/golden-chain/operatorNavigation";
+import { isDispatchRole } from "@/lib/auth/securityGatePolicy";
 import { getAllowedModulesForRole, hasModuleAccess, type AppVerseModuleKey } from "@/lib/appverse/roleAccess";
 import { canAccessGoldenChainOperatorRoute } from "@/lib/appverse/routeAccess";
 
@@ -144,6 +145,8 @@ const AdminLayout = () => {
       items: section.items.filter((item) => {
         if (item.to === "/admin/golden-chain-operator") {
           if (!canAccessGoldenChainOperator()) return false;
+        } else if (item.to === "/security-gate" && isDispatchRole(role)) {
+          return false;
         } else if (!hasAccess(item.moduleKey)) {
           return false;
         }

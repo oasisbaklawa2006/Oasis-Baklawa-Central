@@ -54,10 +54,11 @@ describe("App-Verse role-aware Home model", () => {
         "/admin/dispatch-mgmt",
         "/admin/dispatch-readiness",
         "/admin/dispatch-completion",
-        "/security-gate",
+        "/admin/dispatch-finalization",
       ]);
       expect(cards.some((card) => card.route.includes("order-management"))).toBe(false);
       expect(cards.some((card) => card.route.includes("scan-timeline"))).toBe(false);
+      expect(cards.some((card) => card.route === "/security-gate")).toBe(false);
     },
   );
 });

@@ -22,6 +22,7 @@ import { WhatsAppPermissionRoute } from "@/components/WhatsAppPermissionRoute";
 import AdminModuleRoute from "@/components/AdminModuleRoute";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { getRoleDestination, isStaffRole, isStorefrontRole, normalizeRole } from "@/lib/auth-routing";
+import { SECURITY_GATE_ALLOWED_ROLES } from "@/lib/auth/securityGatePolicy";
 
 // Lazy — split out of the main bundle
 const ResetPassword = lazy(() => import("./pages/ResetPassword.tsx"));
@@ -242,7 +243,7 @@ const App = () => (
                 <Routes>
                   <Route path="/splash" element={<Splash />} />
                   <Route path="/operations-controller" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={[...ADMIN_STAFF_ROLES]}><OperationsController /></RoleProtectedRoute></ProtectedRoute>} />
-                  <Route path="/security-gate" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={["GATE_SECURITY", "SECURITY_CONTROL", "SUPER_ADMIN", "ADMIN"]}><AdminSecurityGate /></RoleProtectedRoute></ProtectedRoute>} />
+                  <Route path="/security-gate" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={[...SECURITY_GATE_ALLOWED_ROLES]}><AdminSecurityGate /></RoleProtectedRoute></ProtectedRoute>} />
                   <Route path="/" element={<RootGate />} />
                   <Route path="/customer-app-redirect" element={<CustomerAppRedirect />} />
                   <Route path="/buyer/access-request" element={<ProtectedRoute><BuyerAccessRequest /></ProtectedRoute>} />

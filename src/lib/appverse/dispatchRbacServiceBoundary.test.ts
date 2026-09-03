@@ -108,13 +108,58 @@ describe("Dispatch RBAC — governed reservation-board service boundary", () => 
     expect(result.reservation.reservationStatus).toBe("pending");
     expect(bundle._store._allReservations()).toHaveLength(1);
   });
+
+  it.each(DISPATCH_ROLES)("denies %s reservation_board reserveInventory after seeded reservation", async (role) => {
+    const bundle = createInMemoryReservationServiceBundle();
+    const service = createReservationService(bundle);
+    const seedCtx = {
+      correlationId: "dispatch-reservation-seed",
+      actorUserId: "00000000-0000-4000-8000-000000000099",
+      actorRole: "SUPER_ADMIN",
+      writeChannel: "reservation_board" as const,
+    };
+
+    const created = await service.createReservation(reservationInput, seedCtx);
+    const reservationCount = bundle._store._allReservations().length;
+    const movementCount = bundle._store._allMovements().length;
+
+    const availability = {
+      productId: created.reservation.productId,
+      sku: created.reservation.sku,
+      physicalStock: 100,
+      reservedOpen: 0,
+      blockedInventory: 0,
+      damagedInventory: 0,
+      expiredInventory: 0,
+      quarantineInventory: 0,
+    };
+
+    await expect(
+      service.reserveInventory(
+        {
+          reservationId: created.reservation.id,
+          expectedVersion: created.reservation.version,
+          reserveQty: 5,
+        },
+        {
+          correlationId: "dispatch-reservation-deny-reserve",
+          actorUserId: "00000000-0000-4000-8000-000000000099",
+          actorRole: role,
+          writeChannel: "reservation_board",
+        },
+        availability,
+      ),
+    ).rejects.toMatchObject({ code: "authority_denied" });
+
+    expect(bundle._store._allReservations()).toHaveLength(reservationCount);
+    expect(bundle._store._allMovements()).toHaveLength(movementCount);
+    const refreshed = await service.getReservation(created.reservation.id);
+    expect(refreshed?.reservedQty).toBe(0);
+  });
 });
 
 /**
- * RLS posture (Core-owned, no Central schema change):
- * `inventory_reservations` and `finance_review_evidence` policies are
- * `is_internal_staff(auth.uid())`, which includes Dispatch roles. Direct
- * PostgREST bypass is therefore broader than the governed Central service path.
- * Central fail-closes via route guards + financeGovernanceService +
- * reservationRepository authority before any persistence attempt.
+ * Central governed service paths fail-closed before persistence. Production
+ * PostgREST RLS hardening is certified in
+ * tests/dispatch-rbac-rls-characterization.cert.spec.ts after Core #183.
  */
