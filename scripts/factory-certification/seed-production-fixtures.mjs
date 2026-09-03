@@ -382,6 +382,52 @@ runLocalPostgresRoleStatement(localDbUrl,
    WHERE id = '${POINT37_ORDER_ID}'::uuid;`,
   "Point-37 confirmed-order fixture bootstrap");
 
+// PF-6C clearance requires a READY_FOR_ISSUE/ISSUED PI binding on the disposable order.
+runLocalPostgresRoleStatement(localDbUrl,
+  `DO $$
+DECLARE
+  v_order uuid := '${POINT37_ORDER_ID}'::uuid;
+  v_version uuid;
+  v_pi_count int;
+BEGIN
+  SELECT id INTO v_version
+  FROM public.sales_order_commercial_versions
+  WHERE order_id = v_order
+  ORDER BY version_number DESC
+  LIMIT 1;
+
+  IF v_version IS NULL THEN
+    v_version := public.create_sales_order_commercial_version_v1(
+      v_order,
+      'FACTORY_CERT_POINT37',
+      'factory-cert-point37-commercial',
+      'factory-cert-point37-commercial-v1',
+      NULL
+    );
+    UPDATE public.orders SET commercial_current_version = 1 WHERE id = v_order;
+  END IF;
+
+  SELECT COUNT(*) INTO v_pi_count
+  FROM public.sales_order_proforma_invoices
+  WHERE order_id = v_order;
+
+  IF v_pi_count = 0 THEN
+    INSERT INTO public.sales_order_proforma_invoices (
+      id, order_id, commercial_version_id, commercial_version_number, status,
+      frozen_commercial_snapshot, frozen_snapshot_fingerprint, reason, source,
+      correlation_id, idempotency_key
+    )
+    SELECT
+      gen_random_uuid(), v_order, v.id, v.version_number, 'READY_FOR_ISSUE',
+      v.commercial_snapshot, v.snapshot_fingerprint,
+      'Point-37 factory certification', 'FACTORY_CERT',
+      'factory-cert-point37-pi', 'factory-cert-point37-pi-v1'
+    FROM public.sales_order_commercial_versions v
+    WHERE v.id = v_version;
+  END IF;
+END $$;`,
+  "Point-37 PI binding fixture bootstrap");
+
 await appendFile(
   credentialFile,
   `export FACTORY_CERT_POINT37_ORDER_ID='${POINT37_ORDER_ID}'\nexport FACTORY_CERT_POINT37_ORDER_ITEM_ID='${POINT37_ORDER_ITEM_ID}'\n`,
