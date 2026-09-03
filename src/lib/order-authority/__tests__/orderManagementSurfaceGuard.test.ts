@@ -51,4 +51,13 @@ describe("Order Management surface authority guard (Point 34)", () => {
     const actions = source("src/utils/governedOrderActions.ts");
     expect(actions).toContain('status === "confirmed" && next === "in_production"');
   });
+
+  it("Order Management binds confirmed production release to release_order_to_in_production_v1 only (Point 37)", () => {
+    const page = source("src/pages/admin/OrderManagement.tsx");
+    const authority = source("src/lib/order-authority/orderAuthorityClient.ts");
+    expect(page).toContain("releaseOrderToInProduction");
+    expect(authority).toContain("release_order_to_in_production_v1");
+    expect(page).not.toContain("releaseOrderToManufacturing");
+    expect(page).not.toContain("release_order_to_manufacturing_v1");
+  });
 });

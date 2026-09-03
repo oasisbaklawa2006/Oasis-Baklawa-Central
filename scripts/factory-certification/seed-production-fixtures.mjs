@@ -236,3 +236,202 @@ const { error: binsError } = await supabase.from("b2b_inventory_bins").upsert([
 ], { onConflict: "store_code,bin_code" });
 assertNoSupabaseError(binsError, "Golden-order inventory bin fixture upsert failed");
 console.log("Seeded FACT-E2E prerequisite 3PGS/FINISHED_GOODS store assignments and put-away bins.");
+
+// ---- Point-37 fixture: disposable confirmed order for production-release certification ----
+// Business-transition rows for the golden FACT-E2E chain must not be mutated here.
+// This separate order exists only to prove Order Management confirmed → in_production.
+const POINT37_ORDER_ID = "30000000-0000-4000-8000-000000000004";
+const POINT37_ORDER_ITEM_ID = "30000000-0000-4000-8000-000000000005";
+const point37BuyerEmail = "factory-cert-point37-buyer@example.invalid";
+const point37BuyerPassword = `${randomBytes(24).toString("base64url")}Aa1`;
+
+const { data: point37BuyerAdminData, error: point37BuyerAdminError } = await supabase.auth.admin.createUser({
+  email: point37BuyerEmail,
+  password: point37BuyerPassword,
+  email_confirm: true,
+  user_metadata: { factory_certification: true, point37_buyer: true },
+});
+assertNoSupabaseError(point37BuyerAdminError, "Point-37 buyer Auth Admin createUser failed");
+const point37BuyerId = point37BuyerAdminData?.user?.id;
+if (!point37BuyerId) throw new Error("Point-37 buyer Auth Admin API did not return an id");
+const { error: point37BuyerUserError } = await supabase.from("users").upsert({
+  id: point37BuyerId,
+  email: point37BuyerEmail,
+  full_name: "Factory Cert Point-37 Buyer",
+  role: "b2b_buyer",
+  company_id: GOLDEN_ORDER_COMPANY_ID,
+  is_active: true,
+  invite_status: "active",
+}, { onConflict: "id" });
+assertNoSupabaseError(point37BuyerUserError, "Point-37 buyer public.users upsert failed");
+const { error: point37BuyerProfileError } = await supabase.from("profiles").upsert({
+  id: point37BuyerId,
+  email: point37BuyerEmail,
+  role: "b2b_buyer",
+  company_id: GOLDEN_ORDER_COMPANY_ID,
+  is_approved: true,
+  status: "approved",
+}, { onConflict: "id" });
+assertNoSupabaseError(point37BuyerProfileError, "Point-37 buyer public.profiles upsert failed");
+
+runLocalPostgresRoleStatement(localDbUrl,
+  `ALTER TABLE public.orders ALTER COLUMN id SET DEFAULT '${POINT37_ORDER_ID}'::uuid;\nALTER TABLE public.order_items ALTER COLUMN id SET DEFAULT '${POINT37_ORDER_ITEM_ID}'::uuid;`,
+  "Bind deterministic Point-37 order UUID defaults");
+let point37CheckoutRows;
+try {
+  const point37BuyerClient = createClient(localSupabaseOrigin, anonKey, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+  });
+  const { error: point37SignInError } = await point37BuyerClient.auth.signInWithPassword({
+    email: point37BuyerEmail,
+    password: point37BuyerPassword,
+  });
+  assertNoSupabaseError(point37SignInError, "Point-37 buyer sign-in failed");
+  const { error: point37ClearDraftError } = await point37BuyerClient.rpc("clear_customer_order_draft_v1");
+  assertNoSupabaseError(point37ClearDraftError, "Point-37 governed draft clear failed");
+  const { data: point37DraftLineRows, error: point37DraftLineError } = await point37BuyerClient.rpc("add_customer_order_draft_line_v1", {
+    p_product_id: GOLDEN_ORDER_FG_COMPONENT_PRODUCT_ID,
+    p_quantity: 3,
+  });
+  assertNoSupabaseError(point37DraftLineError, "Point-37 governed draft-line creation failed");
+  if (!Array.isArray(point37DraftLineRows) || point37DraftLineRows.length !== 1 || point37DraftLineRows[0]?.readiness_status !== "ready") {
+    throw new Error(`Point-37 Buyer draft did not become ready: ${JSON.stringify(point37DraftLineRows)}`);
+  }
+  const { data, error: point37CheckoutError } = await point37BuyerClient.rpc("submit_customer_order_v1", {
+    p_idempotency_key: "factory-cert-point37-order-checkout-v1",
+    p_requested_dispatch_date: null,
+  });
+  assertNoSupabaseError(point37CheckoutError, "Point-37 governed Buyer checkout failed");
+  point37CheckoutRows = data;
+  await point37BuyerClient.auth.signOut();
+} finally {
+  runLocalPostgresRoleStatement(localDbUrl,
+    "ALTER TABLE public.orders ALTER COLUMN id SET DEFAULT gen_random_uuid();\nALTER TABLE public.order_items ALTER COLUMN id SET DEFAULT gen_random_uuid();",
+    "Restore canonical UUID defaults after Point-37 checkout");
+}
+if (!Array.isArray(point37CheckoutRows) || point37CheckoutRows.length !== 1 || point37CheckoutRows[0]?.order_id !== POINT37_ORDER_ID) {
+  throw new Error(`Point-37 governed Buyer checkout returned invalid facts: ${JSON.stringify(point37CheckoutRows)}`);
+}
+
+// PF-6C / resolvePaymentBinding require exactly one READY_FOR_ISSUE or ISSUED PI row on the
+// authority view. Governed Buyer checkout creates the commercial version but does not always
+// surface a bindable PI before Finance issuance.
+runLocalPostgresRoleStatement(localDbUrl,
+  `DO $$
+DECLARE
+  v_order uuid := '${POINT37_ORDER_ID}'::uuid;
+  v_version uuid;
+BEGIN
+  SELECT id INTO v_version
+  FROM public.sales_order_commercial_versions
+  WHERE order_id = v_order
+  ORDER BY version_number DESC
+  LIMIT 1;
+
+  IF v_version IS NULL THEN
+    v_version := public.create_sales_order_commercial_version_v1(
+      v_order,
+      'FACTORY_CERT',
+      'factory-cert-point37-version',
+      'factory-cert-point37-version-1',
+      NULL
+    );
+  END IF;
+
+  SET LOCAL session_replication_role = replica;
+  INSERT INTO public.sales_order_proforma_invoices (
+    id, order_id, commercial_version_id, commercial_version_number, status,
+    frozen_commercial_snapshot, frozen_snapshot_fingerprint, reason, source,
+    correlation_id, idempotency_key
+  )
+  SELECT
+    gen_random_uuid(),
+    v_order,
+    v.id,
+    v.version_number,
+    'READY_FOR_ISSUE',
+    v.commercial_snapshot,
+    v.snapshot_fingerprint,
+    'FACTORY_CERT_POINT37',
+    'TEST',
+    'factory-cert-point37-pi-ready',
+    'factory-cert-point37-pi-ready-1'
+  FROM public.sales_order_commercial_versions v
+  WHERE v.id = v_version
+    AND NOT EXISTS (
+      SELECT 1
+      FROM public.sales_order_proforma_invoices pi
+      WHERE pi.order_id = v_order
+        AND pi.status IN ('READY_FOR_ISSUE', 'ISSUED')
+    );
+  SET LOCAL session_replication_role = DEFAULT;
+END $$;`,
+  "Point-37 PI binding fixture bootstrap");
+
+// Fixture bootstrap only: leave the order at confirmed with verified advance so OM Point-37
+// can exercise release_order_to_in_production_v1 without touching the golden FACT-E2E order.
+// Core's ORDER_STATUS_AUTHORITY_REQUIRED trigger rejects service-role PostgREST updates;
+// disposable fixture rows use the sanctioned postgres-role path (see local-supabase-client.mjs).
+const point37AdvanceRequired = Number(point37CheckoutRows[0]?.advance_required ?? 0);
+const point37AdvancePaid = point37AdvanceRequired > 0 ? point37AdvanceRequired : 300;
+runLocalPostgresRoleStatement(localDbUrl,
+  `UPDATE public.orders
+   SET status = 'confirmed',
+       payment_status = 'verified_advance',
+       advance_paid = ${point37AdvancePaid},
+       advance_required = ${point37AdvancePaid}
+   WHERE id = '${POINT37_ORDER_ID}'::uuid;`,
+  "Point-37 confirmed-order fixture bootstrap");
+
+// PF-6C clearance requires a READY_FOR_ISSUE/ISSUED PI binding on the disposable order.
+runLocalPostgresRoleStatement(localDbUrl,
+  `DO $$
+DECLARE
+  v_order uuid := '${POINT37_ORDER_ID}'::uuid;
+  v_version uuid;
+  v_pi_count int;
+BEGIN
+  SELECT id INTO v_version
+  FROM public.sales_order_commercial_versions
+  WHERE order_id = v_order
+  ORDER BY version_number DESC
+  LIMIT 1;
+
+  IF v_version IS NULL THEN
+    v_version := public.create_sales_order_commercial_version_v1(
+      v_order,
+      'FACTORY_CERT_POINT37',
+      'factory-cert-point37-commercial',
+      'factory-cert-point37-commercial-v1',
+      NULL
+    );
+    UPDATE public.orders SET commercial_current_version = 1 WHERE id = v_order;
+  END IF;
+
+  SELECT COUNT(*) INTO v_pi_count
+  FROM public.sales_order_proforma_invoices
+  WHERE order_id = v_order;
+
+  IF v_pi_count = 0 THEN
+    INSERT INTO public.sales_order_proforma_invoices (
+      id, order_id, commercial_version_id, commercial_version_number, status,
+      frozen_commercial_snapshot, frozen_snapshot_fingerprint, reason, source,
+      correlation_id, idempotency_key
+    )
+    SELECT
+      gen_random_uuid(), v_order, v.id, v.version_number, 'READY_FOR_ISSUE',
+      v.commercial_snapshot, v.snapshot_fingerprint,
+      'Point-37 factory certification', 'FACTORY_CERT',
+      'factory-cert-point37-pi', 'factory-cert-point37-pi-v1'
+    FROM public.sales_order_commercial_versions v
+    WHERE v.id = v_version;
+  END IF;
+END $$;`,
+  "Point-37 PI binding fixture bootstrap");
+
+await appendFile(
+  "/tmp/oasis-factory-certification.env",
+  `export FACTORY_CERT_POINT37_ORDER_ID='${POINT37_ORDER_ID}'\nexport FACTORY_CERT_POINT37_ORDER_ITEM_ID='${POINT37_ORDER_ITEM_ID}'\n`,
+  { encoding: "utf8" },
+);
+console.log(`Point-37 confirmed-order fixture ready: ${point37CheckoutRows[0].order_number} @ confirmed`);

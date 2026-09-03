@@ -152,6 +152,18 @@ export async function loginToFactoryCertificationTarget(
   await page.waitForURL((url) => !/\/login(?:\/|$|\?)/i.test(url.pathname), { timeout: 120_000 });
 }
 
+/** Dismiss Central's first-login tutorial overlay when it blocks OM interactions. */
+export async function dismissOnboardingOverlayIfPresent(page: Page): Promise<void> {
+  const backdrop = page.locator(".fixed.inset-0.z-\\[100\\] .absolute.inset-0.bg-black\\/70");
+  try {
+    await backdrop.waitFor({ state: "visible", timeout: 5000 });
+    await backdrop.click();
+    await expect(backdrop).toBeHidden({ timeout: 10_000 });
+  } catch {
+    // Overlay absent — no dismissal required.
+  }
+}
+
 type BrowserSessionProof = { accessToken: string; refreshToken: string; userId: string };
 
 export async function readBrowserSessionProof(page: Page): Promise<BrowserSessionProof> {
