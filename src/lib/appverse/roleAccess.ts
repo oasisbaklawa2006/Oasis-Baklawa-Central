@@ -49,15 +49,12 @@ export const ROLE_MODULE_ACCESS: Record<string, AppVerseGrantedModule[]> = {
   STORE_READY_GOODS: ["dashboard", "cmd_war_room", "inventory", "orders", "production"],
   STORE_3RD_PARTY: ["dashboard", "inventory", "orders"],
   RGS_ADMIN: ["dashboard", "cmd_war_room", "inventory", "orders", "production"],
-  // Owner decision (Dispatch customer-visibility model): Dispatch roles must
-  // not hold the general "orders" module -- that screen (OrderManagement.tsx)
-  // shows sales_order_value, granular payment_status/advance figures and
-  // unrestricted customer phone, none of which Dispatch is authorised to see.
-  // Dispatch's own screens (packing/dispatch modules) already cover their
-  // real operational needs without it.
-  DISPATCH_MANAGER: ["dashboard", "cmd_war_room", "packing", "dispatch", "inventory"],
-  DISPATCH_INCHARGE: ["dashboard", "cmd_war_room", "packing", "dispatch"],
-  DISPATCH_HEAD: ["dashboard", "cmd_war_room", "packing", "dispatch", "inventory"],
+  // P0 least-privilege: Dispatch roles see only the five-stage dispatch workflow
+  // (queue, pickup alarm, packing detail/scan/DPL, dispatch recording). No
+  // cmd_war_room, unrestricted orders, or broad inventory administration.
+  DISPATCH_MANAGER: ["dashboard", "packing", "dispatch"],
+  DISPATCH_INCHARGE: ["dashboard", "packing", "dispatch"],
+  DISPATCH_HEAD: ["dashboard", "packing", "dispatch"],
   PACKING_SUPERVISOR: ["dashboard", "packing", "dispatch"],
   SECURITY_CONTROL: ["dashboard", "packing"],
   GATE_SECURITY: ["dashboard", "packing"],

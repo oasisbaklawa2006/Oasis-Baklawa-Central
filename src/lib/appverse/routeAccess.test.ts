@@ -28,6 +28,11 @@ describe("getRequiredModuleForAdminPath", () => {
     expect(getRequiredModuleForAdminPath("/admin/dispatch-tv")).toBe("dispatch");
     expect(getRequiredModuleForAdminPath("/admin/dispatch-tv/anything")).toBe("dispatch");
   });
+
+  it("maps Executive Dashboard (heartbeat) to cmd_war_room, not the App-Verse home dashboard", () => {
+    expect(getRequiredModuleForAdminPath("/admin/heartbeat")).toBe("cmd_war_room");
+    expect(getRequiredModuleForAdminPath("/admin")).toBe("dashboard");
+  });
 });
 
 describe("golden chain operator route access", () => {

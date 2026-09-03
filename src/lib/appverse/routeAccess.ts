@@ -86,7 +86,7 @@ const ADMIN_ROUTE_MODULES: Array<{ prefix: string; moduleKey: AppVerseModuleKey 
   { prefix: "/admin/audit", moduleKey: "audit" },
   { prefix: "/admin/department", moduleKey: "audit" },
   { prefix: "/admin/target-vs-actual", moduleKey: "dashboard" },
-  { prefix: "/admin/heartbeat", moduleKey: "dashboard" },
+  { prefix: "/admin/heartbeat", moduleKey: "cmd_war_room" },
   { prefix: "/admin", moduleKey: "dashboard" },
 ];
 

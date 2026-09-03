@@ -49,7 +49,6 @@ describe("adminModuleAccess", () => {
     it("allows cmd_war_room for roles with war-room access", () => {
       for (const role of [
         "OPERATIONS_MANAGER",
-        "DISPATCH_MANAGER",
         "FINANCE_HEAD",
         "ADMIN",
         "SUPER_ADMIN",
@@ -58,8 +57,8 @@ describe("adminModuleAccess", () => {
       }
     });
 
-    it("denies cmd_war_room for production roles (cannot direct-open guarded routes)", () => {
-      for (const role of ["PRODUCTION_MANAGER", "HOD_ARABIC", "ASSEMBLY_MANAGER"]) {
+    it("denies cmd_war_room for dispatch and production roles", () => {
+      for (const role of ["DISPATCH_MANAGER", "DISPATCH_INCHARGE", "DISPATCH_HEAD", "PRODUCTION_MANAGER", "HOD_ARABIC", "ASSEMBLY_MANAGER"]) {
         expect(hasAdminModuleAccess(role, CMD_WAR_ROOM_ROUTE_MODULE)).toBe(false);
       }
     });
