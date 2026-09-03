@@ -123,8 +123,68 @@ test("POINT-37 :: governed confirmed → in_production production release", asyn
       p_commercial_version_id: commercialVersionId,
     });
     if (factsError) throw new Error(`RPC_FAILED get_finance_operations_clearance_facts_v1: ${factsError.message}`);
-    const factsRow = Array.isArray(facts) ? facts[0] : facts;
-    const latestDecision = (factsRow as { latest_clearance_decision?: string | null })?.latest_clearance_decision;
+    let factsRow = Array.isArray(facts) ? facts[0] : facts;
+    const actorId = (await steppedUp.auth.getUser()).data.user?.id;
+    if (!actorId) throw new Error("FINANCE_HEAD actor id missing for clearance bootstrap");
+
+    const readFacts = () => factsRow as {
+      latest_clearance_decision?: string | null;
+      eligible_for_operations_clearance?: boolean;
+      required_advance?: number;
+    };
+
+    if (!readFacts().eligible_for_operations_clearance) {
+      const requiredAdvance = Number(readFacts().required_advance ?? order.advance_required ?? 0);
+      if (!(requiredAdvance > 0)) throw new Error("POINT37_FIXTURE_FUNDING_REQUIRED: required advance missing");
+      const proofIdentity = `point37-proof-${runSuffix}`;
+      const { data: proofData, error: proofError } = await steppedUp.rpc("record_order_payment_proof_v1", {
+        p_order_id: orderId,
+        p_pi_id: piId,
+        p_commercial_version_id: commercialVersionId,
+        p_payment_type: "advance",
+        p_submitted_amount: requiredAdvance,
+        p_currency: "INR",
+        p_payment_mode: "bank_transfer",
+        p_external_reference: `FACTORY-CERT-${runSuffix}`,
+        p_payer_reference: null,
+        p_proof_evidence_reference: `factory-cert-point37:${runSuffix}`,
+        p_source_channel: "CENTRAL",
+        p_source_reference: `point37-cert:${orderId}`,
+        p_correlation_id: `central:pf6a:proof:${proofIdentity}`,
+        p_idempotency_key: `central:pf6a:proof:${proofIdentity}`,
+        p_actor_id: actorId,
+      });
+      if (proofError) throw new Error(`RPC_FAILED record_order_payment_proof_v1: ${proofError.message}`);
+      const proofRow = Array.isArray(proofData) ? proofData[0] : proofData;
+      const paymentId = String((proofRow as { payment_id?: string })?.payment_id ?? "");
+      if (!paymentId) throw new Error("POINT37_FIXTURE_FUNDING_REQUIRED: payment_id missing after proof record");
+      const verifyIdentity = `point37-verify-${runSuffix}`;
+      const { error: verifyError } = await steppedUp.rpc("verify_order_payment_v1", {
+        p_payment_id: paymentId,
+        p_verified_amount: requiredAdvance,
+        p_verified_reference: `FACTORY-CERT-VERIFY-${runSuffix}`,
+        p_verification_evidence_reference: `factory-cert-point37-verify:${runSuffix}`,
+        p_reason: "Point-37 certification advance verification",
+        p_correlation_id: `central:pf6a:verify:${verifyIdentity}`,
+        p_idempotency_key: `central:pf6a:verify:${verifyIdentity}`,
+        p_actor_id: actorId,
+      });
+      if (verifyError) throw new Error(`RPC_FAILED verify_order_payment_v1: ${verifyError.message}`);
+      record("finance_advance_verified", "verify_order_payment_v1", "FINANCE_HEAD", "PASS", verifyIdentity);
+
+      const { data: refreshedFacts, error: refreshedFactsError } = await steppedUp.rpc("get_finance_operations_clearance_facts_v1", {
+        p_order_id: orderId,
+        p_pi_id: piId,
+        p_commercial_version_id: commercialVersionId,
+      });
+      if (refreshedFactsError) throw new Error(`RPC_FAILED get_finance_operations_clearance_facts_v1 refresh: ${refreshedFactsError.message}`);
+      factsRow = Array.isArray(refreshedFacts) ? refreshedFacts[0] : refreshedFacts;
+      if (!readFacts().eligible_for_operations_clearance) {
+        throw new Error("POINT37_FIXTURE_FUNDING_REQUIRED: advance verified but operations clearance still ineligible");
+      }
+    }
+
+    const latestDecision = readFacts().latest_clearance_decision;
     if (latestDecision !== "GRANTED") {
       const identity = `point37-clearance-${runSuffix}`;
       const { error: decideError } = await steppedUp.rpc("decide_finance_operations_clearance_v1", {
@@ -138,7 +198,7 @@ test("POINT-37 :: governed confirmed → in_production production release", asyn
         p_source_reference: `point37-cert:${orderId}`,
         p_correlation_id: `central:pf6c:point37:${runSuffix}`,
         p_idempotency_key: `central:pf6c:point37:${runSuffix}`,
-        p_actor_id: (await steppedUp.auth.getUser()).data.user?.id,
+        p_actor_id: actorId,
       });
       if (decideError) throw new Error(`RPC_FAILED decide_finance_operations_clearance_v1: ${decideError.message}`);
       record("finance_operations_clearance_granted", "decide_finance_operations_clearance_v1", "FINANCE_HEAD", "PASS", identity);
