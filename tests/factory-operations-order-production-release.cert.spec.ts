@@ -70,6 +70,7 @@ test("POINT-37 :: governed confirmed → in_production production release", asyn
   const admin = credentialsForRoleOrSkip("ADMIN");
   const prodArabic = credentialsForRoleOrSkip("PROD_ARABIC_SWEETS");
   const runSuffix = `${Date.now()}-${randomUUID().slice(0, 8)}`;
+  let orderLabel = orderId.slice(0, 8).toUpperCase();
 
   await page.setViewportSize({ width: 1440, height: 900 });
 
@@ -81,14 +82,15 @@ test("POINT-37 :: governed confirmed → in_production production release", asyn
 
     const { data: orderRows, error: orderError } = await client
       .from("orders")
-      .select("id,status,payment_status,advance_paid,advance_required,sales_order_value")
+      .select("id,order_number,status,payment_status,advance_paid,advance_required,sales_order_value")
       .eq("id", orderId)
       .limit(1);
     if (orderError) throw new Error(`BACKEND_READ_FAILED orders: ${orderError.message}`);
     expect(orderRows, `Point-37 fixture order ${orderId} must exist`).toHaveLength(1);
     const order = orderRows![0];
     expect(String(order.status), "fixture must be confirmed before OM release").toBe("confirmed");
-    record("fixture_confirmed_order", null, "ADMIN", "PASS", `status=${order.status}`);
+    orderLabel = String(order.order_number ?? "").trim() || orderId.slice(0, 8).toUpperCase();
+    record("fixture_confirmed_order", null, "ADMIN", "PASS", `status=${order.status} label=${orderLabel}`);
 
     const financeHead = readFactoryCertificationCredentials("FINANCE_HEAD");
     test.skip(!financeHead, "CREDENTIAL_REQUIRED: FINANCE_HEAD for operations clearance bootstrap");
@@ -105,11 +107,13 @@ test("POINT-37 :: governed confirmed → in_production production release", asyn
     const steppedUp = await createSteppedUpCertificationClient(page, "FINANCE_HEAD");
     const { data: bindingRows, error: bindingError } = await steppedUp
       .from("sales_order_proforma_invoice_authority_v1")
-      .select("id,commercial_version_id")
+      .select("id,commercial_version_id,status")
       .eq("order_id", orderId)
-      .limit(1);
+      .in("status", ["READY_FOR_ISSUE", "ISSUED"])
+      .order("created_at", { ascending: false })
+      .limit(2);
     if (bindingError) throw new Error(`BACKEND_READ_FAILED pi binding: ${bindingError.message}`);
-    expect(bindingRows?.length ?? 0, "PI binding required for PF-6C clearance").toBeGreaterThan(0);
+    expect(bindingRows?.length ?? 0, "PI binding required for PF-6C clearance").toBe(1);
     const piId = String(bindingRows![0].id);
     const commercialVersionId = String(bindingRows![0].commercial_version_id);
 
@@ -163,7 +167,7 @@ test("POINT-37 :: governed confirmed → in_production production release", asyn
       timeout: 60_000,
     });
 
-    const orderRow = page.locator("tr", { has: page.getByText(orderId.slice(0, 8).toUpperCase(), { exact: false }) }).first();
+    const orderRow = page.locator("tr", { has: page.getByText(orderLabel, { exact: false }) }).first();
     await expect(orderRow, "confirmed order must appear in production view").toBeVisible({ timeout: 30_000 });
     const actionButton = orderRow.getByRole("button", { name: /Send to Factory/i });
     await expect(actionButton, "Send to Factory must be available").toBeVisible();
@@ -194,7 +198,7 @@ test("POINT-37 :: governed confirmed → in_production production release", asyn
       }
     });
 
-    const orderRow = page.locator("tr", { has: page.getByText(orderId.slice(0, 8).toUpperCase(), { exact: false }) }).first();
+    const orderRow = page.locator("tr", { has: page.getByText(orderLabel, { exact: false }) }).first();
     const actionButton = orderRow.getByRole("button", { name: /Send to Factory/i });
     await actionButton.click();
 
