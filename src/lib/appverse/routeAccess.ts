@@ -1,3 +1,4 @@
+import { isDispatchRole } from "@/lib/auth/securityGatePolicy";
 import {
   getAllowedModulesForRole,
   hasModuleAccess,
@@ -59,6 +60,11 @@ const ADMIN_ROUTE_MODULES: Array<{ prefix: string; moduleKey: AppVerseModuleKey 
   { prefix: "/admin/inventory-risk-board", moduleKey: "inventory" },
   { prefix: "/admin/scan-timeline", moduleKey: "inventory" },
   { prefix: "/admin/ready-goods", moduleKey: "inventory" },
+  { prefix: "/admin/ready-goods-stock", moduleKey: "inventory" },
+  { prefix: "/admin/ready-goods-day-close", moduleKey: "inventory" },
+  { prefix: "/admin/ready-goods-reports", moduleKey: "inventory" },
+  { prefix: "/admin/production-demand-planner", moduleKey: "production" },
+  { prefix: "/admin/assembly-tv", moduleKey: "production" },
   { prefix: "/admin/rgs-tv", moduleKey: "inventory" },
   { prefix: "/admin/3pgs-packing-material", moduleKey: "inventory" },
   { prefix: "/admin/3pgs-procurement-queue", moduleKey: "inventory" },
@@ -73,7 +79,7 @@ const ADMIN_ROUTE_MODULES: Array<{ prefix: string; moduleKey: AppVerseModuleKey 
   { prefix: "/admin/dispatch-readiness", moduleKey: "dispatch" },
   { prefix: "/admin/dispatch-completion", moduleKey: "dispatch" },
   { prefix: "/admin/dispatch-finalization", moduleKey: "dispatch" },
-  { prefix: "/admin/dispatch-tv", moduleKey: "dispatch" },
+  { prefix: "/admin/dispatch-tv", moduleKey: "orders" },
   { prefix: "/admin/dispatch", moduleKey: "orders" },
   { prefix: "/admin/golden-chain-operator", moduleKey: "dispatch" },
   { prefix: "/admin/users", moduleKey: "users" },
@@ -114,6 +120,11 @@ export function isAuthorizedForAdminPath(pathname: string, role: string | null |
   if (!pathname.startsWith("/admin")) return true;
   if (isGoldenChainOperatorPath(pathname)) return canAccessGoldenChainOperatorRoute(role);
   const requiredModule = getRequiredModuleForAdminPath(pathname);
+  // P0 #456: Dispatch roles may use App-Verse home (/admin) only via dashboard;
+  // any other unmapped /admin path that falls back to dashboard must fail closed.
+  if (isDispatchRole(role) && requiredModule === "dashboard" && pathname !== "/admin") {
+    return false;
+  }
   const allowedModules = getAllowedModulesForRole(role);
   return requiredModule !== null && hasModuleAccess(allowedModules, requiredModule);
 }

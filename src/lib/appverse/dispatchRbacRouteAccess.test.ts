@@ -34,6 +34,12 @@ const FORBIDDEN_ADMIN_ROUTES = [
   "/admin/accounts-release",
   "/admin/reservation-board",
   "/admin/stock-finalization",
+  "/admin/dispatch-tv",
+  "/admin/ready-goods-stock",
+  "/admin/ready-goods-day-close",
+  "/admin/ready-goods-reports",
+  "/admin/production-demand-planner",
+  "/admin/assembly-tv",
 ] as const;
 
 /** Five-stage Dispatch workflow surfaces that must remain reachable. */
@@ -90,5 +96,23 @@ describe("Dispatch RBAC — security gate policy", () => {
   it.each(DISPATCH_ROLES)("denies %s from /security-gate (independent gate release authority)", (role) => {
     expect(canAccessSecurityGate(role)).toBe(false);
   });
+});
+
+describe("Dispatch RBAC — dashboard fallback fail-closed", () => {
+  const DASHBOARD_FALLBACK_BYPASS_ROUTES = [
+    "/admin/some-unmapped-page",
+    "/admin/ready-goods-stock",
+    "/admin/ready-goods-day-close",
+    "/admin/ready-goods-reports",
+    "/admin/production-demand-planner",
+    "/admin/assembly-tv",
+  ] as const;
+
+  it.each(DISPATCH_ROLES.flatMap((role) => DASHBOARD_FALLBACK_BYPASS_ROUTES.map((path) => ({ role, path }))))(
+    "blocks $role from unmapped dashboard-fallback route $path",
+    ({ role, path }) => {
+      expect(isAuthorizedForAdminPath(path, role)).toBe(false);
+    },
+  );
 });
 

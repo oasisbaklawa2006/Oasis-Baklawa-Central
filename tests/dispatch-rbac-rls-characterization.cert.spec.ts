@@ -113,6 +113,42 @@ async function createDispatchClient() {
   return client;
 }
 
+async function createCleanupClient() {
+  const cleanupRoles = ["SUPER_ADMIN", "ADMIN"] as const;
+  for (const role of cleanupRoles) {
+    const credentials = readFactoryCertificationCredentials(role);
+    if (!credentials) continue;
+    const backend = resolveFactoryCertificationBackend();
+    const client = createClient<Database>(backend.url, backend.anonKey, {
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    });
+    const { error } = await client.auth.signInWithPassword({
+      email: credentials.email,
+      password: credentials.password,
+    });
+    if (!error) return client;
+  }
+  throw new Error(
+    "CERTIFICATION_CLEANUP_REQUIRED: FACTORY_CERT_SUPER_ADMIN_* or FACTORY_CERT_ADMIN_* credentials required for probe residue cleanup",
+  );
+}
+
+async function cleanupProbeRow(
+  table: "finance_review_evidence" | "inventory_reservations",
+  id: string,
+) {
+  const cleanupClient = await createCleanupClient();
+  const { data, error } = await cleanupClient.from(table).delete().eq("id", id).select("id");
+  if (error) {
+    throw new Error(`RLS_CERT_CLEANUP_FAILURE: ${table} delete denied — ${error.message}`);
+  }
+  if (!data || data.length !== 1) {
+    throw new Error(
+      `RLS_CERT_CLEANUP_FAILURE: ${table} id ${id} not removed (affected=${data?.length ?? 0})`,
+    );
+  }
+}
+
 function resolveFixtureOrderId(): string {
   const orderId =
     process.env.FACTORY_CERT_POINT38_ORDER_ID?.trim() ||
@@ -155,7 +191,7 @@ test.describe("Dispatch RBAC — production RLS certification", () => {
 
     const outcome = classifyInsertError(error);
     if (outcome === "ALLOWED" && data?.id) {
-      await client.from("finance_review_evidence").delete().eq("id", data.id);
+      await cleanupProbeRow("finance_review_evidence", data.id);
     }
 
     assertProbeOutcome("finance_review_evidence", outcome, error?.message ?? "insert succeeded", testInfo);
@@ -198,7 +234,7 @@ test.describe("Dispatch RBAC — production RLS certification", () => {
 
     const outcome = classifyInsertError(error);
     if (outcome === "ALLOWED" && data?.id) {
-      await client.from("inventory_reservations").delete().eq("id", data.id);
+      await cleanupProbeRow("inventory_reservations", data.id);
     }
 
     assertProbeOutcome("inventory_reservations", outcome, error?.message ?? "insert succeeded", testInfo);
