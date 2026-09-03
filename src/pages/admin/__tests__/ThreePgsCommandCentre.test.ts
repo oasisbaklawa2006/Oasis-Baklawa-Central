@@ -18,10 +18,13 @@ describe("threePgsCommandCentreMetrics", () => {
   });
 
   it("scopes GRN reads to the displayed 3PGS receipt ids", () => {
-    const source = commandCentreSource();
+    const loaderSource = readFileSync(
+      resolve(process.cwd(), "src/lib/threePgsSnapshotLoader.ts"),
+      "utf8",
+    );
 
-    expect(source).toContain("const receiptIds = receiptRows.map((receipt) => receipt.id);");
-    expect(source).toContain('.in("receipt_id", receiptIds)');
+    expect(loaderSource).toContain("const receiptIds = receiptRows.map((receipt) => receipt.id);");
+    expect(loaderSource).toContain('.in("receipt_id", receiptIds)');
   });
 
   it("composes stock, exception, procurement, P&A and GRN truth without inventing state", () => {

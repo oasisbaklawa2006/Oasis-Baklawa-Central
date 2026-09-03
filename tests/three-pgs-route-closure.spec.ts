@@ -38,7 +38,7 @@ test.describe("R4 3PGS route closure", () => {
   });
 
   test("admin module boundary applies the 3PGS operator gate", () => {
-    expect(moduleGuard).toContain('normalizePathname(location.pathname) === "/admin/3pgs-procurement-queue"');
+    expect(moduleGuard).toContain('pathname === "/admin/3pgs-procurement-queue"');
     expect(moduleGuard).toContain("!canAccessThreePgsOperator(role)");
   });
 });

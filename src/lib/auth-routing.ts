@@ -73,6 +73,7 @@ const STAFF_ROLE_DESTINATIONS: Record<string, string> = {
   TV_DISPLAY:               "/admin/cmd-war-room",
   TV_ASSEMBLY:              "/admin/cmd-war-room",
   TV_READY:                 "/tv/rgs",
+  TV_3PGS:                  "/tv/3pgs",
 
   // Store / Warehouse
   STORE_INCHARGE:           "/admin/ready-goods",

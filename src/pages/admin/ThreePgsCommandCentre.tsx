@@ -6,24 +6,15 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { dispatchDb as governedReadDb } from "@/lib/dispatchGovernedRpc";
+import { loadThreePgsCommandCentreSnapshotSafe } from "@/lib/threePgsSnapshotLoader";
 import {
   EMPTY_THREE_PGS_SNAPSHOT,
   THREE_PGS_OPERATOR_QUEUE_ANCHOR,
-  THREE_PGS_STORE_CODE,
   receiptDisplayGrn,
   receiptHasFinalisedGrn,
   threePgsCommandCentreMetrics,
 } from "./threePgsCommandCentreModel";
-import type {
-  AssemblyRequirement,
-  Balance,
-  Grn,
-  PriorityDemand,
-  Procurement,
-  Receipt,
-  Snapshot,
-} from "./threePgsCommandCentreModel";
+import type { Snapshot } from "./threePgsCommandCentreModel";
 
 export default function ThreePgsCommandCentre() {
   const [snapshot, setSnapshot] = useState<Snapshot>(EMPTY_THREE_PGS_SNAPSHOT);
@@ -33,65 +24,10 @@ export default function ThreePgsCommandCentre() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError(null);
-
-    try {
-      const [balances, demand, procurement, assembly, receipts] = await Promise.all([
-        governedReadDb.from<Balance>("inventory_stock_balances")
-          .select("id, sku, location_code, available_qty, reserved_qty, picked_qty, damaged_qty, expired_qty, quarantine_qty")
-          .eq("location_code", THREE_PGS_STORE_CODE)
-          .order("sku", { ascending: true })
-          .limit(1000),
-        governedReadDb.from<PriorityDemand>("b2b_3pgs_pending_demand_priority")
-          .select("demand_id, demand_reference, demand_source_type, priority_rank, sku, location_code, outstanding_qty")
-          .order("priority_rank", { ascending: true })
-          .limit(100),
-        governedReadDb.from<Procurement>("b2b_procurement_requirements")
-          .select("id, requirement_number, sku, destination_store_code, shortage_qty, fulfilled_qty, vendor_reference, expected_at, status")
-          .eq("destination_store_code", THREE_PGS_STORE_CODE)
-          .order("created_at", { ascending: false })
-          .limit(100),
-        governedReadDb.from<AssemblyRequirement>("b2b_assembly_3pgs_requirements")
-          .select("id, requirement_number, sku, source_store_code, requested_qty, fulfilled_qty, status, priority")
-          .in("status", ["open", "partially_fulfilled"])
-          .order("created_at", { ascending: true })
-          .limit(100),
-        governedReadDb.from<Receipt>("b2b_inventory_receipts")
-          .select("id, receipt_number, destination_store_code, status, created_at")
-          .eq("destination_store_code", THREE_PGS_STORE_CODE)
-          .order("created_at", { ascending: false })
-          .limit(100),
-      ]);
-
-      const sourceError = [balances, demand, procurement, assembly, receipts]
-        .find((result) => result.error !== null)?.error;
-      if (sourceError) throw new Error(sourceError.message);
-
-      const receiptRows = receipts.data ?? [];
-      const receiptIds = receiptRows.map((receipt) => receipt.id);
-      const grns = receiptIds.length > 0
-        ? await governedReadDb.from<Grn>("b2b_inventory_grns")
-          .select("id, grn_number, receipt_id, status, finalised_at")
-          .in("receipt_id", receiptIds)
-          .order("created_at", { ascending: false })
-        : { data: [] as Grn[], error: null };
-
-      if (grns.error) throw new Error(grns.error.message);
-
-      setSnapshot({
-        balances: balances.data ?? [],
-        demand: demand.data ?? [],
-        procurement: procurement.data ?? [],
-        assembly: assembly.data ?? [],
-        receipts: receiptRows,
-        grns: grns.data ?? [],
-      });
-    } catch (err) {
-      setSnapshot(EMPTY_THREE_PGS_SNAPSHOT);
-      setError(err instanceof Error ? err.message : "Failed to load the governed 3PGS command centre.");
-    } finally {
-      setLoading(false);
-    }
+    const { snapshot, error: loadError } = await loadThreePgsCommandCentreSnapshotSafe();
+    setSnapshot(snapshot);
+    setError(loadError);
+    setLoading(false);
   }, []);
 
   useEffect(() => {
