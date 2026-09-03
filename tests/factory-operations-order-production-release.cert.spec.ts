@@ -105,12 +105,12 @@ test("POINT-37 :: governed confirmed → in_production production release", asyn
     const steppedUp = await createSteppedUpCertificationClient(page, "FINANCE_HEAD");
     const { data: bindingRows, error: bindingError } = await steppedUp
       .from("sales_order_proforma_invoice_authority_v1")
-      .select("pi_id,commercial_version_id")
+      .select("id,commercial_version_id")
       .eq("order_id", orderId)
       .limit(1);
     if (bindingError) throw new Error(`BACKEND_READ_FAILED pi binding: ${bindingError.message}`);
     expect(bindingRows?.length ?? 0, "PI binding required for PF-6C clearance").toBeGreaterThan(0);
-    const piId = String(bindingRows![0].pi_id);
+    const piId = String(bindingRows![0].id);
     const commercialVersionId = String(bindingRows![0].commercial_version_id);
 
     const { data: facts, error: factsError } = await steppedUp.rpc("get_finance_operations_clearance_facts_v1", {
