@@ -36,6 +36,7 @@ vi.mock("@/lib/order-authority/financeClearanceAuthorityClient", () => ({
 import {
   clearOrderForDispatch,
   releaseCartonAtDispatchGate,
+  releaseOrderToDispatched,
   releaseOrderToInProduction,
   releaseOrderToManufacturing,
   releaseOrderToPackedReady,
@@ -82,6 +83,34 @@ describe("orderAuthorityClient", () => {
     const result = await clearOrderForDispatch("o1");
     expect(rpcMock).toHaveBeenCalledWith("clear_order_for_dispatch_v1", { p_order_id: "o1" });
     expect(result.ok).toBe(true);
+  });
+
+  it("calls release_order_to_dispatched_v1 RPC (Point 38)", async () => {
+    rpcMock.mockResolvedValue({
+      data: {
+        ok: true,
+        order_id: "o1",
+        previous_status: "cleared_for_dispatch",
+        new_status: "dispatched",
+      },
+      error: null,
+    });
+
+    const result = await releaseOrderToDispatched("o1", {
+      trackingNumber: "LR-POINT38",
+      courierName: "BlueDart",
+      finalizeReason: "Governed finalize",
+      correlationId: "corr-point38",
+    });
+    expect(rpcMock).toHaveBeenCalledWith("release_order_to_dispatched_v1", {
+      p_order_id: "o1",
+      p_tracking_number: "LR-POINT38",
+      p_courier_name: "BlueDart",
+      p_finalize_reason: "Governed finalize",
+      p_correlation_id: "corr-point38",
+    });
+    expect(result.ok).toBe(true);
+    expect(result.new_status).toBe("dispatched");
   });
 
   it("calls release_order_to_in_production_v1 after Finance Operations Clearance (Point 37)", async () => {

@@ -136,6 +136,8 @@ export interface OrderDispatchStatusUpdateParams {
   nextStatus: typeof DISPATCH_FINALIZE_TARGET_STATUS;
   trackingNumber?: string | null;
   courierName?: string | null;
+  finalizeReason?: string | null;
+  correlationId?: string | null;
 }
 
 export interface OrderDispatchStatusUpdateResult {

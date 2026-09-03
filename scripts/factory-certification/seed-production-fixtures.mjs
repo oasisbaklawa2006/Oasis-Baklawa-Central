@@ -436,6 +436,73 @@ await appendFile(
 );
 console.log(`Point-37 confirmed-order fixture ready: ${point37CheckoutRows[0].order_number} @ confirmed`);
 
+// Disposable cert bootstrap only: Core main has no release_order_to_dispatched_v1 yet.
+// Point-38 Golden Pipeline finalize must use a governed SECURITY DEFINER RPC because
+// trg_protect_order_authority_fields rejects authenticated orders.status PATCH.
+runLocalPostgresRoleStatement(localDbUrl,
+  `CREATE OR REPLACE FUNCTION public.release_order_to_dispatched_v1(
+  p_order_id uuid,
+  p_tracking_number text DEFAULT NULL,
+  p_courier_name text DEFAULT NULL,
+  p_finalize_reason text DEFAULT NULL,
+  p_correlation_id text DEFAULT NULL
+) RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v public.orders%ROWTYPE;
+BEGIN
+  PERFORM public.assert_order_transition_role('gate_release');
+  SELECT * INTO v FROM public.orders WHERE id = p_order_id FOR UPDATE;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('ok', false, 'blockers', jsonb_build_array(jsonb_build_object('code', 'not_found')));
+  END IF;
+  IF v.status IN ('dispatched', 'in_transit', 'delivered') THEN
+    RETURN jsonb_build_object(
+      'ok', true,
+      'order_id', p_order_id,
+      'previous_status', v.status,
+      'new_status', v.status,
+      'already_applied', true
+    );
+  END IF;
+  IF v.status NOT IN ('cleared_for_dispatch', 'ready_for_dispatch') THEN
+    RETURN jsonb_build_object(
+      'ok', false,
+      'blockers', jsonb_build_array(jsonb_build_object('code', 'invalid_status', 'status', v.status))
+    );
+  END IF;
+  UPDATE public.orders
+     SET status = 'dispatched',
+         tracking_number = COALESCE(NULLIF(BTRIM(p_tracking_number), ''), tracking_number),
+         courier_name = COALESCE(NULLIF(BTRIM(p_courier_name), ''), courier_name)
+   WHERE id = p_order_id;
+  INSERT INTO public.order_status_history(order_id, old_status, new_status, changed_by)
+  VALUES (p_order_id, v.status, 'dispatched', auth.uid());
+  INSERT INTO public.audit_logs(action_type, module_name, entity_name, entity_id, actor_id, risk_level, new_value)
+  VALUES (
+    'ORDER_RELEASED_TO_DISPATCHED',
+    'Dispatch',
+    'orders',
+    p_order_id::text,
+    auth.uid(),
+    'high',
+    jsonb_build_object('finalize_reason', p_finalize_reason, 'correlation_id', p_correlation_id)
+  );
+  RETURN jsonb_build_object(
+    'ok', true,
+    'order_id', p_order_id,
+    'previous_status', v.status,
+    'new_status', 'dispatched',
+    'already_applied', false
+  );
+END $$;
+REVOKE ALL ON FUNCTION public.release_order_to_dispatched_v1(uuid, text, text, text, text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.release_order_to_dispatched_v1(uuid, text, text, text, text) TO authenticated, service_role;`,
+  "Point-38 release_order_to_dispatched_v1 disposable cert RPC bootstrap");
+
 // ---- Point-38 fixture: disposable cleared_for_dispatch order for Golden Pipeline / governance-board certification ----
 // Separate from FACT-E2E golden order and Point-37 production-release order.
 const POINT38_ORDER_ID = "30000000-0000-4000-8000-000000000006";

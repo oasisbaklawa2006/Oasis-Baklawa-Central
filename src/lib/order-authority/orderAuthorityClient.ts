@@ -151,6 +151,30 @@ export async function clearOrderForDispatch(orderId: string): Promise<AuthorityR
   return result;
 }
 
+export async function releaseOrderToDispatched(
+  orderId: string,
+  options?: {
+    trackingNumber?: string | null;
+    courierName?: string | null;
+    finalizeReason?: string | null;
+    correlationId?: string | null;
+  },
+): Promise<AuthorityRpcResult> {
+  const { data, error } = await authorityRpc("release_order_to_dispatched_v1", {
+    p_order_id: orderId,
+    p_tracking_number: options?.trackingNumber ?? null,
+    p_courier_name: options?.courierName ?? null,
+    p_finalize_reason: options?.finalizeReason ?? null,
+    p_correlation_id: options?.correlationId ?? null,
+  });
+  if (error) throw new Error(error.message);
+  const result = data as AuthorityRpcResult;
+  if (!result?.ok) {
+    throw new Error(formatBlockers(blockersFromResult(result)) || "Dispatch finalization denied");
+  }
+  return result;
+}
+
 export async function releaseOrderToPackedReady(orderId: string): Promise<AuthorityRpcResult> {
   const { data, error } = await authorityRpc("release_order_to_packed_ready_v1", {
     p_order_id: orderId,

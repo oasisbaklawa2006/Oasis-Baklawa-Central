@@ -129,7 +129,6 @@ test("POINT-38 :: Golden Pipeline governance-board order status E2E", async ({ p
 
   const rpcCalls: Array<{ fn: string }> = [];
   const patchCalls: string[] = [];
-  let patchCallsBeforeFinalize = 0;
   page.on("request", (req) => {
     if (req.method() === "POST" && /\/rest\/v1\/rpc\//.test(req.url())) {
       const fn = decodeURIComponent(req.url().split("/rpc/")[1]?.split("?")[0] ?? "");
@@ -260,7 +259,6 @@ test("POINT-38 :: Golden Pipeline governance-board order status E2E", async ({ p
 
   // ---- Governance: dispatch finalization → dispatched status truth ----
   await test.step("governance: dispatch finalization sets orders.status=dispatched", async () => {
-    patchCallsBeforeFinalize = patchCalls.length;
     const prev = await clickWizardPrimaryCta(page);
     await waitWizardStageAdvance(page, prev, 90_000);
 
@@ -316,7 +314,7 @@ test("POINT-38 :: Golden Pipeline governance-board order status E2E", async ({ p
 
     record(
       "governance_dispatch_finalize",
-      "finalize_dispatch",
+      "release_order_to_dispatched_v1",
       "DISPATCH_MANAGER",
       "PASS",
       `status=dispatched stage=${state?.stage}`,
@@ -348,18 +346,17 @@ test("POINT-38 :: Golden Pipeline governance-board order status E2E", async ({ p
 
   // ---- No direct orders.update during wizard flow ----
   await test.step("authority: no direct orders.update during governance flow", async () => {
-    const governedFinalizePatches = patchCalls.length - patchCallsBeforeFinalize;
+    expect(patchCalls, "no direct orders PATCH during governance flow").toHaveLength(0);
     expect(
-      governedFinalizePatches,
-      "exactly one governed orders PATCH during dispatch finalize",
-    ).toBe(1);
-    expect(patchCallsBeforeFinalize, "no direct orders PATCH before dispatch finalize").toBe(0);
+      rpcCalls.some((call) => call.fn === "release_order_to_dispatched_v1"),
+      "dispatch finalize must use release_order_to_dispatched_v1 RPC",
+    ).toBe(true);
     record(
       "no_direct_orders_update",
-      null,
+      "release_order_to_dispatched_v1",
       "DISPATCH_MANAGER",
       "PASS",
-      `pre_finalize_patch_calls=${patchCallsBeforeFinalize} finalize_patch_calls=${governedFinalizePatches}`,
+      `patch_calls=${patchCalls.length}`,
     );
   });
 

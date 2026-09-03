@@ -53,6 +53,8 @@ export async function executeGovernedFinalizeDispatch(params: {
     nextStatus: "dispatched",
     trackingNumber: params.finalize.trackingNumber,
     courierName: params.finalize.courierName,
+    finalizeReason: reason,
+    correlationId: ctx.correlationId,
   });
 
   const lineageRow = buildFinalizeLineageRow({
