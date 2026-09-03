@@ -435,3 +435,150 @@ await appendFile(
   { encoding: "utf8" },
 );
 console.log(`Point-37 confirmed-order fixture ready: ${point37CheckoutRows[0].order_number} @ confirmed`);
+
+// ---- Point-38 fixture: disposable cleared_for_dispatch order for Golden Pipeline / governance-board certification ----
+// Separate from FACT-E2E golden order and Point-37 production-release order.
+const POINT38_ORDER_ID = "30000000-0000-4000-8000-000000000006";
+const POINT38_ORDER_ITEM_ID = "30000000-0000-4000-8000-000000000007";
+const point38BuyerEmail = "factory-cert-point38-buyer@example.invalid";
+const point38BuyerPassword = `${randomBytes(24).toString("base64url")}Aa1`;
+
+const { data: point38BuyerAdminData, error: point38BuyerAdminError } = await supabase.auth.admin.createUser({
+  email: point38BuyerEmail,
+  password: point38BuyerPassword,
+  email_confirm: true,
+  user_metadata: { factory_certification: true, point38_buyer: true },
+});
+assertNoSupabaseError(point38BuyerAdminError, "Point-38 buyer Auth Admin createUser failed");
+const point38BuyerId = point38BuyerAdminData?.user?.id;
+if (!point38BuyerId) throw new Error("Point-38 buyer Auth Admin API did not return an id");
+const { error: point38BuyerUserError } = await supabase.from("users").upsert({
+  id: point38BuyerId,
+  email: point38BuyerEmail,
+  full_name: "Factory Cert Point-38 Buyer",
+  role: "b2b_buyer",
+  company_id: GOLDEN_ORDER_COMPANY_ID,
+  is_active: true,
+  invite_status: "active",
+}, { onConflict: "id" });
+assertNoSupabaseError(point38BuyerUserError, "Point-38 buyer public.users upsert failed");
+const { error: point38BuyerProfileError } = await supabase.from("profiles").upsert({
+  id: point38BuyerId,
+  email: point38BuyerEmail,
+  role: "b2b_buyer",
+  company_id: GOLDEN_ORDER_COMPANY_ID,
+  is_approved: true,
+  status: "approved",
+}, { onConflict: "id" });
+assertNoSupabaseError(point38BuyerProfileError, "Point-38 buyer public.profiles upsert failed");
+
+runLocalPostgresRoleStatement(localDbUrl,
+  `ALTER TABLE public.orders ALTER COLUMN id SET DEFAULT '${POINT38_ORDER_ID}'::uuid;\nALTER TABLE public.order_items ALTER COLUMN id SET DEFAULT '${POINT38_ORDER_ITEM_ID}'::uuid;`,
+  "Bind deterministic Point-38 order UUID defaults");
+let point38CheckoutRows;
+try {
+  const point38BuyerClient = createClient(localSupabaseOrigin, anonKey, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+  });
+  const { error: point38SignInError } = await point38BuyerClient.auth.signInWithPassword({
+    email: point38BuyerEmail,
+    password: point38BuyerPassword,
+  });
+  assertNoSupabaseError(point38SignInError, "Point-38 buyer sign-in failed");
+  const { error: point38ClearDraftError } = await point38BuyerClient.rpc("clear_customer_order_draft_v1");
+  assertNoSupabaseError(point38ClearDraftError, "Point-38 governed draft clear failed");
+  const { data: point38DraftLineRows, error: point38DraftLineError } = await point38BuyerClient.rpc("add_customer_order_draft_line_v1", {
+    p_product_id: GOLDEN_ORDER_FG_COMPONENT_PRODUCT_ID,
+    p_quantity: 4,
+  });
+  assertNoSupabaseError(point38DraftLineError, "Point-38 governed draft-line creation failed");
+  if (!Array.isArray(point38DraftLineRows) || point38DraftLineRows.length !== 1 || point38DraftLineRows[0]?.readiness_status !== "ready") {
+    throw new Error(`Point-38 Buyer draft did not become ready: ${JSON.stringify(point38DraftLineRows)}`);
+  }
+  const { data, error: point38CheckoutError } = await point38BuyerClient.rpc("submit_customer_order_v1", {
+    p_idempotency_key: "factory-cert-point38-order-checkout-v1",
+    p_requested_dispatch_date: null,
+  });
+  assertNoSupabaseError(point38CheckoutError, "Point-38 governed Buyer checkout failed");
+  point38CheckoutRows = data;
+  await point38BuyerClient.auth.signOut();
+} finally {
+  runLocalPostgresRoleStatement(localDbUrl,
+    "ALTER TABLE public.orders ALTER COLUMN id SET DEFAULT gen_random_uuid();\nALTER TABLE public.order_items ALTER COLUMN id SET DEFAULT gen_random_uuid();",
+    "Restore canonical UUID defaults after Point-38 checkout");
+}
+if (!Array.isArray(point38CheckoutRows) || point38CheckoutRows.length !== 1 || point38CheckoutRows[0]?.order_id !== POINT38_ORDER_ID) {
+  throw new Error(`Point-38 governed Buyer checkout returned invalid facts: ${JSON.stringify(point38CheckoutRows)}`);
+}
+
+const point38AdvanceRequired = Number(point38CheckoutRows[0]?.advance_required ?? 0);
+const point38AdvancePaid = point38AdvanceRequired > 0 ? point38AdvanceRequired : 400;
+runLocalPostgresRoleStatement(localDbUrl,
+  `DO $$
+DECLARE
+  v_order uuid := '${POINT38_ORDER_ID}'::uuid;
+  v_version uuid;
+BEGIN
+  SELECT id INTO v_version
+  FROM public.sales_order_commercial_versions
+  WHERE order_id = v_order
+  ORDER BY version_number DESC
+  LIMIT 1;
+
+  IF v_version IS NULL THEN
+    v_version := public.create_sales_order_commercial_version_v1(
+      v_order,
+      'FACTORY_CERT_POINT38',
+      'factory-cert-point38-commercial',
+      'factory-cert-point38-commercial-v1',
+      NULL
+    );
+    UPDATE public.orders SET commercial_current_version = 1 WHERE id = v_order;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM public.sales_order_proforma_invoices
+    WHERE order_id = v_order AND status IN ('READY_FOR_ISSUE', 'ISSUED')
+  ) THEN
+    INSERT INTO public.sales_order_proforma_invoices (
+      id, order_id, commercial_version_id, commercial_version_number, status,
+      frozen_commercial_snapshot, frozen_snapshot_fingerprint, reason, source,
+      correlation_id, idempotency_key
+    )
+    SELECT
+      gen_random_uuid(), v_order, v.id, v.version_number, 'ISSUED',
+      v.commercial_snapshot, v.snapshot_fingerprint,
+      'Point-38 factory certification', 'FACTORY_CERT',
+      'factory-cert-point38-pi', 'factory-cert-point38-pi-v1'
+    FROM public.sales_order_commercial_versions v
+    WHERE v.id = v_version;
+  END IF;
+END $$;`,
+  "Point-38 PI binding fixture bootstrap");
+
+runLocalPostgresRoleStatement(localDbUrl,
+  `UPDATE public.orders
+   SET status = 'cleared_for_dispatch',
+       payment_status = 'paid',
+       payment_cleared = true,
+       advance_paid = ${point38AdvancePaid},
+       advance_required = ${point38AdvancePaid},
+       final_invoice_url = 'https://example.invalid/factory-cert-point38-invoice'
+   WHERE id = '${POINT38_ORDER_ID}'::uuid;`,
+  "Point-38 cleared_for_dispatch fixture bootstrap");
+
+const { error: point38StockError } = await supabase.from("inventory_stock_balances").upsert({
+  product_id: GOLDEN_ORDER_FG_COMPONENT_PRODUCT_ID,
+  sku: "CERT-ARABIC-001",
+  location_code: "WH-MAIN",
+  available_qty: 20,
+  reserved_qty: 0,
+}, { onConflict: "product_id,sku,location_code" });
+assertNoSupabaseError(point38StockError, "Point-38 WH-MAIN stock-balance fixture upsert failed");
+
+await appendFile(
+  "/tmp/oasis-factory-certification.env",
+  `export FACTORY_CERT_POINT38_ORDER_ID='${POINT38_ORDER_ID}'\nexport FACTORY_CERT_POINT38_ORDER_ITEM_ID='${POINT38_ORDER_ITEM_ID}'\n`,
+  { encoding: "utf8" },
+);
+console.log(`Point-38 cleared_for_dispatch fixture ready: ${point38CheckoutRows[0].order_number} @ cleared_for_dispatch`);
