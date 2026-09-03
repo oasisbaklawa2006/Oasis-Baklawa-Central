@@ -1,4 +1,5 @@
 import { normalizeRole } from "@/lib/roleNormalization";
+import { getAllowedModulesForRole, hasModuleAccess } from "@/lib/appverse/roleAccess";
 import type { ThreePgsSatelliteAudience } from "@/lib/threePgsSatelliteModel";
 
 /**
@@ -62,4 +63,14 @@ export function canAccessThreePgsMobileUrgent(role: string | null | undefined): 
 export function canAccessThreePgsTv(role: string | null | undefined): boolean {
   const normalized = normalizeRole(role);
   return normalized !== null && THREE_PGS_TV_ROLES.includes(normalized as (typeof THREE_PGS_TV_ROLES)[number]);
+}
+
+/**
+ * Admin-shell alias for the 3PGS TV wall. Kiosk-only `TV_3PGS` accounts land on
+ * `/tv/3pgs` and are intentionally excluded from broad `ADMIN_STAFF_ROLES`, so
+ * they must not be widened into generic inventory/admin authority here.
+ */
+export function canAccessThreePgsTvAdminShell(role: string | null | undefined): boolean {
+  if (!canAccessThreePgsTv(role)) return false;
+  return hasModuleAccess(getAllowedModulesForRole(role), "inventory");
 }

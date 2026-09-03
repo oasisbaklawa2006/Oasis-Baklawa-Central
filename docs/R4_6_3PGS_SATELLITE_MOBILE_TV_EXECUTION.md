@@ -27,8 +27,8 @@ Shared loader: `src/lib/threePgsSnapshotLoader.ts`.
 |---|---|---|---|
 | Satellite visibility | `/admin/3pgs-visibility` | P&A, outlet, sales, dispatch roles | Role-filtered read-only projection |
 | Mobile urgent subset | `/admin/3pgs-mobile-urgent` | 3PGS operator roles | Touch-friendly urgent queue over governed truth |
-| TV wall | `/tv/3pgs` | `STORE_3RD_PARTY`, `TV_3PGS`, management | Read-only ambient board |
-| Admin-path TV duplicate | `/admin/3pgs-tv` | Same component as `/tv/3pgs` inside admin shell | In-shell navigation only |
+| TV wall | `/tv/3pgs` | `STORE_3RD_PARTY`, `TV_3PGS`, `OPERATIONS_MANAGER`, administrators | Chrome-free kiosk route for dedicated TV accounts |
+| Admin-path TV duplicate | `/admin/3pgs-tv` | `STORE_3RD_PARTY`, `OPERATIONS_MANAGER`, administrators with inventory module access | In-shell navigation only; excludes kiosk-only `TV_3PGS` |
 
 The canonical operator mutation surface remains `ThreePgsProcurementQueue.tsx` at `/admin/3pgs-procurement-queue`.
 

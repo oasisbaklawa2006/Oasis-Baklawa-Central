@@ -4,6 +4,7 @@ import {
   canAccessThreePgsOperator,
   canAccessThreePgsSatellite,
   canAccessThreePgsTv,
+  canAccessThreePgsTvAdminShell,
   resolveThreePgsSatelliteAudience,
 } from "@/lib/threePgsAccess";
 
@@ -40,5 +41,18 @@ describe("threePgsAccess R4.6", () => {
     expect(canAccessThreePgsTv("STORE_READY_GOODS")).toBe(false);
     expect(canAccessThreePgsTv("STORE_INCHARGE")).toBe(false);
     expect(canAccessThreePgsTv("RGS_ADMIN")).toBe(false);
+  });
+
+  it("allows kiosk and operator roles on the dedicated 3PGS TV predicate", () => {
+    expect(canAccessThreePgsTv("STORE_3RD_PARTY")).toBe(true);
+    expect(canAccessThreePgsTv("TV_3PGS")).toBe(true);
+    expect(canAccessThreePgsTv("OPERATIONS_MANAGER")).toBe(true);
+  });
+
+  it("keeps kiosk-only TV_3PGS off the admin-shell alias without widening module access", () => {
+    expect(canAccessThreePgsTvAdminShell("TV_3PGS")).toBe(false);
+    expect(canAccessThreePgsTvAdminShell("STORE_3RD_PARTY")).toBe(true);
+    expect(canAccessThreePgsTvAdminShell("OPERATIONS_MANAGER")).toBe(true);
+    expect(canAccessThreePgsTvAdminShell("DISPATCH_MANAGER")).toBe(false);
   });
 });

@@ -5,8 +5,9 @@ import {
   canAccessThreePgsMobileUrgent,
   canAccessThreePgsSatellite,
   canAccessThreePgsTv,
+  canAccessThreePgsTvAdminShell,
   resolveThreePgsSatelliteAudience,
-} from "../src/lib/threePgsAccess";
+} from "@/lib/threePgsAccess";
 
 // Use fixed module-relative literals instead of forwarding runtime paths into
 // readFileSync, matching the Codacy-safe pattern used elsewhere in this repo.
@@ -44,7 +45,14 @@ test.describe("R4.6 3PGS satellite/mobile/TV closure", () => {
     expect(moduleGuard).toContain('pathname === "/admin/3pgs-mobile-urgent"');
     expect(moduleGuard).toContain("canAccessThreePgsMobileUrgent(role)");
     expect(moduleGuard).toContain('pathname === "/admin/3pgs-tv"');
-    expect(moduleGuard).toContain("canAccessThreePgsTv(role)");
+    expect(moduleGuard).toContain("canAccessThreePgsTvAdminShell(role)");
+  });
+
+  test("registers the kiosk 3PGS TV route for the dedicated TV audience", () => {
+    const appSource = readAppSource();
+    expect(appSource).toContain('path="/tv/3pgs"');
+    expect(appSource).toContain('"TV_3PGS"');
+    expect(appSource).toContain("<ThreePgsTV />");
   });
 
   test("exposes read-only 3PGS TV in the governed TV registry", () => {
@@ -78,5 +86,7 @@ test.describe("R4.6 3PGS satellite/mobile/TV closure", () => {
     expect(canAccessThreePgsTv("RGS_ADMIN")).toBe(false);
     expect(canAccessThreePgsTv("STORE_3RD_PARTY")).toBe(true);
     expect(canAccessThreePgsTv("TV_3PGS")).toBe(true);
+    expect(canAccessThreePgsTvAdminShell("TV_3PGS")).toBe(false);
+    expect(canAccessThreePgsTvAdminShell("STORE_3RD_PARTY")).toBe(true);
   });
 });

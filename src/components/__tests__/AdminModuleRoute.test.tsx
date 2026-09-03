@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { getRoleDestination } from "@/lib/auth-routing";
 import AdminModuleRoute from "../AdminModuleRoute";
 
 let mockRole = "STORE_READY_GOODS";
@@ -27,6 +28,7 @@ function renderAt(pathname: string) {
           }
         />
         <Route path="/admin" element={<div>Admin landing</div>} />
+        <Route path="/tv/3pgs" element={<div>Kiosk 3PGS TV</div>} />
         <Route path="/admin/ready-goods" element={<div>Ready goods landing</div>} />
         <Route path="/admin/dispatch-mgmt" element={<div>Dispatch landing</div>} />
       </Routes>
@@ -98,5 +100,13 @@ describe("AdminModuleRoute 3PGS TV gate", () => {
     mockRole = "STORE_3RD_PARTY";
     renderAt("/admin/3pgs-tv");
     expect(screen.getByText("3PGS TV content")).toBeTruthy();
+  });
+
+  it("blocks kiosk-only TV_3PGS from the admin-shell alias while preserving the kiosk predicate", () => {
+    mockRole = "TV_3PGS";
+    renderAt("/admin/3pgs-tv");
+    expect(screen.queryByText("3PGS TV content")).toBeNull();
+    expect(screen.getByText("Kiosk 3PGS TV")).toBeTruthy();
+    expect(getRoleDestination("TV_3PGS")).toBe("/tv/3pgs");
   });
 });

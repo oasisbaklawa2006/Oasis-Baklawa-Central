@@ -57,6 +57,10 @@ describe("auth-routing", () => {
     expect(getRoleDestination("TV_READY")).toBe("/tv/rgs");
   });
 
+  it("routes the 3PGS TV kiosk account to the chrome-free wall, not /admin", () => {
+    expect(getRoleDestination("TV_3PGS")).toBe("/tv/3pgs");
+  });
+
   // Regression guard: these roles were previously landed on /admin/production
   // (a desktop-tabbed admin console with no handheld components) despite
   // needing the mobile-first, department-scoped OperationsController --
