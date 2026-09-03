@@ -722,6 +722,77 @@ describe("Buyer App governed commercial handoff", () => {
     expect(source).not.toMatch(/functions\.invoke|\bfetch\s*\(/);
   });
 
+  it("renders governed final-payment PI facts on order detail when available", async () => {
+    buyerMock.finalPaymentPiFacts.mockResolvedValue({
+      available: true,
+      settled: false,
+      customer_visible_pi_number: "PI2026/09-0001",
+      final_payable_total: 18750,
+      balance_due: 2500,
+      payment_action: "PAY_NOW",
+      payment_link: "https://pay.example.com/final/1",
+      payment_instructions: "Use the governed payment link",
+      facts_as_of: "2026-09-01T00:00:00.000Z",
+    });
+    render(<MemoryRouter initialEntries={["/buyer/orders/order-1"]}><BuyerApp /></MemoryRouter>);
+
+    expect(await screen.findByLabelText("Final payment request")).toBeTruthy();
+    expect(screen.getByText("Payment due")).toBeTruthy();
+    expect(screen.getByText("₹18,750")).toBeTruthy();
+    expect(screen.getByText("₹2,500")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Open payment link" })).toHaveAttribute("href", "https://pay.example.com/final/1");
+  });
+
+  it("shows company phone and payment terms on the account page", async () => {
+    render(<MemoryRouter initialEntries={["/buyer/account"]}><BuyerApp /></MemoryRouter>);
+
+    expect(await screen.findByText("Phone: 9999999999")).toBeTruthy();
+    expect(screen.getByText("Payment terms: advance")).toBeTruthy();
+  });
+
+  it("submits preferred dispatch preference during access onboarding", async () => {
+    buyerMock.submitApplication.mockResolvedValue(undefined);
+    render(<MemoryRouter initialEntries={["/buyer/access-request"]}><BuyerAccessRequest /></MemoryRouter>);
+
+    fireEvent.change(screen.getByLabelText("Business name"), { target: { value: "New Buyer Co" } });
+    fireEvent.change(screen.getByLabelText("Contact name"), { target: { value: "Buyer Contact" } });
+    fireEvent.change(screen.getByLabelText("Work email"), { target: { value: "buyer@example.com" } });
+    fireEvent.change(screen.getByLabelText("Phone number"), { target: { value: "9999999999" } });
+    fireEvent.change(screen.getByLabelText("Dispatch preference (optional)"), { target: { value: "OTHER" } });
+    fireEvent.change(screen.getByLabelText("Preferred transporter name"), { target: { value: "Blue Dart" } });
+    fireEvent.click(screen.getByRole("button", { name: "Submit access request" }));
+    await waitFor(() => expect(buyerMock.submitApplication).toHaveBeenCalledWith(expect.objectContaining({
+      preferredDispatch: "OTHER",
+      preferredDispatchOtherName: "Blue Dart",
+    })));
+  });
+
+  it("groups tickets and enquiries under a communication log", async () => {
+    buyerMock.tickets.mockResolvedValue([{
+      ticket_id: "ticket-1",
+      order_id: "order-1",
+      order_number: "SO2026/08-0001",
+      issue_type: "Damaged Goods",
+      description: "Carton dented",
+      customer_status: "open",
+      created_at: "2026-09-01T00:00:00.000Z",
+    }]);
+    buyerMock.generalQueries.mockResolvedValue([{
+      query_id: "query-1",
+      category: "GENERAL",
+      subject: "Catalogue question",
+      message: "When is the next delivery window?",
+      status: "SUBMITTED",
+      created_at: "2026-09-01T00:00:00.000Z",
+      updated_at: "2026-09-01T00:00:00.000Z",
+    }]);
+    render(<MemoryRouter initialEntries={["/buyer/support"]}><BuyerApp /></MemoryRouter>);
+
+    expect(await screen.findByRole("heading", { name: "Communication log" })).toBeTruthy();
+    expect(screen.getByText("Carton dented")).toBeTruthy();
+    expect(screen.getByText("When is the next delivery window?")).toBeTruthy();
+  });
+
   it("uses safe account and team labels rather than internal role codes", async () => {
     buyerMock.team.mockResolvedValue([{ profile_id: "profile-2", full_name: "A Buyer", email: "a@example.com", mobile_number: null, role: "B2B_BUYER", status: "active" }]);
     render(<MemoryRouter initialEntries={["/buyer/account"]}><BuyerApp /></MemoryRouter>);
