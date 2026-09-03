@@ -208,37 +208,8 @@ test("POINT-37 :: governed confirmed → in_production production release", asyn
     }
   });
 
-  // ---- UI: action available for eligible confirmed order ----
-  await test.step("UI: Send to Factory enabled for confirmed order", async () => {
-    await page.context().clearCookies();
-    await page.evaluate(() => {
-      try {
-        window.localStorage.clear();
-        window.sessionStorage.clear();
-      } catch {
-        // best-effort
-      }
-    });
-    await loginToFactoryCertificationTarget(page, admin);
-    await verifyAuthenticatedRole(page, "ADMIN");
-
-    const target = resolveFactoryCertificationTarget();
-    await page.goto(`${target}/admin/order-management?view=production`, {
-      waitUntil: "domcontentloaded",
-      timeout: 60_000,
-    });
-    await dismissOnboardingOverlayIfPresent(page);
-
-    const orderRow = page.locator("tr", { has: page.getByText(orderLabel, { exact: false }) }).first();
-    await expect(orderRow, "confirmed order must appear in production view").toBeVisible({ timeout: 30_000 });
-    const actionButton = orderRow.getByRole("button", { name: /Send to Factory/i });
-    await expect(actionButton, "Send to Factory must be available").toBeVisible();
-    await expect(actionButton, "Send to Factory must be enabled for confirmed → in_production").toBeEnabled();
-    record("ui_action_available", null, "ADMIN", "PASS", "Send to Factory enabled");
-  });
-
-  // ---- Governed RPC path only + status/history truth ----
-  await test.step("release: governed RPC only with status/history truth", async () => {
+  // ---- UI + governed release: single ADMIN session (avoid flaky second OM navigation) ----
+  await test.step("UI + release: Send to Factory uses governed RPC only", async () => {
     const rpcCalls: Array<{ fn: string; args: Record<string, unknown> | undefined }> = [];
     const patchCalls: string[] = [];
     page.on("request", (req) => {
@@ -278,11 +249,16 @@ test("POINT-37 :: governed confirmed → in_production production release", asyn
       timeout: 60_000,
     });
     await dismissOnboardingOverlayIfPresent(page);
+    await expect(page.getByRole("heading", { name: "Order Management" })).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator("tbody tr").first()).toBeVisible({ timeout: 30_000 });
 
     const orderRow = page.locator("tr", { has: page.getByText(orderLabel, { exact: false }) }).first();
-    await expect(orderRow, "confirmed order must appear before release").toBeVisible({ timeout: 30_000 });
+    await expect(orderRow, "confirmed order must appear in production view").toBeVisible({ timeout: 30_000 });
     const actionButton = orderRow.getByRole("button", { name: /Send to Factory/i });
-    await expect(actionButton, "Send to Factory must be enabled before release click").toBeEnabled({ timeout: 30_000 });
+    await expect(actionButton, "Send to Factory must be available").toBeVisible();
+    await expect(actionButton, "Send to Factory must be enabled for confirmed → in_production").toBeEnabled();
+    record("ui_action_available", null, "ADMIN", "PASS", "Send to Factory enabled");
+
     await actionButton.click();
 
     await expect.poll(
