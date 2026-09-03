@@ -121,6 +121,7 @@ async function upsertUserProfile({ id, email, roleKey, displayName }) {
     designation: "Disposable Factory certification identity",
     is_active: true,
     invite_status: "active",
+    has_seen_tutorial: true,
   }, { onConflict: "id" });
   assertNoSupabaseError(error, `public.users upsert failed for ${email}`);
 }
