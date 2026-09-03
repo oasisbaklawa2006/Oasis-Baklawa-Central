@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { loadThreePgsCommandCentreSnapshotSafe } from "@/lib/threePgsSnapshotLoader";
+import { loadThreePgsCommandCentreSnapshotSafe, applyThreePgsSnapshotLoadResult } from "@/lib/threePgsSnapshotLoader";
 import {
   EMPTY_THREE_PGS_SNAPSHOT,
   THREE_PGS_OPERATOR_QUEUE_ANCHOR,
@@ -24,9 +24,9 @@ export default function ThreePgsCommandCentre() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { snapshot, error: loadError } = await loadThreePgsCommandCentreSnapshotSafe();
-    setSnapshot(snapshot);
-    setError(loadError);
+    const result = await loadThreePgsCommandCentreSnapshotSafe();
+    setSnapshot((previous) => applyThreePgsSnapshotLoadResult(previous, result));
+    setError(result.error);
     setLoading(false);
   }, []);
 

@@ -33,4 +33,12 @@ describe("threePgsAccess R4.6", () => {
     expect(canAccessThreePgsTv("TV_3PGS")).toBe(true);
     expect(canAccessThreePgsTv("HOD_ASSEMBLY")).toBe(false);
   });
+
+  it("denies satellite and outlet roles access to the unfiltered 3PGS TV surface", () => {
+    expect(canAccessThreePgsTv("DISPATCH_MANAGER")).toBe(false);
+    expect(canAccessThreePgsTv("DISPATCH_HEAD")).toBe(false);
+    expect(canAccessThreePgsTv("STORE_READY_GOODS")).toBe(false);
+    expect(canAccessThreePgsTv("STORE_INCHARGE")).toBe(false);
+    expect(canAccessThreePgsTv("RGS_ADMIN")).toBe(false);
+  });
 });

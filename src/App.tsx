@@ -129,7 +129,7 @@ const ADMIN_STAFF_ROLES = [
   "DISPATCH_HEAD", "ASSEMBLY_MANAGER", "PACKING_SUPERVISOR",
   "STORE_READY_GOODS", "STORE_3RD_PARTY", "GATE_SECURITY", "RGS_ADMIN",
   "PROD_ARABIC_SWEETS", "PROD_CHOCOLATE", "PROD_DRAGEES", "PROD_FUSION", "PROD_DATES", "PROD_BAKERY", "PROD_NUTS",
-  "TV_DISPLAY", "TV_ASSEMBLY", "TV_READY", "TV_3PGS",
+  "TV_DISPLAY", "TV_ASSEMBLY", "TV_READY",
   "CATALOGUE_CONTRIBUTOR",
 ];
 
@@ -490,7 +490,14 @@ const App = () => (
                         </AdminModuleRoute>
                       }
                     />
-                    <Route path="3pgs-tv" element={<ThreePgsTV />} />
+                    <Route
+                      path="3pgs-tv"
+                      element={
+                        <AdminModuleRoute moduleKey="inventory">
+                          <ThreePgsTV />
+                        </AdminModuleRoute>
+                      }
+                    />
                     <Route path="verification" element={<Navigate to="/admin/execution-command-center" replace />} />
                     <Route path="announcements" element={<AdminAnnouncements />} />
                   </Route>

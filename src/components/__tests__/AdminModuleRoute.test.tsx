@@ -18,8 +18,17 @@ function renderAt(pathname: string) {
             </AdminModuleRoute>
           }
         />
+        <Route
+          path="/admin/3pgs-tv"
+          element={
+            <AdminModuleRoute moduleKey="inventory">
+              <div>3PGS TV content</div>
+            </AdminModuleRoute>
+          }
+        />
         <Route path="/admin" element={<div>Admin landing</div>} />
         <Route path="/admin/ready-goods" element={<div>Ready goods landing</div>} />
+        <Route path="/admin/dispatch-mgmt" element={<div>Dispatch landing</div>} />
       </Routes>
     </MemoryRouter>,
   );
@@ -69,5 +78,25 @@ describe("AdminModuleRoute 3PGS operator gate", () => {
     mockRole = "STORE_3RD_PARTY";
     renderAt("/admin/3pgs-procurement-queue//");
     expect(screen.getByText("3PGS queue content")).toBeTruthy();
+  });
+});
+
+describe("AdminModuleRoute 3PGS TV gate", () => {
+  it.each([
+    "DISPATCH_MANAGER",
+    "DISPATCH_HEAD",
+    "STORE_READY_GOODS",
+    "STORE_INCHARGE",
+    "RGS_ADMIN",
+  ] as const)("blocks %s from the unfiltered admin-shell 3PGS TV route", (role) => {
+    mockRole = role;
+    renderAt("/admin/3pgs-tv");
+    expect(screen.queryByText("3PGS TV content")).toBeNull();
+  });
+
+  it("admits STORE_3RD_PARTY to the admin-shell 3PGS TV route", () => {
+    mockRole = "STORE_3RD_PARTY";
+    renderAt("/admin/3pgs-tv");
+    expect(screen.getByText("3PGS TV content")).toBeTruthy();
   });
 });

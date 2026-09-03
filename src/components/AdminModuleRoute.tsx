@@ -10,6 +10,7 @@ import {
   canAccessThreePgsMobileUrgent,
   canAccessThreePgsOperator,
   canAccessThreePgsSatellite,
+  canAccessThreePgsTv,
 } from "@/lib/threePgsAccess";
 
 interface AdminModuleRouteProps {
@@ -37,6 +38,10 @@ export default function AdminModuleRoute({ moduleKey, children }: AdminModuleRou
   }
 
   if (pathname === "/admin/3pgs-mobile-urgent" && !canAccessThreePgsMobileUrgent(role)) {
+    return <Navigate to={getRoleDestination(role)} replace />;
+  }
+
+  if (pathname === "/admin/3pgs-tv" && !canAccessThreePgsTv(role)) {
     return <Navigate to={getRoleDestination(role)} replace />;
   }
 

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Boxes, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { loadThreePgsCommandCentreSnapshotSafe } from "@/lib/threePgsSnapshotLoader";
+import { loadThreePgsCommandCentreSnapshotSafe, applyThreePgsSnapshotLoadResult } from "@/lib/threePgsSnapshotLoader";
 import { buildThreePgsTvLanes } from "@/lib/threePgsSatelliteModel";
 import { EMPTY_THREE_PGS_SNAPSHOT } from "./threePgsCommandCentreModel";
 
@@ -15,7 +15,7 @@ export default function ThreePgsTV() {
 
   const load = useCallback(async () => {
     const result = await loadThreePgsCommandCentreSnapshotSafe();
-    setSnapshot(result.snapshot);
+    setSnapshot((previous) => applyThreePgsSnapshotLoadResult(previous, result));
     setError(result.error);
     setLoading(false);
   }, []);

@@ -4,6 +4,7 @@ import { join } from "node:path";
 import {
   canAccessThreePgsMobileUrgent,
   canAccessThreePgsSatellite,
+  canAccessThreePgsTv,
   resolveThreePgsSatelliteAudience,
 } from "../src/lib/threePgsAccess";
 
@@ -42,6 +43,8 @@ test.describe("R4.6 3PGS satellite/mobile/TV closure", () => {
     expect(moduleGuard).toContain("canAccessThreePgsSatellite(role)");
     expect(moduleGuard).toContain('pathname === "/admin/3pgs-mobile-urgent"');
     expect(moduleGuard).toContain("canAccessThreePgsMobileUrgent(role)");
+    expect(moduleGuard).toContain('pathname === "/admin/3pgs-tv"');
+    expect(moduleGuard).toContain("canAccessThreePgsTv(role)");
   });
 
   test("exposes read-only 3PGS TV in the governed TV registry", () => {
@@ -59,5 +62,21 @@ test.describe("R4.6 3PGS satellite/mobile/TV closure", () => {
     expect(resolveThreePgsSatelliteAudience("HOD_ASSEMBLY")).toBe("pna");
     expect(canAccessThreePgsSatellite("HOD_ASSEMBLY")).toBe(true);
     expect(canAccessThreePgsMobileUrgent("HOD_ASSEMBLY")).toBe(false);
+  });
+
+  test("keeps satellite and outlet roles off the unfiltered 3PGS TV surface", () => {
+    const appSource = readAppSource();
+    const staffRolesBlock = appSource.slice(
+      appSource.indexOf("const ADMIN_STAFF_ROLES"),
+      appSource.indexOf("const SALES_DASHBOARD_ROLES"),
+    );
+    expect(staffRolesBlock).not.toContain("TV_3PGS");
+    expect(canAccessThreePgsTv("DISPATCH_MANAGER")).toBe(false);
+    expect(canAccessThreePgsTv("DISPATCH_HEAD")).toBe(false);
+    expect(canAccessThreePgsTv("STORE_READY_GOODS")).toBe(false);
+    expect(canAccessThreePgsTv("STORE_INCHARGE")).toBe(false);
+    expect(canAccessThreePgsTv("RGS_ADMIN")).toBe(false);
+    expect(canAccessThreePgsTv("STORE_3RD_PARTY")).toBe(true);
+    expect(canAccessThreePgsTv("TV_3PGS")).toBe(true);
   });
 });

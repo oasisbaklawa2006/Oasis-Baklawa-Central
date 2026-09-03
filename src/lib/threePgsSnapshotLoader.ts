@@ -1,6 +1,5 @@
 import { dispatchDb as governedReadDb } from "@/lib/dispatchGovernedRpc";
 import {
-  EMPTY_THREE_PGS_SNAPSHOT,
   THREE_PGS_STORE_CODE,
   type AssemblyRequirement,
   type Balance,
@@ -10,6 +9,12 @@ import {
   type Receipt,
   type Snapshot,
 } from "@/pages/admin/threePgsCommandCentreModel";
+
+export type ThreePgsSnapshotLoadResult = {
+  /** Null on failure so consumers can retain the last successful snapshot. */
+  snapshot: Snapshot | null;
+  error: string | null;
+};
 
 export async function loadThreePgsCommandCentreSnapshot(): Promise<Snapshot> {
   const [balances, demand, procurement, assembly, receipts] = await Promise.all([
@@ -64,13 +69,20 @@ export async function loadThreePgsCommandCentreSnapshot(): Promise<Snapshot> {
   };
 }
 
-export async function loadThreePgsCommandCentreSnapshotSafe(): Promise<{ snapshot: Snapshot; error: string | null }> {
+export async function loadThreePgsCommandCentreSnapshotSafe(): Promise<ThreePgsSnapshotLoadResult> {
   try {
     return { snapshot: await loadThreePgsCommandCentreSnapshot(), error: null };
   } catch (err) {
     return {
-      snapshot: EMPTY_THREE_PGS_SNAPSHOT,
+      snapshot: null,
       error: err instanceof Error ? err.message : "Failed to load governed 3PGS truth.",
     };
   }
+}
+
+export function applyThreePgsSnapshotLoadResult(
+  previous: Snapshot,
+  result: ThreePgsSnapshotLoadResult,
+): Snapshot {
+  return result.snapshot ?? previous;
 }

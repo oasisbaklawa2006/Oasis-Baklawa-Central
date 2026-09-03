@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { loadThreePgsCommandCentreSnapshotSafe } from "@/lib/threePgsSnapshotLoader";
+import { loadThreePgsCommandCentreSnapshotSafe, applyThreePgsSnapshotLoadResult } from "@/lib/threePgsSnapshotLoader";
 import { buildThreePgsMobileUrgentItems } from "@/lib/threePgsSatelliteModel";
 import { THREE_PGS_OPERATOR_QUEUE_ANCHOR, EMPTY_THREE_PGS_SNAPSHOT } from "./threePgsCommandCentreModel";
 
@@ -16,7 +16,7 @@ export default function ThreePgsMobileUrgent() {
   const load = useCallback(async () => {
     setLoading(true);
     const result = await loadThreePgsCommandCentreSnapshotSafe();
-    setSnapshot(result.snapshot);
+    setSnapshot((previous) => applyThreePgsSnapshotLoadResult(previous, result));
     setError(result.error);
     setLoading(false);
   }, []);
