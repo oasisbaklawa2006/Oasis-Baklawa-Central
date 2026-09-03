@@ -767,7 +767,7 @@ describe("Buyer App governed commercial handoff", () => {
     })));
   });
 
-  it("groups tickets and enquiries under a communication log", async () => {
+  it("renders a newest-first communication log across tickets and enquiries", async () => {
     buyerMock.tickets.mockResolvedValue([{
       ticket_id: "ticket-1",
       order_id: "order-1",
@@ -775,7 +775,7 @@ describe("Buyer App governed commercial handoff", () => {
       issue_type: "Damaged Goods",
       description: "Carton dented",
       customer_status: "open",
-      created_at: "2026-09-01T00:00:00.000Z",
+      created_at: "2026-09-01T10:00:00.000Z",
     }]);
     buyerMock.generalQueries.mockResolvedValue([{
       query_id: "query-1",
@@ -783,14 +783,27 @@ describe("Buyer App governed commercial handoff", () => {
       subject: "Catalogue question",
       message: "When is the next delivery window?",
       status: "SUBMITTED",
-      created_at: "2026-09-01T00:00:00.000Z",
-      updated_at: "2026-09-01T00:00:00.000Z",
+      created_at: "2026-09-02T08:00:00.000Z",
+      updated_at: "2026-09-02T08:00:00.000Z",
     }]);
     render(<MemoryRouter initialEntries={["/buyer/support"]}><BuyerApp /></MemoryRouter>);
 
     expect(await screen.findByRole("heading", { name: "Communication log" })).toBeTruthy();
-    expect(screen.getByText("Carton dented")).toBeTruthy();
     expect(screen.getByText("When is the next delivery window?")).toBeTruthy();
+    expect(screen.getByText("Carton dented")).toBeTruthy();
+    expect(screen.getByText(/General enquiry · GENERAL/)).toBeTruthy();
+    expect(screen.getByText(/Order ticket · SO2026\/08-0001/)).toBeTruthy();
+    const log = screen.getByRole("heading", { name: "Communication log" }).closest("div")?.parentElement;
+    const text = log?.textContent || "";
+    expect(text.indexOf("When is the next delivery window?")).toBeLessThan(text.indexOf("Carton dented"));
+  });
+
+  it("shows a unified empty communication log state", async () => {
+    buyerMock.tickets.mockResolvedValue([]);
+    buyerMock.generalQueries.mockResolvedValue([]);
+    render(<MemoryRouter initialEntries={["/buyer/support"]}><BuyerApp /></MemoryRouter>);
+
+    expect(await screen.findByText("No communications yet")).toBeTruthy();
   });
 
   it("uses safe account and team labels rather than internal role codes", async () => {
