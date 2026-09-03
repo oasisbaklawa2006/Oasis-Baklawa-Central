@@ -31,6 +31,40 @@ function readAuthRoutingSource(): string {
   return readFileSync(join(ROOT, "src/lib/auth-routing.ts"), "utf8");
 }
 
+const ADMIN_MODULE_GUARD_BRANCHES = [
+  {
+    pathname: "/admin/3pgs-visibility",
+    pattern:
+      /pathname\s*===\s*"\/admin\/3pgs-visibility"\s*&&\s*!canAccessThreePgsSatelliteAdminShell\(role\)/,
+  },
+  {
+    pathname: "/admin/3pgs-mobile-urgent",
+    pattern:
+      /pathname\s*===\s*"\/admin\/3pgs-mobile-urgent"\s*&&\s*!canAccessThreePgsMobileUrgent\(role\)/,
+  },
+  {
+    pathname: "/admin/3pgs-tv",
+    pattern: /pathname\s*===\s*"\/admin\/3pgs-tv"\s*&&\s*!canAccessThreePgsTvAdminShell\(role\)/,
+  },
+] as const;
+
+const SALES_THREE_PGS_VISIBILITY_ROUTE =
+  /path="\/sales\/3pgs-visibility"[\s\S]*RoleProtectedRoute allowedRoles=\{\["SALES_EXECUTIVE"\]\}[\s\S]*<ThreePgsSatelliteVisibility \/>/;
+
+function assertAdminGuardBranch(source: string, pathname: (typeof ADMIN_MODULE_GUARD_BRANCHES)[number]["pathname"]) {
+  const branch = ADMIN_MODULE_GUARD_BRANCHES.find((entry) => entry.pathname === pathname);
+  expect(branch).toBeTruthy();
+  expect(source).toMatch(branch!.pattern);
+}
+
+function extractSalesThreePgsVisibilityRoute(appSource: string): string {
+  const start = appSource.indexOf('path="/sales/3pgs-visibility"');
+  expect(start).toBeGreaterThan(-1);
+  const end = appSource.indexOf('path="/tv/arabic-sweets"', start);
+  expect(end).toBeGreaterThan(start);
+  return appSource.slice(start, end);
+}
+
 test.describe("R4.6 3PGS satellite/mobile/TV closure", () => {
   test("registers governed satellite, mobile urgent and TV routes", () => {
     const appSource = readAppSource();
@@ -42,20 +76,24 @@ test.describe("R4.6 3PGS satellite/mobile/TV closure", () => {
 
   test("applies role-scoped satellite and mobile guards in AdminModuleRoute", () => {
     const moduleGuard = readAdminModuleRouteSource();
-    expect(moduleGuard).toContain('pathname === "/admin/3pgs-visibility"');
-    expect(moduleGuard).toContain("canAccessThreePgsSatelliteAdminShell(role)");
-    expect(moduleGuard).toContain('pathname === "/admin/3pgs-mobile-urgent"');
-    expect(moduleGuard).toContain("canAccessThreePgsMobileUrgent(role)");
-    expect(moduleGuard).toContain('pathname === "/admin/3pgs-tv"');
-    expect(moduleGuard).toContain("canAccessThreePgsTvAdminShell(role)");
+    assertAdminGuardBranch(moduleGuard, "/admin/3pgs-visibility");
+    assertAdminGuardBranch(moduleGuard, "/admin/3pgs-mobile-urgent");
+    assertAdminGuardBranch(moduleGuard, "/admin/3pgs-tv");
+    expect(moduleGuard).toMatch(
+      /pathname\s*===\s*"\/admin\/3pgs-visibility"\)\s*\{\s*return\s*<>\{children\}<\/>;?\s*\}/,
+    );
   });
 
   test("registers the dedicated sales satellite visibility route for SALES_EXECUTIVE", () => {
     const appSource = readAppSource();
-    expect(appSource).toContain('path="/sales/3pgs-visibility"');
-    expect(appSource).toContain('"SALES_EXECUTIVE"');
-    expect(appSource).toContain("<ThreePgsSatelliteVisibility />");
+    const salesRoute = extractSalesThreePgsVisibilityRoute(appSource);
+    expect(salesRoute).toMatch(SALES_THREE_PGS_VISIBILITY_ROUTE);
+    expect(salesRoute).not.toContain("SUPER_ADMIN");
+    expect(salesRoute).not.toContain('"ADMIN"');
     expect(canAccessThreePgsSatelliteSalesRoute("SALES_EXECUTIVE")).toBe(true);
+    expect(canAccessThreePgsSatelliteSalesRoute("HOD_ASSEMBLY")).toBe(false);
+    expect(canAccessThreePgsSatelliteSalesRoute("ADMIN")).toBe(false);
+    expect(canAccessThreePgsSatelliteSalesRoute("SUPER_ADMIN")).toBe(false);
     expect(canAccessThreePgsSatelliteAdminShell("SALES_EXECUTIVE")).toBe(false);
   });
 

@@ -516,7 +516,7 @@ const App = () => (
                     path="/sales/3pgs-visibility"
                     element={
                       <ProtectedRoute>
-                        <RoleProtectedRoute allowedRoles={["SALES_EXECUTIVE", "SUPER_ADMIN", "ADMIN"]}>
+                        <RoleProtectedRoute allowedRoles={["SALES_EXECUTIVE"]}>
                           <ThreePgsSatelliteVisibility />
                         </RoleProtectedRoute>
                       </ProtectedRoute>
