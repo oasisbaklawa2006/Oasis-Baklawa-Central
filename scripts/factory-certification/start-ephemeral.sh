@@ -28,6 +28,41 @@ trap 'rm -f "${STATUS_FILE}"' EXIT
 
 pushd "${CORE_REPO}" >/dev/null
 
+# Enable TOTP MFA enrollment/verification on the disposable local stack only.
+# This edits the CI runner's local, uncommitted checkout of Core's
+# supabase/config.toml -- never committed or pushed back to oasis-supabase-core
+# -- because the Supabase CLI defaults TOTP enrollment to disabled and every
+# hosted/production project's MFA policy is configured separately in the
+# Supabase dashboard, never read from this file. Without this, FACT-E2E's AAL2
+# step-up identity bootstrap (create-test-identities.mjs) fails outright with
+# "MFA enroll is disabled for TOTP" before any golden-order stage can run.
+CONFIG_TOML="supabase/config.toml"
+if grep -Eq '^[[:space:]]*\[auth\.mfa\.totp\][[:space:]]*(#.*)?$' "${CONFIG_TOML}"; then
+  awk '
+    BEGIN { in_totp = 0; enroll_set = 0; verify_set = 0 }
+    /^[[:space:]]*\[auth\.mfa\.totp\][[:space:]]*(#.*)?$/ { in_totp = 1; print; next }
+    /^[[:space:]]*\[/ {
+      if (in_totp) {
+        if (!enroll_set) print "enroll_enabled = true"
+        if (!verify_set) print "verify_enabled = true"
+      }
+      in_totp = 0
+    }
+    in_totp && /^[[:space:]]*enroll_enabled[[:space:]]*=/ { print "enroll_enabled = true"; enroll_set = 1; next }
+    in_totp && /^[[:space:]]*verify_enabled[[:space:]]*=/ { print "verify_enabled = true"; verify_set = 1; next }
+    { print }
+    END {
+      if (in_totp) {
+        if (!enroll_set) print "enroll_enabled = true"
+        if (!verify_set) print "verify_enabled = true"
+      }
+    }
+  ' "${CONFIG_TOML}" > "${CONFIG_TOML}.tmp"
+  mv "${CONFIG_TOML}.tmp" "${CONFIG_TOML}"
+else
+  printf '\n[auth.mfa.totp]\nenroll_enabled = true\nverify_enabled = true\n' >> "${CONFIG_TOML}"
+fi
+
 # Match Core's own Migration CI semantics: start performs a zero-state replay,
 # and db reset --local proves the complete migration chain again.
 supabase start
@@ -42,10 +77,19 @@ source "${STATUS_FILE}"
 : "${API_URL:?Supabase CLI status did not expose API_URL}"
 : "${ANON_KEY:?Supabase CLI status did not expose ANON_KEY}"
 : "${SERVICE_ROLE_KEY:?Supabase CLI status did not expose SERVICE_ROLE_KEY}"
+: "${DB_URL:?Supabase CLI status did not expose DB_URL}"
 
 export FACTORY_CERT_SUPABASE_URL="${API_URL}"
 export FACTORY_CERT_SUPABASE_ANON_KEY="${ANON_KEY}"
 export FACTORY_CERT_LOCAL_SERVICE_ROLE_KEY="${SERVICE_ROLE_KEY}"
+# Direct native-Postgres connection to the disposable local stack, used only
+# by seed-production-fixtures.mjs's postgres-role bootstrap path (Core's
+# assign_order_number_on_insert trigger, 20260901005700_app_e2e_order_creation_scope_hardening.sql,
+# permits a raw orders INSERT with an explicit order_number only from a
+# literal session_user='postgres' connection with no JWT context -- the
+# service-role PostgREST client runs as role 'service_role', not 'postgres',
+# and cannot satisfy this). Loopback-only, same as the PostgREST client above.
+export FACTORY_CERT_LOCAL_DB_URL="${DB_URL}"
 export FACTORY_CERT_ENVIRONMENT_ID="${FACTORY_CERT_ENVIRONMENT_ID:-factory-cert-local-$(date +%Y%m%d%H%M%S)}"
 
 # The credential path is deliberately fixed. Accepting an environment-derived

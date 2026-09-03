@@ -1,24 +1,78 @@
 #!/usr/bin/env node
 import { randomBytes } from "node:crypto";
 import { chmod, writeFile } from "node:fs/promises";
+import { createClient } from "@supabase/supabase-js";
 import {
   assertNoSupabaseError,
+  computeTotpCode,
   createLocalSupabaseAdminClient,
 } from "./local-supabase-client.mjs";
 
 const baseUrl = process.env.FACTORY_CERT_SUPABASE_URL?.trim();
 const serviceRoleKey = process.env.FACTORY_CERT_LOCAL_SERVICE_ROLE_KEY?.trim();
+const anonKey = process.env.FACTORY_CERT_SUPABASE_ANON_KEY?.trim();
 const outputFile = "/tmp/oasis-factory-certification.env";
 
-if (!baseUrl || !serviceRoleKey) {
-  throw new Error("FACTORY_CERT_SUPABASE_URL and FACTORY_CERT_LOCAL_SERVICE_ROLE_KEY are required");
+if (!baseUrl || !serviceRoleKey || !anonKey) {
+  throw new Error("FACTORY_CERT_SUPABASE_URL, FACTORY_CERT_LOCAL_SERVICE_ROLE_KEY and FACTORY_CERT_SUPABASE_ANON_KEY are required");
 }
 
-const { client: supabase } = createLocalSupabaseAdminClient({
+const { client: supabase, localSupabaseOrigin } = createLocalSupabaseAdminClient({
   baseUrl,
   serviceRoleKey,
   callerLabel: "Identity bootstrap",
 });
+
+// Roles authorised to decide Finance Operations Clearance
+// (assert_order_transition_role('finance_review')/('release_manufacturing'),
+// 20260809060000_wave1b_server_authority_foundation.sql) also require an
+// AAL2 (MFA step-up) session -- has_step_up_auth() only trusts service_role
+// or auth.jwt()->>'aal'='aal2'. No real per-role authenticated Playwright
+// login can ever reach aal2 without an actual enrolled TOTP factor, so this
+// bootstrap enrols and verifies one for the Finance identities that need to
+// call decide_finance_operations_clearance_v1 in FACT-E2E's F0 stage. The
+// disposable secret is exported alongside the identity's own credentials;
+// nothing here is reused outside this disposable local stack.
+const AAL2_STEP_UP_ROLES = new Set(["finance_head"]);
+
+/**
+ * Enrol and immediately verify one TOTP MFA factor for a freshly created
+ * disposable identity, signing in as that identity with the anon key (never
+ * service_role -- enrollment must happen in the user's own auth context).
+ * Returns the base32 secret so a later Playwright run can compute fresh
+ * step-up codes from the SAME factor, matching real re-authentication.
+ *
+ * @param {{email: string, password: string}} identity
+ * @returns {Promise<string>} the enrolled factor's base32 TOTP secret
+ */
+async function enrollTotpFactor({ email, password: identityPassword }) {
+  const identityClient = createClient(localSupabaseOrigin, anonKey, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+  });
+  const { error: signInError } = await identityClient.auth.signInWithPassword({ email, password: identityPassword });
+  assertNoSupabaseError(signInError, `MFA bootstrap sign-in failed for ${email}`);
+
+  const { data: enrollData, error: enrollError } = await identityClient.auth.mfa.enroll({ factorType: "totp" });
+  assertNoSupabaseError(enrollError, `MFA TOTP enrollment failed for ${email}`);
+  const factorId = enrollData?.id;
+  const secret = enrollData?.totp?.secret;
+  if (!factorId || !secret) {
+    throw new Error(`MFA TOTP enrollment for ${email} did not return a factor id/secret`);
+  }
+
+  const { data: challengeData, error: challengeError } = await identityClient.auth.mfa.challenge({ factorId });
+  assertNoSupabaseError(challengeError, `MFA TOTP challenge failed for ${email}`);
+
+  const { error: verifyError } = await identityClient.auth.mfa.verify({
+    factorId,
+    challengeId: challengeData.id,
+    code: computeTotpCode(secret),
+  });
+  assertNoSupabaseError(verifyError, `MFA TOTP verification failed for ${email}`);
+
+  await identityClient.auth.signOut();
+  return secret;
+}
 
 const REQUIRED_AUTOMATIC_CERT_ROLES = [
   "prod_arabic_sweets",
@@ -235,8 +289,24 @@ for (const roleKey of allRoleKeys) {
   const envKey = envRole(roleKey);
   credentialLines.push(`export FACTORY_CERT_${envKey}_EMAIL=${shellQuote(email)}`);
   credentialLines.push(`export FACTORY_CERT_${envKey}_PASSWORD=${shellQuote(userPassword)}`);
+
+  if (AAL2_STEP_UP_ROLES.has(roleKey)) {
+    const totpSecret = await enrollTotpFactor({ email, password: userPassword });
+    credentialLines.push(`export FACTORY_CERT_${envKey}_TOTP_SECRET=${shellQuote(totpSecret)}`);
+  }
+
   createdRoleKeys.add(roleKey);
   identityCount += 1;
+}
+
+for (const requiredAal2Role of AAL2_STEP_UP_ROLES) {
+  if (!createdRoleKeys.has(requiredAal2Role)) {
+    throw new Error(`CREDENTIAL_BOOTSTRAP_FAILED: AAL2 step-up role ${requiredAal2Role} was not created`);
+  }
+  const envKey = envRole(requiredAal2Role);
+  if (!credentialLines.some((line) => line.startsWith(`export FACTORY_CERT_${envKey}_TOTP_SECRET=`))) {
+    throw new Error(`CREDENTIAL_BOOTSTRAP_FAILED: AAL2 step-up role ${requiredAal2Role} has no enrolled TOTP secret`);
+  }
 }
 
 for (const requiredRole of REQUIRED_AUTOMATIC_CERT_ROLES) {

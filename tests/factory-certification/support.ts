@@ -1,5 +1,6 @@
 import { expect, type Page } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
+import { computeTotpCode } from "../../scripts/factory-certification/totp.mjs";
 import type { DatabaseWithCanonicalProductionDepartment } from "../../src/lib/production-jobs/productionJobsDatabase";
 import type { FactoryRouteEntry } from "../../src/lib/factoryOperationsRouteRegistry";
 import { FACTORY_OPERATIONS_ROUTES } from "../../src/lib/factoryOperationsRouteRegistry";
@@ -151,11 +152,11 @@ export async function loginToFactoryCertificationTarget(
   await page.waitForURL((url) => !/\/login(?:\/|$|\?)/i.test(url.pathname), { timeout: 120_000 });
 }
 
-type BrowserSessionProof = { accessToken: string; userId: string };
+type BrowserSessionProof = { accessToken: string; refreshToken: string; userId: string };
 
 export async function readBrowserSessionProof(page: Page): Promise<BrowserSessionProof> {
   const proof = await page.evaluate(() => {
-    type SessionLike = { access_token?: unknown; user?: { id?: unknown } };
+    type SessionLike = { access_token?: unknown; refresh_token?: unknown; user?: { id?: unknown } };
     type SearchNode = { value: unknown; depth: number };
 
     const findSession = (root: unknown): SessionLike | null => {
@@ -173,7 +174,11 @@ export async function readBrowserSessionProof(page: Page): Promise<BrowserSessio
         if (!value || typeof value !== "object") continue;
 
         const candidate = value as SessionLike;
-        if (typeof candidate.access_token === "string" && typeof candidate.user?.id === "string") {
+        if (
+          typeof candidate.access_token === "string" &&
+          typeof candidate.refresh_token === "string" &&
+          typeof candidate.user?.id === "string"
+        ) {
           return candidate;
         }
         if (depth >= MAX_DEPTH) continue;
@@ -195,8 +200,13 @@ export async function readBrowserSessionProof(page: Page): Promise<BrowserSessio
       if (!raw) continue;
       try {
         const found = findSession(JSON.parse(raw));
-        if (found && typeof found.access_token === "string" && typeof found.user?.id === "string") {
-          return { accessToken: found.access_token, userId: found.user.id };
+        if (
+          found &&
+          typeof found.access_token === "string" &&
+          typeof found.refresh_token === "string" &&
+          typeof found.user?.id === "string"
+        ) {
+          return { accessToken: found.access_token, refreshToken: found.refresh_token, userId: found.user.id };
         }
       } catch {
         // Ignore unrelated localStorage values; only a valid Supabase session is accepted.
@@ -223,7 +233,7 @@ function createCertificationClient(
   });
 }
 
-async function createAuthenticatedCertificationClient(
+export async function createAuthenticatedCertificationClient(
   page: Page,
 ): Promise<{ client: ReturnType<typeof createCertificationClient>; session: BrowserSessionProof }> {
   const backend = resolveFactoryCertificationBackend();
@@ -269,4 +279,63 @@ export function expectedDestinationFor(entry: FactoryRouteEntry): string {
     return entry.legacyRedirectTarget;
   }
   return entry.route;
+}
+
+/**
+ * Read the base32 TOTP secret enrolled for a disposable identity by
+ * scripts/factory-certification/create-test-identities.mjs's AAL2_STEP_UP_ROLES
+ * bootstrap. Distinct from readFactoryCertificationCredentials -- a role only
+ * has this if Core's assert_order_transition_role gate for its RPCs also
+ * requires has_step_up_auth() (AAL2).
+ */
+export function readFactoryCertificationTotpSecret(role: string): string | null {
+  const spec = factoryCertificationCredentialSpec(role);
+  const secret = process.env[`FACTORY_CERT_${spec.role}_TOTP_SECRET`]?.trim();
+  return secret || null;
+}
+
+/**
+ * Build a Supabase client stepped up to AAL2 for the browser's currently
+ * authenticated identity, by re-establishing the exact same session
+ * (access + refresh token extracted from browser storage) in a Node-side
+ * client, then completing a real MFA challenge/verify against the TOTP
+ * factor create-test-identities.mjs enrolled for this role. Required for any
+ * RPC gated by Core's has_step_up_auth() (e.g. decide_finance_operations_clearance_v1)
+ * -- a plain per-role login only ever reaches AAL1.
+ */
+export async function createSteppedUpCertificationClient(
+  page: Page,
+  role: string,
+): Promise<ReturnType<typeof createClient<DatabaseWithCanonicalProductionDepartment>>> {
+  const totpSecret = readFactoryCertificationTotpSecret(role);
+  if (!totpSecret) {
+    throw new Error(`AAL2_TOTP_SECRET_REQUIRED: FACTORY_CERT_${factoryCertificationCredentialSpec(role).role}_TOTP_SECRET missing`);
+  }
+  const backend = resolveFactoryCertificationBackend();
+  const session = await readBrowserSessionProof(page);
+  const client = createClient<DatabaseWithCanonicalProductionDepartment>(backend.url, backend.anonKey, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+  });
+  const { error: setSessionError } = await client.auth.setSession({
+    access_token: session.accessToken,
+    refresh_token: session.refreshToken,
+  });
+  if (setSessionError) throw new Error(`AAL2_SESSION_RESTORE_FAILED: ${setSessionError.message}`);
+
+  const { data: factorsData, error: factorsError } = await client.auth.mfa.listFactors();
+  if (factorsError) throw new Error(`AAL2_LIST_FACTORS_FAILED: ${factorsError.message}`);
+  const totpFactor = factorsData?.totp?.find((factor) => factor.status === "verified");
+  if (!totpFactor) throw new Error(`AAL2_NO_VERIFIED_TOTP_FACTOR: role ${role} has no verified TOTP factor`);
+
+  const { data: challengeData, error: challengeError } = await client.auth.mfa.challenge({ factorId: totpFactor.id });
+  if (challengeError) throw new Error(`AAL2_CHALLENGE_FAILED: ${challengeError.message}`);
+
+  const { error: verifyError } = await client.auth.mfa.verify({
+    factorId: totpFactor.id,
+    challengeId: challengeData.id,
+    code: computeTotpCode(totpSecret),
+  });
+  if (verifyError) throw new Error(`AAL2_VERIFY_FAILED: ${verifyError.message}`);
+
+  return client;
 }
