@@ -100,12 +100,11 @@ const ExecutionCommandCenter = lazy(() => import("./pages/admin/ExecutionCommand
 const ExecutionRiskBoard = lazy(() => import("./pages/admin/ExecutionRiskBoard.tsx"));
 const ExecutionBottlenecks = lazy(() => import("./pages/admin/ExecutionBottlenecks.tsx"));
 // ProductionExecutionBoard / AssemblyExecutionBoard / ReadyGoodsExecutionBoard
-// are no longer routed -- their routes now redirect to the governed
-// canonical surfaces (see the execution/production etc. <Route> comments
+// and DispatchExecutionBoard are no longer routed -- their routes now redirect
+// to the governed canonical surfaces (see the execution/* <Route> comments
 // below); the components themselves are left in place, unrouted, rather
-// than deleted, since DepartmentExecutionBoard is shared with the four
+// than deleted, since DepartmentExecutionBoard is shared with the remaining
 // execution boards still in service.
-const DispatchExecutionBoard = lazy(() => import("./pages/admin/execution/DispatchExecutionBoard.tsx"));
 const ThirdPartyExecutionBoard = lazy(() => import("./pages/admin/execution/ThirdPartyExecutionBoard.tsx"));
 const RetailExecutionBoard = lazy(() => import("./pages/admin/execution/RetailExecutionBoard.tsx"));
 const ComplaintsExecutionBoard = lazy(() => import("./pages/admin/execution/ComplaintsExecutionBoard.tsx"));
@@ -413,25 +412,16 @@ const App = () => (
                       oasis-supabase-core's migration history for every
                       queue_type -- confirmed dead data by direct inspection.
                       Redirected to the real governed surfaces that read the
-                      authoritative tables instead. execution/dispatch,
-                      execution/third-party, execution/retail and
-                      execution/complaints are in the same dead-data
-                      situation but are NOT redirected here -- no confirmed
-                      1:1 canonical replacement was established for those
-                      four in the time available; a redirect requires a
-                      proven target plus a passing test first.
+                      authoritative tables instead. execution/dispatch now
+                      redirects to FACT-C3 /admin/dispatch-mgmt (Lane D).
+                      execution/third-party redirects to the governed 3PGS
+                      queue. execution/retail and execution/complaints remain
+                      in the dead-data situation and are NOT redirected here.
                     */}
                     <Route path="execution/production" element={<Navigate to="/operations-controller" replace />} />
                     <Route path="execution/assembly" element={<Navigate to="/admin/assembly-tasks" replace />} />
                     <Route path="execution/ready-goods" element={<Navigate to="/admin/ready-goods" replace />} />
-                    <Route
-                      path="execution/dispatch"
-                      element={
-                        <AdminModuleRoute moduleKey="dispatch">
-                          <DispatchExecutionBoard />
-                        </AdminModuleRoute>
-                      }
-                    />
+                    <Route path="execution/dispatch" element={<Navigate to="/admin/dispatch-mgmt" replace />} />
                     <Route
                       path="execution/third-party"
                       element={

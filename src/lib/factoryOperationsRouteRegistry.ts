@@ -533,13 +533,14 @@ export const FACTORY_OPERATIONS_ROUTES: FactoryRouteEntry[] = [
   //    a proven target plus a passing test first) ────────────────────────
   {
     route: "/admin/execution/dispatch",
-    label: "Legacy Dispatch Execution Board",
+    label: "Legacy Dispatch Execution Board (redirected)",
     subsystem: "DISPATCH",
-    technicallyAllowedRoles: ADMIN_STAFF_ROLES_REFERENCE,
+    technicallyAllowedRoles: [],
     intendedPrimaryAudience: [],
-    status: "FACTORY_LEGACY",
+    status: "LEGACY_REDIRECT",
+    legacyRedirectTarget: "/admin/dispatch-mgmt",
     deviceClass: "DESKTOP",
-    evidence: "App.tsx: DispatchExecutionBoard, reads operational_queue_items (zero writers, confirmed dead data). Not redirected -- no confirmed 1:1 canonical replacement (dispatch now has FOUR live candidates: dispatch-mgmt, dispatch-readiness, dispatch-completion, dispatch-finalization -- which one is canonical for this legacy path is unresolved).",
+    evidence: "Lane D closure: DispatchExecutionBoard now redirects to FACT-C3 DispatchManagement (/admin/dispatch-mgmt). The former DepartmentExecutionBoard projection read operational_queue_items (zero writers). Governed consignment/carton/DPL authority lives only on dispatch-mgmt.",
   },
   {
     route: "/admin/execution/third-party",
