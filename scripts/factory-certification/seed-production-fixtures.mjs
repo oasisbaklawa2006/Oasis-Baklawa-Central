@@ -430,7 +430,7 @@ END $$;`,
   "Point-37 PI binding fixture bootstrap");
 
 await appendFile(
-  credentialFile,
+  "/tmp/oasis-factory-certification.env",
   `export FACTORY_CERT_POINT37_ORDER_ID='${POINT37_ORDER_ID}'\nexport FACTORY_CERT_POINT37_ORDER_ITEM_ID='${POINT37_ORDER_ITEM_ID}'\n`,
   { encoding: "utf8" },
 );
