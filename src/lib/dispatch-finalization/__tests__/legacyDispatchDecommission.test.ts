@@ -40,9 +40,10 @@ describe("Phase 4F legacy dispatch decommission", () => {
     expect(src).toContain("DispatchFinalizationBoard");
   });
 
-  it("supabase finalization store is only orders.update site in charter", () => {
+  it("supabase finalization store uses governed dispatch RPC only", () => {
     const src = readSrc("lib/dispatch-finalization/supabaseDispatchFinalizationStore.ts");
-    expect(src).toContain(".update(patch)");
+    expect(src).toContain("releaseOrderToDispatched");
+    expect(src).not.toMatch(/from\(["']orders["']\)\.update\(/);
     const packing = readSrc("pages/admin/AdminPackingDispatch.tsx");
     expect(packing).not.toMatch(/orders["']\)\.update\(\{[^}]*status:\s*["']dispatched/);
   });

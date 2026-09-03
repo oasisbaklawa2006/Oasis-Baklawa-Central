@@ -49,4 +49,11 @@ describe("Factory certification effective authorization", () => {
     expect(isEffectivelyAuthorizedFactoryRole(procurement, "STORE_READY_GOODS")).toBe(false);
     expect(resolveEffectiveFactoryCertificationRole(procurement)).toBe("STORE_3RD_PARTY");
   });
+
+  it("allows finance pilot roles to certify the Golden Chain Operator wizard", () => {
+    const wizard = route("/admin/golden-chain-operator");
+    expect(isEffectivelyAuthorizedFactoryRole(wizard, "FINANCE_HEAD")).toBe(true);
+    expect(isEffectivelyAuthorizedFactoryRole(wizard, "DISPATCH_MANAGER")).toBe(true);
+    expect(isEffectivelyAuthorizedFactoryRole(wizard, "PROD_ARABIC_SWEETS")).toBe(false);
+  });
 });

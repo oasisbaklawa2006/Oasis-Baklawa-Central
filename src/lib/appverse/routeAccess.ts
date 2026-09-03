@@ -1,4 +1,12 @@
-import type { AppVerseModuleKey } from "./roleAccess";
+import {
+  getAllowedModulesForRole,
+  hasModuleAccess,
+  type AppVerseModuleKey,
+} from "./roleAccess";
+
+export const GOLDEN_CHAIN_OPERATOR_ROUTE = "/admin/golden-chain-operator";
+
+const GOLDEN_CHAIN_OPERATOR_MODULE_KEYS: AppVerseModuleKey[] = ["dispatch", "finance", "inventory"];
 
 const ADMIN_ROUTE_MODULES: Array<{ prefix: string; moduleKey: AppVerseModuleKey }> = [
   { prefix: "/admin/execution/production", moduleKey: "production" },
@@ -86,4 +94,23 @@ export function getRequiredModuleForAdminPath(pathname: string): AppVerseModuleK
     pathname === prefix || pathname.startsWith(`${prefix}/`),
   ).sort((a, b) => b.prefix.length - a.prefix.length);
   return matches[0]?.moduleKey ?? null;
+}
+
+function isGoldenChainOperatorPath(pathname: string): boolean {
+  return pathname === GOLDEN_CHAIN_OPERATOR_ROUTE || pathname.startsWith(`${GOLDEN_CHAIN_OPERATOR_ROUTE}/`);
+}
+
+/** Phase 24L pilot: finance and inventory operators share the wizard with dispatch. */
+export function canAccessGoldenChainOperatorRoute(role: string | null | undefined): boolean {
+  const allowedModules = getAllowedModulesForRole(role);
+  return GOLDEN_CHAIN_OPERATOR_MODULE_KEYS.some((moduleKey) => hasModuleAccess(allowedModules, moduleKey));
+}
+
+/** Complete AdminRouteGuard authorization for a concrete /admin path and role. */
+export function isAuthorizedForAdminPath(pathname: string, role: string | null | undefined): boolean {
+  if (!pathname.startsWith("/admin")) return true;
+  if (isGoldenChainOperatorPath(pathname)) return canAccessGoldenChainOperatorRoute(role);
+  const requiredModule = getRequiredModuleForAdminPath(pathname);
+  const allowedModules = getAllowedModulesForRole(role);
+  return requiredModule !== null && hasModuleAccess(allowedModules, requiredModule);
 }

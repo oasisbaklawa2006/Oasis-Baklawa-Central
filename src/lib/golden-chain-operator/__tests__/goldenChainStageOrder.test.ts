@@ -319,4 +319,19 @@ describe("golden chain stage order (24D)", () => {
     expect(result.stage).toBe("stock_finalization");
     expect(result.cta).toBe("Finalize stock");
   });
+
+  it("stays on dispatch_finalization when finalize lineage exists but order is not dispatched", () => {
+    const result = deriveGoldenChainStage(
+      base({
+        finalizationInput: { ...finalizationReady, currentOrderStatus: "cleared_for_dispatch" },
+        completionInput: { ...completionReady, orderAlreadyDispatched: false },
+        completionAttested: true,
+        dispatchLineage: [{ releaseType: "finalize", nextStatus: "dispatched", createdAt: new Date().toISOString() }],
+        financeCommerciallyReleased: true,
+      }),
+    );
+    expect(result.stage).toBe("dispatch_finalization");
+    expect(result.dispatchAlreadyFinalized).toBe(true);
+    expect(result.rawBlockers).toContain("dispatch_finalize_lineage_exists");
+  });
 });

@@ -23,6 +23,7 @@ import { signOutAndClearSession } from "@/utils/authSession";
 import { useAdminRealtimeToasts } from "@/hooks/useAdminRealtimeToasts";
 import { shouldHideAdvancedGovernanceNav } from "@/lib/golden-chain/operatorNavigation";
 import { getAllowedModulesForRole, hasModuleAccess, type AppVerseModuleKey } from "@/lib/appverse/roleAccess";
+import { canAccessGoldenChainOperatorRoute } from "@/lib/appverse/routeAccess";
 
 interface NavItem {
   to: string; icon: React.ElementType; label: string; end?: boolean; moduleKey: AppVerseModuleKey;
@@ -135,8 +136,7 @@ const AdminLayout = () => {
   const hasAccess = (moduleKey: AppVerseModuleKey) => hasModuleAccess(allowedModules, moduleKey);
   const hideAdvancedGovernance = shouldHideAdvancedGovernanceNav(role);
 
-  const canAccessGoldenChainOperator = () =>
-    (["dispatch", "finance", "inventory"] as AppVerseModuleKey[]).some((moduleKey) => hasAccess(moduleKey));
+  const canAccessGoldenChainOperator = () => canAccessGoldenChainOperatorRoute(role);
 
   const filteredSections = navSections
     .map((section) => ({

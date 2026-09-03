@@ -47,9 +47,19 @@ export async function executeGovernedFinalizeDispatch(params: {
   const live = await params.orders.getOrderStatus(input.orderId);
   const previousStatus = live?.status ?? input.currentOrderStatus;
 
+  const statusUpdate = await updateOrderDispatchStatus(params.orders, {
+    orderId: input.orderId,
+    expectedPreviousStatus: previousStatus,
+    nextStatus: "dispatched",
+    trackingNumber: params.finalize.trackingNumber,
+    courierName: params.finalize.courierName,
+    finalizeReason: reason,
+    correlationId: ctx.correlationId,
+  });
+
   const lineageRow = buildFinalizeLineageRow({
     orderId: input.orderId,
-    previousStatus,
+    previousStatus: statusUpdate.previousStatus,
     releaseReason: reason,
     transporterReference: transporterRef,
     gateReference: input.gateReference,
@@ -62,14 +72,6 @@ export async function executeGovernedFinalizeDispatch(params: {
   });
 
   const lineage = await params.lineage.insertLineage(lineageRow);
-
-  const statusUpdate = await updateOrderDispatchStatus(params.orders, {
-    orderId: input.orderId,
-    expectedPreviousStatus: previousStatus,
-    nextStatus: "dispatched",
-    trackingNumber: params.finalize.trackingNumber,
-    courierName: params.finalize.courierName,
-  });
 
   await params.orders.insertStatusHistory({
     orderId: input.orderId,

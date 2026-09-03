@@ -205,6 +205,16 @@ describe("golden chain dispatch finalize advance", () => {
     expect(goldenChainAdvancedPastDispatchFinalize(drift, fixed)).toBe(true);
   });
 
+  it("does not treat finalize lineage alone as dispatch-finalize drift", () => {
+    const drift = minimalState({
+      stage: "dispatch_finalization",
+      orderStatus: "cleared_for_dispatch",
+      dispatchAlreadyFinalized: true,
+      cta: "Finalize dispatch",
+    });
+    expect(goldenChainDispatchFinalizeDrift(drift)).toBe(false);
+  });
+
   it("duplicate finalize lineage keeps operator on Reserve stock, not Finalize dispatch", () => {
     const result = deriveGoldenChainStage(
       base({

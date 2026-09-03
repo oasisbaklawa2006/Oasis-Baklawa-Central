@@ -1,4 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { releaseOrderToDispatched } from "@/lib/order-authority/orderAuthorityClient";
+import { DispatchFinalizationError } from "./dispatchFinalizationTypes";
 import { validateLineageInsert } from "./dispatchLineage";
 import type {
   DispatchLineageStore,
@@ -100,40 +102,46 @@ export function createSupabaseOrderDispatchStatusRepository(client: SupabaseClie
     },
 
     async updateOrderDispatchStatus(params: OrderDispatchStatusUpdateParams) {
-      const patch: Record<string, unknown> = { status: params.nextStatus };
-      if (params.trackingNumber !== undefined) patch.tracking_number = params.trackingNumber;
-      if (params.courierName !== undefined) patch.courier_name = params.courierName;
+      const result = await releaseOrderToDispatched(params.orderId, {
+        trackingNumber: params.trackingNumber,
+        courierName: params.courierName,
+        finalizeReason: params.finalizeReason,
+        correlationId: params.correlationId,
+      });
 
-      const { data, error } = await client
-        .from("orders")
-        .update(patch)
-        .eq("id", params.orderId)
-        .eq("status", params.expectedPreviousStatus)
-        .select("status")
-        .maybeSingle();
+      const previousStatus = result.previous_status ?? params.expectedPreviousStatus;
+      const nextStatus = result.new_status ?? params.nextStatus;
 
-      if (error) throw new Error(error.message);
-      if (!data) {
+      if (
+        !result.already_applied &&
+        previousStatus.trim().toLowerCase() !== params.expectedPreviousStatus.trim().toLowerCase()
+      ) {
         return {
           updated: false,
-          previousStatus: params.expectedPreviousStatus,
-          nextStatus: params.expectedPreviousStatus,
+          previousStatus,
+          nextStatus: previousStatus,
         };
       }
+
+      if (
+        !result.already_applied &&
+        nextStatus.trim().toLowerCase() !== params.nextStatus.trim().toLowerCase()
+      ) {
+        throw new DispatchFinalizationError(
+          "validation_failed",
+          `Governed dispatch RPC returned unexpected status ${nextStatus}`,
+        );
+      }
+
       return {
         updated: true,
-        previousStatus: params.expectedPreviousStatus,
-        nextStatus: data.status as string,
+        previousStatus,
+        nextStatus,
       };
     },
 
-    async insertStatusHistory(params) {
-      const { error } = await client.from("order_status_history").insert({
-        order_id: params.orderId,
-        old_status: params.oldStatus,
-        new_status: params.newStatus,
-      });
-      if (error) throw new Error(error.message);
+    async insertStatusHistory() {
+      // release_order_to_dispatched_v1 writes order_status_history as SECURITY DEFINER.
     },
   };
 }

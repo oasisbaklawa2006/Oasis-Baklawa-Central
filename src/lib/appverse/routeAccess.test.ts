@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { getRequiredModuleForAdminPath } from "./routeAccess";
+import {
+  canAccessGoldenChainOperatorRoute,
+  getRequiredModuleForAdminPath,
+  isAuthorizedForAdminPath,
+} from "./routeAccess";
 
 describe("getRequiredModuleForAdminPath", () => {
   it("returns null for non-admin paths", () => {
@@ -23,5 +27,20 @@ describe("getRequiredModuleForAdminPath", () => {
   it("maps the read-only Dispatch TV surface to the dispatch module, not the dashboard fallback", () => {
     expect(getRequiredModuleForAdminPath("/admin/dispatch-tv")).toBe("dispatch");
     expect(getRequiredModuleForAdminPath("/admin/dispatch-tv/anything")).toBe("dispatch");
+  });
+});
+
+describe("golden chain operator route access", () => {
+  it("allows finance and inventory pilot roles even though the route maps to dispatch", () => {
+    expect(canAccessGoldenChainOperatorRoute("FINANCE_HEAD")).toBe(true);
+    expect(canAccessGoldenChainOperatorRoute("FINANCE_EXEC")).toBe(true);
+    expect(canAccessGoldenChainOperatorRoute("STORE_READY_GOODS")).toBe(true);
+    expect(canAccessGoldenChainOperatorRoute("DISPATCH_MANAGER")).toBe(true);
+  });
+
+  it("authorizes golden-chain-operator through the dispatch/finance/inventory union", () => {
+    expect(isAuthorizedForAdminPath("/admin/golden-chain-operator", "FINANCE_HEAD")).toBe(true);
+    expect(isAuthorizedForAdminPath("/admin/golden-chain-operator", "PROD_ARABIC_SWEETS")).toBe(false);
+    expect(isAuthorizedForAdminPath("/admin/dispatch-readiness", "FINANCE_HEAD")).toBe(false);
   });
 });
