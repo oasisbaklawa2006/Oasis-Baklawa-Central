@@ -40,6 +40,18 @@ describe("Point 74 — CRM-lite sales assistance (Agent #8 workstation lock)", (
     expect(interactions).toContain("initialFilterCompanyId");
   });
 
+  it("scopes assist timeline reads to the logged-in sales executive", () => {
+    expect(assistPanel).toContain("scopeExecutiveId={userId}");
+    expect(interactions).toContain("scopeExecutiveId");
+    expect(interactions).toContain('.eq("executive_id", scopeExecutiveId)');
+  });
+
+  it("activates the Assist tab when roster Open assist is used", () => {
+    expect(workspace).toContain("setActiveTab(\"assist\")");
+    expect(workspace).toContain("assistFocusCompanyId");
+    expect(dashboard).toContain("Open assist");
+  });
+
   it("does not expand into commission payout mutation (P78 collateral boundary)", () => {
     expect(assistPanel).not.toContain("commission_payouts");
     expect(assistPanel).not.toContain("resolveCreditBinding");

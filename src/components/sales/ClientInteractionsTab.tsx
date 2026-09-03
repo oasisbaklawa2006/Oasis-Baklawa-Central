@@ -36,10 +36,13 @@ export default function ClientInteractionsTab({
   companies,
   userId,
   initialFilterCompanyId,
+  scopeExecutiveId,
 }: {
   companies: Company[];
   userId: string | undefined;
   initialFilterCompanyId?: string;
+  /** When set, interaction reads are scoped to this executive (sales-assist roster lens). */
+  scopeExecutiveId?: string;
 }) {
   const [interactions, setInteractions] = useState<Interaction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -59,17 +62,21 @@ export default function ClientInteractionsTab({
   const fetchInteractions = async () => {
     if (companyIds.length === 0) { setLoading(false); return; }
     setLoading(true);
-    const { data } = await supabase
+    let query = supabase
       .from("client_interactions")
       .select("id, company_id, interaction_type, notes, outcome, follow_up_date, created_at")
       .in("company_id", companyIds)
       .order("created_at", { ascending: false })
       .limit(100);
+    if (scopeExecutiveId) {
+      query = query.eq("executive_id", scopeExecutiveId);
+    }
+    const { data } = await query;
     setInteractions(data || []);
     setLoading(false);
   };
 
-  useEffect(() => { fetchInteractions(); }, [companies]);
+  useEffect(() => { fetchInteractions(); }, [companies, scopeExecutiveId]);
 
   useEffect(() => {
     if (initialFilterCompanyId) {

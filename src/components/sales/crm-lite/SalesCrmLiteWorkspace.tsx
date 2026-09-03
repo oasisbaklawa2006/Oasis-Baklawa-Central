@@ -30,6 +30,8 @@ export default function SalesCrmLiteWorkspace({ userId, companies, assistFocusCo
   const companyIds = useMemo(() => companies.map((c) => c.id), [companies]);
   const companyMap = useMemo(() => Object.fromEntries(companies.map((c) => [c.id, c.business_name || "Unknown"])), [companies]);
 
+  const [activeTab, setActiveTab] = useState("assist");
+
   const [loading, setLoading] = useState(true);
   const [dueFollowUps, setDueFollowUps] = useState<CrmLiteInteraction[]>([]);
   const [tasks, setTasks] = useState<CrmLiteTask[]>([]);
@@ -121,6 +123,12 @@ export default function SalesCrmLiteWorkspace({ userId, companies, assistFocusCo
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    if (assistFocusCompanyId) {
+      setActiveTab("assist");
+    }
+  }, [assistFocusCompanyId]);
 
   const pendingTasks = tasks.filter((t) => t.status === "pending");
   const overdueTasks = pendingTasks.filter((t) => t.due_date < todayIso());
@@ -229,7 +237,7 @@ export default function SalesCrmLiteWorkspace({ userId, companies, assistFocusCo
           </p>
         </CardHeader>
         <CardContent>
-          <Tabs defaultValue="assist">
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="flex h-auto flex-wrap gap-1">
               <TabsTrigger value="assist">Assist</TabsTrigger>
               <TabsTrigger value="followups" className="gap-1">

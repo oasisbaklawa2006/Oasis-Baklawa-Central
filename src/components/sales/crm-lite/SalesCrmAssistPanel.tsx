@@ -31,6 +31,7 @@ export default function SalesCrmAssistPanel({ companies, userId, focusCompanyId 
         companies={companies}
         userId={userId}
         initialFilterCompanyId={focusCompanyId ?? undefined}
+        scopeExecutiveId={userId}
       />
     </div>
   );

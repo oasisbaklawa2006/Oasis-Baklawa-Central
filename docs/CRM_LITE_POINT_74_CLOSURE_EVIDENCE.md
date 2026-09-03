@@ -1,85 +1,103 @@
-# Point 74 closure evidence — CRM-lite sales assistance
+# Point 74 closure matrix — CRM-lite sales assistance
 
 **Workstation:** Agent #8 (exclusive Point 74 owner)  
-**PR:** #449 (`cursor/crm-lite-lane-e-closure-1970`) — legacy bundled carrier; **owned closure scope = Point 74 only**  
+**PR:** #449 (`cursor/crm-lite-lane-e-closure-1970`) — legacy bundled carrier  
 **Issue:** master #437  
-**Merge posture:** **HOLD** behind #448; coordinate canonical rebase/merge with Agent #2 / #450  
-**Gate state:** Software evidence at PR head — **not** stage CLEARED (`PR MERGED ≠ STAGE CLEARED`)
+**Merge posture:** **HOLD behind #448** — no rebase/merge until Agent #2 / #450 clears canonical order  
+**Gate state:** Software evidence at PR head — **not** stage CLEARED
 
 ---
 
-## Point 74 scope (Lane E / #437)
+## Closure matrix (Point 74 only)
 
-Bounded CRM-lite **sales assistance** on the sales executive console:
+| # | Requirement | Classification | Evidence | Agent #8 status |
+|---:|---|---|---|---|
+| 1 | Sales exec landing route | **Complete** | `auth-routing.ts` → `/sales/dashboard`; `App.tsx` `RoleProtectedRoute` | Verified + contract test |
+| 2 | Role admission gate | **Complete** | `SALES_DASHBOARD_ROLES = ADMIN + SALES_EXECUTIVE`; server role verify in `RoleProtectedRoute` | Verified + contract test |
+| 3 | Assigned-roster query | **Complete** | `SalesDashboard` filters `companies.account_manager_id = user.id` | Implemented |
+| 4 | Unified assist surface | **Complete** | `SalesCrmAssistPanel` (`data-point="74"`) on Assist tab | Implemented |
+| 5 | Interaction timeline CRUD | **Complete** | `ClientInteractionsTab` + header Log Call/Message modals → `client_interactions` | Implemented |
+| 6 | Executive-scoped reads | **Gap → fixed** | Assist panel now passes `scopeExecutiveId` (was showing all exec interactions on roster companies) | **Fixed this hold** |
+| 7 | Roster → assist deep link | **Gap → fixed** | **Open assist** now switches to Assist tab + focuses client filter (was scroll-only) | **Fixed this hold** |
+| 8 | WA outbound auto-log | **Complete (Core)** | `send-whatsapp` edge writes `client_interactions` when `company_id` present | Evidence-only; no Central change |
+| 9 | Admin sales hub parity | **Complete (collateral)** | `/admin/sales-hub` retains admin-wide interaction view without exec scope | Not P74 claim |
+| 10 | Full Customer 360 | **Upstream / out of scope** | Register P59–64 | Not Agent #8 |
 
-- Assigned-roster client interaction logging (call, WhatsApp, visit, note)
-- Governed timeline writes to `client_interactions` scoped by `companies.account_manager_id`
-- Unified assist surface on `/sales/dashboard` (not fragmented across admin sales hub only)
-
-**Explicitly out of Agent #8 ownership:** Points 75–78 remain collateral in #449; Agent #8 does not claim or expand them.
-
----
-
-## Classification
-
-| Field | Value |
-|---|---|
-| **Before** | Partial — interaction CRUD existed but fragmented; no unified assist workspace on sales console |
-| **After (Agent #8 head)** | **Software-complete for bounded v1 assist** — unified Assist panel + roster deep-link |
-| **Upstream** | Core `client_interactions` table + RLS (merged); WA outbound auto-log via `send-whatsapp` edge |
-| **Downstream** | Full Customer 360 (register P59–64); repeat-contact automation (P75 — other workstation) |
+**Point 74 bounded verdict:** **software-complete at PR head** pending CI re-run and merge hold lift.
 
 ---
 
-## Implementation evidence
+## Role / route authority
 
-| Capability | Route | File | Contract |
+| Surface | Route | Allowed roles | Default landing | Module key |
+|---|---|---|---|---|
+| Sales Executive Console | `/sales/dashboard` | `SUPER_ADMIN`, `ADMIN`, `SALES_EXECUTIVE` | `SALES_EXECUTIVE` → `/sales/dashboard` | `clients` (admin nav link) |
+| Admin sales hub (not P74) | `/admin/sales-hub` | Admin staff module set | Admin CMD | `clients` |
+
+Contract tests: `salesDashboardRouteAuthority.test.ts`, `auth-routing.test.ts` (existing SALES_EXECUTIVE path check).
+
+---
+
+## Genuine defects found during hold (fixed on branch)
+
+| Defect | Impact | Fix | Points touched |
 |---|---|---|---|
-| Sales exec console | `/sales/dashboard` | `src/pages/sales/SalesDashboard.tsx` | Roster by `account_manager_id`; KPI CRM score |
-| Quick assist actions | `/sales/dashboard` header | `SalesDashboard.tsx` | Log Call / Log Message modals → `client_interactions.insert` |
-| Unified assist panel | `/sales/dashboard` → Assist tab | `src/components/sales/crm-lite/SalesCrmAssistPanel.tsx` | Point 74 owned surface (`data-point="74"`) |
-| Interaction timeline | Assist tab | `src/components/sales/ClientInteractionsTab.tsx` | `client_interactions` select/insert; optional roster focus filter |
-| Roster → assist deep link | Client roster table | `SalesDashboard.tsx` | **Open assist** sets focus company + scrolls to workspace |
-| Workspace mount | `/sales/dashboard` | `src/components/sales/crm-lite/SalesCrmLiteWorkspace.tsx` | Assist tab delegates to `SalesCrmAssistPanel` only |
+| **D74-1** Assist timeline read not scoped to `executive_id` | Sales exec could see other executives' interactions on shared roster companies | `ClientInteractionsTab.scopeExecutiveId`; set from `SalesCrmAssistPanel` | **P74 only** |
+| **D74-2** **Open assist** did not activate Assist tab | Deep-link scrolled to workspace but left user on collateral tab if previously selected | Controlled `activeTab` in workspace; switches to `assist` on focus | **P74 wiring only** (no P75–78 logic change) |
+
+**Not defects (documented boundaries):**
+
+- Authenticated assist screenshot requires sales-exec test credentials (environment gap, not code)
+- Vercel preview rate-limited on free tier (deployment gap, not code)
+- Collateral tabs P75–78 remain in bundled PR; other workstations own closure claims
 
 ---
 
-## Exact-head validation (Agent #8)
+## Test evidence (exact-head)
 
 ```bash
 npm run typecheck
 npm run test -- src/lib/crm-lite/__tests__/salesCrmAssistPoint74.test.ts
-npm run test -- src/lib/crm-lite/__tests__/salesCrmLiteClosure.test.ts
+npm run test -- src/lib/crm-lite/__tests__/salesDashboardRouteAuthority.test.ts
+npm run test -- src/lib/crm-lite/__tests__/
 npm run build
+# Runtime auth-gate proof (CI preview smoke when app URL available):
+npx playwright test tests/sales-dashboard-point74-smoke.spec.ts --project=desktop-chrome-size
 ```
 
 ---
 
-## CI / review posture
+## Runtime evidence prepared (no canonical base change)
 
-| Check | Status at Agent #8 head |
-|---|---|
-| Typecheck (`tsconfig.app.json`) | Fixed — `parseCrmLiteTickets` normalizes nested Supabase join rows (collateral P77 type safety) |
-| Unit contract tests | P74 dedicated + lane bundle regression |
-| Production build | Required green before merge hold lifts |
-| Merge hold | **HOLD behind #448** until Mission Control / Agent #2 clears canonical order |
-
----
-
-## Runtime proof
-
-Preview deployment (Vercel #449): `/sales/dashboard` — Assist tab shows CRM-lite sales assistance panel with interaction timeline and roster **Open assist** deep-link.
-
-Artifact: see PR walkthrough / agent recording for Assist tab render at preview head.
+| Artifact | Purpose | Auth required |
+|---|---|---|
+| `tests/sales-dashboard-point74-smoke.spec.ts` | CI/preview proof that `/sales/dashboard` enforces login gate | No |
+| `point74_sales_console_login_page.png` | Preview route loads app shell | No |
+| `point74_sales_dashboard_route_loads.mp4` | Recording of route load attempt | No |
+| Authenticated Assist tab screenshot | Full P74 UI proof | Yes (`TEST_SALES_*` — not in agent env) |
 
 ---
 
-## Stop condition (Point 74)
+## Merge coordination
 
-Agent #8 returns control when:
+| Item | Owner | State |
+|---|---|---|
+| Canonical base / rebase | Agent #2 / #450 | Pending |
+| Merge gate | #448 | **HOLD** |
+| Point 74 code | Agent #8 | Ready at branch head after this commit |
+| Points 75–78 | Other workstations | Unclaimed by Agent #8 |
 
-1. Point 74 software evidence is green at exact PR head (typecheck, tests, build) — **done at this commit**
-2. Runtime proof captured on preview — **pending preview verification**
-3. Canonical merge unblocked by #448 / coordinated with #450 — **external gate; remains HOLD**
+---
 
-Points 75–78 closure claims remain with their respective workstations.
+## Stop condition checklist
+
+- [x] Point-74-only closure matrix published
+- [x] Focused assist contract tests
+- [x] Role/route authority checks
+- [x] Genuine P74 defects fixed pre-#450 advance
+- [x] Runtime evidence spec prepared (auth-gate smoke)
+- [ ] CI green on pushed head (await GitHub)
+- [ ] Merge hold lifted (#448)
+- [ ] Authenticated runtime capture (optional; env credentials)
+
+**Agent #8 remains locked to Point 74. Does not claim Points 75–78.**
