@@ -258,8 +258,28 @@ test("POINT-37 :: governed confirmed → in_production production release", asyn
       }
     });
 
+    await page.context().clearCookies();
+    await page.evaluate(() => {
+      try {
+        window.localStorage.clear();
+        window.sessionStorage.clear();
+      } catch {
+        // best-effort
+      }
+    });
+    await loginToFactoryCertificationTarget(page, admin);
+    await verifyAuthenticatedRole(page, "ADMIN");
+
+    const target = resolveFactoryCertificationTarget();
+    await page.goto(`${target}/admin/order-management?view=production`, {
+      waitUntil: "domcontentloaded",
+      timeout: 60_000,
+    });
+
     const orderRow = page.locator("tr", { has: page.getByText(orderLabel, { exact: false }) }).first();
+    await expect(orderRow, "confirmed order must appear before release").toBeVisible({ timeout: 30_000 });
     const actionButton = orderRow.getByRole("button", { name: /Send to Factory/i });
+    await expect(actionButton, "Send to Factory must be enabled before release click").toBeEnabled({ timeout: 30_000 });
     await actionButton.click();
 
     await expect.poll(
