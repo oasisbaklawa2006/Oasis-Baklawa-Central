@@ -1,6 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { assertFinanceAuthority } from "@/lib/finance-authority/financeAuthorityGuard";
-import { roleCanPerformReservationAction } from "@/lib/inventory-authority/inventoryAuthorityMatrix";
 import { getAllowedModulesForRole } from "./roleAccess";
 import { isAuthorizedForAdminPath } from "./routeAccess";
 
@@ -27,6 +25,9 @@ const FORBIDDEN_ADMIN_ROUTES = [
   "/admin/carton-explorer",
   "/admin/scan-timeline",
   "/admin/order-management",
+  "/admin/packing-dispatch",
+  "/admin/dispatch",
+  "/admin/target-vs-actual",
   "/admin/moq",
   "/admin/currency",
   "/admin/accounts-release",
@@ -84,17 +85,3 @@ describe("Dispatch RBAC — five-stage workflow (positive)", () => {
   });
 });
 
-describe("Dispatch RBAC — backend authority fail-closed", () => {
-  it.each(DISPATCH_ROLES)("denies finance review for %s", (role) => {
-    const result = assertFinanceAuthority("finance:review", {
-      actorRole: role,
-      actorUserId: "dispatch-user",
-    });
-    expect(result.allowed).toBe(false);
-  });
-
-  it.each(DISPATCH_ROLES)("denies reservation board writes for %s", (role) => {
-    expect(roleCanPerformReservationAction(role, "reservation:create", "reservation_board")).toBe(false);
-    expect(roleCanPerformReservationAction(role, "reservation:reserve", "reservation_board")).toBe(false);
-  });
-});

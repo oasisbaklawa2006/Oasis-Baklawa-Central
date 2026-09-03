@@ -33,6 +33,17 @@ describe("getRequiredModuleForAdminPath", () => {
     expect(getRequiredModuleForAdminPath("/admin/heartbeat")).toBe("cmd_war_room");
     expect(getRequiredModuleForAdminPath("/admin")).toBe("dashboard");
   });
+
+  it("maps legacy commercial packing/dispatch screens to orders, not dispatch workflow modules", () => {
+    expect(getRequiredModuleForAdminPath("/admin/packing-dispatch")).toBe("orders");
+    expect(getRequiredModuleForAdminPath("/admin/dispatch")).toBe("orders");
+    expect(getRequiredModuleForAdminPath("/admin/dispatch-mgmt")).toBe("packing");
+    expect(getRequiredModuleForAdminPath("/admin/dispatch-tv")).toBe("dispatch");
+  });
+
+  it("maps cross-functional target-vs-actual to cmd_war_room", () => {
+    expect(getRequiredModuleForAdminPath("/admin/target-vs-actual")).toBe("cmd_war_room");
+  });
 });
 
 describe("golden chain operator route access", () => {

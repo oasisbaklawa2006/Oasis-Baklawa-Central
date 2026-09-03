@@ -45,16 +45,19 @@ describe("App-Verse role-aware Home model", () => {
     expect(getRoleHomeDefinition("TV_DISPLAY").cards).toEqual([]);
   });
 
-  it("keeps dispatch roles on governed dispatch workflow routes only", () => {
-    const cards = getVisibleRoleHomeCards("DISPATCH_MANAGER", ["dashboard", "packing", "dispatch"]);
-    expect(cards.map((card) => card.route)).toEqual([
-      "/admin/golden-chain-operator",
-      "/admin/dispatch-mgmt",
-      "/admin/dispatch-readiness",
-      "/admin/dispatch-completion",
-      "/security-gate",
-    ]);
-    expect(cards.some((card) => card.route.includes("order-management"))).toBe(false);
-    expect(cards.some((card) => card.route.includes("scan-timeline"))).toBe(false);
-  });
+  it.each(["DISPATCH_MANAGER", "DISPATCH_INCHARGE", "DISPATCH_HEAD"])(
+    "keeps %s on governed dispatch workflow routes only",
+    (role) => {
+      const cards = getVisibleRoleHomeCards(role, ["dashboard", "packing", "dispatch"]);
+      expect(cards.map((card) => card.route)).toEqual([
+        "/admin/golden-chain-operator",
+        "/admin/dispatch-mgmt",
+        "/admin/dispatch-readiness",
+        "/admin/dispatch-completion",
+        "/security-gate",
+      ]);
+      expect(cards.some((card) => card.route.includes("order-management"))).toBe(false);
+      expect(cards.some((card) => card.route.includes("scan-timeline"))).toBe(false);
+    },
+  );
 });

@@ -27,14 +27,9 @@ describe("App-Verse role authority", () => {
     expect(hasModuleAccess(["production"], "finance")).toBe(false);
   });
 
-  it("keeps Dispatch roles out of the general orders module (shipment-scoped visibility only)", () => {
+  it("keeps Dispatch roles on the exact least-privilege allowlist", () => {
     for (const role of ["DISPATCH_MANAGER", "DISPATCH_INCHARGE", "DISPATCH_HEAD"]) {
-      const modules = getAllowedModulesForRole(role);
-      expect(modules).not.toContain("orders");
-      expect(modules).not.toContain("cmd_war_room");
-      expect(modules).not.toContain("inventory");
+      expect(getAllowedModulesForRole(role)).toEqual(["dashboard", "packing", "dispatch"]);
     }
-    expect(getAllowedModulesForRole("DISPATCH_MANAGER")).toContain("dispatch");
-    expect(getAllowedModulesForRole("DISPATCH_INCHARGE")).toContain("packing");
   });
 });
