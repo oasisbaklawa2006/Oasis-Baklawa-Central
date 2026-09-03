@@ -93,6 +93,9 @@ const EntityGraphExplorer = lazy(() => import("./pages/admin/EntityGraphExplorer
 const QueueExecutionPreview = lazy(() => import("./pages/admin/QueueExecutionPreview.tsx"));
 const BarcodeExecutionPreview = lazy(() => import("./pages/admin/BarcodeExecutionPreview.tsx"));
 const ThreePgsProcurementQueue = lazy(() => import("./pages/admin/ThreePgsProcurementQueueComposition.tsx"));
+const ThreePgsSatelliteVisibility = lazy(() => import("./pages/admin/ThreePgsSatelliteVisibility.tsx"));
+const ThreePgsMobileUrgent = lazy(() => import("./pages/admin/ThreePgsMobileUrgent.tsx"));
+const ThreePgsTV = lazy(() => import("./pages/admin/ThreePgsTV.tsx"));
 const ProductIntelligencePrototype = lazy(
   () => import("./pages/admin/ProductIntelligencePrototype.tsx"),
 );
@@ -471,6 +474,30 @@ const App = () => (
                         </AdminModuleRoute>
                       }
                     />
+                    <Route
+                      path="3pgs-visibility"
+                      element={
+                        <AdminModuleRoute moduleKey="inventory">
+                          <ThreePgsSatelliteVisibility />
+                        </AdminModuleRoute>
+                      }
+                    />
+                    <Route
+                      path="3pgs-mobile-urgent"
+                      element={
+                        <AdminModuleRoute moduleKey="inventory">
+                          <ThreePgsMobileUrgent />
+                        </AdminModuleRoute>
+                      }
+                    />
+                    <Route
+                      path="3pgs-tv"
+                      element={
+                        <AdminModuleRoute moduleKey="inventory">
+                          <ThreePgsTV />
+                        </AdminModuleRoute>
+                      }
+                    />
                     <Route path="verification" element={<Navigate to="/admin/execution-command-center" replace />} />
                     <Route path="announcements" element={<AdminAnnouncements />} />
                   </Route>
@@ -481,6 +508,16 @@ const App = () => (
                       <ProtectedRoute>
                         <RoleProtectedRoute allowedRoles={SALES_DASHBOARD_ROLES}>
                           <SalesDashboard />
+                        </RoleProtectedRoute>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/sales/3pgs-visibility"
+                    element={
+                      <ProtectedRoute>
+                        <RoleProtectedRoute allowedRoles={["SALES_EXECUTIVE"]}>
+                          <ThreePgsSatelliteVisibility />
                         </RoleProtectedRoute>
                       </ProtectedRoute>
                     }
@@ -511,6 +548,7 @@ const App = () => (
                       pattern as /tv/arabic-sweets etc.; /admin/rgs-tv is left in place
                       unchanged for in-app admin navigation. */}
                   <Route path="/tv/rgs" element={<RoleProtectedRoute allowedRoles={["STORE_READY_GOODS", "RGS_ADMIN", "TV_READY", "SUPER_ADMIN", "ADMIN"]}><ReadyGoodsTV /></RoleProtectedRoute>} />
+                  <Route path="/tv/3pgs" element={<RoleProtectedRoute allowedRoles={["STORE_3RD_PARTY", "OPERATIONS_MANAGER", "TV_3PGS", "SUPER_ADMIN", "ADMIN"]}><ThreePgsTV /></RoleProtectedRoute>} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
                 </Suspense>

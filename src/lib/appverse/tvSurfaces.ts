@@ -18,6 +18,7 @@ export const APPVERSE_TV_SURFACES: AppVerseTvSurface[] = [
   { key: "nuts", label: "Nuts & Dry Fruits Line", route: "/tv/nuts", audience: ["HOD_NUTS", "PROD_NUTS"], purpose: "Production line visibility" },
   { key: "assembly", label: "Assembly TV", route: "/admin/assembly-tv", audience: ["HOD_ASSEMBLY", "ASSEMBLY_MANAGER", "TV_ASSEMBLY"], purpose: "Assembly queue visibility" },
   { key: "ready-goods", label: "Ready Goods TV", route: "/tv/rgs", audience: ["STORE_READY_GOODS", "RGS_ADMIN", "TV_READY"], purpose: "Ready-goods visibility" },
+  { key: "third-party", label: "3PGS TV", route: "/tv/3pgs", audience: ["STORE_3RD_PARTY", "OPERATIONS_MANAGER", "TV_3PGS"], purpose: "Third-party store visibility" },
   { key: "dispatch", label: "Dispatch TV", route: "/admin/dispatch-tv", audience: ["DISPATCH_MANAGER", "DISPATCH_INCHARGE", "DISPATCH_HEAD"], purpose: "Dispatch readiness and movement visibility" },
 ];
 
