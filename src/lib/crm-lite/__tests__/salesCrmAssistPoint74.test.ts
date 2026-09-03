@@ -50,6 +50,7 @@ describe("Point 74 — CRM-lite sales assistance (Agent #8 workstation lock)", (
     expect(workspace).toContain("setActiveTab(\"assist\")");
     expect(workspace).toContain("assistFocusCompanyId");
     expect(dashboard).toContain("Open assist");
+    expect(dashboard).toContain("setLogCompany(c.id)");
   });
 
   it("does not expand into commission payout mutation (P78 collateral boundary)", () => {

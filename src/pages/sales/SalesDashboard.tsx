@@ -305,6 +305,7 @@ const SalesDashboard = () => {
                           className="h-8 text-xs"
                           onClick={() => {
                             setAssistFocusCompanyId(c.id);
+                            setLogCompany(c.id);
                             document.getElementById("sales-crm-lite-workspace")?.scrollIntoView({ behavior: "smooth", block: "start" });
                           }}
                         >
