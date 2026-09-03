@@ -36,6 +36,7 @@ vi.mock("@/lib/order-authority/financeClearanceAuthorityClient", () => ({
 import {
   clearOrderForDispatch,
   releaseCartonAtDispatchGate,
+  releaseOrderToInProduction,
   releaseOrderToManufacturing,
   releaseOrderToPackedReady,
   rejectOrderFinanceReview,
@@ -81,6 +82,38 @@ describe("orderAuthorityClient", () => {
     const result = await clearOrderForDispatch("o1");
     expect(rpcMock).toHaveBeenCalledWith("clear_order_for_dispatch_v1", { p_order_id: "o1" });
     expect(result.ok).toBe(true);
+  });
+
+  it("calls release_order_to_in_production_v1 after Finance Operations Clearance (Point 37)", async () => {
+    rpcMock.mockResolvedValue({
+      data: {
+        ok: true,
+        order_id: "o1",
+        previous_status: "confirmed",
+        new_status: "in_production",
+      },
+      error: null,
+    });
+
+    const result = await releaseOrderToInProduction("o1", "verified_advance");
+    expect(result.ok).toBe(true);
+    expect(result.new_status).toBe("in_production");
+    expect(getFinanceOperationsClearanceFactsMock).toHaveBeenCalledWith("o1", "pi-1", "version-1");
+    expect(rpcMock).toHaveBeenCalledWith("release_order_to_in_production_v1", { p_order_id: "o1" });
+    expect(rpcMock).not.toHaveBeenCalledWith("release_order_to_manufacturing_v1", expect.anything());
+  });
+
+  it("surfaces server blockers from production release after Finance Operations Clearance", async () => {
+    rpcMock.mockResolvedValue({
+      data: {
+        ok: false,
+        blockers: [{ code: "production_blocked", message: "Production release blocked" }],
+      },
+      error: null,
+    });
+
+    await expect(releaseOrderToInProduction("o1", "verified_advance")).rejects.toThrow("Production release blocked");
+    expect(rpcMock).toHaveBeenCalledWith("release_order_to_in_production_v1", { p_order_id: "o1" });
   });
 
   it("surfaces server blockers from manufacturing release after Finance Operations Clearance", async () => {
