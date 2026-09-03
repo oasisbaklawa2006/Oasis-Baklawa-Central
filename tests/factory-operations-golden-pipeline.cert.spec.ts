@@ -347,6 +347,7 @@ test("POINT-38 :: Golden Pipeline governance-board order status E2E", async ({ p
 
   // ---- OM surface: golden pipeline status visible ----
   await test.step("UI: Order Management shows dispatched golden-pipeline status", async () => {
+    await switchRole(page, "ADMIN");
     const target = resolveFactoryCertificationTarget();
     await page.goto(`${target}/admin/order-management?view=packing`, {
       waitUntil: "domcontentloaded",
@@ -358,7 +359,7 @@ test("POINT-38 :: Golden Pipeline governance-board order status E2E", async ({ p
       timeout: 30_000,
     });
     await expect(orderRow.getByText(/dispatched/i).first()).toBeVisible();
-    record("om_golden_pipeline_status_surface", null, "DISPATCH_MANAGER", "PASS", "dispatched visible");
+    record("om_golden_pipeline_status_surface", null, "ADMIN", "PASS", "dispatched visible");
   });
 
   // ---- No direct orders.update during wizard flow ----
