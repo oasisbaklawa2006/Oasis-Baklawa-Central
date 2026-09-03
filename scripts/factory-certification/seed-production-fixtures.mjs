@@ -314,14 +314,18 @@ if (!Array.isArray(point37CheckoutRows) || point37CheckoutRows.length !== 1 || p
 
 // Fixture bootstrap only: leave the order at confirmed with verified advance so OM Point-37
 // can exercise release_order_to_in_production_v1 without touching the golden FACT-E2E order.
+// Core's ORDER_STATUS_AUTHORITY_REQUIRED trigger rejects service-role PostgREST updates;
+// disposable fixture rows use the sanctioned postgres-role path (see local-supabase-client.mjs).
 const point37AdvanceRequired = Number(point37CheckoutRows[0]?.advance_required ?? 0);
-const { error: point37BootstrapError } = await supabase.from("orders").update({
-  status: "confirmed",
-  payment_status: "verified_advance",
-  advance_paid: point37AdvanceRequired > 0 ? point37AdvanceRequired : 300,
-  advance_required: point37AdvanceRequired > 0 ? point37AdvanceRequired : 300,
-}).eq("id", POINT37_ORDER_ID);
-assertNoSupabaseError(point37BootstrapError, "Point-37 confirmed-order fixture bootstrap failed");
+const point37AdvancePaid = point37AdvanceRequired > 0 ? point37AdvanceRequired : 300;
+runLocalPostgresRoleStatement(localDbUrl,
+  `UPDATE public.orders
+   SET status = 'confirmed',
+       payment_status = 'verified_advance',
+       advance_paid = ${point37AdvancePaid},
+       advance_required = ${point37AdvancePaid}
+   WHERE id = '${POINT37_ORDER_ID}'::uuid;`,
+  "Point-37 confirmed-order fixture bootstrap");
 
 await appendFile(
   credentialFile,
