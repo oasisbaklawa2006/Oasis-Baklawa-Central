@@ -134,7 +134,7 @@ npx playwright test tests/sales-dashboard-point74-assist.spec.ts --project=deskt
 - [x] Authenticated readiness spec prepared (`sales-dashboard-point74-assist.spec.ts`)
 - [x] Dependency census published
 - [x] Strikeability register published
-- [ ] CI green on pushed head (await GitHub — run in progress on `15ad90a1+`)
+- [x] CI green on pushed head (`71d5919e` — Release Quality Gate success)
 - [ ] Merge hold lifted (#448)
 - [ ] Authenticated runtime capture (optional; env credentials)
 
