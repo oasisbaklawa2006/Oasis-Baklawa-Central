@@ -452,7 +452,14 @@ const App = () => (
                     <Route path="dispatch-completion" element={<DispatchCompletionBoard />} />
                     <Route path="dispatch-finalization" element={<DispatchFinalizationBoard />} />
                     <Route path="stock-finalization" element={<StockFinalizationBoard />} />
-                    <Route path="dispatch-mgmt" element={<DispatchManagement />} />
+                    <Route
+                      path="dispatch-mgmt"
+                      element={
+                        <AdminModuleRoute moduleKey="dispatch">
+                          <DispatchManagement />
+                        </AdminModuleRoute>
+                      }
+                    />
                     <Route path="dispatch-tv" element={<DispatchTV />} />
                     <Route path="target-vs-actual" element={<TargetVsActual />} />
                     <Route path="3pcs-store" element={<ThirdPartyStore />} />

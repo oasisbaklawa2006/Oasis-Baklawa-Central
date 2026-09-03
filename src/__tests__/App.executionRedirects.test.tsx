@@ -85,4 +85,8 @@ describe("Execution board redirects (dead operational_queue_items surfaces)", ()
   it("redirects ready-goods execution to governed Ready Goods", async () => {
     await verifyRedirect("/admin/execution/ready-goods", "/admin/ready-goods");
   });
+
+  it("redirects dispatch execution to governed Dispatch Management", async () => {
+    await verifyRedirect("/admin/execution/dispatch", "/admin/dispatch-mgmt");
+  });
 });
