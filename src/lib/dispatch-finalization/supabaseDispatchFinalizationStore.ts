@@ -128,11 +128,15 @@ export function createSupabaseOrderDispatchStatusRepository(client: SupabaseClie
     },
 
     async insertStatusHistory(params) {
-      const { error } = await client.from("order_status_history").insert({
+      const row: Record<string, unknown> = {
         order_id: params.orderId,
         old_status: params.oldStatus,
         new_status: params.newStatus,
-      });
+      };
+      if (params.actorId?.trim()) {
+        row.changed_by = params.actorId;
+      }
+      const { error } = await client.from("order_status_history").insert(row);
       if (error) throw new Error(error.message);
     },
   };

@@ -343,15 +343,24 @@ export default function GoldenChainOperatorWizard() {
             advanceAfterFinalize();
           } catch (e) {
             if (e instanceof DispatchFinalizationError && e.code === "already_finalized") {
-              advanceAfterFinalize();
+              const refreshed = await loadGoldenChainOrderState(supabase, state.orderId);
+              if (
+                refreshed &&
+                ["dispatched", "in_transit", "delivered"].includes(
+                  refreshed.orderStatus.trim().toLowerCase(),
+                )
+              ) {
+                advanceAfterFinalize();
+              } else {
+                throw e;
+              }
             } else {
               const refreshed = await loadGoldenChainOrderState(supabase, state.orderId);
               if (
                 refreshed &&
-                (refreshed.dispatchAlreadyFinalized ||
-                  ["dispatched", "in_transit", "delivered"].includes(
-                    refreshed.orderStatus.trim().toLowerCase(),
-                  ))
+                ["dispatched", "in_transit", "delivered"].includes(
+                  refreshed.orderStatus.trim().toLowerCase(),
+                )
               ) {
                 advanceAfterFinalize();
               } else {
@@ -469,31 +478,20 @@ export default function GoldenChainOperatorWizard() {
       }
 
       if (dispatchFinalizeSucceeded) {
-        let next: GoldenChainOrderState;
-        try {
-          const reloaded = await reloadGoldenChainOrderWithRetry(
-            supabase,
-            state.orderId,
-            (loaded) =>
-              goldenChainReloadSatisfiedAfterDispatchFinalize(
-                normalizeGoldenChainStateAfterDispatchFinalize(loaded),
-              ),
-            { maxAttempts: 20, delayMs: 500 },
-          );
-          next = normalizeGoldenChainStateAfterDispatchFinalize(reloaded);
-        } catch {
-          next = normalizeGoldenChainStateAfterDispatchFinalize({
-            ...state,
-            orderStatus: "dispatched",
-            dispatchAlreadyFinalized: true,
-          });
-        }
-        if (next.stage === "dispatch_finalization") {
-          next = normalizeGoldenChainStateAfterDispatchFinalize({
-            ...next,
-            orderStatus: "dispatched",
-            dispatchAlreadyFinalized: true,
-          });
+        const reloaded = await reloadGoldenChainOrderWithRetry(
+          supabase,
+          state.orderId,
+          (loaded) =>
+            goldenChainReloadSatisfiedAfterDispatchFinalize(
+              normalizeGoldenChainStateAfterDispatchFinalize(loaded),
+            ),
+          { maxAttempts: 20, delayMs: 500 },
+        );
+        const next = normalizeGoldenChainStateAfterDispatchFinalize(reloaded);
+        if (
+          !["dispatched", "in_transit", "delivered"].includes(next.orderStatus.trim().toLowerCase())
+        ) {
+          throw new Error("Dispatch finalize did not persist orders.status=dispatched");
         }
         setState(next);
         await reloadList();

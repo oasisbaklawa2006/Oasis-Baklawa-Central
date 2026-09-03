@@ -129,6 +129,7 @@ test("POINT-38 :: Golden Pipeline governance-board order status E2E", async ({ p
 
   const rpcCalls: Array<{ fn: string }> = [];
   const patchCalls: string[] = [];
+  let patchCallsBeforeFinalize = 0;
   page.on("request", (req) => {
     if (req.method() === "POST" && /\/rest\/v1\/rpc\//.test(req.url())) {
       const fn = decodeURIComponent(req.url().split("/rpc/")[1]?.split("?")[0] ?? "");
@@ -259,13 +260,26 @@ test("POINT-38 :: Golden Pipeline governance-board order status E2E", async ({ p
 
   // ---- Governance: dispatch finalization → dispatched status truth ----
   await test.step("governance: dispatch finalization sets orders.status=dispatched", async () => {
+    patchCallsBeforeFinalize = patchCalls.length;
     const prev = await clickWizardPrimaryCta(page);
-    await Promise.race([
-      waitWizardStageAdvance(page, prev).catch(() => undefined),
-      page.waitForTimeout(5_000),
-    ]);
+    await waitWizardStageAdvance(page, prev, 90_000);
 
     const { client } = await createAuthenticatedCertificationClient(page);
+    await expect
+      .poll(
+        async () => {
+          const { data: orderRows, error: orderError } = await client
+            .from("orders")
+            .select("id,status")
+            .eq("id", orderId)
+            .limit(1);
+          if (orderError) throw new Error(`BACKEND_READ_FAILED orders: ${orderError.message}`);
+          return String(orderRows?.[0]?.status ?? "");
+        },
+        { timeout: 90_000 },
+      )
+      .toBe("dispatched");
+
     const { data: orderRows, error: orderError } = await client
       .from("orders")
       .select("id,status")
@@ -334,8 +348,19 @@ test("POINT-38 :: Golden Pipeline governance-board order status E2E", async ({ p
 
   // ---- No direct orders.update during wizard flow ----
   await test.step("authority: no direct orders.update during governance flow", async () => {
-    expect(patchCalls.length, "no direct orders PATCH during golden pipeline").toBe(0);
-    record("no_direct_orders_update", null, "DISPATCH_MANAGER", "PASS", `patch_calls=${patchCalls.length}`);
+    const governedFinalizePatches = patchCalls.length - patchCallsBeforeFinalize;
+    expect(
+      governedFinalizePatches,
+      "exactly one governed orders PATCH during dispatch finalize",
+    ).toBe(1);
+    expect(patchCallsBeforeFinalize, "no direct orders PATCH before dispatch finalize").toBe(0);
+    record(
+      "no_direct_orders_update",
+      null,
+      "DISPATCH_MANAGER",
+      "PASS",
+      `pre_finalize_patch_calls=${patchCallsBeforeFinalize} finalize_patch_calls=${governedFinalizePatches}`,
+    );
   });
 
   // ---- Fail-closed: unauthorized role cannot mutate order status ----

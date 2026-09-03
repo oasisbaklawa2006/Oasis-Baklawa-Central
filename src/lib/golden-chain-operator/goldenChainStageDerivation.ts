@@ -142,10 +142,9 @@ export function deriveGoldenChainStage(input: GoldenChainDerivationInput): Golde
     );
   }
 
-  const orderDispatchedEarly =
-    ["dispatched", "in_transit", "delivered"].includes(
-      input.finalizationInput.currentOrderStatus.trim().toLowerCase(),
-    ) || dispatchAlreadyFinalized;
+  const orderDispatchedEarly = ["dispatched", "in_transit", "delivered"].includes(
+    input.finalizationInput.currentOrderStatus.trim().toLowerCase(),
+  );
 
   const completionSatisfied =
     input.completionAttested ||
@@ -166,10 +165,9 @@ export function deriveGoldenChainStage(input: GoldenChainDerivationInput): Golde
     );
   }
 
-  const orderDispatched =
-    ["dispatched", "in_transit", "delivered"].includes(
-      input.finalizationInput.currentOrderStatus.trim().toLowerCase(),
-    ) || dispatchAlreadyFinalized;
+  const orderDispatched = ["dispatched", "in_transit", "delivered"].includes(
+    input.finalizationInput.currentOrderStatus.trim().toLowerCase(),
+  );
 
   if (!orderDispatched) {
     rawBlockers.push(...finalization.blockingReasons);

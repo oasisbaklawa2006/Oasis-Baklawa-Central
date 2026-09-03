@@ -31,9 +31,8 @@ export function goldenChainPastDispatchFinalize(state: GoldenChainOrderState): b
 /** True when DB shows dispatch finalized but derivation still lists the finalize step. */
 export function goldenChainDispatchFinalizeDrift(state: GoldenChainOrderState): boolean {
   if (state.stage !== "dispatch_finalization") return false;
-  return (
-    state.dispatchAlreadyFinalized ||
-    ["dispatched", "in_transit", "delivered"].includes(state.orderStatus.trim().toLowerCase())
+  return ["dispatched", "in_transit", "delivered"].includes(
+    state.orderStatus.trim().toLowerCase(),
   );
 }
 
