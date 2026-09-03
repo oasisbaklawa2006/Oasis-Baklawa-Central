@@ -29,7 +29,9 @@ export default function ThreePgsTV() {
       void load();
       setNow(new Date());
     }, REFRESH_MS);
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+    };
   }, [load]);
 
   const lanes = useMemo(() => buildThreePgsTvLanes(snapshot), [snapshot]);
