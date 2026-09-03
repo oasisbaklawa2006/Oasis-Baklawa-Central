@@ -546,7 +546,7 @@ BEGIN
       correlation_id, idempotency_key
     )
     SELECT
-      gen_random_uuid(), v_order, v.id, v.version_number, 'ISSUED',
+      gen_random_uuid(), v_order, v.id, v.version_number, 'READY_FOR_ISSUE',
       v.commercial_snapshot, v.snapshot_fingerprint,
       'Point-38 factory certification', 'FACTORY_CERT',
       'factory-cert-point38-pi', 'factory-cert-point38-pi-v1'
