@@ -9,9 +9,11 @@ export const GOVERNED_DIRECT_STATUSES = new Set([
 /**
  * Whether the primary status-action button should be enabled on Order Management.
  * submitted → confirmed is remapped to awaiting_advance (prepaid) or in_production (credit) before dispatch.
+ * confirmed → in_production uses the governed production-release RPC (Point 37).
  */
 export function isGovernedOrderActionAvailable(status: string, next: string): boolean {
   if (status === "submitted" && next === "confirmed") return true;
+  if (status === "confirmed" && next === "in_production") return true;
   return GOVERNED_DIRECT_STATUSES.has(next);
 }
 
