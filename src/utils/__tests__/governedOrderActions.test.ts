@@ -10,6 +10,11 @@ describe("governedOrderActions", () => {
     expect(isGovernedOrderActionAvailable("submitted", "confirmed")).toBe(true);
   });
 
+  it("allows confirmed → in_production governed production release (Point 37)", () => {
+    expect(isGovernedOrderActionAvailable("confirmed", "in_production")).toBe(true);
+    expect(governedOrderActionDisabledReason("confirmed", "in_production")).toBe("");
+  });
+
   it("allows governed direct targets", () => {
     for (const status of GOVERNED_DIRECT_STATUSES) {
       expect(isGovernedOrderActionAvailable("packing", status)).toBe(true);
