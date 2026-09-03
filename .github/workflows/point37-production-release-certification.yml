@@ -1,0 +1,60 @@
+name: Point 37 Production Release Certification
+
+on:
+  workflow_dispatch:
+    inputs:
+      point37_cert_order_id:
+        description: Optional disposable confirmed-order UUID for RPC mutation leg
+        required: false
+        type: string
+
+concurrency:
+  group: point37-cert-${{ github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  point37-cert:
+    name: Point 37 governed production release cert
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: github.repository == 'oasisbaklawa2006/Oasis-Baklawa-Central'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Unit contract tests (Point 37)
+        run: npm run test -- --run src/lib/order-authority/__tests__/point37GovernedProductionRelease.test.ts
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Point 37 certification spec
+        env:
+          FACTORY_CERT_TARGET_URL: ${{ secrets.FACTORY_CERT_TARGET_URL }}
+          FACTORY_CERT_SUPABASE_URL: ${{ secrets.FACTORY_CERT_SUPABASE_URL }}
+          FACTORY_CERT_SUPABASE_ANON_KEY: ${{ secrets.FACTORY_CERT_SUPABASE_ANON_KEY }}
+          FACTORY_CERT_FINANCE_EMAIL: ${{ secrets.FACTORY_CERT_FINANCE_EMAIL }}
+          FACTORY_CERT_FINANCE_PASSWORD: ${{ secrets.FACTORY_CERT_FINANCE_PASSWORD }}
+          FACTORY_CERT_ALLOW_REMOTE_EPHEMERAL: "true"
+          POINT37_CERT_ORDER_ID: ${{ inputs.point37_cert_order_id }}
+          POINT37_CERT_COMMIT_SHA: ${{ github.sha }}
+        run: npx playwright test tests/point37-governed-production-release.cert.spec.ts --project=desktop-chrome-size
+
+      - name: Upload Point 37 evidence
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: point37-cert-evidence-${{ github.run_id }}
+          path: docs/evidence/point37/
+          if-no-files-found: ignore
+          retention-days: 14
