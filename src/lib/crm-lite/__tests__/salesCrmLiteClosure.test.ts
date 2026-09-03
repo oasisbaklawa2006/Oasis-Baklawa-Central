@@ -19,7 +19,8 @@ describe("CRM-lite Lane E closure — Points 74–78", () => {
 
   it("P74 — mounts unified CRM-lite assist workspace on the sales console", () => {
     expect(dashboard).toContain("SalesCrmLiteWorkspace");
-    expect(workspace).toContain("ClientInteractionsTab");
+    expect(source("components/sales/crm-lite/SalesCrmAssistPanel.tsx")).toContain("SalesCrmAssistPanel");
+    expect(workspace).toContain("SalesCrmAssistPanel");
     expect(workspace).toContain('TabsTrigger value="assist"');
   });
 

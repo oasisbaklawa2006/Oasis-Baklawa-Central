@@ -46,6 +46,7 @@ const SalesDashboard = () => {
   const [logOutcome, setLogOutcome] = useState("");
   const [logFollowUp, setLogFollowUp] = useState("");
   const [logSaving, setLogSaving] = useState(false);
+  const [assistFocusCompanyId, setAssistFocusCompanyId] = useState<string | null>(null);
 
   useEffect(() => {
     if (authLoading || !user) return;
@@ -285,6 +286,7 @@ const SalesDashboard = () => {
                     <TableHead className="text-right">Wallet</TableHead>
                     <TableHead className="text-right">Credit Limit</TableHead>
                     <TableHead className="text-right">Balance Due</TableHead>
+                    <TableHead className="text-center">Assist</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -296,6 +298,19 @@ const SalesDashboard = () => {
                       <TableCell className="text-right font-mono text-sm">{c.wallet_balance == null ? "Unavailable" : `₹${c.wallet_balance.toLocaleString()}`}</TableCell>
                       <TableCell className="text-right font-mono text-sm">₹{(c.credit_limit || 0).toLocaleString()}</TableCell>
                       <TableCell className="text-right font-mono text-sm">₹{(c.current_balance || 0).toLocaleString()}</TableCell>
+                      <TableCell className="text-center">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 text-xs"
+                          onClick={() => {
+                            setAssistFocusCompanyId(c.id);
+                            document.getElementById("sales-crm-lite-workspace")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                          }}
+                        >
+                          Open assist
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -305,7 +320,9 @@ const SalesDashboard = () => {
         </Card>
 
         {user && companies.length > 0 && (
-          <SalesCrmLiteWorkspace userId={user.id} companies={companies} />
+          <div id="sales-crm-lite-workspace">
+            <SalesCrmLiteWorkspace userId={user.id} companies={companies} assistFocusCompanyId={assistFocusCompanyId} />
+          </div>
         )}
       </div>
 

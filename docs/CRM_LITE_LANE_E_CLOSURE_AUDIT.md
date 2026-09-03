@@ -6,6 +6,8 @@
 **MISSION:** Census live Core/Central CRM-lite authority for Points 74–78; implement safe independent Central gaps without migrations or production mutations.  
 **STOP CONDITION:** Point evidence matrix returned; independent gaps implemented in narrow PR(s) with merge-train metadata.
 
+> **Agent #8 workstation lock (Point 74):** Agent #8 exclusively owns Point 74 CRM-lite sales assistance on #449. Points 75–78 are collateral only — stable, not owned or expanded by Agent #8. Merge posture: **HOLD behind #448**; coordinate rebase/merge with Agent #2 / #450. Point 74 evidence: `docs/CRM_LITE_POINT_74_CLOSURE_EVIDENCE.md`.
+
 > **Numbering note:** Lane E uses the parallel-closure scope from #437 (CRM-lite linkage), not the Phase D/E numbering in `APP_VERSE_MASTER_PROGRAMME_REGISTER.md` (which assigns 74–76 to order SLA/amendments and 77–78 to finance consolidation).
 
 ---

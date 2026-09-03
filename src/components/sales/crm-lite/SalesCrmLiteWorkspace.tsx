@@ -12,19 +12,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Loader2, AlertCircle, Bell, Star, ExternalLink } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-import ClientInteractionsTab from "@/components/sales/ClientInteractionsTab";
+import SalesCrmAssistPanel from "@/components/sales/crm-lite/SalesCrmAssistPanel";
 import CreditRequestModal from "@/components/CreditRequestModal";
 import { resolveCreditBinding } from "@/lib/order-authority/creditWalletAuthorityClient";
+import { parseCrmLiteTickets } from "@/lib/crm-lite/parseCrmLiteTickets";
 import type { CrmLiteCompany, CrmLiteInteraction, CrmLiteTask, CrmLiteTicket, GovernedCreditOrder } from "@/lib/crm-lite/salesCrmLiteTypes";
 
 interface Props {
   userId: string;
   companies: CrmLiteCompany[];
+  assistFocusCompanyId?: string | null;
 }
 
 const todayIso = () => format(new Date(), "yyyy-MM-dd");
 
-export default function SalesCrmLiteWorkspace({ userId, companies }: Props) {
+export default function SalesCrmLiteWorkspace({ userId, companies, assistFocusCompanyId }: Props) {
   const companyIds = useMemo(() => companies.map((c) => c.id), [companies]);
   const companyMap = useMemo(() => Object.fromEntries(companies.map((c) => [c.id, c.business_name || "Unknown"])), [companies]);
 
@@ -112,7 +114,7 @@ export default function SalesCrmLiteWorkspace({ userId, companies }: Props) {
       .order("created_at", { ascending: false })
       .limit(50);
 
-    setTickets((ticketRows as CrmLiteTicket[]) ?? []);
+    setTickets(parseCrmLiteTickets(ticketRows));
     setLoading(false);
   }, [companyIds, userId]);
 
@@ -245,7 +247,7 @@ export default function SalesCrmLiteWorkspace({ userId, companies }: Props) {
             </TabsList>
 
             <TabsContent value="assist" className="mt-4">
-              <ClientInteractionsTab companies={companies} userId={userId} />
+              <SalesCrmAssistPanel companies={companies} userId={userId} focusCompanyId={assistFocusCompanyId} />
             </TabsContent>
 
             <TabsContent value="followups" className="mt-4 space-y-4">

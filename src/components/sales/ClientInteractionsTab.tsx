@@ -35,14 +35,16 @@ const TYPE_ICONS: Record<string, React.ReactNode> = {
 export default function ClientInteractionsTab({
   companies,
   userId,
+  initialFilterCompanyId,
 }: {
   companies: Company[];
   userId: string | undefined;
+  initialFilterCompanyId?: string;
 }) {
   const [interactions, setInteractions] = useState<Interaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [filterCompany, setFilterCompany] = useState<string>("all");
+  const [filterCompany, setFilterCompany] = useState<string>(initialFilterCompanyId || "all");
 
   // Form
   const [formCompany, setFormCompany] = useState("");
@@ -68,6 +70,12 @@ export default function ClientInteractionsTab({
   };
 
   useEffect(() => { fetchInteractions(); }, [companies]);
+
+  useEffect(() => {
+    if (initialFilterCompanyId) {
+      setFilterCompany(initialFilterCompanyId);
+    }
+  }, [initialFilterCompanyId]);
 
   const handleSubmit = async () => {
     if (!formCompany || !formType) {
