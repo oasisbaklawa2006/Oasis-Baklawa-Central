@@ -12,10 +12,10 @@ describe("Point 74 — CRM-lite sales assistance (Agent #8 workstation lock)", (
   const interactions = source("components/sales/ClientInteractionsTab.tsx");
   const evidence = readFileSync(resolve(process.cwd(), "docs/CRM_LITE_POINT_74_CLOSURE_EVIDENCE.md"), "utf8");
 
-  it("documents Agent #8 ownership and HOLD behind #448", () => {
+  it("documents Agent #8 ownership and post-#449 merge reconciliation", () => {
     expect(evidence).toContain("Agent #8");
-    expect(evidence).toContain("HOLD");
-    expect(evidence).toContain("#448");
+    expect(evidence).toContain("#449 merged");
+    expect(evidence).toContain("TEST_SALES_EMAIL");
     expect(evidence).toContain("Points 75–78");
   });
 
