@@ -146,11 +146,17 @@ export async function runBuyerGoldenPath(
     await shot("05-documents");
     record("documents", "PASS");
 
+    await page.goto(`${targetUrl}/buyer/support`, { waitUntil: "domcontentloaded" });
+    await expect(page.getByRole("heading", { name: /^Support$/i })).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByRole("heading", { name: /^Communication log$/i })).toBeVisible({ timeout: 60_000 });
+    await shot("06-communication-log");
+    record("communication_log", "PASS");
+
     await page.goto(`${targetUrl}/buyer/account`, { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { name: /^Account$/i })).toBeVisible({ timeout: 60_000 });
     await page.getByRole("button", { name: /^Sign out$/i }).click();
     await page.waitForURL((url) => /\/login/.test(url.pathname), { timeout: 60_000 });
-    await shot("06-logout");
+    await shot("07-logout");
     record("logout", "PASS");
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

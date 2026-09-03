@@ -409,7 +409,16 @@ export const customerAppClient = {
   favourites: () => rpc("customer_product_favourites_v1"),
   setFavourite: (productId: string, isFavourite: boolean) => rpc("set_customer_product_favourite_v1", { p_product_id: productId, p_is_favourite: isFavourite }),
   tickets: () => rpc("customer_support_tickets_v1"),
-  submitApplication: (input: { businessName: string; contactName: string; contactEmail: string; contactPhone: string; gstNumber?: string; address?: string }) => rpc("submit_b2b_trade_application_v1", {
+  submitApplication: (input: {
+    businessName: string;
+    contactName: string;
+    contactEmail: string;
+    contactPhone: string;
+    gstNumber?: string;
+    address?: string;
+    preferredDispatch?: string | null;
+    preferredDispatchOtherName?: string | null;
+  }) => rpc("submit_b2b_trade_application_v1", {
     p_business_name: input.businessName,
     p_contact_name: input.contactName,
     p_contact_email: input.contactEmail,
@@ -417,6 +426,8 @@ export const customerAppClient = {
     p_mobile_number: input.contactPhone,
     p_gst_number: input.gstNumber || null,
     p_registered_address: input.address || null,
+    p_preferred_dispatch: input.preferredDispatch || null,
+    p_preferred_dispatch_other_name: input.preferredDispatchOtherName || null,
     p_trade_declaration: true,
     p_data_consent: true,
   }),

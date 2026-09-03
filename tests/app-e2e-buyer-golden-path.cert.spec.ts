@@ -27,6 +27,7 @@ for (const viewport of BUYER_GOLDEN_PATH_VIEWPORTS) {
       "checkout_submit_order_detail",
       "documents_statement",
       "documents",
+      "communication_log",
       "logout",
     ]);
   });
