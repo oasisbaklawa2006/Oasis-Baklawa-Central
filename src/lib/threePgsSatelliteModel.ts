@@ -46,8 +46,6 @@ function demandForAudience(snapshot: Snapshot, audience: ThreePgsSatelliteAudien
     case "dispatch":
     case "management":
       return snapshot.demand;
-    default:
-      return snapshot.demand;
   }
 }
 

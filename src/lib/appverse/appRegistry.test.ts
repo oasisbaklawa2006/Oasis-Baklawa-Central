@@ -16,9 +16,10 @@ describe("App-Verse application registry", () => {
 describe("App-Verse TV registry", () => {
   it("registers existing production and operational TV surfaces", () => {
     // Owner's six-TV estate (Central issue #368): five production lines +
-    // Ready Goods, plus the two non-production-department Assembly/Dispatch
-    // preview TVs. Dragees has no entry of its own -- see next test.
-    expect(APPVERSE_TV_SURFACES.length).toBe(8);
+    // Ready Goods, plus Assembly/Dispatch preview TVs and the R4.6 3PGS TV.
+    // Dragees has no entry of its own -- see next test.
+    expect(APPVERSE_TV_SURFACES.length).toBe(9);
+    expect(APPVERSE_TV_SURFACES.some((surface) => surface.key === "third-party")).toBe(true);
   });
 
   it("limits HOD views to their relevant line", () => {
@@ -38,6 +39,10 @@ describe("App-Verse TV registry", () => {
 
   it("routes Ready Goods to its chrome-free kiosk route, not the admin shell", () => {
     expect(getTvSurfacesForRole("TV_READY").map((surface) => surface.route)).toEqual(["/tv/rgs"]);
+  });
+
+  it("routes 3PGS TV accounts to the chrome-free kiosk route", () => {
+    expect(getTvSurfacesForRole("TV_3PGS").map((surface) => surface.route)).toEqual(["/tv/3pgs"]);
   });
 
   it("allows administrators to inspect every display surface", () => {

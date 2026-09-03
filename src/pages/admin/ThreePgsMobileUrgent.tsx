@@ -56,11 +56,11 @@ export default function ThreePgsMobileUrgent() {
         </Card>
       ) : null}
 
-      <div className="space-y-3">
+      <div className="space-y-3" role="list" aria-label="Urgent 3PGS work items">
         {urgentItems.map((item) => (
-          <button
+          <article
             key={item.id}
-            type="button"
+            role="listitem"
             className="w-full rounded-2xl border border-border bg-card p-4 text-left shadow-sm"
           >
             <div className="flex items-start justify-between gap-3">
@@ -73,7 +73,7 @@ export default function ThreePgsMobileUrgent() {
             {item.priorityRank !== undefined ? (
               <p className="mt-2 text-[11px] uppercase tracking-wide text-muted-foreground">Priority #{item.priorityRank}</p>
             ) : null}
-          </button>
+          </article>
         ))}
         {!loading && urgentItems.length === 0 ? (
           <p className="text-center text-sm text-muted-foreground">No urgent 3PGS work right now.</p>
