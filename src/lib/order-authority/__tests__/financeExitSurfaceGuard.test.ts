@@ -38,6 +38,14 @@ describe("Finance Exit surface authority guard", () => {
     expect(page).toContain("Invoice date is Day 1");
   });
 
+  it("Accounts Release binds final-payment PI authority before final invoice issuance", () => {
+    const page = source("src/pages/admin/AdminAccountsRelease.tsx");
+    expect(page).toContain("getFinalPaymentPiFacts");
+    expect(page).toContain("issueFinalPaymentPiRevision");
+    expect(page).toContain("PI requests final payment");
+    expect(page).toContain("finalPaymentPi.settled !== true");
+  });
+
   it("the canonical security gate route delegates only to the governed B2B exit gate", () => {
     const route = source("src/pages/admin/AdminSecurityGate.tsx");
     expect(route).toContain('export { default } from "./AdminB2bSecurityGate"');

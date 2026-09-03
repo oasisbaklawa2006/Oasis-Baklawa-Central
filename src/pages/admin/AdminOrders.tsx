@@ -7,7 +7,6 @@ import { ArrowRight, Loader2, X, FileText, CheckCircle2, Truck, Printer, Package
 import TopNavBar from "@/components/TopNavBar";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { generateProFormaInvoice } from "@/utils/invoiceGenerator";
 import { notifyOrderConfirmed, notifyOrderDelivered } from "@/utils/notifyEvent";
 import { formatSalesOrderLabel } from "@/utils/orderSoLabel";
 import { getPackedReadyBlockers, type PackedReadyGateInput } from "@/utils/packedReadyGate";
@@ -427,30 +426,6 @@ const AdminOrders = () => {
     setPackingSaving(false);
   };
 
-  const handleGeneratePI = async (orderId: string) => {
-    setFinanceUpdating(true);
-    const { error } = await supabase.from("orders").update({ document_stage: "PI" }).eq("id", orderId);
-    if (error) toast.error("Failed to generate PI");
-    else {
-      toast.success("Proforma Invoice generated");
-      setSelectedOrder(prev => prev ? { ...prev, document_stage: "PI" } : prev);
-      await fetchOrders();
-    }
-    setFinanceUpdating(false);
-  };
-
-  const handleMarkPaymentCleared = async (orderId: string) => {
-    setFinanceUpdating(true);
-    const { error } = await supabase.from("orders").update({ payment_cleared: true, document_stage: "Final" }).eq("id", orderId);
-    if (error) toast.error("Failed to mark payment");
-    else {
-      toast.success("Payment cleared — Final Invoice generated");
-      setSelectedOrder(prev => prev ? { ...prev, payment_cleared: true, document_stage: "Final" } : prev);
-      await fetchOrders();
-    }
-    setFinanceUpdating(false);
-  };
-
   const handleSaveEwayBill = async (orderId: string) => {
     if (!ewayInput.trim()) return toast.error("Enter an E-Way Bill number");
     setFinanceUpdating(true);
@@ -475,38 +450,6 @@ const AdminOrders = () => {
       await fetchOrders();
     }
     setFinanceUpdating(false);
-  };
-
-  const handlePrintInvoice = async (order: OrderCard) => {
-    try {
-      const { data: items, error: itemsErr } = await supabase
-        .from("order_items")
-        .select(`id, quantity, actual_packed_qty, product_id, pack_size, carton_type, products (*)`)
-        .eq("order_id", order.id);
-      if (itemsErr) throw itemsErr;
-
-      let companyDetails: { business_name: string; gst_number?: string | null } | null = null;
-      if (order.company_id) {
-        const { data: co } = await supabase
-          .from("companies")
-          .select("business_name, gst_number")
-          .eq("id", order.company_id)
-          .maybeSingle();
-        companyDetails = co;
-      }
-
-      // Use actual_packed_qty for PI (falls back to quantity)
-      const cartItems = (items ?? []).map((item) => ({
-        id: item.id,
-        quantity: item.actual_packed_qty ?? item.quantity,
-        product: item.products,
-      }));
-
-      generateProFormaInvoice(cartItems, companyDetails, null);
-      toast.success("Proforma Invoice PDF generated");
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to generate invoice");
-    }
   };
 
   const getTotalPacks = (items?: { quantity: number }[]) =>
@@ -941,41 +884,10 @@ const AdminOrders = () => {
                     </span>
                   </div>
 
-                  {/* Generate PI — only visible at packed_ready or later */}
-                  {isPackedOrLater && (!selectedOrder.document_stage || selectedOrder.document_stage === "SO") && (
-                    <Button
-                      onClick={() => handleGeneratePI(selectedOrder.id)}
-                      disabled={financeUpdating}
-                      className="w-full"
-                    >
-                      {financeUpdating ? <Loader2 size={14} className="animate-spin mr-2" /> : <FileText size={14} className="mr-2" />}
-                      Generate Proforma Invoice (PI)
-                    </Button>
-                  )}
-
-                  {/* Print / Download PI PDF — only at packed_ready or later */}
-                  {isPackedOrLater && (
-                    <Button
-                      variant="outline"
-                      onClick={() => handlePrintInvoice(selectedOrder)}
-                      className="w-full"
-                    >
-                      <Printer size={14} className="mr-2" />
-                      Print / Download Proforma PDF
-                    </Button>
-                  )}
-
-                  {/* Mark Payment Cleared */}
-                  {selectedOrder.document_stage === "PI" && !selectedOrder.payment_cleared && (
-                    <Button
-                      onClick={() => handleMarkPaymentCleared(selectedOrder.id)}
-                      disabled={financeUpdating}
-                      className="w-full"
-                    >
-                      {financeUpdating ? <Loader2 size={14} className="animate-spin mr-2" /> : <CheckCircle2 size={14} className="mr-2" />}
-                      Mark Payment Cleared
-                    </Button>
-                  )}
+                  <p className="rounded-lg bg-muted/40 p-3 text-xs text-muted-foreground">
+                    Proforma invoice, final-payment PI revision, payment proof, and final invoice authority are governed by Core Finance surfaces.
+                    Use Finance Release and Finance Exit boards — this pipeline does not generate local PI numbers, PDFs, or payment-cleared flags.
+                  </p>
 
                   {/* E-Way Bill (Final stage) */}
                   {selectedOrder.document_stage === "Final" && (

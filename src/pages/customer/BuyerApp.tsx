@@ -37,6 +37,7 @@ import {
   type BuyerDraftLine,
   type BuyerDocument,
   type BuyerFinanceFacts,
+  type BuyerFinalPaymentPiFacts,
   type BuyerGeneralQuery,
   type BuyerOrder,
   type BuyerOrderItem,
@@ -149,6 +150,7 @@ function useBuyerData() {
   const [tickets, setTickets] = useState<BuyerTicket[]>([]);
   const [commercialFacts, setCommercialFacts] = useState<BuyerCommercialFacts[]>([]);
   const [financeFacts, setFinanceFacts] = useState<Record<string, BuyerFinanceFacts>>({});
+  const [finalPaymentPiFacts, setFinalPaymentPiFacts] = useState<Record<string, BuyerFinalPaymentPiFacts>>({});
   const [proformaInvoices, setProformaInvoices] = useState<BuyerProformaInvoiceFacts[]>([]);
   const [documents, setDocuments] = useState<BuyerDocument[]>([]);
   const [statement, setStatement] = useState<BuyerStatement | null>(null);
@@ -160,6 +162,7 @@ function useBuyerData() {
   const projectionState = useRef({
     commercialFacts: [] as BuyerCommercialFacts[],
     financeFacts: {} as Record<string, BuyerFinanceFacts>,
+    finalPaymentPiFacts: {} as Record<string, BuyerFinalPaymentPiFacts>,
     proformaInvoices: [] as BuyerProformaInvoiceFacts[],
     documents: [] as BuyerDocument[],
     statement: null as BuyerStatement | null,
@@ -226,6 +229,10 @@ function useBuyerData() {
         order.order_id,
         await safeRead(() => customerAppClient.financeFacts(order.order_id)),
       ] as const));
+      const finalPaymentPiRowsPromise = Promise.all((orderRowsWithFacts || []).map(async (order) => [
+        order.order_id,
+        await safeRead(() => customerAppClient.finalPaymentPiFacts(order.order_id)),
+      ] as const));
       const teamPromise = safeRead(() => customerAppClient.team());
       setPrices(priceRows || []);
       setProducts(productRows.data || []);
@@ -263,6 +270,17 @@ function useBuyerData() {
         }
         projectionState.current.financeFacts = financeByOrder;
         setFinanceFacts(financeByOrder);
+      }).catch(() => undefined);
+      void finalPaymentPiRowsPromise.then((finalPaymentPiRows) => {
+        if (!isCurrentRefresh()) return;
+        const previousFacts = projectionState.current.finalPaymentPiFacts;
+        const factsByOrder: Record<string, BuyerFinalPaymentPiFacts> = {};
+        for (const [orderId, result] of finalPaymentPiRows) {
+          if (result.ok && result.value) factsByOrder[orderId] = result.value;
+          else if (!result.ok && previousFacts[orderId]) factsByOrder[orderId] = previousFacts[orderId];
+        }
+        projectionState.current.finalPaymentPiFacts = factsByOrder;
+        setFinalPaymentPiFacts(factsByOrder);
       }).catch(() => undefined);
     } catch {
       if (!isCurrentRefresh()) return;
@@ -314,6 +332,7 @@ function useBuyerData() {
     tickets,
     commercialFacts,
     financeFacts,
+    finalPaymentPiFacts,
     proformaInvoices,
     documents,
     statement,
@@ -607,6 +626,35 @@ function BuyerSoReference({ orderNumber }: { orderNumber: string | null | undefi
   return <span>{orderNumber || "Sales order reference pending"}</span>;
 }
 
+function BuyerFinalPaymentPiSummary({ facts }: { facts: BuyerFinalPaymentPiFacts | null | undefined }) {
+  if (!facts?.available) return null;
+  return (
+    <div className="mt-4 rounded-2xl border bg-card p-5 shadow-[var(--card-shadow)]" aria-label="Final payment request">
+      <div className="flex items-start justify-between gap-3">
+        <h2 className="font-semibold">Final payment</h2>
+        <span className="rounded-full bg-primary/10 px-2 py-1 text-right text-xs font-semibold text-primary">
+          {facts.settled ? "Settled" : "Payment due"}
+        </span>
+      </div>
+      <p className="mt-2 text-xs text-muted-foreground">
+        Governed final-payment demand under {facts.customer_visible_pi_number || "your proforma invoice"}.
+        The final tax invoice is issued only after this balance is settled.
+      </p>
+      <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+        <span>Final payable</span><strong className="text-right">{money(facts.final_payable_total)}</strong>
+        <span>Balance due</span><strong className="text-right">{money(facts.balance_due)}</strong>
+      </div>
+      {facts.payment_instructions && <p className="mt-3 text-xs text-muted-foreground">{facts.payment_instructions}</p>}
+      {facts.payment_action === "PAY_NOW" && facts.payment_link && (
+        <a href={facts.payment_link} className="mt-3 inline-flex text-sm font-semibold text-primary" target="_blank" rel="noreferrer">
+          Open payment link
+        </a>
+      )}
+      {facts.facts_as_of && <p className="mt-2 text-[11px] text-muted-foreground">Facts updated {formatDate(facts.facts_as_of)}</p>}
+    </div>
+  );
+}
+
 function BuyerFinanceSummary({ facts }: { facts: BuyerFinanceFacts | null | undefined }) {
   if (!facts?.customer_safe_projection) return null;
   return (
@@ -641,6 +689,7 @@ function OrderDetail({ data, orderId }: { data: ReturnType<typeof useBuyerData>;
   const order = data.orders.find((item) => item.order_id === orderId);
   const lines = data.items.filter((item) => item.order_id === orderId);
   const finance = data.financeFacts[orderId];
+  const finalPaymentPi = data.finalPaymentPiFacts[orderId];
   const commercial = data.commercialFacts.find((facts) => facts.order_id === orderId);
   const [reordering, setReordering] = useState(false);
   if (!order) return <Empty title="Order not found" text="This order is not available for your company." />;
@@ -664,7 +713,7 @@ function OrderDetail({ data, orderId }: { data: ReturnType<typeof useBuyerData>;
   const displayedRequestedDate = commercial?.requested_dispatch_date ?? order.requested_dispatch_date;
   const displayedPromisedDate = commercial?.promised_dispatch_date ?? order.promised_dispatch_date;
   return (
-    <section className="space-y-5" aria-labelledby="order-detail-heading"><Link to="/buyer/orders" className="inline-flex min-h-11 items-center gap-2 text-sm text-muted-foreground"><ArrowLeft size={16} aria-hidden /> Back to orders</Link><div className="flex items-start justify-between gap-4"><div><p className="text-sm text-muted-foreground"><BuyerSoReference orderNumber={order.order_number} /></p><h1 id="order-detail-heading" className="font-display text-3xl font-semibold">Order details</h1></div><button type="button" disabled={reordering || lines.length === 0} onClick={() => { void reorder(); }} className="rounded-lg border px-3 py-2 text-xs font-semibold disabled:opacity-50">{reordering ? "Adding…" : "Reorder"}</button></div><div className="rounded-2xl border bg-card p-5 shadow-[var(--card-shadow)]"><div className="flex justify-between"><span>Status</span><strong className="text-primary">{customerOrderStageLabel(order.customer_stage)}</strong></div><div className="mt-2 flex justify-between text-sm"><span>Payment</span><span>{customerPaymentStageLabel(order.payment_stage)}</span></div><div className="mt-2 flex justify-between text-sm"><span>SO value</span><span>{money(displayedOrderValue)}</span></div>{commercial?.commercial_version_number != null && <div className="mt-2 flex justify-between text-sm"><span>Commercial version</span><span>v{commercial.commercial_version_number}</span></div>}<div className="mt-2 flex justify-between text-sm"><span>Requested dispatch</span><span>{displayedRequestedDate || "Not requested"}</span></div><div className="mt-2 flex justify-between text-sm"><span>Promised dispatch</span><span>{displayedPromisedDate || "To be confirmed"}</span></div>{financeStatus && <div className="mt-2 flex justify-between text-sm"><span>Finance</span><span>{customerFinanceStatusLabel(financeStatus)}</span></div>}{(order.tracking_number || order.courier_name) && <div className="mt-2 flex justify-between text-sm"><span>Tracking</span><span>{[order.courier_name, order.tracking_number].filter(Boolean).join(" · ")}</span></div>}</div><BuyerFinanceSummary facts={finance} /><div className="rounded-2xl border bg-card p-5 shadow-[var(--card-shadow)]"><h2 className="mb-4 font-semibold">Order progress</h2><CustomerOrderTimeline steps={buildCustomerOrderTimeline({ customerStage: order.customer_stage, paymentStage: order.payment_stage, orderNumber: order.order_number })} /></div><div className="space-y-2"><h2 className="font-semibold">Items</h2>{lines.length === 0 ? <Empty title="Items not available" text="Core has not returned line details yet." /> : lines.map((line) => <div key={line.item_id} className="flex justify-between rounded-xl border bg-card p-3 text-sm"><span>{line.product_name || line.sku || "Product"} × {line.quantity}<span className="block text-xs text-muted-foreground">SKU {line.sku || "pending"} · {line.pack_size || "unit"}</span></span><span>{line.weight_kg ? `${line.weight_kg} kg` : ""}</span></div>)}</div><Link to="/buyer/support" className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-primary">Need help with this order? <ChevronRight size={15} aria-hidden /></Link></section>
+    <section className="space-y-5" aria-labelledby="order-detail-heading"><Link to="/buyer/orders" className="inline-flex min-h-11 items-center gap-2 text-sm text-muted-foreground"><ArrowLeft size={16} aria-hidden /> Back to orders</Link><div className="flex items-start justify-between gap-4"><div><p className="text-sm text-muted-foreground"><BuyerSoReference orderNumber={order.order_number} /></p><h1 id="order-detail-heading" className="font-display text-3xl font-semibold">Order details</h1></div><button type="button" disabled={reordering || lines.length === 0} onClick={() => { void reorder(); }} className="rounded-lg border px-3 py-2 text-xs font-semibold disabled:opacity-50">{reordering ? "Adding…" : "Reorder"}</button></div><div className="rounded-2xl border bg-card p-5 shadow-[var(--card-shadow)]"><div className="flex justify-between"><span>Status</span><strong className="text-primary">{customerOrderStageLabel(order.customer_stage)}</strong></div><div className="mt-2 flex justify-between text-sm"><span>Payment</span><span>{customerPaymentStageLabel(order.payment_stage)}</span></div><div className="mt-2 flex justify-between text-sm"><span>SO value</span><span>{money(displayedOrderValue)}</span></div>{commercial?.commercial_version_number != null && <div className="mt-2 flex justify-between text-sm"><span>Commercial version</span><span>v{commercial.commercial_version_number}</span></div>}<div className="mt-2 flex justify-between text-sm"><span>Requested dispatch</span><span>{displayedRequestedDate || "Not requested"}</span></div><div className="mt-2 flex justify-between text-sm"><span>Promised dispatch</span><span>{displayedPromisedDate || "To be confirmed"}</span></div>{financeStatus && <div className="mt-2 flex justify-between text-sm"><span>Finance</span><span>{customerFinanceStatusLabel(financeStatus)}</span></div>}{(order.tracking_number || order.courier_name) && <div className="mt-2 flex justify-between text-sm"><span>Tracking</span><span>{[order.courier_name, order.tracking_number].filter(Boolean).join(" · ")}</span></div>}</div><BuyerFinanceSummary facts={finance} /><BuyerFinalPaymentPiSummary facts={finalPaymentPi} /><div className="rounded-2xl border bg-card p-5 shadow-[var(--card-shadow)]"><h2 className="mb-4 font-semibold">Order progress</h2><CustomerOrderTimeline steps={buildCustomerOrderTimeline({ customerStage: order.customer_stage, paymentStage: order.payment_stage, orderNumber: order.order_number })} /></div><div className="space-y-2"><h2 className="font-semibold">Items</h2>{lines.length === 0 ? <Empty title="Items not available" text="Core has not returned line details yet." /> : lines.map((line) => <div key={line.item_id} className="flex justify-between rounded-xl border bg-card p-3 text-sm"><span>{line.product_name || line.sku || "Product"} × {line.quantity}<span className="block text-xs text-muted-foreground">SKU {line.sku || "pending"} · {line.pack_size || "unit"}</span></span><span>{line.weight_kg ? `${line.weight_kg} kg` : ""}</span></div>)}</div><Link to="/buyer/support" className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-primary">Need help with this order? <ChevronRight size={15} aria-hidden /></Link></section>
   );
 }
 

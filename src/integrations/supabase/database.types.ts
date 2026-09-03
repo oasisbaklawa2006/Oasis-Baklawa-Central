@@ -23,6 +23,7 @@ type CustomerAppFunctions = {
   customer_order_items_v1: { Args: never; Returns: { order_id: string; item_id: string; product_id: string; sku: string | null; product_name: string | null; quantity: number; pack_size: string | null; weight_kg: number | null; packed_quantity: number | null }[] }
   customer_sales_order_commercial_facts_v1: { Args: never; Returns: { order_id: string; order_number: string; commercial_version_id: string; commercial_version_number: number; frozen_sales_order_value: number; requested_dispatch_date: string | null; promised_dispatch_date: string | null; commercial_status: string; finance_status: string; created_at: string; updated_at: string }[] }
   customer_order_finance_facts_v1: { Args: { p_order_id: string }; Returns: Json }
+  get_sales_order_pi_final_payment_request_v1: { Args: { p_order_id: string }; Returns: Json }
   customer_proforma_invoice_facts_v1: { Args: never; Returns: { pi_id: string; customer_visible_pi_number: string | null; order_id: string; order_number: string; commercial_version_id: string; commercial_version_number: number; status: string; issued_at: string | null; frozen_customer_total: number | null; created_at: string }[] }
   customer_documents_v1: { Args: never; Returns: { document_type: string; document_id: string; document_number: string | null; order_id: string; order_number: string; commercial_version_id: string | null; status: string; issued_at: string | null; customer_total: number | null; availability_state: string }[] }
   customer_statement_v1: { Args: never; Returns: Json }

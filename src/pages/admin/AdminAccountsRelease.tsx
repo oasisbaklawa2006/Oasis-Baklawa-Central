@@ -16,6 +16,14 @@ import {
   recordEwayEvidence,
   type FinanceExitFacts,
 } from "@/lib/order-authority/financeExitAuthorityClient";
+import {
+  buildFinalPaymentPiCorrelationId,
+  buildFinalPaymentPiIdempotencyKey,
+  getFinalPaymentPiFacts,
+  issueFinalPaymentPiRevision,
+  type FinalPaymentPiFacts,
+  type FinalPaymentPiPaymentAction,
+} from "@/lib/order-authority/finalPaymentPiAuthorityClient";
 import { clearOrderForDispatch } from "@/lib/order-authority/orderAuthorityClient";
 
 type FinanceOrder = Pick<
@@ -47,13 +55,14 @@ function deadlineLabel(value: string | null) {
   }).format(date);
 }
 
-function stage(facts: FinanceExitFacts | null) {
+function stage(facts: FinanceExitFacts | null, finalPaymentPi: FinalPaymentPiFacts | null) {
   if (!facts) return "Select an order";
   if (facts.dispatchProofId) return "Gate exit recorded — dispatch handoff complete";
   if (facts.dispatchCleared) return "Finance Dispatch Clearance granted";
   if (facts.finalInvoiceId && facts.ewayEvidenceId) return "Ready for Dispatch Clearance decision";
   if (facts.finalInvoiceId) return "E-way decision required";
-  if (facts.financeDplReceiptId) return "Final invoice required";
+  if (finalPaymentPi?.available && finalPaymentPi.settled !== true) return "Final-payment PI revision issued — settlement pending";
+  if (facts.financeDplReceiptId) return "Final-payment PI revision required";
   return "Submitted DPL receipt required";
 }
 
@@ -63,8 +72,15 @@ const AdminAccountsRelease = () => {
   const [selected, setSelected] = useState<FinanceOrder | null>(null);
   const selectedIdRef = useRef<string | null>(null);
   const [facts, setFacts] = useState<FinanceExitFacts | null>(null);
+  const [finalPaymentPi, setFinalPaymentPi] = useState<FinalPaymentPiFacts | null>(null);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState<string | null>(null);
+
+  const [finalPaymentDocumentReference, setFinalPaymentDocumentReference] = useState("");
+  const [finalPaymentAction, setFinalPaymentAction] = useState<FinalPaymentPiPaymentAction>("BANK_TRANSFER");
+  const [finalPaymentLink, setFinalPaymentLink] = useState("");
+  const [finalPaymentInstructions, setFinalPaymentInstructions] = useState("Transfer the exact balance due using the governed bank details on file.");
+  const [finalPaymentReason, setFinalPaymentReason] = useState("Finance DPL and frozen commercial terms verified");
 
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [invoiceDate, setInvoiceDate] = useState(localCalendarDate);
@@ -96,11 +112,18 @@ const AdminAccountsRelease = () => {
 
   const refreshFacts = useCallback(async (order: FinanceOrder) => {
     try {
-      const freshFacts = await getFinanceExitFacts(order.id);
-      if (selectedIdRef.current === order.id) setFacts(freshFacts);
+      const [freshFacts, freshFinalPaymentPi] = await Promise.all([
+        getFinanceExitFacts(order.id),
+        getFinalPaymentPiFacts(order.id),
+      ]);
+      if (selectedIdRef.current === order.id) {
+        setFacts(freshFacts);
+        setFinalPaymentPi(freshFinalPaymentPi);
+      }
     } catch (error) {
       if (selectedIdRef.current === order.id) {
         setFacts(null);
+        setFinalPaymentPi(null);
         toast.error(error instanceof Error ? error.message : "Finance Exit facts unavailable");
       }
     }
@@ -134,10 +157,16 @@ const AdminAccountsRelease = () => {
     selectedIdRef.current = order.id;
     setSelected(order);
     setFacts(null);
+    setFinalPaymentPi(null);
     await refreshFacts(order);
   };
 
   const actorId = user?.id ?? "";
+  const finalPaymentInputIncomplete =
+    !finalPaymentDocumentReference.trim() ||
+    !finalPaymentInstructions.trim() ||
+    !finalPaymentReason.trim() ||
+    (finalPaymentAction === "PAY_NOW" && !finalPaymentLink.trim());
   const invoiceInputIncomplete =
     !invoiceNumber.trim() ||
     !invoiceDate.trim() ||
@@ -211,7 +240,7 @@ const AdminAccountsRelease = () => {
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <p className="text-xs uppercase tracking-wide text-muted-foreground">Current governed stage</p>
-                    <p className="mt-1 text-lg font-semibold">{stage(facts)}</p>
+                    <p className="mt-1 text-lg font-semibold">{stage(facts, finalPaymentPi)}</p>
                   </div>
                   <Button variant="outline" onClick={() => void refreshFacts(selected)} disabled={acting !== null}>
                     <RefreshCw className="mr-2 h-4 w-4" />Facts
@@ -223,6 +252,17 @@ const AdminAccountsRelease = () => {
                     <div className="rounded-lg bg-muted p-3">
                       <p className="text-muted-foreground">DPL receipt</p>
                       <p className="mt-1 font-medium">{facts.financeDplReceiptId ? "Frozen" : "Pending"}</p>
+                    </div>
+                    <div className="rounded-lg bg-muted p-3">
+                      <p className="text-muted-foreground">Final-payment PI</p>
+                      <p className="mt-1 font-medium">
+                        {finalPaymentPi?.available
+                          ? `${finalPaymentPi.customerVisiblePiNumber ?? "PI"} · rev ${finalPaymentPi.revisionNumber ?? "?"}`
+                          : "Pending"}
+                      </p>
+                      <p className="mt-1 text-[10px] text-muted-foreground">
+                        {finalPaymentPi?.settled ? "Settled" : finalPaymentPi?.available ? money(finalPaymentPi.balanceDue) : ""}
+                      </p>
                     </div>
                     <div className="rounded-lg bg-muted p-3">
                       <p className="text-muted-foreground">Final invoice</p>
@@ -263,7 +303,98 @@ const AdminAccountsRelease = () => {
 
               <div className="space-y-3 rounded-xl border bg-card p-4">
                 <div className="flex items-center gap-2 font-semibold">
-                  <FileText className="h-4 w-4" />2. Issue final tax invoice
+                  <FileText className="h-4 w-4" />2. Issue DPL-bound final-payment PI revision
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  PI requests final payment. Final invoice does not request payment. Core derives the exact payable from the immutable Finance DPL receipt and frozen commercial version.
+                </p>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="md:col-span-2">
+                    <Label>Document reference</Label>
+                    <Input
+                      value={finalPaymentDocumentReference}
+                      onChange={(event) => setFinalPaymentDocumentReference(event.target.value)}
+                      placeholder="Immutable storage/document reference for the final-payment PI"
+                    />
+                  </div>
+                  <div>
+                    <Label>Payment action</Label>
+                    <select
+                      className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                      value={finalPaymentAction}
+                      onChange={(event) => setFinalPaymentAction(event.target.value as FinalPaymentPiPaymentAction)}
+                    >
+                      <option value="BANK_TRANSFER">Bank transfer</option>
+                      <option value="PAY_NOW">Pay now</option>
+                      <option value="CONTACT_FINANCE">Contact finance</option>
+                    </select>
+                  </div>
+                  <div>
+                    <Label>Payment link</Label>
+                    <Input
+                      disabled={finalPaymentAction !== "PAY_NOW"}
+                      value={finalPaymentLink}
+                      onChange={(event) => setFinalPaymentLink(event.target.value)}
+                      placeholder="Required for Pay now"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <Label>Payment instructions</Label>
+                    <Input value={finalPaymentInstructions} onChange={(event) => setFinalPaymentInstructions(event.target.value)} />
+                  </div>
+                  <div className="md:col-span-2">
+                    <Label>Reason</Label>
+                    <Input value={finalPaymentReason} onChange={(event) => setFinalPaymentReason(event.target.value)} />
+                  </div>
+                </div>
+                <Button
+                  disabled={
+                    !actorId ||
+                    !facts?.financeDplReceiptId ||
+                    !facts.piId ||
+                    !facts.commercialVersionId ||
+                    !!facts.finalInvoiceId ||
+                    acting !== null ||
+                    finalPaymentInputIncomplete
+                  }
+                  onClick={() => void run("final-payment-pi", async () => {
+                    const identity = JSON.stringify({
+                      orderId: selected.id,
+                      piId: facts!.piId,
+                      commercialVersionId: facts!.commercialVersionId,
+                      financeDplReceiptId: facts!.financeDplReceiptId,
+                      documentReference: finalPaymentDocumentReference.trim(),
+                      paymentAction: finalPaymentAction,
+                      paymentLink: finalPaymentLink.trim() || null,
+                      paymentInstructions: finalPaymentInstructions.trim(),
+                      reason: finalPaymentReason.trim(),
+                    });
+                    return issueFinalPaymentPiRevision({
+                      orderId: selected.id,
+                      piId: facts!.piId!,
+                      commercialVersionId: facts!.commercialVersionId!,
+                      financeDplReceiptId: facts!.financeDplReceiptId!,
+                      documentReference: finalPaymentDocumentReference.trim(),
+                      paymentAction: finalPaymentAction,
+                      paymentLink: finalPaymentLink.trim() || null,
+                      paymentInstructions: finalPaymentInstructions.trim(),
+                      reason: finalPaymentReason.trim(),
+                      sourceChannel: "CENTRAL",
+                      sourceReference: `accounts-release:${selected.id}`,
+                      correlationId: await buildFinalPaymentPiCorrelationId("issue", identity),
+                      idempotencyKey: await buildFinalPaymentPiIdempotencyKey("issue", identity),
+                      actorId,
+                    });
+                  })}
+                >
+                  {acting === "final-payment-pi" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Issue final-payment PI revision
+                </Button>
+              </div>
+
+              <div className="space-y-3 rounded-xl border bg-card p-4">
+                <div className="flex items-center gap-2 font-semibold">
+                  <FileText className="h-4 w-4" />3. Issue final tax invoice
                 </div>
                 <p className="text-xs text-muted-foreground">
                   The governed 10-calendar-day ticket-raise window is anchored to this final invoice date. Invoice date is Day 1; delivery cannot start or extend the clock.
@@ -280,6 +411,8 @@ const AdminAccountsRelease = () => {
                     !facts?.financeDplReceiptId ||
                     !facts.piId ||
                     !facts.commercialVersionId ||
+                    !finalPaymentPi?.available ||
+                    finalPaymentPi.settled !== true ||
                     !!facts.finalInvoiceId ||
                     acting !== null ||
                     invoiceInputIncomplete
@@ -303,7 +436,7 @@ const AdminAccountsRelease = () => {
 
               <div className="space-y-3 rounded-xl border bg-card p-4">
                 <div className="flex items-center gap-2 font-semibold">
-                  <ShieldCheck className="h-4 w-4" />3. E-way evidence & Finance Dispatch Clearance
+                  <ShieldCheck className="h-4 w-4" />4. E-way evidence & Finance Dispatch Clearance
                 </div>
                 <div className="grid gap-3 md:grid-cols-2">
                   <div>

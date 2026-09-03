@@ -22,6 +22,7 @@ const buyerMock = vi.hoisted(() => ({
   tickets: vi.fn(),
   commercialFacts: vi.fn(),
   financeFacts: vi.fn(),
+  finalPaymentPiFacts: vi.fn(),
   proformaInvoices: vi.fn(),
   documents: vi.fn(),
   statement: vi.fn(),
@@ -108,6 +109,7 @@ vi.mock("@/lib/customerApp/customerAppClient", () => ({
     tickets: buyerMock.tickets,
     commercialFacts: buyerMock.commercialFacts,
     financeFacts: buyerMock.financeFacts,
+    finalPaymentPiFacts: buyerMock.finalPaymentPiFacts,
     proformaInvoices: buyerMock.proformaInvoices,
     documents: buyerMock.documents,
     statement: buyerMock.statement,
@@ -184,6 +186,7 @@ beforeEach(() => {
   buyerMock.tickets.mockResolvedValue([]);
   buyerMock.commercialFacts.mockResolvedValue([]);
   buyerMock.financeFacts.mockResolvedValue(null);
+  buyerMock.finalPaymentPiFacts.mockResolvedValue(null);
   buyerMock.proformaInvoices.mockResolvedValue([]);
   buyerMock.documents.mockResolvedValue([]);
   buyerMock.statement.mockResolvedValue(null);
