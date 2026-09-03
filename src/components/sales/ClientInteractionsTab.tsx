@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, Phone, MapPin, StickyNote, MessageSquare, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -59,7 +59,7 @@ export default function ClientInteractionsTab({
 
   const companyIds = companies.map((c) => c.id);
 
-  const fetchInteractions = async () => {
+  const fetchInteractions = useCallback(async () => {
     if (companyIds.length === 0) { setLoading(false); return; }
     setLoading(true);
     let query = supabase
@@ -74,9 +74,9 @@ export default function ClientInteractionsTab({
     const { data } = await query;
     setInteractions(data || []);
     setLoading(false);
-  };
+  }, [companyIds, scopeExecutiveId]);
 
-  useEffect(() => { fetchInteractions(); }, [companies, scopeExecutiveId]);
+  useEffect(() => { void fetchInteractions(); }, [fetchInteractions]);
 
   useEffect(() => {
     if (initialFilterCompanyId) {
