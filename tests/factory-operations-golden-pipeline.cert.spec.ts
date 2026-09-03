@@ -1,5 +1,6 @@
 import { writeFileSync } from "node:fs";
 import { test, expect, type Page } from "@playwright/test";
+import { createClient } from "@supabase/supabase-js";
 import { loadGoldenChainOrderState } from "../src/lib/golden-chain-operator/goldenChainOrderQueries";
 import { factoryCertificationCredentialSpec } from "../src/lib/factoryCertificationCredentialPolicy";
 import {
@@ -9,6 +10,7 @@ import {
   hasFactoryCertificationTarget,
   loginToFactoryCertificationTarget,
   readFactoryCertificationCredentials,
+  resolveFactoryCertificationBackend,
   resolveFactoryCertificationTarget,
   verifyAuthenticatedRole,
 } from "./factory-certification/support";
@@ -58,6 +60,20 @@ function credentialsForRoleOrSkip(role: string) {
   const credentials = readFactoryCertificationCredentials(role);
   test.skip(!credentials, `CREDENTIAL_REQUIRED: ${spec.emailEnv} + ${spec.passwordEnv}`);
   return credentials!;
+}
+
+async function createCertificationClientForRole(role: string) {
+  const credentials = credentialsForRoleOrSkip(role);
+  const backend = resolveFactoryCertificationBackend();
+  const client = createClient(backend.url, backend.anonKey, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+  });
+  const { error } = await client.auth.signInWithPassword({
+    email: credentials.email,
+    password: credentials.password,
+  });
+  if (error) throw new Error(`AUTH_FAILED ${role}: ${error.message}`);
+  return client;
 }
 
 async function switchRole(page: Page, role: string) {
@@ -125,6 +141,7 @@ test("POINT-38 :: Golden Pipeline governance-board order status E2E", async ({ p
   credentialsForRoleOrSkip("DISPATCH_MANAGER");
   credentialsForRoleOrSkip("FINANCE_HEAD");
   credentialsForRoleOrSkip("PROD_ARABIC_SWEETS");
+  credentialsForRoleOrSkip("ADMIN");
   let orderLabel = orderId.slice(0, 8).toUpperCase();
 
   const rpcCalls: Array<{ fn: string }> = [];
@@ -295,7 +312,7 @@ test("POINT-38 :: Golden Pipeline governance-board order status E2E", async ({ p
     if (lineageError) throw new Error(`BACKEND_READ_FAILED dispatch_release_lineage: ${lineageError.message}`);
     expect((lineage ?? []).some((row) => String(row.next_status) === "dispatched")).toBe(true);
 
-    const { data: historyRows, error: historyError } = await client
+    const { data: historyRows, error: historyError } = await (await createCertificationClientForRole("ADMIN"))
       .from("order_status_history")
       .select("old_status,new_status")
       .eq("order_id", orderId)
@@ -321,8 +338,8 @@ test("POINT-38 :: Golden Pipeline governance-board order status E2E", async ({ p
     );
     record(
       "order_status_history_truth",
-      null,
-      "DISPATCH_MANAGER",
+      "release_order_to_dispatched_v1",
+      "ADMIN",
       "PASS",
       "cleared_for_dispatch→dispatched",
     );
