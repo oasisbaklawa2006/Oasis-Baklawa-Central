@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, Phone, MapPin, StickyNote, MessageSquare, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -35,14 +35,19 @@ const TYPE_ICONS: Record<string, React.ReactNode> = {
 export default function ClientInteractionsTab({
   companies,
   userId,
+  initialFilterCompanyId,
+  scopeExecutiveId,
 }: {
   companies: Company[];
   userId: string | undefined;
+  initialFilterCompanyId?: string;
+  /** When set, interaction reads are scoped to this executive (sales-assist roster lens). */
+  scopeExecutiveId?: string;
 }) {
   const [interactions, setInteractions] = useState<Interaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [filterCompany, setFilterCompany] = useState<string>("all");
+  const [filterCompany, setFilterCompany] = useState<string>(initialFilterCompanyId || "all");
 
   // Form
   const [formCompany, setFormCompany] = useState("");
@@ -54,20 +59,30 @@ export default function ClientInteractionsTab({
 
   const companyIds = companies.map((c) => c.id);
 
-  const fetchInteractions = async () => {
+  const fetchInteractions = useCallback(async () => {
     if (companyIds.length === 0) { setLoading(false); return; }
     setLoading(true);
-    const { data } = await supabase
+    let query = supabase
       .from("client_interactions")
       .select("id, company_id, interaction_type, notes, outcome, follow_up_date, created_at")
       .in("company_id", companyIds)
       .order("created_at", { ascending: false })
       .limit(100);
+    if (scopeExecutiveId) {
+      query = query.eq("executive_id", scopeExecutiveId);
+    }
+    const { data } = await query;
     setInteractions(data || []);
     setLoading(false);
-  };
+  }, [companyIds, scopeExecutiveId]);
 
-  useEffect(() => { fetchInteractions(); }, [companies]);
+  useEffect(() => { void fetchInteractions(); }, [fetchInteractions]);
+
+  useEffect(() => {
+    if (initialFilterCompanyId) {
+      setFilterCompany(initialFilterCompanyId);
+    }
+  }, [initialFilterCompanyId]);
 
   const handleSubmit = async () => {
     if (!formCompany || !formType) {

@@ -14,15 +14,13 @@ import { toast } from "@/hooks/use-toast";
 import { getWalletBalance } from "@/lib/order-authority/creditWalletAuthorityClient";
 import { format, startOfMonth } from "date-fns";
 import type { Database } from "@/integrations/supabase/types";
+import SalesCrmLiteWorkspace from "@/components/sales/crm-lite/SalesCrmLiteWorkspace";
+import type { CrmLiteCompany } from "@/lib/crm-lite/salesCrmLiteTypes";
 
-type CompanyRow = Database["public"]["Tables"]["companies"]["Row"];
 type OrderRow = Database["public"]["Tables"]["orders"]["Row"];
 type ClientInteractionRow = Database["public"]["Tables"]["client_interactions"]["Row"];
 
-type SalesCompany = Pick<
-  CompanyRow,
-  "id" | "business_name" | "gst_number" | "status" | "wallet_balance" | "credit_limit" | "current_balance" | "allow_credit" | "created_at"
->;
+type SalesCompany = CrmLiteCompany;
 
 type SalesOrder = Pick<OrderRow, "id" | "company_id" | "sales_order_value" | "status" | "created_at">;
 
@@ -48,6 +46,7 @@ const SalesDashboard = () => {
   const [logOutcome, setLogOutcome] = useState("");
   const [logFollowUp, setLogFollowUp] = useState("");
   const [logSaving, setLogSaving] = useState(false);
+  const [assistFocusCompanyId, setAssistFocusCompanyId] = useState<string | null>(null);
 
   useEffect(() => {
     if (authLoading || !user) return;
@@ -56,7 +55,7 @@ const SalesDashboard = () => {
       // Fetch assigned companies
       const { data: comps, error } = await supabase
         .from("companies")
-        .select("id, business_name, gst_number, status, credit_limit, current_balance, allow_credit, created_at")
+        .select("id, business_name, gst_number, status, credit_limit, current_balance, allow_credit, created_at, price_tier, discount_percentage")
         .eq("status", "approved")
         .eq("account_manager_id", user.id)
         .order("business_name");
@@ -283,10 +282,11 @@ const SalesDashboard = () => {
                   <TableRow>
                     <TableHead>Company</TableHead>
                     <TableHead>GST</TableHead>
+                    <TableHead>Tier</TableHead>
                     <TableHead className="text-right">Wallet</TableHead>
                     <TableHead className="text-right">Credit Limit</TableHead>
                     <TableHead className="text-right">Balance Due</TableHead>
-                    <TableHead className="text-center">Actions</TableHead>
+                    <TableHead className="text-center">Assist</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -294,13 +294,23 @@ const SalesDashboard = () => {
                     <TableRow key={c.id}>
                       <TableCell className="font-medium">{c.business_name}</TableCell>
                       <TableCell className="text-muted-foreground text-xs">{c.gst_number || "—"}</TableCell>
+                      <TableCell><Badge variant="outline" className="text-[10px]">{c.price_tier?.replace(/_/g, " ") || "Standard"}</Badge></TableCell>
                       <TableCell className="text-right font-mono text-sm">{c.wallet_balance == null ? "Unavailable" : `₹${c.wallet_balance.toLocaleString()}`}</TableCell>
                       <TableCell className="text-right font-mono text-sm">₹{(c.credit_limit || 0).toLocaleString()}</TableCell>
                       <TableCell className="text-right font-mono text-sm">₹{(c.current_balance || 0).toLocaleString()}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center justify-center gap-2">
-                          <span className="text-xs text-muted-foreground">Select a governed SO to request credit</span>
-                        </div>
+                      <TableCell className="text-center">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 text-xs"
+                          onClick={() => {
+                            setAssistFocusCompanyId(c.id);
+                            setLogCompany(c.id);
+                            document.getElementById("sales-crm-lite-workspace")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                          }}
+                        >
+                          Open assist
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -309,6 +319,12 @@ const SalesDashboard = () => {
             )}
           </CardContent>
         </Card>
+
+        {user && companies.length > 0 && (
+          <div id="sales-crm-lite-workspace">
+            <SalesCrmLiteWorkspace userId={user.id} companies={companies} assistFocusCompanyId={assistFocusCompanyId} />
+          </div>
+        )}
       </div>
 
       {/* Log Interaction Modal */}

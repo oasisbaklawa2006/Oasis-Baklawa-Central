@@ -113,6 +113,8 @@ describe("PF-6B Central credit, wallet and exposure authority contract", () => {
     const adminClients = source("pages/admin/AdminClients.tsx");
     expect(adminClients).toContain("credit_limit: editCreditLimit");
     expect(adminClients).toContain("Directory Logic");
-    expect(source("pages/sales/SalesDashboard.tsx")).toContain("Select a governed SO to request credit");
+    const workspace = source("components/sales/crm-lite/SalesCrmLiteWorkspace.tsx");
+    expect(workspace).toContain("CreditRequestModal");
+    expect(workspace).toContain("resolveCreditBinding");
   });
 });
