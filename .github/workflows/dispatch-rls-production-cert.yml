@@ -7,6 +7,7 @@ name: Dispatch RBAC Production RLS Certification
 # Security contract (fail closed):
 # - workflow_dispatch from default branch only before any TEST_* secret injection
 # - checkout pinned to approved PR #458 head SHA (not arbitrary dispatch ref)
+# - checkout credentials are never persisted into the working tree
 # - TEST_* secrets scoped to secret-check, Playwright probe, and report scan only
 # - JUnit upload gated on secret_scan success (never after credential detection)
 on:
@@ -35,14 +36,17 @@ jobs:
     steps:
       - name: Assert trusted default-branch dispatch (fail closed before credentials)
         shell: bash
+        env:
+          DISPATCH_EVENT_NAME: ${{ github.event_name }}
+          DISPATCH_REF: ${{ github.ref }}
         run: |
           set -euo pipefail
-          if [[ "${{ github.event_name }}" != "workflow_dispatch" ]]; then
+          if [[ "$DISPATCH_EVENT_NAME" != "workflow_dispatch" ]]; then
             echo "::error::Dispatch RBAC production RLS certification is manual-dispatch only."
             exit 1
           fi
-          if [[ "${{ github.ref }}" != "refs/heads/main" ]]; then
-            echo "::error::Refusing to run from ${{ github.ref }}. Select the default branch when dispatching so only the trusted workflow definition can reach credential-bearing steps."
+          if [[ "$DISPATCH_REF" != "refs/heads/main" ]]; then
+            echo "::error::Refusing to run from $DISPATCH_REF. Select the default branch when dispatching so only the trusted workflow definition can reach credential-bearing steps."
             exit 1
           fi
 
@@ -50,6 +54,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ env.DISPATCH_RLS_CERT_APPROVED_REF }}
+          persist-credentials: false
 
       - name: Assert checkout matches approved PR #458 head
         shell: bash
