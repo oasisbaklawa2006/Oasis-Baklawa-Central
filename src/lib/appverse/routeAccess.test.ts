@@ -73,4 +73,9 @@ describe("golden chain operator route access", () => {
     expect(isAuthorizedForAdminPath("/admin/ready-goods-stock", "DISPATCH_HEAD")).toBe(false);
     expect(isAuthorizedForAdminPath("/admin", "DISPATCH_MANAGER")).toBe(true);
   });
+
+  it("allows TV_DISPLAY and OPERATIONS_MANAGER to reach commercial Dispatch TV", () => {
+    expect(isAuthorizedForAdminPath("/admin/dispatch-tv", "TV_DISPLAY")).toBe(true);
+    expect(isAuthorizedForAdminPath("/admin/dispatch-tv", "OPERATIONS_MANAGER")).toBe(true);
+  });
 });

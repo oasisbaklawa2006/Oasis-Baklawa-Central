@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { canAccessSecurityGate } from "@/lib/auth/securityGatePolicy";
 import { getAllowedModulesForRole } from "./roleAccess";
-import { isAuthorizedForAdminPath } from "./routeAccess";
+import { getRequiredModuleForAdminPath, isAuthorizedForAdminPath } from "./routeAccess";
 
 const DISPATCH_ROLES = ["DISPATCH_MANAGER", "DISPATCH_INCHARGE", "DISPATCH_HEAD"] as const;
 
@@ -99,20 +99,44 @@ describe("Dispatch RBAC — security gate policy", () => {
 });
 
 describe("Dispatch RBAC — dashboard fallback fail-closed", () => {
-  const DASHBOARD_FALLBACK_BYPASS_ROUTES = [
-    "/admin/some-unmapped-page",
-    "/admin/ready-goods-stock",
-    "/admin/ready-goods-day-close",
-    "/admin/ready-goods-reports",
-    "/admin/production-demand-planner",
-    "/admin/assembly-tv",
+  it.each(DISPATCH_ROLES)("blocks $role from unmapped dashboard-fallback route /admin/some-unmapped-page", (role) => {
+    expect(isAuthorizedForAdminPath("/admin/some-unmapped-page", role)).toBe(false);
+  });
+});
+
+describe("Dispatch RBAC — explicitly mapped restricted routes", () => {
+  const EXPLICITLY_MAPPED_RESTRICTED_ROUTES = [
+    { path: "/admin/ready-goods-stock", module: "inventory" },
+    { path: "/admin/ready-goods-day-close", module: "inventory" },
+    { path: "/admin/ready-goods-reports", module: "inventory" },
+    { path: "/admin/production-demand-planner", module: "production" },
+    { path: "/admin/assembly-tv", module: "production" },
   ] as const;
 
-  it.each(DISPATCH_ROLES.flatMap((role) => DASHBOARD_FALLBACK_BYPASS_ROUTES.map((path) => ({ role, path }))))(
-    "blocks $role from unmapped dashboard-fallback route $path",
-    ({ role, path }) => {
-      expect(isAuthorizedForAdminPath(path, role)).toBe(false);
+  it.each(EXPLICITLY_MAPPED_RESTRICTED_ROUTES)(
+    "maps $path to $module, not dashboard fallback",
+    ({ path, module }) => {
+      expect(getRequiredModuleForAdminPath(path)).toBe(module);
     },
   );
+
+  it.each(
+    DISPATCH_ROLES.flatMap((role) =>
+      EXPLICITLY_MAPPED_RESTRICTED_ROUTES.map(({ path }) => ({ role, path })),
+    ),
+  )("blocks $role from explicitly mapped restricted route $path", ({ role, path }) => {
+    expect(isAuthorizedForAdminPath(path, role)).toBe(false);
+  });
+});
+
+describe("Dispatch RBAC — commercial Dispatch TV audience", () => {
+  it("allows TV_DISPLAY and OPERATIONS_MANAGER to reach /admin/dispatch-tv", () => {
+    expect(isAuthorizedForAdminPath("/admin/dispatch-tv", "TV_DISPLAY")).toBe(true);
+    expect(isAuthorizedForAdminPath("/admin/dispatch-tv", "OPERATIONS_MANAGER")).toBe(true);
+  });
+
+  it.each(DISPATCH_ROLES)("denies %s from commercial Dispatch TV", (role) => {
+    expect(isAuthorizedForAdminPath("/admin/dispatch-tv", role)).toBe(false);
+  });
 });
 

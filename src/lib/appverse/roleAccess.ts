@@ -67,7 +67,7 @@ export const ROLE_MODULE_ACCESS: Record<string, AppVerseGrantedModule[]> = {
   PROD_BAKERY: ["dashboard", "production"],
   PROD_NUTS: ["dashboard", "production"],
   CATALOGUE_CONTRIBUTOR: ["dashboard", "products"],
-  TV_DISPLAY: ["dashboard"],
+  TV_DISPLAY: ["dashboard", "orders"],
   TV_ASSEMBLY: ["dashboard"],
   TV_READY: ["dashboard"],
   SALES_EXECUTIVE: [],
