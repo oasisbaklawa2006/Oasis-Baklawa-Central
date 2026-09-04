@@ -1,0 +1,101 @@
+name: APPVERSE AI UAT
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_url:
+        description: "Safe preview/staging URL (localhost is not usable from hosted Actions)"
+        required: true
+        type: string
+      enable_ai:
+        description: "Enable bounded AI exploratory actions in addition to deterministic assertions"
+        required: true
+        default: true
+        type: boolean
+      send_images:
+        description: "Send screenshots to the AI planner (requires synthetic_target=true)"
+        required: true
+        default: false
+        type: boolean
+      capture_images:
+        description: "Persist screenshots in the evidence artifact (requires synthetic_target=true)"
+        required: true
+        default: false
+        type: boolean
+      synthetic_target:
+        description: "Confirm target contains synthetic/certification data suitable for model/artifact images"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: appverse-ai-uat-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  tranche-1:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      TEST_PREVIEW_URL: ${{ inputs.target_url }}
+      TEST_DISPATCH_EMAIL: ${{ secrets.TEST_DISPATCH_EMAIL }}
+      TEST_DISPATCH_PASSWORD: ${{ secrets.TEST_DISPATCH_PASSWORD }}
+      TEST_ASSEMBLY_EMAIL: ${{ secrets.TEST_ASSEMBLY_EMAIL }}
+      TEST_ASSEMBLY_PASSWORD: ${{ secrets.TEST_ASSEMBLY_PASSWORD }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      AI_UAT_ENABLE_AI: ${{ inputs.enable_ai }}
+      AI_UAT_SEND_IMAGES: ${{ inputs.send_images }}
+      AI_UAT_CAPTURE_IMAGES: ${{ inputs.capture_images }}
+      AI_UAT_SYNTHETIC_TARGET: ${{ inputs.synthetic_target }}
+      AI_UAT_MODEL: gpt-5.6-luna
+      AI_UAT_MAX_STEPS: "7"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Validate AI-UAT catalogue unit contract
+        run: npx vitest run src/lib/ai-uat/catalogue.test.ts
+
+      - name: Run APPVERSE AI UAT Tranche 1
+        id: ai_uat
+        continue-on-error: true
+        run: npx playwright test -c playwright.ai-uat.config.ts
+
+      - name: Merge evidence report
+        if: always()
+        run: node scripts/merge-ai-uat-report.mjs
+
+      - name: Upload sanitized AI-UAT evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: appverse-ai-uat-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            test-results/APPVERSE_AI_UAT_REPORT.md
+            test-results/ai-uat-evidence/*.json
+            test-results/ai-uat-evidence/*.png
+            test-results/ai-uat-playwright-report.json
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Preserve deterministic UAT failure signal
+        if: always() && steps.ai_uat.outcome == 'failure'
+        run: |
+          echo "One or more deterministic APPVERSE AI UAT assertions failed. Review the uploaded evidence report."
+          exit 1
