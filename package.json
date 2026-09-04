@@ -15,6 +15,8 @@
     "test:ui-ux-audit": "playwright test tests/ui-ux-audit.spec.ts --project=mobile-safari-size --project=desktop-chrome-size",
     "test:ux-audit": "playwright test -c playwright.ux-audit.config.ts",
     "test:ux-audit:report": "node scripts/merge-ux-audit-report.mjs",
+    "test:ai-uat": "playwright test -c playwright.ai-uat.config.ts",
+    "test:ai-uat:report": "node scripts/merge-ai-uat-report.mjs",
     "check:boundaries": "bash scripts/check-repo-boundaries.sh"
   },
   "dependencies": {
