@@ -49,16 +49,12 @@ export const ROLE_MODULE_ACCESS: Record<string, AppVerseGrantedModule[]> = {
   STORE_READY_GOODS: ["dashboard", "cmd_war_room", "inventory", "orders", "production"],
   STORE_3RD_PARTY: ["dashboard", "inventory", "orders"],
   RGS_ADMIN: ["dashboard", "cmd_war_room", "inventory", "orders", "production"],
-  // Owner decision (Dispatch customer-visibility model): Dispatch roles must
-  // not hold the general "orders" module -- that screen (OrderManagement.tsx)
-  // shows sales_order_value, granular payment_status/advance figures and
-  // unrestricted customer phone, none of which Dispatch is authorised to see.
-  // Physical UAT additionally confirmed that Dispatch must not see the CMD/legacy
-  // War Room. Dispatch's own packing/dispatch/inventory surfaces cover the
-  // operational scope without either authority.
-  DISPATCH_MANAGER: ["dashboard", "packing", "dispatch", "inventory"],
+  // Physical UAT authority: Dispatch is shipment-scoped. It must not inherit
+  // general orders, CMD/War Room, store/inventory, finance, governance or gate
+  // authority merely because those surfaces participate in the same order flow.
+  DISPATCH_MANAGER: ["dashboard", "packing", "dispatch"],
   DISPATCH_INCHARGE: ["dashboard", "packing", "dispatch"],
-  DISPATCH_HEAD: ["dashboard", "packing", "dispatch", "inventory"],
+  DISPATCH_HEAD: ["dashboard", "packing", "dispatch"],
   PACKING_SUPERVISOR: ["dashboard", "packing", "dispatch"],
   SECURITY_CONTROL: ["dashboard", "packing"],
   GATE_SECURITY: ["dashboard", "packing"],
