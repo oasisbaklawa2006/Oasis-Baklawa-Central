@@ -22,6 +22,5 @@ export default defineConfig({
     video: "off",
     actionTimeout: 15_000,
     navigationTimeout: 60_000,
-    ignoreHTTPSErrors: true,
   },
 });
