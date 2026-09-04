@@ -24,6 +24,9 @@ The controller never substitutes for:
 - Stale pins block certification and produce a durable PR comment.
 - Failed RLS certification never auto-retries into a merge; it produces a durable blocker comment.
 - AI-UAT is dispatched only after #458 is merged and GitHub deployment/status evidence identifies a successful Vercel deployment whose deployment SHA equals the exact #458 head and whose environment URL belongs to the Oasis Vercel team domain.
+- Before dispatch, the controller persists a durable correlation marker on issue #437 that binds the exact #458 head SHA, Vercel deployment id, and target URL.
+- AI-UAT acceptance and physical-UAT handoff require a correlated `workflow_dispatch` run whose `target_url` input matches that exact deployment URL and whose deployment evidence still matches the current #458 head; unrelated main-branch dispatches are ignored fail-closed.
+- A correlated AI-UAT failure does not suppress retry; only correlated queued, in-progress, or successful runs suppress duplicate dispatch.
 - Historical PR comments are not accepted as AI-UAT deployment authority.
 - AI-UAT success does not equal physical certification. It produces the physical-UAT-required handoff in issue #437.
 - The controller never runs from a pull-request-authored workflow definition. Its write-capable triggers are restricted to trusted `main` execution.
