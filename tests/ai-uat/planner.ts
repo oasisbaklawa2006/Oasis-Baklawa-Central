@@ -54,6 +54,24 @@ function sanitizeText(value: string): string {
     .slice(0, 16_000);
 }
 
+function safeAbsoluteUrl(value: string): string {
+  try {
+    const url = new URL(value);
+    return `${url.origin}${url.pathname}`;
+  } catch {
+    return "<invalid-url>";
+  }
+}
+
+function safeHistory(history: AiPlannerHistoryEntry[]): AiPlannerHistoryEntry[] {
+  return history.slice(-8).map((entry) => ({
+    ...entry,
+    urlBefore: safeAbsoluteUrl(entry.urlBefore),
+    ...(entry.urlAfter ? { urlAfter: safeAbsoluteUrl(entry.urlAfter) } : {}),
+    ...(entry.error ? { error: sanitizeText(entry.error) } : {}),
+  }));
+}
+
 /**
  * Build a privacy-minimised model context from UI chrome only. Deliberately
  * excludes table cells, free-form paragraphs and business data rows; the AI
@@ -68,12 +86,21 @@ async function getSanitizedUiChrome(page: Page): Promise<string> {
         if (!value) return;
         out.push(`${kind}: ${value.slice(0, 180)}`);
       };
+      const safeHref = (raw: string | null) => {
+        if (!raw) return "";
+        try {
+          const url = new URL(raw, window.location.href);
+          return `${url.origin}${url.pathname}`;
+        } catch {
+          return "<invalid-url>";
+        }
+      };
 
       document.querySelectorAll("h1,h2,h3").forEach((el) => push("heading", el.textContent));
       document.querySelectorAll("button").forEach((el) => push("button", el.getAttribute("aria-label") || el.textContent));
       document.querySelectorAll("a[href]").forEach((el) => {
         const anchor = el as HTMLAnchorElement;
-        push("link", `${el.textContent ?? ""} -> ${anchor.getAttribute("href") ?? ""}`);
+        push("link", `${el.textContent ?? ""} -> ${safeHref(anchor.getAttribute("href"))}`);
       });
       document.querySelectorAll("label").forEach((el) => push("label", el.textContent));
       document.querySelectorAll("input,textarea,select").forEach((el) => {
@@ -157,8 +184,8 @@ export async function requestAiPlannerAction(args: {
         "Prefer semantic visible controls and ordinary user behavior.",
         "Only use navigate when the target path appears in allowedRoutes or forbiddenRoutes; direct forbidden-route probes are intentional UAT checks.",
         `UAT case: ${JSON.stringify(args.testCase)}`,
-        `Current URL: ${args.page.url()}`,
-        `Prior actions: ${JSON.stringify(args.history.slice(-8))}`,
+        `Current URL: ${safeAbsoluteUrl(args.page.url())}`,
+        `Prior actions: ${JSON.stringify(safeHistory(args.history))}`,
         `Sanitized UI chrome snapshot:\n${uiChrome}`,
       ].join("\n\n"),
     },
@@ -173,26 +200,40 @@ export async function requestAiPlannerAction(args: {
     content.push({ type: "input_image", image_url: `data:image/jpeg;base64,${image.toString("base64")}` });
   }
 
-  const response = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: process.env.AI_UAT_MODEL?.trim() || "gpt-5.6-luna",
-      store: false,
-      input: [{ role: "user", content }],
-      text: {
-        format: {
-          type: "json_schema",
-          name: "appverse_ai_uat_action",
-          strict: true,
-          schema: ACTION_SCHEMA,
-        },
+  const controller = new AbortController();
+  const deadlineMs = Math.min(Math.max(Number(process.env.AI_UAT_PLANNER_TIMEOUT_MS ?? 30_000) || 30_000, 5_000), 60_000);
+  const timer = setTimeout(() => controller.abort(), deadlineMs);
+  let response: Response;
+  try {
+    response = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
       },
-    }),
-  });
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: process.env.AI_UAT_MODEL?.trim() || "gpt-5.6-luna",
+        store: false,
+        input: [{ role: "user", content }],
+        text: {
+          format: {
+            type: "json_schema",
+            name: "appverse_ai_uat_action",
+            strict: true,
+            schema: ACTION_SCHEMA,
+          },
+        },
+      }),
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error(`AI planner request exceeded ${deadlineMs} ms deadline.`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
 
   if (!response.ok) {
     const errorBody = sanitizeText(await response.text());
