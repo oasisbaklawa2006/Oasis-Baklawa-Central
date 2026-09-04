@@ -73,17 +73,23 @@ async function executeCase(
   }
 }
 
+async function expectCleanLoginDenial(page: Page, context: string) {
+  await expect(page, `${context} must land on the canonical Login route`).toHaveURL(/\/login(?:$|\?|\/)/, { timeout: 8_000 });
+  await expect(page.getByRole("button", { name: /^Login$/i }), `${context} must render the Login control`).toBeVisible({ timeout: 8_000 });
+  await expect(page.getByText(/404|page not found|something went wrong|unexpected error/i)).toHaveCount(0);
+}
+
 test("UAT-001 — logout terminates access", async ({ page }) => {
   const testCase = getAiUatCase("UAT-001");
   if (await blockIfMissingCredentials(page, testCase, ["TEST_DISPATCH"])) return;
   await executeCase(page, testCase, async () => {
     await clickLogout(page);
-    await expect(page, "Logout must reach the valid Login route without a 404 detour").toHaveURL(/\/login(?:$|\?|\/)/, { timeout: 8_000 });
-    await expect(page.getByText(/404|page not found/i)).toHaveCount(0);
+    await expectCleanLoginDenial(page, "Logout");
     await page.goto(`${getPreviewUrl()}/admin/dispatch-mgmt`, { waitUntil: "domcontentloaded", timeout: 45_000 });
+    await expectCleanLoginDenial(page, "Logged-out Dispatch direct revisit");
     await expect(page.getByText(/Governed carton.*DPL authority/i)).toHaveCount(0);
     await expect(page.getByText("DISPATCH MANAGER", { exact: false })).toHaveCount(0);
-    return "Logout reached Login and a direct Dispatch revisit did not restore authenticated Dispatch content.";
+    return "Logout reached Login and a direct Dispatch revisit returned to Login without restoring authenticated Dispatch content.";
   }, "TEST_DISPATCH");
 });
 
@@ -91,9 +97,9 @@ test("UAT-002 — anonymous direct URL protection", async ({ page }) => {
   const testCase = getAiUatCase("UAT-002");
   await executeCase(page, testCase, async () => {
     await page.goto(`${getPreviewUrl()}${testCase.startRoute}`, { waitUntil: "domcontentloaded", timeout: 45_000 });
-    await expect(page, "Anonymous direct-open must not remain on Finance").not.toHaveURL(/\/admin\/finance\/?(?:$|\?)/, { timeout: 8_000 });
+    await expectCleanLoginDenial(page, "Anonymous Finance direct-open");
     await expect(page.getByText(/Finance queue|Accounts & Release/i)).toHaveCount(0);
-    return `Anonymous Finance probe failed closed to ${new URL(page.url()).pathname}.`;
+    return "Anonymous Finance probe failed closed to the canonical Login route with no protected Finance content.";
   });
 });
 
