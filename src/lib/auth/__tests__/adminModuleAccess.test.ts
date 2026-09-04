@@ -46,20 +46,21 @@ describe("adminModuleAccess", () => {
   });
 
   describe("cmd_war_room (live-work-queues, entity-graph-explorer)", () => {
-    it("allows cmd_war_room for roles with war-room access", () => {
-      for (const role of [
-        "OPERATIONS_MANAGER",
-        "DISPATCH_MANAGER",
-        "FINANCE_HEAD",
-        "ADMIN",
-        "SUPER_ADMIN",
-      ]) {
+    it("allows cmd_war_room only for roles with war-room authority", () => {
+      for (const role of ["OPERATIONS_MANAGER", "FINANCE_HEAD", "ADMIN", "SUPER_ADMIN"]) {
         expect(hasAdminModuleAccess(role, CMD_WAR_ROOM_ROUTE_MODULE)).toBe(true);
       }
     });
 
-    it("denies cmd_war_room for production roles (cannot direct-open guarded routes)", () => {
-      for (const role of ["PRODUCTION_MANAGER", "HOD_ARABIC", "ASSEMBLY_MANAGER"]) {
+    it("denies cmd_war_room for production and Dispatch roles", () => {
+      for (const role of [
+        "PRODUCTION_MANAGER",
+        "HOD_ARABIC",
+        "ASSEMBLY_MANAGER",
+        "DISPATCH_MANAGER",
+        "DISPATCH_INCHARGE",
+        "DISPATCH_HEAD",
+      ]) {
         expect(hasAdminModuleAccess(role, CMD_WAR_ROOM_ROUTE_MODULE)).toBe(false);
       }
     });
