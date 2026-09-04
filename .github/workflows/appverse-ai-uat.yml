@@ -83,11 +83,6 @@ jobs:
     timeout-minutes: 45
     env:
       TEST_PREVIEW_URL: ${{ needs.validate-target.outputs.url }}
-      TEST_DISPATCH_EMAIL: ${{ secrets.TEST_DISPATCH_EMAIL }}
-      TEST_DISPATCH_PASSWORD: ${{ secrets.TEST_DISPATCH_PASSWORD }}
-      TEST_ASSEMBLY_EMAIL: ${{ secrets.TEST_ASSEMBLY_EMAIL }}
-      TEST_ASSEMBLY_PASSWORD: ${{ secrets.TEST_ASSEMBLY_PASSWORD }}
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       AI_UAT_ENABLE_AI: ${{ inputs.enable_ai }}
       AI_UAT_SEND_IMAGES: ${{ inputs.send_images }}
       AI_UAT_SYNTHETIC_TARGET: ${{ inputs.synthetic_target }}
@@ -97,6 +92,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -116,6 +113,12 @@ jobs:
       - name: Run APPVERSE AI UAT Tranche 1
         id: ai_uat
         continue-on-error: true
+        env:
+          TEST_DISPATCH_EMAIL: ${{ secrets.TEST_DISPATCH_EMAIL }}
+          TEST_DISPATCH_PASSWORD: ${{ secrets.TEST_DISPATCH_PASSWORD }}
+          TEST_ASSEMBLY_EMAIL: ${{ secrets.TEST_ASSEMBLY_EMAIL }}
+          TEST_ASSEMBLY_PASSWORD: ${{ secrets.TEST_ASSEMBLY_PASSWORD }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: npx playwright test -c playwright.ai-uat.config.ts
 
       - name: Merge evidence report
