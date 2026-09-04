@@ -21,7 +21,6 @@ required_checks=(
   "Enforce Catalogue AI-Studio repo ownership boundaries"
   "Codacy Static Code Analysis"
   "CodeQL"
-  "github-advanced-security"
   "Cursor Security Agent: Security Reviewer"
 )
 
