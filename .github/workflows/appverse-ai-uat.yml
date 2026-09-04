@@ -13,17 +13,12 @@ on:
         default: true
         type: boolean
       send_images:
-        description: "Send screenshots to the AI planner (requires synthetic_target=true)"
-        required: true
-        default: false
-        type: boolean
-      capture_images:
-        description: "Persist screenshots in the evidence artifact (requires synthetic_target=true)"
+        description: "Send an in-memory screenshot to the AI planner (requires synthetic_target=true)"
         required: true
         default: false
         type: boolean
       synthetic_target:
-        description: "Confirm target contains synthetic/certification data suitable for model/artifact images"
+        description: "Confirm target contains synthetic/certification data suitable for model image input"
         required: true
         default: false
         type: boolean
@@ -95,7 +90,6 @@ jobs:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       AI_UAT_ENABLE_AI: ${{ inputs.enable_ai }}
       AI_UAT_SEND_IMAGES: ${{ inputs.send_images }}
-      AI_UAT_CAPTURE_IMAGES: ${{ inputs.capture_images }}
       AI_UAT_SYNTHETIC_TARGET: ${{ inputs.synthetic_target }}
       AI_UAT_MODEL: gpt-5.6-luna
       AI_UAT_MAX_STEPS: "7"
@@ -135,8 +129,7 @@ jobs:
           name: appverse-ai-uat-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             test-results/APPVERSE_AI_UAT_REPORT.md
-            test-results/ai-uat-evidence/*.json
-            test-results/ai-uat-evidence/*.png
+            test-results/ai-uat-evidence.jsonl
             test-results/ai-uat-playwright-report.json
           if-no-files-found: warn
           retention-days: 14
