@@ -1,5 +1,4 @@
 import fs from "node:fs";
-import path from "node:path";
 import { expect, type Locator, type Page } from "@playwright/test";
 import type { AiUatCase, AiUatStatus } from "../../src/lib/ai-uat/catalogue";
 import { getPreviewUrl, login } from "../e2e-helpers";
@@ -10,7 +9,6 @@ import {
   type AiPlannerHistoryEntry,
 } from "./planner";
 
-const EVIDENCE_DIR = path.join(process.cwd(), "test-results", "ai-uat-evidence");
 const MUTATION_LABEL = /\b(create|submit|approve|reject|delete|remove|upload|record|lock|open carton|reserve|issue|finalize|release|save|send|confirm|supersede|pay|refund|grant|revoke)\b/i;
 const SAFE_FILL_LABEL = /\b(search|filter|find)\b/i;
 const SAFE_NAV_BUTTON_LABEL = /\b(open navigation|all tools|menu|close|expand|collapse|back|next|previous|filter|search|refresh|view|details?|tab)\b/i;
@@ -34,6 +32,7 @@ export type AiUatEvidence = {
   generated_at: string;
 };
 
+/** Remove common PII forms from diagnostic strings before persistence. */
 function redact(value: string): string {
   return value
     .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "<email>")
@@ -42,6 +41,7 @@ function redact(value: string): string {
     .replace(/\b\d{12,}\b/g, "<long-number>");
 }
 
+/** Persistable URL representation that strips credentials, query and fragment data. */
 function safeAbsoluteUrl(value: string): string {
   try {
     const url = new URL(value);
@@ -51,6 +51,7 @@ function safeAbsoluteUrl(value: string): string {
   }
 }
 
+/** Normalize route variants so trailing slashes and query/fragment forms compare identically. */
 function normalizePathname(value: string): string {
   if (!value) return "/";
   const pathOnly = value.split(/[?#]/, 1)[0] || "/";
@@ -58,16 +59,19 @@ function normalizePathname(value: string): string {
   return stripped || "/";
 }
 
+/** Return the single approved deployment origin established by the shared E2E target guard. */
 function previewOrigin(): string {
   return new URL(getPreviewUrl()).origin;
 }
 
+/** Build the exact route boundary the exploratory planner may enter for one UAT case. */
 function boundedPaths(testCase: AiUatCase): Set<string> {
   return new Set(
     [...testCase.allowedRoutes, ...testCase.forbiddenRoutes, testCase.startRoute].map(normalizePathname),
   );
 }
 
+/** Build explicit safe redirect destinations accepted as denial outcomes for direct-route probes. */
 function safeDeniedDestinations(testCase: AiUatCase): Set<string> {
   return new Set(
     [
@@ -82,10 +86,12 @@ function safeDeniedDestinations(testCase: AiUatCase): Set<string> {
   );
 }
 
+/** Check whether both email and password are present for a governed UAT role. */
 export function hasRoleCredentials(prefix: "TEST_DISPATCH" | "TEST_ASSEMBLY"): boolean {
   return Boolean(process.env[`${prefix}_EMAIL`]?.trim() && process.env[`${prefix}_PASSWORD`]?.trim());
 }
 
+/** Authenticate one governed role using secrets supplied only by the runner environment. */
 export async function loginWithPrefix(page: Page, prefix: "TEST_DISPATCH" | "TEST_ASSEMBLY") {
   const email = process.env[`${prefix}_EMAIL`]?.trim();
   const password = process.env[`${prefix}_PASSWORD`]?.trim();
@@ -93,6 +99,7 @@ export async function loginWithPrefix(page: Page, prefix: "TEST_DISPATCH" | "TES
   await login(page, email, password);
 }
 
+/** Attach bounded console/network diagnostics and return a detachable accumulator. */
 export function attachSafeDiagnostics(page: Page) {
   const consoleErrors: string[] = [];
   const failedRequests: Array<{ url: string; status: number }> = [];
@@ -118,18 +125,9 @@ export function attachSafeDiagnostics(page: Page) {
   };
 }
 
-export async function safeEvidenceScreenshot(page: Page, testCase: AiUatCase, label: string): Promise<string | null> {
-  if (process.env.AI_UAT_CAPTURE_IMAGES !== "true") return null;
-  if (process.env.AI_UAT_SYNTHETIC_TARGET !== "true") {
-    throw new Error("AI_UAT_CAPTURE_IMAGES=true requires AI_UAT_SYNTHETIC_TARGET=true; raw live-business screenshots must not be uploaded from this public repo workflow.");
-  }
-  fs.mkdirSync(EVIDENCE_DIR, { recursive: true });
-  const fileName = `${testCase.id.toLowerCase()}-${label.replace(/[^a-z0-9_-]+/gi, "-")}.png`;
-  const out = path.resolve(EVIDENCE_DIR, fileName);
-  const evidenceRoot = `${path.resolve(EVIDENCE_DIR)}${path.sep}`;
-  if (!out.startsWith(evidenceRoot)) throw new Error("AI-UAT screenshot path escaped the evidence directory.");
-  await page.screenshot({ path: out, fullPage: true });
-  return path.relative(process.cwd(), out).split(path.sep).join("/");
+/** Tranche 1 deliberately does not persist screenshots; model images stay in memory only. */
+export async function safeEvidenceScreenshot(_page: Page, _testCase: AiUatCase, _label: string): Promise<string | null> {
+  return null;
 }
 
 type ResolvedClickable = {
@@ -142,6 +140,7 @@ type ResolvedClickable = {
   ariaControls: string | null;
 };
 
+/** Read the actual matched control metadata before deciding whether a click is permitted. */
 async function describeClickable(locator: Locator, tag: "button" | "link"): Promise<ResolvedClickable> {
   const details = await locator.evaluate((element) => ({
     label: (element.getAttribute("aria-label") || element.textContent || "").replace(/\s+/g, " ").trim(),
@@ -153,6 +152,7 @@ async function describeClickable(locator: Locator, tag: "button" | "link"): Prom
   return { locator, tag, ...details };
 }
 
+/** Resolve only exact, visible semantic buttons or links named by the planner. */
 async function findClickable(page: Page, target: string): Promise<ResolvedClickable | null> {
   const button = page.getByRole("button", { name: target, exact: true }).first();
   if ((await button.count().catch(() => 0)) > 0 && (await button.isVisible().catch(() => false))) {
@@ -165,6 +165,7 @@ async function findClickable(page: Page, target: string): Promise<ResolvedClicka
   return null;
 }
 
+/** Parse a URL and fail closed if it leaves the approved preview origin. */
 function assertSamePreviewOrigin(urlValue: string, context: string): URL {
   const url = new URL(urlValue);
   if (url.origin !== previewOrigin()) {
@@ -173,6 +174,7 @@ function assertSamePreviewOrigin(urlValue: string, context: string): URL {
   return url;
 }
 
+/** Execute one planner action after resolved-control, mutation, route and origin policy checks. */
 async function executePlannerAction(page: Page, testCase: AiUatCase, action: AiPlannerAction): Promise<void> {
   switch (action.action) {
     case "click": {
@@ -247,13 +249,13 @@ async function executePlannerAction(page: Page, testCase: AiUatCase, action: AiP
       return;
     }
     case "screenshot":
-      await safeEvidenceScreenshot(page, testCase, `ai-step-${Date.now()}`);
       return;
     case "finish":
       return;
   }
 }
 
+/** Run a short, serial exploratory loop without allowing AI judgement to replace deterministic assertions. */
 export async function runBoundedAiExploration(page: Page, testCase: AiUatCase): Promise<AiPlannerHistoryEntry[]> {
   if (!aiPlannerEnabled()) return [];
   const maxSteps = Math.min(Math.max(Number(process.env.AI_UAT_MAX_STEPS ?? 7) || 7, 1), 12);
@@ -276,6 +278,7 @@ export async function runBoundedAiExploration(page: Page, testCase: AiUatCase): 
   return history;
 }
 
+/** Expand the role-scoped All Tools navigation and return the permitted-tools container. */
 export async function openAllTools(page: Page) {
   const openNavigation = page.getByRole("button", { name: /open navigation/i });
   if (await openNavigation.isVisible().catch(() => false)) await openNavigation.click();
@@ -286,6 +289,7 @@ export async function openAllTools(page: Page) {
   return page.getByRole("navigation", { name: /all permitted tools/i });
 }
 
+/** Trigger the ordinary UI logout action for session-termination tests. */
 export async function clickLogout(page: Page) {
   const openNavigation = page.getByRole("button", { name: /open navigation/i });
   if (await openNavigation.isVisible().catch(() => false)) await openNavigation.click();
@@ -294,6 +298,7 @@ export async function clickLogout(page: Page) {
   await logout.click();
 }
 
+/** Probe every forbidden route and require a normalized, known safe denial destination. */
 export async function probeForbiddenRoutes(page: Page, testCase: AiUatCase): Promise<string[]> {
   const results: string[] = [];
   const deniedDestinations = safeDeniedDestinations(testCase);
@@ -313,6 +318,7 @@ export async function probeForbiddenRoutes(page: Page, testCase: AiUatCase): Pro
   return results;
 }
 
+/** Sanitize planner action URLs and error text before evidence serialization. */
 function sanitizedActions(actions: AiPlannerHistoryEntry[]): AiPlannerHistoryEntry[] {
   return actions.map((entry) => ({
     ...entry,
@@ -322,15 +328,7 @@ function sanitizedActions(actions: AiPlannerHistoryEntry[]): AiPlannerHistoryEnt
   }));
 }
 
-function evidenceFilePath(id: string): string {
-  const safeId = id.toLowerCase();
-  if (!/^uat-(00[1-9]|010)$/.test(safeId)) throw new Error(`Unsupported AI-UAT evidence id: ${id}`);
-  const out = path.resolve(EVIDENCE_DIR, `${safeId}.json`);
-  const evidenceRoot = `${path.resolve(EVIDENCE_DIR)}${path.sep}`;
-  if (!out.startsWith(evidenceRoot)) throw new Error("AI-UAT evidence path escaped the evidence directory.");
-  return out;
-}
-
+/** Append one complete UAT result to the fixed JSONL evidence sink. */
 export async function writeEvidence(args: {
   page: Page;
   testCase: AiUatCase;
@@ -343,7 +341,6 @@ export async function writeEvidence(args: {
   reproductionSteps?: string[];
   failureStep?: number | null;
 }) {
-  fs.mkdirSync(EVIDENCE_DIR, { recursive: true });
   const viewport = args.page.viewportSize();
   const evidence: AiUatEvidence = {
     uat_id: args.testCase.id,
@@ -360,12 +357,13 @@ export async function writeEvidence(args: {
       url: safeAbsoluteUrl(entry.url),
       status: entry.status,
     })),
-    screenshots: args.screenshots ?? [],
+    screenshots: [],
     failure_step: args.failureStep ?? null,
     severity: args.severity ?? "P1",
     reproduction_steps: (args.reproductionSteps ?? []).map(redact),
     generated_at: new Date().toISOString(),
   };
-  fs.writeFileSync(evidenceFilePath(args.testCase.id), JSON.stringify(evidence, null, 2), "utf8");
+  fs.mkdirSync("test-results", { recursive: true });
+  fs.appendFileSync("test-results/ai-uat-evidence.jsonl", `${JSON.stringify(evidence)}\n`, "utf8");
   return evidence;
 }
