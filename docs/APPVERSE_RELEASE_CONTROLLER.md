@@ -16,7 +16,8 @@ The controller never substitutes for:
 ## Fail-closed rules
 
 - Only PR #471 and PR #458 are merge targets in this controller version.
-- Merge requires exact-head success for Release Quality, repo ownership, Codacy, CodeQL, GitHub Advanced Security, and Cursor Security.
+- Governed target-PR merge requires exact-head success for the stable contexts emitted on the Dispatch lane: Release Quality, repo ownership, Codacy, CodeQL, and Cursor Security.
+- GitHub Advanced Security agentic review remains an additional repository signal when GitHub emits it, but it is not a controller hard dependency because that check is not emitted for every governed Dispatch head.
 - Merge requires zero unresolved review threads; if review-thread pagination exceeds the bounded check, merge fails closed.
 - Merge requires an `APPROVED` review by `dineshmutrejabackup-cmd` whose `commit_id` equals the current PR head, and a later non-comment review on that same head supersedes an earlier decision.
 - RLS certification is accepted only if the workflow pin equals current #458 head and a post-#471-merge `main` workflow run concludes `success` with `head_sha` equal to current `main`.
