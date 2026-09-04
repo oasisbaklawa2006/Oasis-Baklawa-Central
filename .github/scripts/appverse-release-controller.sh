@@ -227,10 +227,40 @@ The controller could not dispatch $RLS_WORKFLOW after six trusted-main retries. 
 }
 
 vercel_preview_for_dispatch_pr() {
-  gh api --paginate -X GET "repos/$REPO/issues/$DISPATCH_PR/comments?per_page=100" \
-    --jq '.[] | select(.user.login == "vercel[bot]") | .body' \
-    | grep -oE 'https://[A-Za-z0-9-]+-oasisbaklawa2006-6222s-projects\.vercel\.app' \
-    | tail -1
+  local head deployments id statuses status url
+  head="$(pr_head "$DISPATCH_PR")"
+  deployments="$(gh api --paginate --slurp -X GET "repos/$REPO/deployments?sha=$head&per_page=100")"
+
+  while IFS= read -r id; do
+    [[ -n "$id" ]] || continue
+    statuses="$(gh api --paginate --slurp -X GET "repos/$REPO/deployments/$id/statuses?per_page=100")"
+    status="$(jq '
+      [.[][]
+        | select(.state == "success")
+        | select((.environment_url // "") != "")]
+      | sort_by(.created_at)
+      | last // {}
+    ' <<<"$statuses")"
+    url="$(jq -r '.environment_url // empty' <<<"$status")"
+    if [[ "$url" =~ ^https://[A-Za-z0-9-]+-oasisbaklawa2006-6222s-projects\.vercel\.app/?$ ]]; then
+      printf '%s\n' "${url%/}"
+      return 0
+    fi
+  done < <(
+    jq -r --arg head "$head" '
+      [.[][]
+        | select(.sha == $head)
+        | select(
+            ((.performed_via_github_app.slug // "") == "vercel")
+            or ((.creator.login // "") == "vercel[bot]")
+          )]
+      | sort_by(.created_at)
+      | reverse
+      | .[].id
+    ' <<<"$deployments"
+  )
+
+  return 1
 }
 
 ai_uat_run_after_dispatch_merge_exists() {
@@ -253,7 +283,7 @@ dispatch_ai_uat_if_needed() {
     marker="APPVERSE_CONTROLLER:AI_UAT_TARGET_MISSING:$(jq -r '.merge_commit_sha // .head.sha' <<<"$pr")"
     body="$marker
 
-APPVERSE AI UAT was not dispatched because no approved Oasis-team Vercel preview URL could be recovered from PR #$DISPATCH_PR."
+APPVERSE AI UAT was not dispatched because no successful Oasis-team Vercel deployment status could be recovered for the exact PR #$DISPATCH_PR head."
     comment_once 437 "$marker" "$body"
     return 0
   fi
