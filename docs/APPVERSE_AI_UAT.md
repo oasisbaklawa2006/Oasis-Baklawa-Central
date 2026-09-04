@@ -24,7 +24,7 @@ The machine-readable source of truth is `src/lib/ai-uat/catalogue.ts`.
 Each test has two layers:
 
 - **Deterministic Playwright oracle** — authoritative for route denial, role isolation and required visible/forbidden controls.
-- **Bounded AI explorer** — optional. It receives the UAT goal, current URL, recent action history and a privacy-minimised snapshot of UI chrome (headings/buttons/links/labels/placeholders). It may choose one human-like action at a time.
+- **Bounded AI explorer** — optional. It receives the UAT goal, a URL reduced to origin+pathname, recent sanitized action history and a privacy-minimised snapshot of UI chrome (headings/buttons/links/labels/placeholders). It may choose one human-like action at a time.
 
 The AI action vocabulary is restricted to:
 
@@ -37,17 +37,20 @@ The AI action vocabulary is restricted to:
 - `screenshot`
 - `finish`
 
-Mutation-like clicks are blocked in the runner. The AI cannot run JavaScript, shell, SQL, developer tools, arbitrary network navigation or production-data mutation.
+Clicks resolve exact visible semantic controls before policy is applied. Mutation-like controls, submit buttons, external links and links outside the case route boundary are blocked. Back/navigation are origin-bounded. The AI cannot run JavaScript, shell, SQL, developer tools, arbitrary network navigation or production-data mutation.
 
 ## Privacy / credential rules
 
 - Login credentials come only from environment/GitHub secrets.
 - Playwright trace, screenshot and video are disabled during credential entry.
+- Diagnostics begin before login so authentication failures still generate evidence; screenshots begin only after login succeeds.
 - The AI never receives the password or session token.
+- URLs sent to the model or persisted in evidence are reduced to origin+pathname; URL userinfo, queries and fragments are removed.
 - Default AI model input excludes tables, free-form paragraphs and business-data rows.
 - `AI_UAT_SEND_IMAGES=true` is accepted only when `AI_UAT_SYNTHETIC_TARGET=true`.
 - `AI_UAT_CAPTURE_IMAGES=true` is accepted only when `AI_UAT_SYNTHETIC_TARGET=true`.
 - Raw live-business screenshots must not be uploaded from the public repository workflow.
+- Credentialed Playwright runs use normal TLS certificate validation.
 
 ## Required secrets
 
@@ -66,7 +69,7 @@ A missing role credential produces a `BLOCKED` evidence record for the affected 
 
 ## Local execution
 
-Set a safe preview URL (`localhost`, `127.0.0.1`, or `*.vercel.app` under the existing E2E host guard) and the role credentials, then run:
+Local execution may use `localhost`, `127.0.0.1`, or a safe Vercel preview accepted by the shared E2E host guard. Set the role credentials, then run:
 
 ```bash
 npm run test:ai-uat
@@ -90,6 +93,15 @@ AI_UAT_MODEL=gpt-5.6-luna
 Workflow: `.github/workflows/appverse-ai-uat.yml`
 
 It is intentionally `workflow_dispatch` only for Tranche 1. AI judgement is **not** a merge gate. The workflow does preserve deterministic UAT failures as a failing job after writing/uploading the evidence report.
+
+The hosted Actions path is stricter than local execution. Before any Dispatch/Assembly QA secret is bound to a job, a separate no-credential `validate-target` job requires:
+
+- HTTPS
+- no URL userinfo
+- no query string or fragment
+- hostname ending in `.oasisbaklawa2006-6222s-projects.vercel.app`
+
+Only the normalized, validated target is passed to the credentialed tranche job.
 
 Inputs control:
 
