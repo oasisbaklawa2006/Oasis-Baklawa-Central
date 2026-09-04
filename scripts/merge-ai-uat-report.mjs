@@ -16,9 +16,20 @@ function markdownText(value, maxLength = 1000) {
     .slice(0, maxLength);
 }
 
+function displayUrl(value, fallback = "") {
+  const raw = String(value ?? "").trim();
+  if (!raw) return fallback;
+  try {
+    const url = new URL(raw);
+    return `${url.origin}${url.pathname}`;
+  } catch {
+    return "invalid URL";
+  }
+}
+
 const rows = [];
 if (fs.existsSync(dir)) {
-  for (const file of fs.readdirSync(dir).filter((name) => name.endsWith(".json")).sort()) {
+  for (const file of fs.readdirSync(dir).filter((name) => /^uat-(00[1-9]|010)\.json$/i.test(name)).sort()) {
     try {
       const value = JSON.parse(fs.readFileSync(path.join(dir, file), "utf8"));
       rows.push(value);
@@ -44,14 +55,14 @@ for (const row of rows) {
 
 let md = "# APPVERSE AI UAT — Tranche 1\n\n";
 md += `Generated: ${new Date().toISOString()}  \n`;
-md += `Target: ${markdownText(process.env.TEST_PREVIEW_URL || "not supplied", 300)}  \n`;
+md += `Target: ${markdownText(displayUrl(process.env.TEST_PREVIEW_URL, "not supplied"), 300)}  \n`;
 md += `AI planner: ${process.env.AI_UAT_ENABLE_AI === "true" ? "enabled" : "disabled"}  \n`;
 md += `Visual model input: ${process.env.AI_UAT_SEND_IMAGES === "true" ? "enabled (synthetic target only)" : "disabled"}\n\n`;
 md += `**PASS ${counts.PASS} · FAIL ${counts.FAIL} · BLOCKED ${counts.BLOCKED}**\n\n`;
 md += "| UAT | Status | Role | Severity | Final URL | Actual |\n";
 md += "|---|---|---|---|---|---|\n";
 for (const row of rows) {
-  md += `| ${markdownText(row.uat_id, 80)} | **${markdownText(row.status, 20)}** | ${markdownText(row.role, 80)} | ${markdownText(row.severity, 20)} | ${markdownText(row.final_url, 220)} | ${markdownText(row.actual, 260)} |\n`;
+  md += `| ${markdownText(row.uat_id, 80)} | **${markdownText(row.status, 20)}** | ${markdownText(row.role, 80)} | ${markdownText(row.severity, 20)} | ${markdownText(displayUrl(row.final_url), 220)} | ${markdownText(row.actual, 260)} |\n`;
 }
 
 md += "\n## Evidence details\n\n";
@@ -60,7 +71,7 @@ for (const row of rows) {
   md += `- **Role:** ${markdownText(row.role, 120)}\n`;
   md += `- **Expected:** ${markdownText(row.expected, 1200)}\n`;
   md += `- **Actual:** ${markdownText(row.actual, 1200)}\n`;
-  md += `- **Final URL:** ${markdownText(row.final_url, 300)}\n`;
+  md += `- **Final URL:** ${markdownText(displayUrl(row.final_url), 300)}\n`;
   const actions = Array.isArray(row.actions) ? row.actions : [];
   if (actions.length) {
     md += "- **AI actions:**\n";
