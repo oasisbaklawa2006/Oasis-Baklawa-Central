@@ -54,9 +54,42 @@ function sanitizeText(value: string): string {
     .slice(0, 16_000);
 }
 
-async function getSanitizedAria(page: Page): Promise<string> {
-  const snapshot = await page.locator("body").ariaSnapshot().catch(() => "");
-  return sanitizeText(snapshot || "<aria snapshot unavailable>");
+/**
+ * Build a privacy-minimised model context from UI chrome only. Deliberately
+ * excludes table cells, free-form paragraphs and business data rows; the AI
+ * gets headings, controls, labels and placeholders sufficient for navigation.
+ */
+async function getSanitizedUiChrome(page: Page): Promise<string> {
+  const snapshot = await page
+    .evaluate(() => {
+      const out: string[] = [];
+      const push = (kind: string, text: string | null | undefined) => {
+        const value = (text ?? "").replace(/\s+/g, " ").trim();
+        if (!value) return;
+        out.push(`${kind}: ${value.slice(0, 180)}`);
+      };
+
+      document.querySelectorAll("h1,h2,h3").forEach((el) => push("heading", el.textContent));
+      document.querySelectorAll("button").forEach((el) => push("button", el.getAttribute("aria-label") || el.textContent));
+      document.querySelectorAll("a[href]").forEach((el) => {
+        const anchor = el as HTMLAnchorElement;
+        push("link", `${el.textContent ?? ""} -> ${anchor.getAttribute("href") ?? ""}`);
+      });
+      document.querySelectorAll("label").forEach((el) => push("label", el.textContent));
+      document.querySelectorAll("input,textarea,select").forEach((el) => {
+        const input = el as HTMLInputElement;
+        const descriptor =
+          input.getAttribute("aria-label") ||
+          input.getAttribute("placeholder") ||
+          input.getAttribute("name") ||
+          input.id ||
+          el.tagName.toLowerCase();
+        push("field", descriptor);
+      });
+      return out.slice(0, 220).join("\n");
+    })
+    .catch(() => "");
+  return sanitizeText(snapshot || "<UI chrome snapshot unavailable>");
 }
 
 function extractOutputText(payload: unknown): string {
@@ -111,7 +144,7 @@ export async function requestAiPlannerAction(args: {
     };
   }
 
-  const aria = await getSanitizedAria(args.page);
+  const uiChrome = await getSanitizedUiChrome(args.page);
   const content: Array<Record<string, unknown>> = [
     {
       type: "input_text",
@@ -119,13 +152,14 @@ export async function requestAiPlannerAction(args: {
         "You are a bounded exploratory UI tester for Oasis Baklawa Appverse.",
         "Choose exactly one next human-like action from the supplied action vocabulary.",
         "Never request JavaScript, shell, SQL, devtools, downloads, external websites, or account/security changes.",
+        "Never choose a mutation-like action such as create, submit, approve, reject, delete, upload, record, lock, reserve, issue, release, save, send or confirm.",
         "Do not decide security truth from appearance alone: deterministic Playwright assertions remain authoritative.",
         "Prefer semantic visible controls and ordinary user behavior.",
         "Only use navigate when the target path appears in allowedRoutes or forbiddenRoutes; direct forbidden-route probes are intentional UAT checks.",
         `UAT case: ${JSON.stringify(args.testCase)}`,
         `Current URL: ${args.page.url()}`,
         `Prior actions: ${JSON.stringify(args.history.slice(-8))}`,
-        `Sanitized accessibility snapshot:\n${aria}`,
+        `Sanitized UI chrome snapshot:\n${uiChrome}`,
       ].join("\n\n"),
     },
   ];
