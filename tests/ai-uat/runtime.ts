@@ -32,9 +32,13 @@ export type AiUatEvidence = {
   generated_at: string;
 };
 
-/** Remove common PII forms from diagnostic strings before persistence. */
+/** Remove common secrets and PII forms from diagnostic strings before persistence. */
 function redact(value: string): string {
   return value
+    .replace(/\b(?:Bearer|Basic)\s+[A-Za-z0-9\-._~+/]+=*/gi, (match) => `${match.split(/\s+/, 1)[0]} <token>`)
+    .replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, "<jwt>")
+    .replace(/\bsk-(?:proj-)?[A-Za-z0-9_-]{20,}\b/g, "<api-key>")
+    .replace(/\b([A-Z0-9_]*(?:API[_-]?KEY|TOKEN|SECRET|PASSWORD))\s*[:=]\s*["']?[^"'\s,}]+["']?/gi, "$1=<secret>")
     .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "<email>")
     .replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/gi, "<uuid>")
     .replace(/\b(?:\+?91[-\s]?)?[6-9]\d{9}\b/g, "<phone>")
