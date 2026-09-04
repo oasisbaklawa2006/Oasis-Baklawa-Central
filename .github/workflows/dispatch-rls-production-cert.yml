@@ -1,0 +1,95 @@
+name: Dispatch RBAC Production RLS Certification
+
+# P0 #456 — manual production PostgREST authority probe for Dispatch roles.
+# Never PR-triggered. Uses public Supabase client constants from quality-gate.yml
+# plus protected QA identities (TEST_DISPATCH_* probe, TEST_ADMIN_* cleanup only).
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dispatch-rls-production-cert
+  cancel-in-progress: false
+
+env:
+  DISPATCH_RLS_CERT_MODE: production
+  DISPATCH_RLS_CERT_REQUIRED: "true"
+  DISPATCH_RLS_CERT_SUPABASE_URL: https://tcxvcatsqqertcnycuop.supabase.co
+  DISPATCH_RLS_CERT_SUPABASE_ANON_KEY: sb_publishable_UbNV2X25YHY3cupjpoLsjw_RhlDG4f_
+
+jobs:
+  dispatch-rls-cert:
+    name: Production Dispatch RLS characterization (read-only probes)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      TEST_DISPATCH_EMAIL: ${{ secrets.TEST_DISPATCH_EMAIL }}
+      TEST_DISPATCH_PASSWORD: ${{ secrets.TEST_DISPATCH_PASSWORD }}
+      TEST_ADMIN_EMAIL: ${{ secrets.TEST_ADMIN_EMAIL }}
+      TEST_ADMIN_PASSWORD: ${{ secrets.TEST_ADMIN_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Assert required QA secrets are present (fail closed, never silent skip)
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=()
+          for name in TEST_DISPATCH_EMAIL TEST_DISPATCH_PASSWORD TEST_ADMIN_EMAIL TEST_ADMIN_PASSWORD; do
+            if [[ -z "${!name:-}" ]]; then
+              missing+=("$name")
+            fi
+          done
+          if ((${#missing[@]} > 0)); then
+            echo "::error::Missing required secret(s): ${missing[*]}. Provision Dispatch QA + admin cleanup identities before running this workflow."
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Dispatch RLS characterization (JUnit only, no HTML reporter)
+        env:
+          PLAYWRIGHT_JUNIT_OUTPUT_NAME: dispatch-rls-cert-junit.xml
+        run: |
+          npx playwright test tests/dispatch-rbac-rls-characterization.cert.spec.ts \
+            --project=desktop-chrome-size \
+            --reporter=junit,list
+
+      - name: Assert report contains no live secret values
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          report="dispatch-rls-cert-junit.xml"
+          if [[ ! -f "$report" ]]; then
+            echo "$report was not produced."
+            exit 0
+          fi
+          for name in TEST_DISPATCH_PASSWORD TEST_ADMIN_PASSWORD; do
+            value="${!name:-}"
+            [[ -n "$value" ]] || continue
+            if grep -qF -- "$value" "$report"; then
+              echo "::error::$report contains the literal value of \$$name — refusing to upload a credential-bearing report."
+              exit 1
+            fi
+          done
+          echo "Confirmed: $report contains none of the QA secret values."
+
+      - name: Upload JUnit report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dispatch-rls-production-cert-${{ github.run_id }}
+          path: dispatch-rls-cert-junit.xml
+          if-no-files-found: warn
+          retention-days: 14

@@ -1,18 +1,25 @@
 import { test, expect, type TestInfo } from "@playwright/test";
-import { createClient, type PostgrestError } from "@supabase/supabase-js";
-import type { Database } from "../src/integrations/supabase/types";
-import { factoryCertificationCredentialSpec } from "../src/lib/factoryCertificationCredentialPolicy";
+import type { PostgrestError } from "@supabase/supabase-js";
 import {
-  hasFactoryCertificationBackend,
-  readFactoryCertificationCredentials,
-  resolveFactoryCertificationBackend,
-} from "./factory-certification/support";
+  createDispatchRlsCertClient,
+  hasDispatchRlsCertBackend,
+  isDispatchRlsCertRequired,
+  readDispatchRlsCertCleanupCredentials,
+  readDispatchRlsCertDispatchCredentials,
+  resolveDispatchRlsFixtureOrderId,
+  sanitizeProbeDetail,
+  signInDispatchRlsCertClient,
+} from "@/lib/dispatchRbacRlsCert/support";
 
 /**
  * P0 #456 — production-backed PostgREST RLS certification for Dispatch roles.
  *
  * Requires deployed Core authority (#183 / migration release #129). Any ALLOWED
  * direct Dispatch write is a hard certification failure.
+ *
+ * Production lane: workflow_dispatch only — TEST_DISPATCH_EMAIL/PASSWORD probe,
+ * TEST_ADMIN_EMAIL/PASSWORD cleanup, public Supabase client constants.
+ * Ephemeral lane: FACTORY_CERT_* naming remains supported.
  */
 
 type ProbeOutcome = "AUTHORIZATION_DENIED" | "ALLOWED" | "INCONCLUSIVE";
@@ -22,7 +29,6 @@ type CharacterizationRecord = {
   role: string;
   operation: string;
   outcome: ProbeOutcome;
-  detail: string;
 };
 
 const PROBE_REF = "dispatch-rbac-probe";
@@ -32,11 +38,27 @@ function record(entry: CharacterizationRecord) {
   ledger.records.push(entry);
 }
 
-function credentialsForRoleOrSkip(role: string) {
-  const spec = factoryCertificationCredentialSpec(role);
-  const credentials = readFactoryCertificationCredentials(role);
-  test.skip(!credentials, `CREDENTIAL_REQUIRED: ${spec.emailEnv} + ${spec.passwordEnv}`);
+function requireOrSkipDispatchCredentials() {
+  const credentials = readDispatchRlsCertDispatchCredentials();
+  if (!credentials) {
+    const message =
+      "CREDENTIAL_REQUIRED: TEST_DISPATCH_EMAIL/PASSWORD or FACTORY_CERT_DISPATCH_MANAGER_*";
+    if (isDispatchRlsCertRequired()) {
+      throw new Error(message);
+    }
+    test.skip(true, message);
+  }
   return credentials!;
+}
+
+function requireCleanupCredentials() {
+  const credentials = readDispatchRlsCertCleanupCredentials();
+  if (!credentials) {
+    throw new Error(
+      "CERTIFICATION_CLEANUP_REQUIRED: TEST_ADMIN_EMAIL/PASSWORD or FACTORY_CERT_SUPER_ADMIN_*/ADMIN_* required for probe residue cleanup",
+    );
+  }
+  return credentials;
 }
 
 function classifyInsertError(error: PostgrestError | null): ProbeOutcome {
@@ -84,53 +106,30 @@ function assertProbeOutcome(
     role: "DISPATCH_MANAGER",
     operation: "insert",
     outcome,
-    detail,
   });
 
   if (outcome === "ALLOWED") {
-    throw new Error(`RLS_CERT_FAILURE: ${surface} INSERT allowed for DISPATCH_MANAGER — ${detail}`);
+    throw new Error(`RLS_CERT_FAILURE: ${surface} INSERT allowed for DISPATCH_MANAGER — ${sanitizeProbeDetail(detail)}`);
   }
   if (outcome === "INCONCLUSIVE") {
     testInfo.annotations.push({
       type: "RLS_CERT_INCONCLUSIVE",
-      description: `${surface}: non-authorization error — ${detail}`,
+      description: `${surface}: non-authorization error`,
     });
-    throw new Error(`RLS_CERT_INCONCLUSIVE: ${surface} probe could not classify authorization — ${detail}`);
+    throw new Error(`RLS_CERT_INCONCLUSIVE: ${surface} probe could not classify authorization`);
   }
 }
 
 async function createDispatchClient() {
-  const credentials = credentialsForRoleOrSkip("DISPATCH_MANAGER");
-  const backend = resolveFactoryCertificationBackend();
-  const client = createClient<Database>(backend.url, backend.anonKey, {
-    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
-  });
-  const { error } = await client.auth.signInWithPassword({
-    email: credentials.email,
-    password: credentials.password,
-  });
-  if (error) throw new Error(`AUTH_FAILED DISPATCH_MANAGER: ${error.message}`);
-  return client;
+  const credentials = requireOrSkipDispatchCredentials();
+  const client = createDispatchRlsCertClient(credentials);
+  return signInDispatchRlsCertClient(client, credentials, "DISPATCH_MANAGER");
 }
 
 async function createCleanupClient() {
-  const cleanupRoles = ["SUPER_ADMIN", "ADMIN"] as const;
-  for (const role of cleanupRoles) {
-    const credentials = readFactoryCertificationCredentials(role);
-    if (!credentials) continue;
-    const backend = resolveFactoryCertificationBackend();
-    const client = createClient<Database>(backend.url, backend.anonKey, {
-      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
-    });
-    const { error } = await client.auth.signInWithPassword({
-      email: credentials.email,
-      password: credentials.password,
-    });
-    if (!error) return client;
-  }
-  throw new Error(
-    "CERTIFICATION_CLEANUP_REQUIRED: FACTORY_CERT_SUPER_ADMIN_* or FACTORY_CERT_ADMIN_* credentials required for probe residue cleanup",
-  );
+  const credentials = requireCleanupCredentials();
+  const client = createDispatchRlsCertClient(credentials);
+  return signInDispatchRlsCertClient(client, credentials, "CLEANUP");
 }
 
 async function cleanupProbeRow(
@@ -140,45 +139,39 @@ async function cleanupProbeRow(
   const cleanupClient = await createCleanupClient();
   const { data, error } = await cleanupClient.from(table).delete().eq("id", id).select("id");
   if (error) {
-    throw new Error(`RLS_CERT_CLEANUP_FAILURE: ${table} delete denied — ${error.message}`);
+    throw new Error(`RLS_CERT_CLEANUP_FAILURE: ${table} delete denied — code=${error.code ?? "unknown"}`);
   }
   if (!data || data.length !== 1) {
     throw new Error(
-      `RLS_CERT_CLEANUP_FAILURE: ${table} id ${id} not removed (affected=${data?.length ?? 0})`,
+      `RLS_CERT_CLEANUP_FAILURE: ${table} row not removed (affected=${data?.length ?? 0})`,
     );
   }
-}
-
-function resolveFixtureOrderId(): string {
-  const orderId =
-    process.env.FACTORY_CERT_POINT38_ORDER_ID?.trim() ||
-    process.env.FACTORY_CERT_GOLDEN_ORDER_ID?.trim() ||
-    process.env.FACTORY_CERT_POINT37_ORDER_ID?.trim();
-  if (!orderId) {
-    throw new Error(
-      "CERTIFICATION_FIXTURE_REQUIRED: FACTORY_CERT_POINT38_ORDER_ID, FACTORY_CERT_GOLDEN_ORDER_ID, or FACTORY_CERT_POINT37_ORDER_ID",
-    );
-  }
-  return orderId;
 }
 
 test.describe("Dispatch RBAC — production RLS certification", () => {
-  test.skip(!hasFactoryCertificationBackend(), "FACTORY_CERT_BACKEND_REQUIRED");
+  test.skip(!hasDispatchRlsCertBackend(), "DISPATCH_RLS_CERT_BACKEND_REQUIRED");
 
   test.afterAll(() => {
-    if (ledger.records.length > 0) {
-      console.log("DISPATCH_RLS_CHARACTERIZATION", JSON.stringify(ledger, null, 2));
-    }
+    const denied = ledger.records.filter((entry) => entry.outcome === "AUTHORIZATION_DENIED").length;
+    const allowed = ledger.records.filter((entry) => entry.outcome === "ALLOWED").length;
+    const inconclusive = ledger.records.filter((entry) => entry.outcome === "INCONCLUSIVE").length;
+    console.log(
+      `DISPATCH_RLS_CERT_SUMMARY probes=${ledger.records.length} denied=${denied} allowed=${allowed} inconclusive=${inconclusive}`,
+    );
   });
 
   test("DISPATCH_MANAGER direct finance_review_evidence insert is denied by deployed Core RLS", async ({ page: _page }, testInfo) => {
-    const client = await createDispatchClient();
-    const orderId = resolveFixtureOrderId();
-    const actorId = (await client.auth.getUser()).data.user?.id;
+    const dispatchClient = await createDispatchClient();
+    const cleanupCredentials = readDispatchRlsCertCleanupCredentials();
+    test.skip(!cleanupCredentials, "CLEANUP_CREDENTIAL_REQUIRED: TEST_ADMIN_EMAIL/PASSWORD");
+
+    const adminClient = await createCleanupClient();
+    const orderId = await resolveDispatchRlsFixtureOrderId(adminClient);
+    const actorId = (await dispatchClient.auth.getUser()).data.user?.id;
     if (!actorId) throw new Error("AUTH_REQUIRED: missing actor id");
 
     const correlationId = `dispatch-rbac-probe-finance-${Date.now()}`;
-    const { data, error } = await client.from("finance_review_evidence").insert({
+    const { data, error } = await dispatchClient.from("finance_review_evidence").insert({
       order_id: orderId,
       review_type: "credit_review",
       review_status: "pending",
@@ -199,23 +192,29 @@ test.describe("Dispatch RBAC — production RLS certification", () => {
   });
 
   test("DISPATCH_MANAGER direct inventory_reservations insert is denied by deployed Core RLS", async ({ page: _page }, testInfo) => {
-    const client = await createDispatchClient();
-    const orderId = resolveFixtureOrderId();
-    const actorId = (await client.auth.getUser()).data.user?.id;
+    const dispatchClient = await createDispatchClient();
+    const cleanupCredentials = readDispatchRlsCertCleanupCredentials();
+    test.skip(!cleanupCredentials, "CLEANUP_CREDENTIAL_REQUIRED: TEST_ADMIN_EMAIL/PASSWORD");
+
+    const adminClient = await createCleanupClient();
+    const orderId = await resolveDispatchRlsFixtureOrderId(adminClient);
+    const actorId = (await dispatchClient.auth.getUser()).data.user?.id;
     if (!actorId) throw new Error("AUTH_REQUIRED: missing actor id");
 
-    const { data: line, error: lineError } = await client
+    const { data: line, error: lineError } = await adminClient
       .from("order_items")
       .select("product_id, sku")
       .eq("order_id", orderId)
       .limit(1)
       .maybeSingle();
-    if (lineError) throw new Error(`FIXTURE_READ_FAILED order_items: ${lineError.message}`);
-    test.skip(!line?.product_id, `CERTIFICATION_FIXTURE_REQUIRED: order ${orderId} has no order_items row`);
+    if (lineError) {
+      throw new Error(`FIXTURE_READ_FAILED order_items: code=${lineError.code ?? "unknown"}`);
+    }
+    test.skip(!line?.product_id, "CERTIFICATION_FIXTURE_REQUIRED: discovered order has no order_items row");
 
     const reservationId = crypto.randomUUID();
     const correlationId = `dispatch-rbac-probe-reservation-${Date.now()}`;
-    const { data, error } = await client.from("inventory_reservations").insert({
+    const { data, error } = await dispatchClient.from("inventory_reservations").insert({
       id: reservationId,
       reservation_number: `RBAC-PROBE-${Date.now()}`,
       order_id: orderId,
