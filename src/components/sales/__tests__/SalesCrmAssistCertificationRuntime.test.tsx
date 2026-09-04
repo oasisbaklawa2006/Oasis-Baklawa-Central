@@ -3,18 +3,34 @@ import { render, screen, waitFor } from "@testing-library/react";
 import ClientInteractionsTab from "../ClientInteractionsTab";
 import SalesCrmAssistPanel from "../crm-lite/SalesCrmAssistPanel";
 import SalesCrmLiteWorkspace from "../crm-lite/SalesCrmLiteWorkspace";
+import type { CrmLiteCompany } from "@/lib/crm-lite/salesCrmLiteTypes";
 
-const EXEC_ID = "exec-74";
-const COMPANY_A = { id: "co-a", business_name: "Alpha Traders" };
-const COMPANY_B = { id: "co-b", business_name: "Beta Foods" };
+const EXEC_ID = "exec-assist";
+
+const companyStub = (id: string, business_name: string): CrmLiteCompany => ({
+  id,
+  business_name,
+  gst_number: null,
+  status: "approved",
+  wallet_balance: null,
+  credit_limit: 0,
+  current_balance: 0,
+  allow_credit: false,
+  created_at: "2026-01-01T00:00:00Z",
+  price_tier: null,
+  discount_percentage: null,
+});
+
+const COMPANY_A = companyStub("co-a", "Alpha Traders");
+const COMPANY_B = companyStub("co-b", "Beta Foods");
 
 type EqCall = { column: string; value: unknown };
 
 const { interactionsCapture, createInteractionsMock } = vi.hoisted(() => {
   const capture = { eqCalls: [] as EqCall[], inserted: [] as Record<string, unknown>[] };
 
-  function chainable(resolveData: unknown[] = []) {
-    const result = { data: resolveData, error: null as null };
+  function chainable() {
+    const result = { data: [] as unknown[], error: null as null };
     const promise = Promise.resolve(result);
     const builder: Record<string, unknown> = {};
     for (const method of ["select", "in", "order", "limit", "not", "gte", "lte", "eq", "update"]) {
@@ -35,12 +51,9 @@ const { interactionsCapture, createInteractionsMock } = vi.hoisted(() => {
     return builder;
   }
 
-  function createMock(c: typeof capture) {
+  function createMock() {
     return {
-      from: (table: string) => {
-        if (table === "client_interactions") return chainable();
-        return chainable();
-      },
+      from: () => chainable(),
     };
   }
 
@@ -48,7 +61,7 @@ const { interactionsCapture, createInteractionsMock } = vi.hoisted(() => {
 });
 
 vi.mock("@/integrations/supabase/client", () => ({
-  supabase: createInteractionsMock(interactionsCapture),
+  supabase: createInteractionsMock(),
 }));
 
 vi.mock("@/lib/order-authority/creditWalletAuthorityClient", () => ({
@@ -68,7 +81,7 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-describe("Point 74 runtime — executive-scoped interaction reads", () => {
+describe("CRM-lite sales assistance certification — executive-scoped reads", () => {
   it("scopes assist timeline fetch to the logged-in executive", async () => {
     render(
       <ClientInteractionsTab
@@ -88,14 +101,14 @@ describe("Point 74 runtime — executive-scoped interaction reads", () => {
       <SalesCrmAssistPanel companies={[COMPANY_A]} userId={EXEC_ID} focusCompanyId={COMPANY_A.id} />,
     );
 
-    expect(screen.getByTestId("sales-crm-assist-panel")).toHaveAttribute("data-point", "74");
+    expect(screen.getByTestId("sales-crm-assist-panel")).toBeInTheDocument();
     await waitFor(() => {
       expect(interactionsCapture.eqCalls).toContainEqual({ column: "executive_id", value: EXEC_ID });
     });
   });
 });
 
-describe("Point 74 runtime — assist panel and roster deep-link", () => {
+describe("CRM-lite sales assistance certification — roster deep-link", () => {
   it("shows focused client banner when roster Open assist preselects a company", () => {
     render(
       <SalesCrmAssistPanel companies={[COMPANY_A, COMPANY_B]} userId={EXEC_ID} focusCompanyId={COMPANY_A.id} />,
