@@ -34,7 +34,7 @@ The AI action vocabulary is restricted to:
 - `back`
 - `wait`
 - `navigate` (only case-bounded routes)
-- `screenshot`
+- `screenshot` (observation-only; no screenshot artifact is persisted in Tranche 1)
 - `finish`
 
 Clicks resolve exact visible semantic controls before policy is applied. Mutation-like controls, submit buttons, external links and links outside the case route boundary are blocked. Back/navigation are origin-bounded. The AI cannot run JavaScript, shell, SQL, developer tools, arbitrary network navigation or production-data mutation.
@@ -42,14 +42,13 @@ Clicks resolve exact visible semantic controls before policy is applied. Mutatio
 ## Privacy / credential rules
 
 - Login credentials come only from environment/GitHub secrets.
-- Playwright trace, screenshot and video are disabled during credential entry.
-- Diagnostics begin before login so authentication failures still generate evidence; screenshots begin only after login succeeds.
+- Playwright trace, automatic screenshot and video are disabled during credential entry.
+- Diagnostics begin before login so authentication failures still generate evidence.
 - The AI never receives the password or session token.
 - URLs sent to the model or persisted in evidence are reduced to origin+pathname; URL userinfo, queries and fragments are removed.
 - Default AI model input excludes tables, free-form paragraphs and business-data rows.
-- `AI_UAT_SEND_IMAGES=true` is accepted only when `AI_UAT_SYNTHETIC_TARGET=true`.
-- `AI_UAT_CAPTURE_IMAGES=true` is accepted only when `AI_UAT_SYNTHETIC_TARGET=true`.
-- Raw live-business screenshots must not be uploaded from the public repository workflow.
+- `AI_UAT_SEND_IMAGES=true` is accepted only when `AI_UAT_SYNTHETIC_TARGET=true`; the image is sent from memory and is not retained as an artifact.
+- Tranche 1 does not persist screenshot files. This removes dynamic artifact paths and prevents raw live-business screenshots from entering public-repository workflow artifacts.
 - Credentialed Playwright runs use normal TLS certificate validation.
 
 ## Required secrets
@@ -107,18 +106,20 @@ Inputs control:
 
 - target preview/staging URL
 - AI planner on/off
-- whether synthetic screenshots may be sent to the model
-- whether synthetic screenshots may be retained as artifacts
+- whether an in-memory synthetic screenshot may be sent to the model
+- synthetic-target confirmation
 
 ## Evidence
 
-Per-case JSON is written under:
+Every scenario appends one sanitized JSON object to the single fixed evidence stream:
 
-`test-results/ai-uat-evidence/`
+`test-results/ai-uat-evidence.jsonl`
 
-The consolidated report is:
+The consolidated report is written to the fixed path:
 
 `test-results/APPVERSE_AI_UAT_REPORT.md`
+
+The fixed-path design deliberately avoids per-test dynamically constructed filesystem destinations.
 
 Evidence includes:
 
@@ -132,7 +133,6 @@ Evidence includes:
 - actual result
 - sanitized console errors
 - sanitized failed requests
-- optional synthetic screenshots
 - severity
 
 ## Programme sequencing
