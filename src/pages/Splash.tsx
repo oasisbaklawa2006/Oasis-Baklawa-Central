@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useIsMobile } from "@/hooks/use-mobile";
 import logoImg from "@/assets/logo-open.png";
+import { SPLASH_POST_DELAY_DESTINATION } from "@/lib/splashRouting";
 
 const Splash = () => {
   const navigate = useNavigate();
@@ -10,7 +11,7 @@ const Splash = () => {
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      navigate("/intro", { replace: true });
+      navigate(SPLASH_POST_DELAY_DESTINATION, { replace: true });
     }, 2500);
 
     return () => clearTimeout(timer);
