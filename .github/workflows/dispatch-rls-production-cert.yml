@@ -3,6 +3,12 @@ name: Dispatch RBAC Production RLS Certification
 # P0 #456 — manual production PostgREST authority probe for Dispatch roles.
 # Never PR-triggered. Uses public Supabase client constants from quality-gate.yml
 # plus protected QA identities (TEST_DISPATCH_* probe, TEST_ADMIN_* cleanup only).
+#
+# Security contract (fail closed):
+# - workflow_dispatch from default branch only before any TEST_* secret injection
+# - checkout pinned to approved PR #458 head SHA (not arbitrary dispatch ref)
+# - TEST_* secrets scoped to secret-check, Playwright probe, and report scan only
+# - JUnit upload gated on secret_scan success (never after credential detection)
 on:
   workflow_dispatch: {}
 
@@ -18,22 +24,51 @@ env:
   DISPATCH_RLS_CERT_REQUIRED: "true"
   DISPATCH_RLS_CERT_SUPABASE_URL: https://tcxvcatsqqertcnycuop.supabase.co
   DISPATCH_RLS_CERT_SUPABASE_ANON_KEY: sb_publishable_UbNV2X25YHY3cupjpoLsjw_RhlDG4f_
+  # PR #458 (cursor/p0-dispatch-rbac-least-privilege-de93) post-rebase head — freeze on rebase.
+  DISPATCH_RLS_CERT_APPROVED_REF: d2a2b6a240e2d890d6de1ed50a2eadf4e9d3c1b1
 
 jobs:
   dispatch-rls-cert:
     name: Production Dispatch RLS characterization (read-only probes)
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    env:
-      TEST_DISPATCH_EMAIL: ${{ secrets.TEST_DISPATCH_EMAIL }}
-      TEST_DISPATCH_PASSWORD: ${{ secrets.TEST_DISPATCH_PASSWORD }}
-      TEST_ADMIN_EMAIL: ${{ secrets.TEST_ADMIN_EMAIL }}
-      TEST_ADMIN_PASSWORD: ${{ secrets.TEST_ADMIN_PASSWORD }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Assert trusted default-branch dispatch (fail closed before credentials)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.event_name }}" != "workflow_dispatch" ]]; then
+            echo "::error::Dispatch RBAC production RLS certification is manual-dispatch only."
+            exit 1
+          fi
+          if [[ "${{ github.ref }}" != "refs/heads/main" ]]; then
+            echo "::error::Refusing to run from ${{ github.ref }}. Select the default branch when dispatching so only the trusted workflow definition can reach credential-bearing steps."
+            exit 1
+          fi
+
+      - name: Checkout approved PR #458 certification ref (pinned SHA)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DISPATCH_RLS_CERT_APPROVED_REF }}
+
+      - name: Assert checkout matches approved PR #458 head
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected="${DISPATCH_RLS_CERT_APPROVED_REF}"
+          actual="$(git rev-parse HEAD)"
+          if [[ "$actual" != "$expected" ]]; then
+            echo "::error::Checkout SHA $actual does not match approved PR #458 head $expected."
+            exit 1
+          fi
 
       - name: Assert required QA secrets are present (fail closed, never silent skip)
         shell: bash
+        env:
+          TEST_DISPATCH_EMAIL: ${{ secrets.TEST_DISPATCH_EMAIL }}
+          TEST_DISPATCH_PASSWORD: ${{ secrets.TEST_DISPATCH_PASSWORD }}
+          TEST_ADMIN_EMAIL: ${{ secrets.TEST_ADMIN_EMAIL }}
+          TEST_ADMIN_PASSWORD: ${{ secrets.TEST_ADMIN_PASSWORD }}
         run: |
           set -euo pipefail
           missing=()
@@ -59,6 +94,10 @@ jobs:
 
       - name: Run Dispatch RLS characterization (JUnit only, no HTML reporter)
         env:
+          TEST_DISPATCH_EMAIL: ${{ secrets.TEST_DISPATCH_EMAIL }}
+          TEST_DISPATCH_PASSWORD: ${{ secrets.TEST_DISPATCH_PASSWORD }}
+          TEST_ADMIN_EMAIL: ${{ secrets.TEST_ADMIN_EMAIL }}
+          TEST_ADMIN_PASSWORD: ${{ secrets.TEST_ADMIN_PASSWORD }}
           PLAYWRIGHT_JUNIT_OUTPUT_NAME: dispatch-rls-cert-junit.xml
         run: |
           npx playwright test tests/dispatch-rbac-rls-characterization.cert.spec.ts \
@@ -66,8 +105,12 @@ jobs:
             --reporter=junit,list
 
       - name: Assert report contains no live secret values
+        id: secret_scan
         if: always()
         shell: bash
+        env:
+          TEST_DISPATCH_PASSWORD: ${{ secrets.TEST_DISPATCH_PASSWORD }}
+          TEST_ADMIN_PASSWORD: ${{ secrets.TEST_ADMIN_PASSWORD }}
         run: |
           set -euo pipefail
           report="dispatch-rls-cert-junit.xml"
@@ -87,7 +130,7 @@ jobs:
 
       - name: Upload JUnit report
         uses: actions/upload-artifact@v4
-        if: always()
+        if: ${{ always() && steps.secret_scan.outcome == 'success' }}
         with:
           name: dispatch-rls-production-cert-${{ github.run_id }}
           path: dispatch-rls-cert-junit.xml
