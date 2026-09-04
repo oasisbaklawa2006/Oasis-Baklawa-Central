@@ -1,18 +1,17 @@
 name: APPVERSE Release Controller
 
-# Event-driven release state machine for the governed #471 -> #458 -> AI-UAT chain.
-# Human collaborator approval and final physical UAT remain mandatory human gates.
+# Trusted-default-branch release state machine for #471 -> #458 -> AI-UAT.
+# Human collaborator approval and final physical UAT remain mandatory.
 on:
   push:
     branches: [main]
-  pull_request_review:
-    types: [submitted]
+  schedule:
+    - cron: "*/5 * * * *"
   workflow_run:
     workflows:
       - Dispatch RBAC Production RLS Certification
       - APPVERSE AI UAT
     types: [completed]
-  workflow_dispatch: {}
 
 permissions:
   actions: write
@@ -29,6 +28,7 @@ concurrency:
 
 jobs:
   reconcile:
+    if: github.repository == 'oasisbaklawa2006/Oasis-Baklawa-Central'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -39,269 +39,18 @@ jobs:
       DISPATCH_PR: "458"
       RLS_WORKFLOW: dispatch-rls-production-cert.yml
       AI_UAT_WORKFLOW: appverse-ai-uat.yml
-      EVENT_NAME: ${{ github.event_name }}
-      WORKFLOW_RUN_NAME: ${{ github.event.workflow_run.name }}
-      WORKFLOW_RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
-      WORKFLOW_RUN_URL: ${{ github.event.workflow_run.html_url }}
     steps:
+      - name: Checkout trusted main controller code
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+
       - name: Reconcile governed release state
         shell: bash
-        run: |
-          set -euo pipefail
-
-          owner="${REPO%%/*}"
-          repo_name="${REPO#*/}"
-
-          required_checks=(
-            "Typecheck, unit test, production build, and Playwright smoke"
-            "Enforce Catalogue AI-Studio repo ownership boundaries"
-            "Codacy Static Code Analysis"
-            "CodeQL"
-            "github-advanced-security"
-            "Cursor Security Agent: Security Reviewer"
-          )
-
-          pr_json() {
-            gh api "repos/$REPO/pulls/$1"
-          }
-
-          pr_head() {
-            pr_json "$1" | jq -r '.head.sha'
-          }
-
-          pr_merged_at() {
-            pr_json "$1" | jq -r '.merged_at // empty'
-          }
-
-          check_conclusion() {
-            local head="$1" name="$2"
-            gh api -X GET "repos/$REPO/commits/$head/check-runs?per_page=100" \
-              --jq ".check_runs | map(select(.name == \"$name\")) | sort_by(.started_at) | last | .conclusion // \"missing\""
-          }
-
-          exact_checks_green() {
-            local pr="$1" head
-            head="$(pr_head "$pr")"
-            for name in "${required_checks[@]}"; do
-              conclusion="$(check_conclusion "$head" "$name")"
-              if [[ "$conclusion" != "success" ]]; then
-                echo "PR #$pr is not exact-head green: $name => $conclusion"
-                return 1
-              fi
-            done
-            return 0
-          }
-
-          unresolved_threads() {
-            local pr="$1"
-            gh api graphql \
-              -f query='query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){reviewThreads(first:100){nodes{isResolved}}}}}' \
-              -f owner="$owner" -f name="$repo_name" -F number="$pr" \
-              --jq '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false)] | length'
-          }
-
-          has_exact_human_approval() {
-            local pr="$1" head
-            head="$(pr_head "$pr")"
-            gh api -X GET "repos/$REPO/pulls/$pr/reviews?per_page=100" \
-              --jq "[.[] | select(.user.login == \"$HUMAN_REVIEWER\" and .state == \"APPROVED\" and .commit_id == \"$head\")] | length" \
-              | grep -qxE '[1-9][0-9]*'
-          }
-
-          request_human_review() {
-            local pr="$1"
-            jq -n --arg reviewer "$HUMAN_REVIEWER" '{reviewers:[$reviewer]}' \
-              | gh api -X POST "repos/$REPO/pulls/$pr/requested_reviewers" --input - >/dev/null || true
-          }
-
-          comment_once() {
-            local issue="$1" marker="$2" body="$3"
-            if gh api -X GET "repos/$REPO/issues/$issue/comments?per_page=100" --paginate \
-              --jq '.[].body' | grep -Fq -- "$marker"; then
-              return 0
-            fi
-            jq -n --arg body "$body" '{body:$body}' \
-              | gh api -X POST "repos/$REPO/issues/$issue/comments" --input - >/dev/null
-          }
-
-          merge_governed_pr() {
-            local pr="$1" head
-            head="$(pr_head "$pr")"
-            if [[ "$(unresolved_threads "$pr")" != "0" ]]; then
-              echo "PR #$pr has unresolved review threads; refusing merge."
-              return 1
-            fi
-            if ! exact_checks_green "$pr"; then
-              return 1
-            fi
-            if ! has_exact_human_approval "$pr"; then
-              echo "PR #$pr awaits exact-head human approval from $HUMAN_REVIEWER."
-              request_human_review "$pr"
-              return 1
-            fi
-            jq -n --arg sha "$head" '{merge_method:"squash",sha:$sha}' \
-              | gh api -X PUT "repos/$REPO/pulls/$pr/merge" --input -
-          }
-
-          approved_rls_ref() {
-            gh api "repos/$REPO/contents/.github/workflows/$RLS_WORKFLOW?ref=main" --jq '.content' \
-              | tr -d '\n' | base64 -d \
-              | sed -nE 's/^[[:space:]]*DISPATCH_RLS_CERT_APPROVED_REF:[[:space:]]*([0-9a-f]{40})[[:space:]]*$/\1/p' \
-              | head -1
-          }
-
-          rls_binding_current() {
-            local approved current
-            approved="$(approved_rls_ref || true)"
-            current="$(pr_head "$DISPATCH_PR")"
-            [[ -n "$approved" && "$approved" == "$current" ]]
-          }
-
-          latest_workflow_run_json() {
-            local workflow="$1"
-            gh api -X GET "repos/$REPO/actions/workflows/$workflow/runs?event=workflow_dispatch&per_page=20" \
-              --jq '.workflow_runs | sort_by(.created_at) | last // {}'
-          }
-
-          rls_pass_for_current_binding() {
-            rls_binding_current || return 1
-            local merged_at latest conclusion created
-            merged_at="$(pr_merged_at "$BOOTSTRAP_PR")"
-            [[ -n "$merged_at" ]] || return 1
-            latest="$(latest_workflow_run_json "$RLS_WORKFLOW")"
-            conclusion="$(jq -r '.conclusion // empty' <<<"$latest")"
-            created="$(jq -r '.created_at // empty' <<<"$latest")"
-            [[ "$conclusion" == "success" && -n "$created" && "$created" > "$merged_at" ]]
-          }
-
-          dispatch_rls_if_needed() {
-            local bootstrap merged_at latest status conclusion created
-            bootstrap="$(pr_json "$BOOTSTRAP_PR")"
-            [[ "$(jq -r '.merged' <<<"$bootstrap")" == "true" ]] || return 0
-            rls_binding_current || {
-              current="$(pr_head "$DISPATCH_PR")"
-              approved="$(approved_rls_ref || true)"
-              marker="APPVERSE_CONTROLLER:RLS_STALE:$current"
-              body="$marker\n\nDispatch production RLS certification is fail-closed because the workflow pin ($approved) does not match current PR #$DISPATCH_PR head ($current). Refresh the pin through review before certification."
-              comment_once "$DISPATCH_PR" "$marker" "$body"
-              return 0
-            }
-            merged_at="$(jq -r '.merged_at' <<<"$bootstrap")"
-            latest="$(latest_workflow_run_json "$RLS_WORKFLOW")"
-            status="$(jq -r '.status // empty' <<<"$latest")"
-            conclusion="$(jq -r '.conclusion // empty' <<<"$latest")"
-            created="$(jq -r '.created_at // empty' <<<"$latest")"
-            if [[ -n "$created" && "$created" > "$merged_at" ]]; then
-              if [[ "$status" == "queued" || "$status" == "in_progress" || "$conclusion" == "success" ]]; then
-                return 0
-              fi
-              marker="APPVERSE_CONTROLLER:RLS_FAILED:${created}"
-              body="$marker\n\nDispatch RLS certification did not pass. The controller will not merge #$DISPATCH_PR. Inspect the failed certification run before retrying."
-              comment_once "$DISPATCH_PR" "$marker" "$body"
-              return 0
-            fi
-            echo "Dispatching production RLS certification from trusted main."
-            gh workflow run "$RLS_WORKFLOW" --repo "$REPO" --ref main
-          }
-
-          vercel_preview_for_dispatch_pr() {
-            gh api -X GET "repos/$REPO/issues/$DISPATCH_PR/comments?per_page=100" --paginate \
-              --jq '.[] | select(.user.login == "vercel[bot]") | .body' \
-              | grep -oE 'https://[A-Za-z0-9-]+-oasisbaklawa2006-6222s-projects\.vercel\.app' \
-              | tail -1
-          }
-
-          ai_uat_run_after_dispatch_merge_exists() {
-            local merged_at latest created
-            merged_at="$(pr_merged_at "$DISPATCH_PR")"
-            [[ -n "$merged_at" ]] || return 1
-            latest="$(latest_workflow_run_json "$AI_UAT_WORKFLOW")"
-            created="$(jq -r '.created_at // empty' <<<"$latest")"
-            [[ -n "$created" && "$created" > "$merged_at" ]]
-          }
-
-          dispatch_ai_uat_if_needed() {
-            local pr target
-            pr="$(pr_json "$DISPATCH_PR")"
-            [[ "$(jq -r '.merged' <<<"$pr")" == "true" ]] || return 0
-            if ai_uat_run_after_dispatch_merge_exists; then
-              return 0
-            fi
-            target="$(vercel_preview_for_dispatch_pr || true)"
-            if [[ -z "$target" ]]; then
-              marker="APPVERSE_CONTROLLER:AI_UAT_TARGET_MISSING:$(jq -r '.merge_commit_sha // .head.sha' <<<"$pr")"
-              body="$marker\n\nAPPVERSE AI UAT was not dispatched because no approved Oasis-team Vercel preview URL could be recovered from PR #$DISPATCH_PR."
-              comment_once 437 "$marker" "$body"
-              return 0
-            fi
-            echo "Dispatching APPVERSE AI UAT against $target"
-            gh workflow run "$AI_UAT_WORKFLOW" --repo "$REPO" --ref main \
-              -f target_url="$target" \
-              -f enable_ai=true \
-              -f send_images=false \
-              -f synthetic_target=false
-          }
-
-          reconcile_bootstrap() {
-            local pr
-            pr="$(pr_json "$BOOTSTRAP_PR")"
-            if [[ "$(jq -r '.state' <<<"$pr")" == "open" ]]; then
-              if exact_checks_green "$BOOTSTRAP_PR" && [[ "$(unresolved_threads "$BOOTSTRAP_PR")" == "0" ]]; then
-                if has_exact_human_approval "$BOOTSTRAP_PR"; then
-                  merge_governed_pr "$BOOTSTRAP_PR" || true
-                else
-                  request_human_review "$BOOTSTRAP_PR"
-                  marker="APPVERSE_CONTROLLER:READY_FOR_APPROVAL:$BOOTSTRAP_PR:$(jq -r '.head.sha' <<<"$pr")"
-                  body="$marker\n\nPR #$BOOTSTRAP_PR is exact-head green and review-clean. Independent collaborator approval from @$HUMAN_REVIEWER is the only remaining merge gate."
-                  comment_once "$BOOTSTRAP_PR" "$marker" "$body"
-                fi
-              fi
-            fi
-          }
-
-          reconcile_dispatch() {
-            local pr
-            pr="$(pr_json "$DISPATCH_PR")"
-            [[ "$(jq -r '.state' <<<"$pr")" == "open" ]] || return 0
-            if rls_pass_for_current_binding; then
-              request_human_review "$DISPATCH_PR"
-              marker="APPVERSE_CONTROLLER:RLS_PASS:$DISPATCH_PR:$(jq -r '.head.sha' <<<"$pr")"
-              body="$marker\n\nProduction Dispatch RLS certification PASS is bound to current PR #$DISPATCH_PR head. If exact-head CI/security remains green, independent collaborator approval is the remaining merge gate."
-              comment_once "$DISPATCH_PR" "$marker" "$body"
-              if has_exact_human_approval "$DISPATCH_PR"; then
-                merge_governed_pr "$DISPATCH_PR" || true
-              fi
-            fi
-          }
-
-          handle_workflow_completion() {
-            if [[ "$EVENT_NAME" != "workflow_run" ]]; then
-              return 0
-            fi
-            if [[ "$WORKFLOW_RUN_NAME" == "Dispatch RBAC Production RLS Certification" ]]; then
-              if [[ "$WORKFLOW_RUN_CONCLUSION" == "success" ]] && rls_binding_current; then
-                reconcile_dispatch
-              else
-                marker="APPVERSE_CONTROLLER:RLS_WORKFLOW_BLOCKED:${GITHUB_RUN_ID}"
-                body="$marker\n\nDispatch RLS certification did not produce a current-head PASS. #$DISPATCH_PR remains blocked. Run: $WORKFLOW_RUN_URL"
-                comment_once "$DISPATCH_PR" "$marker" "$body"
-              fi
-            elif [[ "$WORKFLOW_RUN_NAME" == "APPVERSE AI UAT" ]]; then
-              if [[ "$WORKFLOW_RUN_CONCLUSION" == "success" ]]; then
-                marker="APPVERSE_CONTROLLER:PHYSICAL_DISPATCH_UAT_REQUIRED:${GITHUB_RUN_ID}"
-                body="$marker\n\nAutomated APPVERSE AI-UAT tranche completed successfully. Final physical Dispatch verification is now required on the actual device/workstation before this UAT tranche is considered physically certified. Run: $WORKFLOW_RUN_URL"
-                comment_once 437 "$marker" "$body"
-              else
-                marker="APPVERSE_CONTROLLER:AI_UAT_FAILED:${GITHUB_RUN_ID}"
-                body="$marker\n\nAPPVERSE AI-UAT reported a software failure/blocker. Physical sign-off is not requested until the automated evidence is reviewed and corrected. Run: $WORKFLOW_RUN_URL"
-                comment_once 437 "$marker" "$body"
-              fi
-            fi
-          }
-
-          # Reconcile in dependency order on every supported event.
-          reconcile_bootstrap
-          dispatch_rls_if_needed
-          reconcile_dispatch
-          dispatch_ai_uat_if_needed
-          handle_workflow_completion
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          WORKFLOW_RUN_NAME: ${{ github.event.workflow_run.name }}
+          WORKFLOW_RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          WORKFLOW_RUN_URL: ${{ github.event.workflow_run.html_url }}
+        run: bash .github/scripts/appverse-release-controller.sh
