@@ -1,11 +1,8 @@
 import fs from "node:fs";
-import path from "node:path";
 
-const root = process.cwd();
-const dir = path.join(root, "test-results", "ai-uat-evidence");
-const out = path.join(root, "test-results", "APPVERSE_AI_UAT_REPORT.md");
-fs.mkdirSync(path.dirname(out), { recursive: true });
+fs.mkdirSync("test-results", { recursive: true });
 
+/** Escape untrusted evidence text before placing it in Markdown. */
 function markdownText(value, maxLength = 1000) {
   return String(value ?? "")
     .replace(/\\/g, "\\\\")
@@ -16,6 +13,7 @@ function markdownText(value, maxLength = 1000) {
     .slice(0, maxLength);
 }
 
+/** Render only URL origin and pathname, stripping credentials/query/fragment data. */
 function displayUrl(value, fallback = "") {
   const raw = String(value ?? "").trim();
   if (!raw) return fallback;
@@ -27,27 +25,31 @@ function displayUrl(value, fallback = "") {
   }
 }
 
-const rows = [];
-if (fs.existsSync(dir)) {
-  for (const file of fs.readdirSync(dir).filter((name) => /^uat-(00[1-9]|010)\.json$/i.test(name)).sort()) {
+/** Parse the fixed JSONL evidence stream while retaining malformed-line failures. */
+function loadEvidenceRows() {
+  if (!fs.existsSync("test-results/ai-uat-evidence.jsonl")) return [];
+  const rows = [];
+  const lines = fs.readFileSync("test-results/ai-uat-evidence.jsonl", "utf8").split(/\r?\n/).filter(Boolean);
+  for (const line of lines) {
     try {
-      const value = JSON.parse(fs.readFileSync(path.join(dir, file), "utf8"));
-      rows.push(value);
+      rows.push(JSON.parse(line));
     } catch (error) {
       rows.push({
-        uat_id: file,
+        uat_id: "evidence-stream",
         status: "BLOCKED",
         role: "unknown",
-        expected: "Valid evidence JSON",
-        actual: `Could not parse ${file}: ${error instanceof Error ? error.message : String(error)}`,
+        expected: "Valid evidence JSONL",
+        actual: `Could not parse evidence line: ${error instanceof Error ? error.message : String(error)}`,
         final_url: "",
         severity: "INFO",
         reproduction_steps: [],
       });
     }
   }
+  return rows;
 }
 
+const rows = loadEvidenceRows();
 const counts = { PASS: 0, FAIL: 0, BLOCKED: 0 };
 for (const row of rows) {
   if (row.status in counts) counts[row.status] += 1;
@@ -90,8 +92,8 @@ for (const row of rows) {
 }
 
 if (rows.length === 0) {
-  md += "No UAT evidence JSON was produced. The run was likely blocked before scenario execution.\n";
+  md += "No UAT evidence was produced. The run was likely blocked before scenario execution.\n";
 }
 
-fs.writeFileSync(out, md, "utf8");
-console.log(out);
+fs.writeFileSync("test-results/APPVERSE_AI_UAT_REPORT.md", md, "utf8");
+console.log("test-results/APPVERSE_AI_UAT_REPORT.md");
