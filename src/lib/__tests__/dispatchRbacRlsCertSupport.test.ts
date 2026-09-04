@@ -22,23 +22,23 @@ describe("dispatch-rbac-rls-support", () => {
 
   it("prefers TEST_DISPATCH credentials over factory cert naming", () => {
     process.env.TEST_DISPATCH_EMAIL = "dispatch@example.test";
-    process.env.TEST_DISPATCH_PASSWORD = "dispatch-secret";
+    process.env.TEST_DISPATCH_PASSWORD = "dispatch_pw_fixture";
     process.env.FACTORY_CERT_DISPATCH_MANAGER_EMAIL = "factory@example.test";
-    process.env.FACTORY_CERT_DISPATCH_MANAGER_PASSWORD = "factory-secret";
+    process.env.FACTORY_CERT_DISPATCH_MANAGER_PASSWORD = "factory_pw_fixture";
     expect(readDispatchRlsCertDispatchCredentials()).toEqual({
       email: "dispatch@example.test",
-      password: "dispatch-secret",
+      password: "dispatch_pw_fixture",
     });
   });
 
   it("prefers TEST_ADMIN cleanup credentials over factory cert naming", () => {
     process.env.TEST_ADMIN_EMAIL = "admin@example.test";
-    process.env.TEST_ADMIN_PASSWORD = "admin-secret";
+    process.env.TEST_ADMIN_PASSWORD = "admin_pw_fixture";
     process.env.FACTORY_CERT_SUPER_ADMIN_EMAIL = "super@example.test";
-    process.env.FACTORY_CERT_SUPER_ADMIN_PASSWORD = "super-secret";
+    process.env.FACTORY_CERT_SUPER_ADMIN_PASSWORD = "super_pw_fixture";
     expect(readDispatchRlsCertCleanupCredentials()).toEqual({
       email: "admin@example.test",
-      password: "admin-secret",
+      password: "admin_pw_fixture",
     });
   });
 
