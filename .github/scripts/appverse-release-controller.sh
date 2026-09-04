@@ -24,24 +24,29 @@ required_checks=(
   "Cursor Security Agent: Security Reviewer"
 )
 
+# Fetch the current GitHub pull-request document for a governed PR number.
 pr_json() {
   gh api "repos/$REPO/pulls/$1"
 }
 
+# Return the exact current head SHA for a governed pull request.
 pr_head() {
   pr_json "$1" | jq -r '.head.sha'
 }
 
+# Return the merge timestamp for a pull request, or an empty string if unmerged.
 pr_merged_at() {
   pr_json "$1" | jq -r '.merged_at // empty'
 }
 
+# Return the newest conclusion for one named check context on an exact commit.
 check_conclusion() {
   local head="$1" name="$2"
   gh api -X GET "repos/$REPO/commits/$head/check-runs?per_page=100" \
     --jq ".check_runs | map(select(.name == \"$name\")) | sort_by(.started_at) | last | .conclusion // \"missing\""
 }
 
+# Verify every stable governed check is successful on the PR's exact current head.
 exact_checks_green() {
   local pr="$1" head conclusion name
   head="$(pr_head "$pr")"
@@ -55,6 +60,7 @@ exact_checks_green() {
   return 0
 }
 
+# Count unresolved review threads, failing closed when more than one page exists.
 unresolved_threads() {
   local pr="$1" response has_next count
   response="$(gh api graphql \
@@ -69,6 +75,7 @@ unresolved_threads() {
   echo "$count"
 }
 
+# Accept human approval only when the latest exact-head decision is APPROVED.
 has_exact_human_approval() {
   local pr="$1" head reviews state
   head="$(pr_head "$pr")"
@@ -85,12 +92,14 @@ has_exact_human_approval() {
   [[ "$state" == "APPROVED" ]]
 }
 
+# Request the designated independent collaborator review without failing reconciliation.
 request_human_review() {
   local pr="$1"
   jq -n --arg reviewer "$HUMAN_REVIEWER" '{reviewers:[$reviewer]}' \
     | gh api -X POST "repos/$REPO/pulls/$pr/requested_reviewers" --input - >/dev/null || true
 }
 
+# Post a durable issue marker once after scanning every existing comment page.
 comment_once() {
   local issue="$1" marker="$2" body="$3" comments
   comments="$(gh api --paginate --slurp -X GET "repos/$REPO/issues/$issue/comments?per_page=100")"
@@ -101,6 +110,7 @@ comment_once() {
     | gh api -X POST "repos/$REPO/issues/$issue/comments" --input - >/dev/null
 }
 
+# Squash-merge a governed PR only after threads, checks, and human approval pass.
 merge_governed_pr() {
   local pr="$1" head threads
   head="$(pr_head "$pr")"
@@ -120,10 +130,12 @@ merge_governed_pr() {
     | gh api -X PUT "repos/$REPO/pulls/$pr/merge" --input -
 }
 
+# Report whether the workflow-bootstrap pull request has already merged.
 bootstrap_is_merged() {
   [[ "$(pr_json "$BOOTSTRAP_PR" | jq -r '.merged')" == "true" ]]
 }
 
+# Read the exact Dispatch head SHA pinned by the trusted main RLS workflow.
 approved_rls_ref() {
   gh api "repos/$REPO/contents/.github/workflows/$RLS_WORKFLOW?ref=main" --jq '.content' \
     | tr -d '\n' | base64 -d \
@@ -131,6 +143,7 @@ approved_rls_ref() {
     | head -1
 }
 
+# Verify the trusted RLS workflow pin matches the current Dispatch PR head exactly.
 rls_binding_current() {
   local approved current
   bootstrap_is_merged || return 1
@@ -139,16 +152,19 @@ rls_binding_current() {
   [[ -n "$approved" && "$approved" == "$current" ]]
 }
 
+# Return the repository's current trusted main commit SHA.
 main_head_sha() {
   gh api "repos/$REPO/commits/main" --jq '.sha'
 }
 
+# Return the newest manually dispatched main-branch run for a named workflow.
 latest_workflow_run_json() {
   local workflow="$1"
   gh api -X GET "repos/$REPO/actions/workflows/$workflow/runs?event=workflow_dispatch&branch=main&per_page=20" \
     --jq '.workflow_runs | sort_by(.created_at) | last // {}'
 }
 
+# Accept production RLS PASS only when its trusted-main run and Dispatch pin are current.
 rls_pass_for_current_binding() {
   local merged_at latest conclusion created run_sha main_sha
   rls_binding_current || return 1
@@ -166,6 +182,7 @@ rls_pass_for_current_binding() {
     && "$run_sha" == "$main_sha" ]]
 }
 
+# Queue the trusted-main production RLS workflow, retrying transient exposure delays.
 dispatch_rls() {
   local attempt
   for attempt in 1 2 3 4 5 6; do
@@ -179,6 +196,7 @@ dispatch_rls() {
   return 1
 }
 
+# Dispatch RLS only when required and persist durable blockers for stale or failed evidence.
 dispatch_rls_if_needed() {
   local bootstrap merged_at latest status conclusion created run_sha main_sha current approved marker body
   bootstrap="$(pr_json "$BOOTSTRAP_PR")"
@@ -225,6 +243,7 @@ The controller could not dispatch $RLS_WORKFLOW after six trusted-main retries. 
   fi
 }
 
+# Resolve a successful Oasis Vercel preview that is bound to the exact Dispatch head SHA.
 vercel_preview_for_dispatch_pr() {
   local head deployments id statuses status url
   head="$(pr_head "$DISPATCH_PR")"
@@ -262,6 +281,7 @@ vercel_preview_for_dispatch_pr() {
   return 1
 }
 
+# Report whether a main-branch AI-UAT dispatch already exists after the Dispatch merge.
 ai_uat_run_after_dispatch_merge_exists() {
   local merged_at latest created
   merged_at="$(pr_merged_at "$DISPATCH_PR")"
@@ -271,6 +291,7 @@ ai_uat_run_after_dispatch_merge_exists() {
   [[ -n "$created" && "$created" > "$merged_at" ]]
 }
 
+# Dispatch AI-UAT exactly once against exact-head Vercel evidence after Dispatch merges.
 dispatch_ai_uat_if_needed() {
   local pr target marker body
   pr="$(pr_json "$DISPATCH_PR")"
@@ -295,6 +316,7 @@ APPVERSE AI UAT was not dispatched because no successful Oasis-team Vercel deplo
     -f synthetic_target=false
 }
 
+# Reconcile the bootstrap PR, requesting or consuming only exact-head human approval.
 reconcile_bootstrap() {
   local pr head marker body
   pr="$(pr_json "$BOOTSTRAP_PR")"
@@ -316,6 +338,7 @@ PR #$BOOTSTRAP_PR is exact-head green and review-clean. Independent collaborator
   comment_once "$BOOTSTRAP_PR" "$marker" "$body"
 }
 
+# Reconcile Dispatch only after current-head production RLS and exact-head checks are green.
 reconcile_dispatch() {
   local pr head marker body
   bootstrap_is_merged || return 0
@@ -338,6 +361,7 @@ Production Dispatch RLS certification PASS is bound to current PR #$DISPATCH_PR 
   fi
 }
 
+# Translate trusted downstream workflow completions into governed durable handoffs.
 handle_workflow_completion() {
   local marker body
   [[ "$EVENT_NAME" == "workflow_run" ]] || return 0
