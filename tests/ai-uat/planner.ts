@@ -203,9 +203,9 @@ export async function requestAiPlannerAction(args: {
   const controller = new AbortController();
   const deadlineMs = Math.min(Math.max(Number(process.env.AI_UAT_PLANNER_TIMEOUT_MS ?? 30_000) || 30_000, 5_000), 60_000);
   const timer = setTimeout(() => controller.abort(), deadlineMs);
-  let response: Response;
+
   try {
-    response = await fetch("https://api.openai.com/v1/responses", {
+    const response = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
@@ -226,6 +226,24 @@ export async function requestAiPlannerAction(args: {
         },
       }),
     });
+
+    if (!response.ok) {
+      const errorBody = sanitizeText(await response.text());
+      throw new Error(`AI planner request failed (${response.status}): ${errorBody.slice(0, 500)}`);
+    }
+
+    const payload = (await response.json()) as unknown;
+    const output = extractOutputText(payload);
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(output);
+    } catch {
+      throw new Error(`AI planner returned non-JSON structured output: ${sanitizeText(output).slice(0, 500)}`);
+    }
+    if (!isPlannerAction(parsed)) {
+      throw new Error(`AI planner returned an invalid action contract: ${sanitizeText(JSON.stringify(parsed)).slice(0, 500)}`);
+    }
+    return parsed;
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") {
       throw new Error(`AI planner request exceeded ${deadlineMs} ms deadline.`);
@@ -234,22 +252,4 @@ export async function requestAiPlannerAction(args: {
   } finally {
     clearTimeout(timer);
   }
-
-  if (!response.ok) {
-    const errorBody = sanitizeText(await response.text());
-    throw new Error(`AI planner request failed (${response.status}): ${errorBody.slice(0, 500)}`);
-  }
-
-  const payload = (await response.json()) as unknown;
-  const output = extractOutputText(payload);
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(output);
-  } catch {
-    throw new Error(`AI planner returned non-JSON structured output: ${sanitizeText(output).slice(0, 500)}`);
-  }
-  if (!isPlannerAction(parsed)) {
-    throw new Error(`AI planner returned an invalid action contract: ${sanitizeText(JSON.stringify(parsed)).slice(0, 500)}`);
-  }
-  return parsed;
 }
