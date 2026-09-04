@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  canAccessCommercialDispatchTvRoute,
   canAccessGoldenChainOperatorRoute,
   getRequiredModuleForAdminPath,
   isAuthorizedForAdminPath,
@@ -77,5 +78,12 @@ describe("golden chain operator route access", () => {
   it("allows TV_DISPLAY and OPERATIONS_MANAGER to reach commercial Dispatch TV", () => {
     expect(isAuthorizedForAdminPath("/admin/dispatch-tv", "TV_DISPLAY")).toBe(true);
     expect(isAuthorizedForAdminPath("/admin/dispatch-tv", "OPERATIONS_MANAGER")).toBe(true);
+    expect(canAccessCommercialDispatchTvRoute("TV_DISPLAY")).toBe(true);
+    expect(canAccessCommercialDispatchTvRoute("OPERATIONS_MANAGER")).toBe(true);
+  });
+
+  it("keeps TV_DISPLAY off other orders-mapped admin routes", () => {
+    expect(isAuthorizedForAdminPath("/admin/order-management", "TV_DISPLAY")).toBe(false);
+    expect(isAuthorizedForAdminPath("/admin/packing-dispatch", "TV_DISPLAY")).toBe(false);
   });
 });

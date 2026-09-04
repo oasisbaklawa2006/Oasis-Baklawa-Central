@@ -130,10 +130,24 @@ describe("Dispatch RBAC — explicitly mapped restricted routes", () => {
 });
 
 describe("Dispatch RBAC — commercial Dispatch TV audience", () => {
+  const TV_DISPLAY_FORBIDDEN_ORDERS_ROUTES = [
+    "/admin/order-management",
+    "/admin/packing-dispatch",
+    "/admin/dispatch",
+    "/admin/store-coordination",
+  ] as const;
+
   it("allows TV_DISPLAY and OPERATIONS_MANAGER to reach /admin/dispatch-tv", () => {
     expect(isAuthorizedForAdminPath("/admin/dispatch-tv", "TV_DISPLAY")).toBe(true);
     expect(isAuthorizedForAdminPath("/admin/dispatch-tv", "OPERATIONS_MANAGER")).toBe(true);
   });
+
+  it.each(TV_DISPLAY_FORBIDDEN_ORDERS_ROUTES)(
+    "denies TV_DISPLAY from other orders-mapped route %s",
+    (path) => {
+      expect(isAuthorizedForAdminPath(path, "TV_DISPLAY")).toBe(false);
+    },
+  );
 
   it.each(DISPATCH_ROLES)("denies %s from commercial Dispatch TV", (role) => {
     expect(isAuthorizedForAdminPath("/admin/dispatch-tv", role)).toBe(false);

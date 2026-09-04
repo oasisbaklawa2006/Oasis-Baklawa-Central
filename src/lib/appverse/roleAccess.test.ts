@@ -33,7 +33,7 @@ describe("App-Verse role authority", () => {
     }
   });
 
-  it("grants TV_DISPLAY orders module for commercial Dispatch TV read-only surface", () => {
-    expect(getAllowedModulesForRole("TV_DISPLAY")).toEqual(["dashboard", "orders"]);
+  it("keeps TV_DISPLAY on dashboard-only module grants (dispatch-tv via route allowlist)", () => {
+    expect(getAllowedModulesForRole("TV_DISPLAY")).toEqual(["dashboard"]);
   });
 });

@@ -6,8 +6,10 @@ import {
 } from "./roleAccess";
 
 export const GOLDEN_CHAIN_OPERATOR_ROUTE = "/admin/golden-chain-operator";
+export const COMMERCIAL_DISPATCH_TV_ROUTE = "/admin/dispatch-tv";
 
 const GOLDEN_CHAIN_OPERATOR_MODULE_KEYS: AppVerseModuleKey[] = ["dispatch", "finance", "inventory"];
+const COMMERCIAL_DISPATCH_TV_KIOSK_ROLES = new Set(["TV_DISPLAY"]);
 
 const ADMIN_ROUTE_MODULES: Array<{ prefix: string; moduleKey: AppVerseModuleKey }> = [
   { prefix: "/admin/execution/production", moduleKey: "production" },
@@ -109,6 +111,18 @@ function isGoldenChainOperatorPath(pathname: string): boolean {
   return pathname === GOLDEN_CHAIN_OPERATOR_ROUTE || pathname.startsWith(`${GOLDEN_CHAIN_OPERATOR_ROUTE}/`);
 }
 
+function isCommercialDispatchTvPath(pathname: string): boolean {
+  return pathname === COMMERCIAL_DISPATCH_TV_ROUTE || pathname.startsWith(`${COMMERCIAL_DISPATCH_TV_ROUTE}/`);
+}
+
+/** Kiosk TV_DISPLAY gets dispatch-tv only; other roles use standard orders module authority. */
+export function canAccessCommercialDispatchTvRoute(role: string | null | undefined): boolean {
+  const normalized = role?.trim().toUpperCase();
+  if (!normalized) return false;
+  if (COMMERCIAL_DISPATCH_TV_KIOSK_ROLES.has(normalized)) return true;
+  return hasModuleAccess(getAllowedModulesForRole(role), "orders");
+}
+
 /** Phase 24L pilot: finance and inventory operators share the wizard with dispatch. */
 export function canAccessGoldenChainOperatorRoute(role: string | null | undefined): boolean {
   const allowedModules = getAllowedModulesForRole(role);
@@ -119,6 +133,7 @@ export function canAccessGoldenChainOperatorRoute(role: string | null | undefine
 export function isAuthorizedForAdminPath(pathname: string, role: string | null | undefined): boolean {
   if (!pathname.startsWith("/admin")) return true;
   if (isGoldenChainOperatorPath(pathname)) return canAccessGoldenChainOperatorRoute(role);
+  if (isCommercialDispatchTvPath(pathname)) return canAccessCommercialDispatchTvRoute(role);
   const requiredModule = getRequiredModuleForAdminPath(pathname);
   // P0 #456: Dispatch roles may use App-Verse home (/admin) only via dashboard;
   // any other unmapped /admin path that falls back to dashboard must fail closed.
