@@ -112,8 +112,10 @@ test("UAT-003 — session isolation Dispatch → Assembly", async ({ page }) => 
     await loginAssembly(page);
     await expect(page.getByText("DISPATCH MANAGER", { exact: false })).toHaveCount(0);
     await expect(page.getByText("Dispatch today", { exact: false })).toHaveCount(0);
+    await page.goto(`${getPreviewUrl()}/admin`, { waitUntil: "domcontentloaded", timeout: 45_000 });
     await expect(page.getByText(/Production today/i).first()).toBeVisible({ timeout: 15_000 });
-    return `Assembly login replaced Dispatch session state at ${new URL(page.url()).pathname}.`;
+    await expect(page.getByText("DISPATCH MANAGER", { exact: false })).toHaveCount(0);
+    return `Assembly login replaced Dispatch session state and rendered the production role home at ${new URL(page.url()).pathname}.`;
   });
 });
 
@@ -179,7 +181,7 @@ test("UAT-008 — governed B2B Dispatch visibility has rows or explicit empty st
   await loginDispatch(page);
   await executeCase(page, testCase, async () => {
     await expect(page.getByText("Governed consignments", { exact: true })).toBeVisible({ timeout: 15_000 });
-    await expect(page.locator("[class*='animate-spin']").first()).toBeHidden({ timeout: 15_000 }).catch(() => {});
+    await expect(page.locator("[class*='animate-spin']").first()).toBeHidden({ timeout: 15_000 });
     const explicitEmpty = page.getByText("No governed consignments yet.", { exact: true });
     const table = page.getByRole("table");
     const hasEmpty = await explicitEmpty.isVisible().catch(() => false);
