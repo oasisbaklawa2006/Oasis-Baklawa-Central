@@ -71,11 +71,19 @@ unresolved_threads() {
 }
 
 has_exact_human_approval() {
-  local pr="$1" head count
+  local pr="$1" head reviews state
   head="$(pr_head "$pr")"
-  count="$(gh api -X GET "repos/$REPO/pulls/$pr/reviews?per_page=100" \
-    --jq "[.[] | select(.user.login == \"$HUMAN_REVIEWER\" and .state == \"APPROVED\" and .commit_id == \"$head\")] | length")"
-  [[ "$count" =~ ^[1-9][0-9]*$ ]]
+  reviews="$(gh api --paginate --slurp -X GET "repos/$REPO/pulls/$pr/reviews?per_page=100")"
+  state="$(jq -r --arg reviewer "$HUMAN_REVIEWER" --arg head "$head" '
+    [.[][]
+      | select(.user.login == $reviewer)
+      | select(.commit_id == $head)
+      | select(.state != "COMMENTED")]
+    | sort_by(.submitted_at)
+    | last
+    | .state // "NONE"
+  ' <<<"$reviews")"
+  [[ "$state" == "APPROVED" ]]
 }
 
 request_human_review() {
@@ -86,8 +94,8 @@ request_human_review() {
 
 comment_once() {
   local issue="$1" marker="$2" body="$3" comments
-  comments="$(gh api -X GET "repos/$REPO/issues/$issue/comments?per_page=100")"
-  if jq -e --arg marker "$marker" 'any(.[]; ((.body // "") | contains($marker)))' <<<"$comments" >/dev/null; then
+  comments="$(gh api --paginate --slurp -X GET "repos/$REPO/issues/$issue/comments?per_page=100")"
+  if jq -e --arg marker "$marker" 'any(.[][]; ((.body // "") | contains($marker)))' <<<"$comments" >/dev/null; then
     return 0
   fi
   jq -n --arg body "$body" '{body:$body}' \
@@ -132,21 +140,31 @@ rls_binding_current() {
   [[ -n "$approved" && "$approved" == "$current" ]]
 }
 
+main_head_sha() {
+  gh api "repos/$REPO/commits/main" --jq '.sha'
+}
+
 latest_workflow_run_json() {
   local workflow="$1"
-  gh api -X GET "repos/$REPO/actions/workflows/$workflow/runs?event=workflow_dispatch&per_page=20" \
+  gh api -X GET "repos/$REPO/actions/workflows/$workflow/runs?event=workflow_dispatch&branch=main&per_page=20" \
     --jq '.workflow_runs | sort_by(.created_at) | last // {}'
 }
 
 rls_pass_for_current_binding() {
-  local merged_at latest conclusion created
+  local merged_at latest conclusion created run_sha main_sha
   rls_binding_current || return 1
   merged_at="$(pr_merged_at "$BOOTSTRAP_PR")"
   [[ -n "$merged_at" ]] || return 1
   latest="$(latest_workflow_run_json "$RLS_WORKFLOW")"
   conclusion="$(jq -r '.conclusion // empty' <<<"$latest")"
   created="$(jq -r '.created_at // empty' <<<"$latest")"
-  [[ "$conclusion" == "success" && -n "$created" && "$created" > "$merged_at" ]]
+  run_sha="$(jq -r '.head_sha // empty' <<<"$latest")"
+  main_sha="$(main_head_sha)"
+  [[ "$conclusion" == "success" \
+    && -n "$created" \
+    && "$created" > "$merged_at" \
+    && -n "$run_sha" \
+    && "$run_sha" == "$main_sha" ]]
 }
 
 dispatch_rls() {
@@ -163,7 +181,7 @@ dispatch_rls() {
 }
 
 dispatch_rls_if_needed() {
-  local bootstrap merged_at latest status conclusion created current approved marker body
+  local bootstrap merged_at latest status conclusion created run_sha main_sha current approved marker body
   bootstrap="$(pr_json "$BOOTSTRAP_PR")"
   [[ "$(jq -r '.merged' <<<"$bootstrap")" == "true" ]] || return 0
 
@@ -183,8 +201,10 @@ Dispatch production RLS certification is fail-closed because the workflow pin ($
   status="$(jq -r '.status // empty' <<<"$latest")"
   conclusion="$(jq -r '.conclusion // empty' <<<"$latest")"
   created="$(jq -r '.created_at // empty' <<<"$latest")"
+  run_sha="$(jq -r '.head_sha // empty' <<<"$latest")"
+  main_sha="$(main_head_sha)"
 
-  if [[ -n "$created" && "$created" > "$merged_at" ]]; then
+  if [[ -n "$created" && "$created" > "$merged_at" && "$run_sha" == "$main_sha" ]]; then
     if [[ "$status" == "queued" || "$status" == "in_progress" || "$conclusion" == "success" ]]; then
       return 0
     fi
@@ -207,7 +227,7 @@ The controller could not dispatch $RLS_WORKFLOW after six trusted-main retries. 
 }
 
 vercel_preview_for_dispatch_pr() {
-  gh api -X GET "repos/$REPO/issues/$DISPATCH_PR/comments?per_page=100" \
+  gh api --paginate -X GET "repos/$REPO/issues/$DISPATCH_PR/comments?per_page=100" \
     --jq '.[] | select(.user.login == "vercel[bot]") | .body' \
     | grep -oE 'https://[A-Za-z0-9-]+-oasisbaklawa2006-6222s-projects\.vercel\.app' \
     | tail -1
