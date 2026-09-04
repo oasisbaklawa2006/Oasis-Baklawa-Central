@@ -50,6 +50,8 @@ Clicks resolve exact visible semantic controls before policy is applied. Mutatio
 - `AI_UAT_SEND_IMAGES=true` is accepted only when `AI_UAT_SYNTHETIC_TARGET=true`; the image is sent from memory and is not retained as an artifact.
 - Tranche 1 does not persist screenshot files. This removes dynamic artifact paths and prevents raw live-business screenshots from entering public-repository workflow artifacts.
 - Credentialed Playwright runs use normal TLS certificate validation.
+- Hosted role/API secrets are scoped only to the Playwright execution step, not the full job.
+- Checkout does not persist the GitHub token into local Git configuration.
 
 ## Required secrets
 
@@ -84,7 +86,7 @@ AI_UAT_ENABLE_AI=true OPENAI_API_KEY=... npm run test:ai-uat
 Optional model override:
 
 ```bash
-AI_UAT_MODEL=gpt-5.6-luna
+AI_UAT_MODEL=gpt-5.6-luna npm run test:ai-uat
 ```
 
 ## GitHub Actions
