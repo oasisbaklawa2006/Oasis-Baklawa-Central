@@ -11,6 +11,7 @@ on:
     workflows:
       - Dispatch RBAC Production RLS Certification
       - APPVERSE AI UAT
+    branches: [main]
     types: [completed]
 
 permissions:
@@ -41,7 +42,7 @@ jobs:
       AI_UAT_WORKFLOW: appverse-ai-uat.yml
     steps:
       - name: Checkout trusted main controller code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           ref: main
           persist-credentials: false
