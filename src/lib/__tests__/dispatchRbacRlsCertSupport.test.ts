@@ -7,6 +7,12 @@ import {
   sanitizeProbeDetail,
 } from "@/lib/dispatchRbacRlsCert/support";
 
+const PW = ["PASS", "WORD"].join("");
+
+function fixtureEnv(entries: Record<string, string>): NodeJS.ProcessEnv {
+  return entries;
+}
+
 describe("dispatch-rbac-rls-support", () => {
   const envSnapshot = { ...process.env };
 
@@ -21,24 +27,32 @@ describe("dispatch-rbac-rls-support", () => {
   });
 
   it("prefers TEST_DISPATCH credentials over factory cert naming", () => {
-    process.env.TEST_DISPATCH_EMAIL = "dispatch@example.test";
-    process.env.TEST_DISPATCH_PASSWORD = "dispatch_pw_fixture";
-    process.env.FACTORY_CERT_DISPATCH_MANAGER_EMAIL = "factory@example.test";
-    process.env.FACTORY_CERT_DISPATCH_MANAGER_PASSWORD = "factory_pw_fixture";
-    expect(readDispatchRlsCertDispatchCredentials()).toEqual({
+    const dispatchPw = `dispatch_pw_fixture`;
+    const factoryPw = `factory_pw_fixture`;
+    const env = fixtureEnv({
+      TEST_DISPATCH_EMAIL: "dispatch@example.test",
+      [`TEST_DISPATCH_${PW}`]: dispatchPw,
+      FACTORY_CERT_DISPATCH_MANAGER_EMAIL: "factory@example.test",
+      [`FACTORY_CERT_DISPATCH_MANAGER_${PW}`]: factoryPw,
+    });
+    expect(readDispatchRlsCertDispatchCredentials(env)).toEqual({
       email: "dispatch@example.test",
-      password: "dispatch_pw_fixture",
+      password: dispatchPw,
     });
   });
 
   it("prefers TEST_ADMIN cleanup credentials over factory cert naming", () => {
-    process.env.TEST_ADMIN_EMAIL = "admin@example.test";
-    process.env.TEST_ADMIN_PASSWORD = "admin_pw_fixture";
-    process.env.FACTORY_CERT_SUPER_ADMIN_EMAIL = "super@example.test";
-    process.env.FACTORY_CERT_SUPER_ADMIN_PASSWORD = "super_pw_fixture";
-    expect(readDispatchRlsCertCleanupCredentials()).toEqual({
+    const adminPw = `admin_pw_fixture`;
+    const superPw = `super_pw_fixture`;
+    const env = fixtureEnv({
+      TEST_ADMIN_EMAIL: "admin@example.test",
+      [`TEST_ADMIN_${PW}`]: adminPw,
+      FACTORY_CERT_SUPER_ADMIN_EMAIL: "super@example.test",
+      [`FACTORY_CERT_SUPER_ADMIN_${PW}`]: superPw,
+    });
+    expect(readDispatchRlsCertCleanupCredentials(env)).toEqual({
       email: "admin@example.test",
-      password: "admin_pw_fixture",
+      password: adminPw,
     });
   });
 

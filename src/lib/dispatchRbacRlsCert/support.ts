@@ -13,10 +13,13 @@ export type RlsCertCredentials = {
   password: string;
 };
 
-function readFactoryCertCredentials(role: string): RlsCertCredentials | null {
+function readFactoryCertCredentialsFromEnv(
+  env: NodeJS.ProcessEnv,
+  role: string,
+): RlsCertCredentials | null {
   const canonical = role.trim().toUpperCase();
-  const email = process.env[`FACTORY_CERT_${canonical}_EMAIL`]?.trim();
-  const password = process.env[`FACTORY_CERT_${canonical}_PASSWORD`]?.trim();
+  const email = env[`FACTORY_CERT_${canonical}_EMAIL`]?.trim();
+  const password = env[`FACTORY_CERT_${canonical}_PASSWORD`]?.trim();
   if (!email || !password) return null;
   return { email, password };
 }
@@ -70,22 +73,29 @@ export function resolveDispatchRlsCertBackend(): { url: string; anonKey: string 
   };
 }
 
-export function readDispatchRlsCertDispatchCredentials(): RlsCertCredentials | null {
-  const testEmail = process.env.TEST_DISPATCH_EMAIL?.trim();
-  const testPassword = process.env.TEST_DISPATCH_PASSWORD?.trim();
+export function readDispatchRlsCertDispatchCredentials(
+  env: NodeJS.ProcessEnv = process.env,
+): RlsCertCredentials | null {
+  const testEmail = env.TEST_DISPATCH_EMAIL?.trim();
+  const testPassword = env.TEST_DISPATCH_PASSWORD?.trim();
   if (testEmail && testPassword) {
     return { email: testEmail, password: testPassword };
   }
-  return readFactoryCertCredentials("DISPATCH_MANAGER");
+  return readFactoryCertCredentialsFromEnv(env, "DISPATCH_MANAGER");
 }
 
-export function readDispatchRlsCertCleanupCredentials(): RlsCertCredentials | null {
-  const testEmail = process.env.TEST_ADMIN_EMAIL?.trim();
-  const testPassword = process.env.TEST_ADMIN_PASSWORD?.trim();
+export function readDispatchRlsCertCleanupCredentials(
+  env: NodeJS.ProcessEnv = process.env,
+): RlsCertCredentials | null {
+  const testEmail = env.TEST_ADMIN_EMAIL?.trim();
+  const testPassword = env.TEST_ADMIN_PASSWORD?.trim();
   if (testEmail && testPassword) {
     return { email: testEmail, password: testPassword };
   }
-  return readFactoryCertCredentials("SUPER_ADMIN") ?? readFactoryCertCredentials("ADMIN");
+  return (
+    readFactoryCertCredentialsFromEnv(env, "SUPER_ADMIN") ??
+    readFactoryCertCredentialsFromEnv(env, "ADMIN")
+  );
 }
 
 export function createDispatchRlsCertClient(
