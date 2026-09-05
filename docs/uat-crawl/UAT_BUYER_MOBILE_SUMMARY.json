@@ -1,0 +1,287 @@
+{
+  "generatedAt": "2026-09-05T22:36:04.387Z",
+  "buyerMergeSha": "0015e7b56532826a40c7beb3f33b028271c2c2f5",
+  "certHeadSha": "0f81448cf6f92b0ca0db667b757ca9f05ff3f542",
+  "crawlBaseUrl": "https://oasis-baklawa-central-6zo99hosg-oasisbaklawa2006-6222s-projects.vercel.app",
+  "authenticatedComplete": [],
+  "blockedSurfaces": [
+    {
+      "uatId": "UAT-0114",
+      "state": "dashboard-default",
+      "surface": "Dashboard",
+      "missingSecretNames": [
+        "TEST_BUYER_EMAIL",
+        "TEST_BUYER_PASSWORD"
+      ]
+    },
+    {
+      "uatId": "UAT-0115",
+      "state": "catalogue-default",
+      "surface": "Catalogue",
+      "missingSecretNames": [
+        "TEST_BUYER_EMAIL",
+        "TEST_BUYER_PASSWORD"
+      ]
+    },
+    {
+      "uatId": "UAT-0115",
+      "state": "catalogue-search",
+      "surface": "Catalogue search",
+      "missingSecretNames": [
+        "TEST_BUYER_EMAIL",
+        "TEST_BUYER_PASSWORD"
+      ]
+    },
+    {
+      "uatId": "UAT-0115",
+      "state": "favourites-toggle",
+      "surface": "Favourites",
+      "missingSecretNames": [
+        "TEST_BUYER_EMAIL",
+        "TEST_BUYER_PASSWORD"
+      ]
+    },
+    {
+      "uatId": "UAT-0115",
+      "state": "product-detail",
+      "surface": "Product Detail",
+      "missingSecretNames": [
+        "TEST_BUYER_EMAIL",
+        "TEST_BUYER_PASSWORD"
+      ]
+    },
+    {
+      "uatId": "UAT-0116",
+      "state": "cart-default",
+      "surface": "Cart",
+      "missingSecretNames": [
+        "TEST_BUYER_EMAIL",
+        "TEST_BUYER_PASSWORD"
+      ]
+    },
+    {
+      "uatId": "UAT-0117",
+      "state": "orders-list",
+      "surface": "Orders",
+      "missingSecretNames": [
+        "TEST_BUYER_EMAIL",
+        "TEST_BUYER_PASSWORD"
+      ]
+    },
+    {
+      "uatId": "UAT-0117",
+      "state": "order-detail",
+      "surface": "Order Detail",
+      "missingSecretNames": [
+        "TEST_BUYER_EMAIL",
+        "TEST_BUYER_PASSWORD"
+      ]
+    },
+    {
+      "uatId": "UAT-0120",
+      "state": "documents-default",
+      "surface": "Documents",
+      "missingSecretNames": [
+        "TEST_BUYER_EMAIL",
+        "TEST_BUYER_PASSWORD"
+      ]
+    },
+    {
+      "uatId": "UAT-0120",
+      "state": "statement-facts",
+      "surface": "Statement",
+      "missingSecretNames": [
+        "TEST_BUYER_EMAIL",
+        "TEST_BUYER_PASSWORD"
+      ]
+    },
+    {
+      "uatId": "UAT-0119",
+      "state": "support-default",
+      "surface": "Support",
+      "missingSecretNames": [
+        "TEST_BUYER_EMAIL",
+        "TEST_BUYER_PASSWORD"
+      ]
+    },
+    {
+      "uatId": "UAT-0119",
+      "state": "general-enquiry",
+      "surface": "General enquiry",
+      "missingSecretNames": [
+        "TEST_BUYER_EMAIL",
+        "TEST_BUYER_PASSWORD"
+      ]
+    },
+    {
+      "uatId": "UAT-0118",
+      "state": "account-default",
+      "surface": "Account",
+      "missingSecretNames": [
+        "TEST_BUYER_EMAIL",
+        "TEST_BUYER_PASSWORD"
+      ]
+    },
+    {
+      "uatId": "UAT-0121",
+      "state": "access-request-approved",
+      "surface": "Access request (approved buyer)",
+      "missingSecretNames": [
+        "TEST_BUYER_EMAIL",
+        "TEST_BUYER_PASSWORD"
+      ]
+    },
+    {
+      "uatId": "UAT-0006",
+      "state": "access-request-auth",
+      "surface": "Access request auth surface",
+      "missingSecretNames": [
+        "TEST_BUYER_EMAIL",
+        "TEST_BUYER_PASSWORD"
+      ]
+    },
+    {
+      "uatId": "UAT-0007",
+      "state": "buyer-wildcard",
+      "surface": "Buyer golden-path entry",
+      "missingSecretNames": [
+        "TEST_BUYER_EMAIL",
+        "TEST_BUYER_PASSWORD"
+      ]
+    }
+  ],
+  "blockedSecretNames": [
+    "TEST_BUYER_EMAIL",
+    "TEST_BUYER_PASSWORD"
+  ],
+  "classifications": [
+    {
+      "uatId": "UAT-0114",
+      "state": "dashboard-default",
+      "surface": "Dashboard",
+      "visual": "BLOCKED",
+      "function": "BLOCKED",
+      "ux": "BLOCKED"
+    },
+    {
+      "uatId": "UAT-0115",
+      "state": "catalogue-default",
+      "surface": "Catalogue",
+      "visual": "BLOCKED",
+      "function": "BLOCKED",
+      "ux": "BLOCKED"
+    },
+    {
+      "uatId": "UAT-0115",
+      "state": "catalogue-search",
+      "surface": "Catalogue search",
+      "visual": "BLOCKED",
+      "function": "BLOCKED",
+      "ux": "BLOCKED"
+    },
+    {
+      "uatId": "UAT-0115",
+      "state": "favourites-toggle",
+      "surface": "Favourites",
+      "visual": "BLOCKED",
+      "function": "BLOCKED",
+      "ux": "BLOCKED"
+    },
+    {
+      "uatId": "UAT-0115",
+      "state": "product-detail",
+      "surface": "Product Detail",
+      "visual": "BLOCKED",
+      "function": "BLOCKED",
+      "ux": "BLOCKED"
+    },
+    {
+      "uatId": "UAT-0116",
+      "state": "cart-default",
+      "surface": "Cart",
+      "visual": "BLOCKED",
+      "function": "BLOCKED",
+      "ux": "BLOCKED"
+    },
+    {
+      "uatId": "UAT-0117",
+      "state": "orders-list",
+      "surface": "Orders",
+      "visual": "BLOCKED",
+      "function": "BLOCKED",
+      "ux": "BLOCKED"
+    },
+    {
+      "uatId": "UAT-0117",
+      "state": "order-detail",
+      "surface": "Order Detail",
+      "visual": "BLOCKED",
+      "function": "BLOCKED",
+      "ux": "BLOCKED"
+    },
+    {
+      "uatId": "UAT-0120",
+      "state": "documents-default",
+      "surface": "Documents",
+      "visual": "BLOCKED",
+      "function": "BLOCKED",
+      "ux": "BLOCKED"
+    },
+    {
+      "uatId": "UAT-0120",
+      "state": "statement-facts",
+      "surface": "Statement",
+      "visual": "BLOCKED",
+      "function": "BLOCKED",
+      "ux": "BLOCKED"
+    },
+    {
+      "uatId": "UAT-0119",
+      "state": "support-default",
+      "surface": "Support",
+      "visual": "BLOCKED",
+      "function": "BLOCKED",
+      "ux": "BLOCKED"
+    },
+    {
+      "uatId": "UAT-0119",
+      "state": "general-enquiry",
+      "surface": "General enquiry",
+      "visual": "BLOCKED",
+      "function": "BLOCKED",
+      "ux": "BLOCKED"
+    },
+    {
+      "uatId": "UAT-0118",
+      "state": "account-default",
+      "surface": "Account",
+      "visual": "BLOCKED",
+      "function": "BLOCKED",
+      "ux": "BLOCKED"
+    },
+    {
+      "uatId": "UAT-0121",
+      "state": "access-request-approved",
+      "surface": "Access request (approved buyer)",
+      "visual": "BLOCKED",
+      "function": "BLOCKED",
+      "ux": "BLOCKED"
+    },
+    {
+      "uatId": "UAT-0006",
+      "state": "access-request-auth",
+      "surface": "Access request auth surface",
+      "visual": "BLOCKED",
+      "function": "BLOCKED",
+      "ux": "BLOCKED"
+    },
+    {
+      "uatId": "UAT-0007",
+      "state": "buyer-wildcard",
+      "surface": "Buyer golden-path entry",
+      "visual": "BLOCKED",
+      "function": "BLOCKED",
+      "ux": "BLOCKED"
+    }
+  ]
+}
