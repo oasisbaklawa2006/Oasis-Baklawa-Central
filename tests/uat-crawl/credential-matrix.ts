@@ -12,7 +12,11 @@ export type CredentialPrefix =
   | "TEST_ASSEMBLY"
   | "TEST_DISPATCH"
   | "TEST_OPERATIONS"
-  | "TEST_GATE_SECURITY";
+  | "TEST_GATE_SECURITY"
+  | "TEST_RGS"
+  | "TEST_PRODUCTION"
+  | "TEST_TV_RGS"
+  | "TEST_TV_PRODUCTION";
 
 export type CredentialResolution = {
   prefix: CredentialPrefix | null;
@@ -23,17 +27,23 @@ export type CredentialResolution = {
 const PERSONA_PREFIX: Record<string, CredentialPrefix> = {
   ADMIN_STAFF: "TEST_ADMIN",
   ADMIN_SALES: "TEST_SALES",
+  SALES: "TEST_SALES",
   BUYER: "TEST_BUYER",
   FINANCE: "TEST_FINANCE",
   P_AND_A: "TEST_ASSEMBLY",
   DISPATCH: "TEST_DISPATCH",
   GATE_SECURITY: "TEST_GATE_SECURITY",
+  RGS: "TEST_RGS",
+  "3PGS": "TEST_PRODUCTION",
+  TV: "TEST_TV_RGS",
 };
 
 /** Route-level overrides when persona alone is ambiguous. */
 const ROUTE_PREFIX: Array<{ pattern: RegExp; prefix: CredentialPrefix }> = [
   { pattern: /^\/operations-controller/, prefix: "TEST_OPERATIONS" },
   { pattern: /^\/admin\/dispatch/, prefix: "TEST_DISPATCH" },
+  { pattern: /^\/tv\/3pgs/, prefix: "TEST_TV_PRODUCTION" },
+  { pattern: /^\/tv\//, prefix: "TEST_TV_RGS" },
 ];
 
 export function secretNamesForPrefix(prefix: CredentialPrefix): [string, string] {
@@ -90,4 +100,14 @@ export const UAT_CRAWL_SECRET_NAMES = [
   "TEST_OPERATIONS_PASSWORD",
   "TEST_GATE_SECURITY_EMAIL",
   "TEST_GATE_SECURITY_PASSWORD",
+  "TEST_RGS_EMAIL",
+  "TEST_RGS_PASSWORD",
+  "TEST_PRODUCTION_EMAIL",
+  "TEST_PRODUCTION_PASSWORD",
+  "TEST_TV_RGS_EMAIL",
+  "TEST_TV_RGS_PASSWORD",
+  "TEST_TV_PRODUCTION_EMAIL",
+  "TEST_TV_PRODUCTION_PASSWORD",
+  "TEST_AI_STUDIO_PREVIEW_URL",
+  "TEST_TRACE_PREVIEW_URL",
 ] as const;

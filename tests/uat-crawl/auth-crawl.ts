@@ -2,7 +2,7 @@
  * Authenticated UAT crawl — login via existing TEST_* secrets, S0–S3 evidence
  * in separate auth-rerun folder (preserves pre-auth tranche screenshots).
  */
-import { readFileSync } from "node:fs";
+import { readFileSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import type { Page } from "@playwright/test";
 import { login } from "../e2e-helpers";
@@ -57,6 +57,15 @@ export function loadAuthRerunTargets(): CrawlTarget[] {
   });
 }
 
+const APP_DEPLOY_SECRET: Record<string, string> = {
+  "ai-studio": "TEST_AI_STUDIO_PREVIEW_URL",
+  trace: "TEST_TRACE_PREVIEW_URL",
+};
+
+function resolveDeploySecret(app: string): string {
+  return APP_DEPLOY_SECRET[app] ?? `TEST_${app.replace(/-/g, "_").toUpperCase()}_PREVIEW_URL`;
+}
+
 function preAuthRef(uatId: string): string | null {
   const tranche = Number.parseInt(uatId.replace("UAT-", ""), 10) <= 10 ? "tranche-01" : "tranche-02";
   return `uat-evidence/screenshots/${tranche}/ (pre-auth S0 preserved)`;
@@ -68,6 +77,7 @@ async function captureAuthShot(
   relPrefix: string,
   filename: string,
 ) {
+  mkdirSync(screenshotDir, { recursive: true });
   const abs = path.join(screenshotDir, filename);
   await page.screenshot({ path: abs, fullPage: true, timeout: 30_000 });
   return { rel: `${relPrefix}/${filename}`, abs };
@@ -165,8 +175,15 @@ async function captureInteractionStates(
 export async function crawlTargetAuthenticated(
   page: Page,
   target: CrawlTarget,
-  opts: { screenshotDir: string; relPrefix: string; viewport: string; deviceLabel: string },
+  opts: {
+    screenshotDir: string;
+    relPrefix: string;
+    viewport: string;
+    deviceLabel: string;
+    trancheLabel?: string;
+  },
 ): Promise<{ row: AuthManifestRow; failures: string[]; uxFailures: string[] }> {
+  const trancheLabel = opts.trancheLabel ?? process.env.UAT_TRANCHE_LABEL ?? "auth-rerun";
   const creds = resolveCredentials(target.persona, target.route);
   const failures: string[] = [];
   const uxFailureRows: string[] = [];
@@ -187,6 +204,52 @@ export async function crawlTargetAuthenticated(
   const routePath = target.route.replace(/\*$/, "catalogue");
   const app = target.app === "central" ? "central" : target.app;
 
+  const routeSlug = slugRoute(target.route);
+  const stateSlug = target.state.replace(/[^a-zA-Z0-9_-]/g, "-");
+  const routePath = target.route.replace(/\*$/, "catalogue");
+  const app = target.app === "central" ? "central" : target.app;
+
+  if (target.app !== "central" && target.app !== "buyer-mobile") {
+    const deploySecret = resolveDeploySecret(target.app);
+    failures.push(
+      `| FAIL-AUTH-DEPLOY-${target.uatId.slice(-4)} | ${target.uatId} | ${target.app} | ${target.persona} | ${opts.deviceLabel} | ${target.route} | Authenticated crawl on ${target.app} deploy | Role surface on correct preview host | BLOCKED — missing ${deploySecret} (Central TEST_PREVIEW_URL is not valid for ${target.app}) | P1 | — | — | ${trancheLabel} | ${target.repo} | Deploy | ${deploySecret} |`,
+    );
+    const row: AuthManifestRow = {
+      uatId: target.uatId,
+      tranche: trancheLabel,
+      screenshot: "",
+      screenshotSha256: "",
+      route: target.route,
+      state: target.state,
+      role: target.persona,
+      viewport: opts.viewport,
+      device: opts.deviceLabel,
+      baselineSha: BASELINE_SHA,
+      crawlBaseUrl: CRAWL_BASE_URL,
+      timestamp: new Date().toISOString(),
+      visualStatus: "BLOCKED",
+      functionStatus: "BLOCKED",
+      uxStatus: "BLOCKED",
+      uxEvidence: emptyUxEvidence(),
+      uxEvidenceSha256: {},
+      uxCriteriaTotal: 148,
+      uxCriteriaEvaluated: 0,
+      uxCriteriaPassed: 0,
+      uxCriteriaFailed: 0,
+      uxCriteriaBlocked: 148,
+      uxFailures: [],
+      consoleErrors: [],
+      networkErrors: [],
+      notes: `DEPLOY BLOCKED — ${target.app} requires ${deploySecret}; not runnable on Central preview URL.`,
+      evidencePhase: "authenticated",
+      preAuthEvidenceRef: null,
+      credentialPrefix: creds.prefix,
+      missingSecretNames: [deploySecret],
+      authenticated: false,
+    };
+    return { row, failures, uxFailures: uxFailureRows };
+  }
+
   if (!creds.wired || !creds.prefix) {
     const missing = creds.missingSecretNames.join(", ");
     failures.push(
@@ -194,7 +257,7 @@ export async function crawlTargetAuthenticated(
     );
     const row: AuthManifestRow = {
       uatId: target.uatId,
-      tranche: "auth-rerun",
+      tranche: trancheLabel,
       screenshot: preAuthRef(target.uatId) ?? "",
       screenshotSha256: "",
       route: target.route,
@@ -289,7 +352,7 @@ export async function crawlTargetAuthenticated(
 
   const row: AuthManifestRow = {
     uatId: target.uatId,
-    tranche: "auth-rerun",
+    tranche: trancheLabel,
     screenshot: uxEvidence.s0!,
     screenshotSha256: uxEvidenceSha256.s0!,
     route: target.route,

@@ -20,6 +20,7 @@ on:
           - auth-rerun
           - tranche-03
           - both
+          - continue
           - all
   push:
     branches:
@@ -37,7 +38,7 @@ jobs:
   uat-crawl:
     name: Authenticated UAT evidence crawl
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 120
     env:
       RUN_TRANCHE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.run_tranche || 'all' }}
       TEST_PREVIEW_URL: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.target_url != '' && github.event.inputs.target_url || secrets.TEST_PREVIEW_URL }}
@@ -56,6 +57,16 @@ jobs:
       TEST_DISPATCH_PASSWORD: ${{ secrets.TEST_DISPATCH_PASSWORD }}
       TEST_OPERATIONS_EMAIL: ${{ secrets.TEST_OPERATIONS_EMAIL }}
       TEST_OPERATIONS_PASSWORD: ${{ secrets.TEST_OPERATIONS_PASSWORD }}
+      TEST_RGS_EMAIL: ${{ secrets.TEST_RGS_EMAIL }}
+      TEST_RGS_PASSWORD: ${{ secrets.TEST_RGS_PASSWORD }}
+      TEST_PRODUCTION_EMAIL: ${{ secrets.TEST_PRODUCTION_EMAIL }}
+      TEST_PRODUCTION_PASSWORD: ${{ secrets.TEST_PRODUCTION_PASSWORD }}
+      TEST_TV_RGS_EMAIL: ${{ secrets.TEST_TV_RGS_EMAIL }}
+      TEST_TV_RGS_PASSWORD: ${{ secrets.TEST_TV_RGS_PASSWORD }}
+      TEST_TV_PRODUCTION_EMAIL: ${{ secrets.TEST_TV_PRODUCTION_EMAIL }}
+      TEST_TV_PRODUCTION_PASSWORD: ${{ secrets.TEST_TV_PRODUCTION_PASSWORD }}
+      TEST_AI_STUDIO_PREVIEW_URL: ${{ secrets.TEST_AI_STUDIO_PREVIEW_URL }}
+      TEST_TRACE_PREVIEW_URL: ${{ secrets.TEST_TRACE_PREVIEW_URL }}
       GITHUB_RUN_ID: ${{ github.run_id }}
       GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
     steps:
@@ -76,7 +87,10 @@ jobs:
           for name in TEST_PREVIEW_URL TEST_ADMIN_EMAIL TEST_ADMIN_PASSWORD TEST_BUYER_EMAIL TEST_BUYER_PASSWORD \
                       TEST_SALES_EMAIL TEST_SALES_PASSWORD TEST_FINANCE_EMAIL TEST_FINANCE_PASSWORD \
                       TEST_ASSEMBLY_EMAIL TEST_ASSEMBLY_PASSWORD TEST_DISPATCH_EMAIL TEST_DISPATCH_PASSWORD \
-                      TEST_OPERATIONS_EMAIL TEST_OPERATIONS_PASSWORD TEST_GATE_SECURITY_EMAIL TEST_GATE_SECURITY_PASSWORD; do
+                      TEST_OPERATIONS_EMAIL TEST_OPERATIONS_PASSWORD TEST_GATE_SECURITY_EMAIL TEST_GATE_SECURITY_PASSWORD \
+                      TEST_RGS_EMAIL TEST_RGS_PASSWORD TEST_PRODUCTION_EMAIL TEST_PRODUCTION_PASSWORD \
+                      TEST_TV_RGS_EMAIL TEST_TV_RGS_PASSWORD TEST_TV_PRODUCTION_EMAIL TEST_TV_PRODUCTION_PASSWORD \
+                      TEST_AI_STUDIO_PREVIEW_URL TEST_TRACE_PREVIEW_URL; do
             if [[ -n "${!name:-}" ]]; then
               echo "present: $name"
             else
@@ -151,6 +165,51 @@ jobs:
         if: env.RUN_TRANCHE == 'tranche-03' || env.RUN_TRANCHE == 'both' || env.RUN_TRANCHE == 'all'
         continue-on-error: true
         run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/tranche-03-crawl.spec.ts
+
+      - name: Run UAT tranche 04-auth (UAT-0031..0050)
+        if: env.RUN_TRANCHE == 'all' || env.RUN_TRANCHE == 'continue'
+        continue-on-error: true
+        env:
+          UAT_TRANCHE_START: UAT-0031
+          UAT_TRANCHE_END: UAT-0050
+          UAT_TRANCHE_LABEL: tranche-04-auth
+        run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/tranche-auth-range.spec.ts
+
+      - name: Run UAT tranche 05-auth (UAT-0051..0070)
+        if: env.RUN_TRANCHE == 'all' || env.RUN_TRANCHE == 'continue'
+        continue-on-error: true
+        env:
+          UAT_TRANCHE_START: UAT-0051
+          UAT_TRANCHE_END: UAT-0070
+          UAT_TRANCHE_LABEL: tranche-05-auth
+        run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/tranche-auth-range.spec.ts
+
+      - name: Run UAT tranche 06-auth (UAT-0071..0090)
+        if: env.RUN_TRANCHE == 'all' || env.RUN_TRANCHE == 'continue'
+        continue-on-error: true
+        env:
+          UAT_TRANCHE_START: UAT-0071
+          UAT_TRANCHE_END: UAT-0090
+          UAT_TRANCHE_LABEL: tranche-06-auth
+        run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/tranche-auth-range.spec.ts
+
+      - name: Run UAT tranche 07-auth (UAT-0091..0110)
+        if: env.RUN_TRANCHE == 'all' || env.RUN_TRANCHE == 'continue'
+        continue-on-error: true
+        env:
+          UAT_TRANCHE_START: UAT-0091
+          UAT_TRANCHE_END: UAT-0110
+          UAT_TRANCHE_LABEL: tranche-07-auth
+        run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/tranche-auth-range.spec.ts
+
+      - name: Run UAT tranche 08-auth (UAT-0111..0131)
+        if: env.RUN_TRANCHE == 'all' || env.RUN_TRANCHE == 'continue'
+        continue-on-error: true
+        env:
+          UAT_TRANCHE_START: UAT-0111
+          UAT_TRANCHE_END: UAT-0131
+          UAT_TRANCHE_LABEL: tranche-08-auth
+        run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/tranche-auth-range.spec.ts
 
       - name: Write run metadata for commit job
         if: always()

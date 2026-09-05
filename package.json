@@ -19,6 +19,7 @@
     "test:uat-auth-rerun": "playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/auth-rerun.spec.ts",
     "test:uat-post-fix-483": "playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/post-fix-483-rerun.spec.ts",
     "test:uat-tranche-03": "playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/tranche-03-crawl.spec.ts",
+    "test:uat-tranche-continue": "playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/tranche-auth-range.spec.ts",
     "uat:census": "node scripts/uat-crawl/generate-census.mjs",
     "test:ai-uat": "playwright test -c playwright.ai-uat.config.ts",
     "test:ai-uat:report": "node scripts/merge-ai-uat-report.mjs",
