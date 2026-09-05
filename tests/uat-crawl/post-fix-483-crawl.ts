@@ -286,14 +286,19 @@ export async function crawlPostFix483Target(
   }
 
   const { email, password } = getCredentials("TEST_SALES");
-  await login(page, email, password);
+  let loginError: string | null = null;
+  try {
+    await login(page, email, password);
+  } catch (err) {
+    loginError = err instanceof Error ? err.message.slice(0, 300) : String(err);
+  }
   await page.goto(target.route, { waitUntil: "domcontentloaded", timeout: 60_000 });
   await page.waitForTimeout(3500);
 
-  const stillOnLogin = page.url().includes("/login");
+  const stillOnLogin = Boolean(loginError) || page.url().includes("/login");
   if (stillOnLogin) {
     failures.push(
-      `| FAIL-AUTH-LOGIN-${target.uatId.slice(-4)} | ${target.uatId} | central | ADMIN_SALES | phone | ${target.route} | Post-fix #483 login | Session established | Still on login | P0 | pre-fix preserved | — | Post-fix #483 | Central | Auth | Verify TEST_SALES_* |`,
+      `| FAIL-AUTH-LOGIN-${target.uatId.slice(-4)} | ${target.uatId} | central | ADMIN_SALES | phone | ${target.route} | Post-fix #483 login | Session established | ${loginError ?? "Still on login"} | P0 | pre-fix preserved | — | Post-fix #483 | Central | Auth/Network | Verify TEST_SALES_* and crawl target URL |`,
     );
   }
 
