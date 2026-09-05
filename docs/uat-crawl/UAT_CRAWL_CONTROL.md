@@ -95,8 +95,8 @@ UAT_CRAWL_BASE_URL="https://<preview-or-staging-host>" npx playwright test -c pl
 
 | FAIL-ID | Source | Severity | UX-Refs | Blocker |
 |---|---|---|---|---|
-| FAIL-481-001 / FAIL-UX-481-001 | Issue **#483** (pre-fix #481) — Pricing Slab Select behind Sheet | **P0** | 32/33/36 | **#483 deploy** — re-test SAME UAT-0018 / FAIL-ID only post-fix |
-| FAIL-481-002 / FAIL-UX-481-002 | Account Manager role filter | **P1** | 17/36 | Same |
+| FAIL-481-001 / FAIL-UX-481-001 | Issue **#483** (pre-fix #481) — Pricing Slab Select behind Sheet | **P0** | 32/33/36 | **#483 deployed ace340fe** — re-test via `post-fix-483/` harness |
+| FAIL-481-002 / FAIL-UX-481-002 | Account Manager role filter | **P1** | 17/36 | Same — `npm run test:uat-post-fix-483` |
 | FAIL-001-* | Tranche 01 auth gates | P1 | *(blocked)* | Operator/TEST_* credentials |
 
 ## Remaining untested

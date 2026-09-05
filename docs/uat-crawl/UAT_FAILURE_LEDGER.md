@@ -23,7 +23,7 @@ Functional + UX failures. UX criteria authority: [`UAT_UX_FAILURE_MATRIX.md`](./
 | FAIL-UX-481-001 | UAT-0018† | central | ADMIN_SALES | phone | /admin/clients [sheet-review-open] | UX 32/33/36 | Overlay above Sheet | Select clipped behind Sheet | **P0** | physical 2026-09-05 | #481/#483 | Mobile review sheet | Central | UI/UX | **#483** deploy — re-test SAME FAIL-ID |
 | FAIL-UX-481-002 | UAT-0018† | central | ADMIN_SALES | phone | /admin/clients [sheet-review-open] | UX 17/36 | Truthful unavailable explanation | Manager list empty (role filter) | **P1** | physical 2026-09-05 | #481/#483 | Same | Central | UI/UX | **#483** deploy — re-test SAME FAIL-ID |
 
-† UAT-0018 = census interactive state for `/admin/clients` sheet-review-open; UAT-0020 mirrors on `/admin/approvals`. **Do not re-test until P0 #483 lands** — pre-fix evidence preserved.
+† UAT-0018 = census interactive state for `/admin/clients` sheet-review-open; UAT-0020 mirrors on `/admin/approvals`. **#483 merged** — pre-fix evidence preserved in tranche-02; post-fix re-test via `post-fix-483-rerun.spec.ts` on deploy `ace340fe`.
 
 ---
 
@@ -67,3 +67,14 @@ Functional + UX failures. UX criteria authority: [`UAT_UX_FAILURE_MATRIX.md`](./
 | FAIL-AUTH-CRED-0018 | UAT-0018 | central | ADMIN_SALES | phone | /admin/clients | Authenticated crawl | Logged-in role surface | BLOCKED — missing secret(s): TEST_SALES_EMAIL, TEST_SALES_PASSWORD | P1 | pre-auth preserved | — | Auth rerun | Central | Deploy/Auth | TEST_SALES_EMAIL, TEST_SALES_PASSWORD |
 | FAIL-AUTH-CRED-0019 | UAT-0019 | central | ADMIN_STAFF | desktop | /admin/approvals | Authenticated crawl | Logged-in role surface | BLOCKED — missing secret(s): TEST_ADMIN_EMAIL, TEST_ADMIN_PASSWORD | P1 | pre-auth preserved | — | Auth rerun | Central | Deploy/Auth | TEST_ADMIN_EMAIL, TEST_ADMIN_PASSWORD |
 | FAIL-AUTH-CRED-0020 | UAT-0020 | central | ADMIN_SALES | phone | /admin/approvals | Authenticated crawl | Logged-in role surface | BLOCKED — missing secret(s): TEST_SALES_EMAIL, TEST_SALES_PASSWORD | P1 | pre-auth preserved | — | Auth rerun | Central | Deploy/Auth | TEST_SALES_EMAIL, TEST_SALES_PASSWORD |
+
+---
+
+## post-fix-483 (#483 deploy ace340fe) crawl failures (2026-09-05)
+
+### Functional / access / blocked
+
+| FAIL-ID | UAT-ID | App | Role | Device | Route/Page | Function | Expected | Actual | Severity | Screenshot(s) | Console/Network | Repro | Owning repo | Layer | Fix dependency |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| FAIL-AUTH-CRED-0018 | UAT-0018 | central | ADMIN_SALES | phone | /admin/clients [sheet-review-open] | Post-fix #483 retest | Authenticated sheet S0–S3 | BLOCKED — missing TEST_SALES_EMAIL, TEST_SALES_PASSWORD | P0 | pre-fix preserved | — | Post-fix #483 | Central | Deploy/Auth | TEST_SALES_EMAIL, TEST_SALES_PASSWORD |
+| FAIL-AUTH-CRED-0020 | UAT-0020 | central | ADMIN_SALES | phone | /admin/approvals [sheet-review-open] | Post-fix #483 retest | Authenticated sheet S0–S3 | BLOCKED — missing TEST_SALES_EMAIL, TEST_SALES_PASSWORD | P0 | pre-fix preserved | — | Post-fix #483 | Central | Deploy/Auth | TEST_SALES_EMAIL, TEST_SALES_PASSWORD |

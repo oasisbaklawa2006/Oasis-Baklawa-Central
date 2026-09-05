@@ -17,6 +17,8 @@ import {
 
 export const ROOT = path.resolve(import.meta.dirname, "../..");
 export const BASELINE_SHA = "08ccb1cfd4a3624103f0681b5515e26727e77cd2";
+/** Main deploy SHA after #483 merge — post-fix buyer sheet re-test baseline. */
+export const POST_FIX_483_BASELINE_SHA = "ace340fe1d122a4cce5d7bb61cd237ed7ba1c894";
 export const CRAWL_BASE_URL =
   process.env.UAT_CRAWL_BASE_URL ||
   process.env.TEST_PREVIEW_URL ||
@@ -80,10 +82,11 @@ export function sha256File(filePath: string): string {
 
 const PUBLIC_ROUTES = new Set(["/splash", "/login", "/reset-password", "/"]);
 
-const BUYER_SHEET_BLOCKED = new Set(["UAT-0018", "UAT-0020"]);
+const BUYER_SHEET_PRE_FIX_BLOCKED = new Set(["UAT-0018", "UAT-0020"]);
 
+/** Pre-auth / generic crawls block buyer sheet IDs until post-fix-483 evidence exists. */
 export function isBuyerSheetBlocked(target: CrawlTarget): boolean {
-  return BUYER_SHEET_BLOCKED.has(target.uatId) || target.state === "sheet-review-open";
+  return BUYER_SHEET_PRE_FIX_BLOCKED.has(target.uatId);
 }
 
 export function loadTargetsFromCensus(startId: string, endId: string): CrawlTarget[] {

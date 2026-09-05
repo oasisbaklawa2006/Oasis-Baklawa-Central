@@ -1,0 +1,49 @@
+{
+  "generatedAt": "2026-09-05T20:18:53.541Z",
+  "postFixDeploySha": "ace340fe1d122a4cce5d7bb61cd237ed7ba1c894",
+  "crawlBaseUrl": "https://oasis-baklawa-centra-git-b9f168-oasisbaklawa2006-6222s-projects.vercel.app",
+  "targets": [
+    "UAT-0018",
+    "UAT-0020"
+  ],
+  "preFixFailIds": [
+    "FAIL-481-001",
+    "FAIL-481-002",
+    "FAIL-UX-481-001",
+    "FAIL-UX-481-002"
+  ],
+  "authenticatedComplete": [],
+  "blockedTargets": [
+    {
+      "uatId": "UAT-0018",
+      "missingSecretNames": [
+        "TEST_SALES_EMAIL",
+        "TEST_SALES_PASSWORD"
+      ]
+    },
+    {
+      "uatId": "UAT-0020",
+      "missingSecretNames": [
+        "TEST_SALES_EMAIL",
+        "TEST_SALES_PASSWORD"
+      ]
+    }
+  ],
+  "closedFailIds": [],
+  "retestDispositionByUatId": {
+    "UAT-0018": {
+      "FAIL-481-001": "BLOCKED",
+      "FAIL-481-002": "BLOCKED",
+      "FAIL-UX-481-001": "BLOCKED",
+      "FAIL-UX-481-002": "BLOCKED"
+    },
+    "UAT-0020": {
+      "FAIL-481-001": "BLOCKED",
+      "FAIL-481-002": "BLOCKED",
+      "FAIL-UX-481-001": "BLOCKED",
+      "FAIL-UX-481-002": "BLOCKED"
+    }
+  },
+  "humanGated": true,
+  "remainingUntested": 111
+}

@@ -11,14 +11,16 @@ on:
         required: false
         type: string
       run_tranche:
-        description: "Crawl tranche: auth-rerun (repair 0002–0020), tranche-03 (0021–0030), or both"
+        description: "Crawl tranche: post-fix-483 (UAT-0018/0020), auth-rerun (0002–0020 minus buyer sheet), tranche-03 (0021–0030), or combined"
         required: true
-        default: auth-rerun
+        default: post-fix-483
         type: choice
         options:
+          - post-fix-483
           - auth-rerun
           - tranche-03
           - both
+          - all
 
 permissions:
   contents: read
@@ -100,12 +102,16 @@ jobs:
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
 
+      - name: Run post-fix #483 buyer approval re-test (UAT-0018 + UAT-0020)
+        if: inputs.run_tranche == 'post-fix-483' || inputs.run_tranche == 'all'
+        run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/post-fix-483-rerun.spec.ts
+
       - name: Run authenticated UAT auth-rerun
-        if: inputs.run_tranche == 'auth-rerun' || inputs.run_tranche == 'both'
+        if: inputs.run_tranche == 'auth-rerun' || inputs.run_tranche == 'both' || inputs.run_tranche == 'all'
         run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/auth-rerun.spec.ts
 
       - name: Run UAT tranche 03 (chronological continue)
-        if: inputs.run_tranche == 'tranche-03' || inputs.run_tranche == 'both'
+        if: inputs.run_tranche == 'tranche-03' || inputs.run_tranche == 'both' || inputs.run_tranche == 'all'
         run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/tranche-03-crawl.spec.ts
 
       - name: Upload UAT evidence bundle
@@ -118,6 +124,7 @@ jobs:
             docs/uat-crawl/UAT_MANIFEST*.jsonl
             docs/uat-crawl/UAT_INDEX*.md
             docs/uat-crawl/UAT_AUTH_RERUN_SUMMARY.json
+            docs/uat-crawl/UAT_POST_FIX_483_SUMMARY.json
             docs/uat-crawl/UAT_FAILURE_LEDGER.md
           if-no-files-found: warn
           retention-days: 30

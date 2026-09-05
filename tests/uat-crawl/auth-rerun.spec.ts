@@ -24,7 +24,7 @@ const allUxFailures: string[] = [];
 
 test.describe.configure({ mode: "serial" });
 
-test.describe("UAT authenticated auth-rerun (UAT-0002..0020 subset)", () => {
+test.describe("UAT authenticated auth-rerun (UAT-0002..0020 minus buyer sheet UAT-0018/0020)", () => {
   test.beforeAll(() => {
     writeFileSync(MANIFEST_PATH, "");
   });
@@ -59,7 +59,7 @@ test.describe("UAT authenticated auth-rerun (UAT-0002..0020 subset)", () => {
     const blocked = rows.filter((r) => !r.authenticated);
     const blockedSecrets = [...new Set(blocked.flatMap((r) => r.missingSecretNames))].sort();
 
-    writeTrancheIndex(INDEX_PATH, "auth-rerun", "UAT-0002..0020 (authenticated repair)", rows, [
+    writeTrancheIndex(INDEX_PATH, "auth-rerun", "UAT-0002..0020 minus UAT-0018/0020 (buyer sheet → post-fix-483)", rows, [
       "**Pre-auth evidence preserved** in `tranche-01/` and `tranche-02/` — not overwritten.",
       `**Authenticated complete:** ${authenticated.length} / ${rows.length}`,
       blockedSecrets.length > 0

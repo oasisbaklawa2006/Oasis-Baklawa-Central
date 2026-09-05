@@ -262,11 +262,8 @@ export async function crawlTargetAuthenticated(
 
   if (isBuyerSheetBlocked(target) && target.state === "sheet-review-open") {
     functionStatus = "BLOCKED";
-    uxBlockedCount = 36;
-    notes = `${notes} Sheet overlay UX (#483) NOT re-tested — pre-fix FAIL-481-* preserved; S0–S3 auth landing only.`;
-    failures.push(
-      `| FAIL-BLOCK-483-${target.uatId.slice(-4)} | ${target.uatId} | central | ${target.persona} | ${target.device} | ${target.route} [${target.state}] | Buyer approval sheet (#483) | Select overlays visible above Sheet | Function BLOCKED pending #483 deploy — auth S0–S3 captured | **P0** | ${s0Name} | pre-fix preserved | Post-#483 re-test SAME FAIL-ID | Central | UI/UX | Issue **#483** |`,
-    );
+    uxBlockedCount = 148;
+    notes = `${notes} Buyer sheet UAT-0018/0020 — use post-fix-483-rerun.spec.ts (deploy ace340fe); not auth-rerun.`;
   } else if (!stillOnLogin) {
     const heuristics = await runPublicSurfaceUxHeuristics(page);
     uxEvalFailures = heuristics.failures;
