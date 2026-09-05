@@ -48,9 +48,26 @@ jobs:
     outputs:
       url: ${{ steps.target.outputs.url }}
     steps:
+      - name: Assert trusted default-branch dispatch
+        shell: bash
+        env:
+          AI_UAT_EVENT_NAME: ${{ github.event_name }}
+          AI_UAT_REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          if [[ "$AI_UAT_EVENT_NAME" != "workflow_dispatch" ]]; then
+            echo "::error::APPVERSE AI UAT is workflow-dispatch only."
+            exit 1
+          fi
+          if [[ "$AI_UAT_REF" != "refs/heads/main" ]]; then
+            echo "::error::Refusing AI-UAT dispatch from $AI_UAT_REF. Dispatch the trusted default-branch workflow only."
+            exit 1
+          fi
+
       - name: Checkout trusted target validator
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          ref: main
           persist-credentials: false
 
       - name: Validate exact Vercel deployment evidence
@@ -141,9 +158,10 @@ jobs:
       AI_UAT_MAX_STEPS: "7"
 
     steps:
-      - name: Checkout
+      - name: Checkout trusted main
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          ref: main
           persist-credentials: false
 
       - name: Setup Node
