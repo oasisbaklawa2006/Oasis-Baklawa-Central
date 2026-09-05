@@ -1,3 +1,4 @@
+import { isDispatchRole } from "@/lib/auth/securityGatePolicy";
 import { normalizeRole } from "@/lib/roleNormalization";
 import {
   getAllowedModulesForRole,
@@ -91,11 +92,13 @@ export const CENTRAL_ORDER_POOL_LENSES: CentralOrderPoolLens[] = [
 ];
 
 export function visibleCentralOrderPoolLenses(role: string | null | undefined): CentralOrderPoolLens[] {
+  if (isDispatchRole(role)) return [];
   const allowedModules = getAllowedModulesForRole(role);
   return CENTRAL_ORDER_POOL_LENSES.filter((lens) => hasModuleAccess(allowedModules, lens.moduleKey));
 }
 
 export function canAccessCentralOrderPool(role: string | null | undefined): boolean {
+  if (isDispatchRole(role)) return false;
   return visibleCentralOrderPoolLenses(role).length > 0;
 }
 
