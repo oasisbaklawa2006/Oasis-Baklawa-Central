@@ -297,7 +297,8 @@ export async function openAllTools(page: Page) {
 export async function clickLogout(page: Page) {
   const openNavigation = page.getByRole("button", { name: /open navigation/i });
   if (await openNavigation.isVisible().catch(() => false)) await openNavigation.click();
-  const logout = page.getByRole("button", { name: /logout/i }).or(page.getByRole("link", { name: /logout/i })).first();
+  const logoutControlName = /\b(?:log\s*out|sign\s*out)\b/i;
+  const logout = page.getByRole("button", { name: logoutControlName }).or(page.getByRole("link", { name: logoutControlName })).first();
   await expect(logout).toBeVisible({ timeout: 15_000 });
   await logout.click();
 }
