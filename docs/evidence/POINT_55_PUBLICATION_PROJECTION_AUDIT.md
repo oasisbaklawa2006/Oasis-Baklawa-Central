@@ -2,7 +2,7 @@
 
 **Workstation:** Central Point 55 (immutable original scope)  
 **Dependency:** Core Point 54 read contract (`published_products_v1()`) — evidence-backed complete  
-**Census head:** `main` at implementation time  
+**Census head:** `ace340fe` (rebased onto `main` after #483 merge)  
 **Verdict:** Genuine Central delta implemented. No shadow publication table. No Buyer Point 56 scope absorbed.
 
 ## Consumer census
@@ -58,9 +58,9 @@ npm run check:boundaries
 npm run test:release-controller
 ```
 
-## Exact-head gate ledger (`d1fb5422f53aa7138b74ff5cd40893f35c0cbcc9`)
+## Exact-head gate ledger (`5b6aa645ed4d084ee0af6889489a5bbda2cceb72`)
 
-Reconciled against `origin/main` at `08ccb1cf` — branch is **1 commit ahead, 0 behind** (no merge conflict).
+Rebased onto `origin/main` at `ace340fe` (#483 merge) — branch is **2 commits ahead, 0 behind**. Clean rebase, no conflicts.
 
 | Gate | Result | Evidence |
 |---|---|---|
@@ -69,27 +69,19 @@ Reconciled against `origin/main` at `08ccb1cf` — branch is **1 commit ahead, 0
 | Production build | PASS | `npm run build` |
 | Repo ownership boundaries | PASS | `npm run check:boundaries` |
 | Release controller policy | PASS | `npm run test:release-controller` |
-| Release Quality Gate (CI) | PASS | [run 33981375893](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/33981375893) |
-| Repo ownership boundaries (CI) | PASS | [run 33981375921](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/33981375921) |
-| CodeQL (`github-advanced-security` app) | PASS | [run 101347159064](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/runs/101347159064) |
-| Codacy | PASS | [PR #484](https://app.codacy.com/gh/oasisbaklawa2006/Oasis-Baklawa-Central/pull-requests/484) |
-| Snyk | PASS | [PR check](https://app.snyk.io/org/oasisbaklawa2006/pr-checks/5dc701ae-fd42-44e5-a516-7de428ce79dc) |
-| Vercel preview | PASS | [deployment](https://vercel.com/oasisbaklawa2006-6222s-projects/oasis-baklawa-central/6hBRpQsHCByksXvyv2r7gWPvVVU5) |
-| CodeRabbit | PASS (draft skip) | Promoted to Ready for Review to trigger full review |
+| CI (exact head) | PENDING | Re-run triggered after rebase push |
 
-### Infra-only non-blocker
-
-The separate `github-advanced-security` **github-actions** workflow ("Code scanning AI findings") failed with `CAPIError: 400 The requested model is not supported` (`sweagent-capi:gpt-5.3-codex`). This is a GitHub Advanced Security AI-agent platform failure, **not** a Point 55 code defect. The programme-required **CodeQL** check from the `github-advanced-security` app passed.
+**Prior head `bdc37771` collaborator approval is invalidated by rebase.** Fresh approval required on `5b6aa645`.
 
 ## Programme clearance handoff
 
 | Item | Status |
 |---|---|
-| Point 55 software delta (Central) | **COMPLETE** at `d1fb5422` |
-| PR merge | Pending independent collaborator approval |
+| Point 55 software delta (Central) | **COMPLETE** at `5b6aa645` (rebased) |
+| PR merge | **BLOCKED** — prior approval on `bdc37771` invalidated; fresh collaborator approval required |
 | Point 55 programme strike (#459) | **NOT CLEARED** — `PR MERGED ≠ STAGE CLEARED` |
 | Runtime / physical UAT (#462) | **NOT STARTED** — return to Mission Control for operator evidence |
 
 ## Stop condition
 
-Software delta complete at branch head. Promoted to Ready for Review for independent collaborator approval. `PR MERGED ≠ STAGE CLEARED`.
+Software delta complete at rebased branch head. **Do not merge** until fresh collaborator approval on `5b6aa645`. `PR MERGED ≠ STAGE CLEARED`.
