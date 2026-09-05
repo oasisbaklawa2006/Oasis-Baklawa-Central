@@ -3,7 +3,7 @@
 **Workstation:** Central Point 55 (immutable original scope)  
 **Dependency:** Core Point 54 read contract (`published_products_v1()`) — evidence-backed complete  
 **Census head:** `ace340fe` (rebased onto `main` after #483 merge)  
-**Verdict:** Point 55 **implementation complete** at `fb22f52f`. **Runtime validation complete** (local + CI green at `2c0d9d79`). Latest commit is docs-only evidence remediation (CodeRabbit). Programme clearance **NOT CLEARED** (`PR MERGED ≠ STAGE CLEARED`). No shadow publication table. No Buyer Point 56 scope absorbed.
+**Verdict:** Point 55 **implementation complete** at `fb22f52f`. **Runtime validation complete** at `2c0d9d79` (local + CI). **Docs remediation validated** at `0af9797b` (docs-only, 14/14 CI green). Programme clearance **NOT CLEARED** (`PR MERGED ≠ STAGE CLEARED`). No shadow publication table. No Buyer Point 56 scope absorbed.
 
 ## Consumer census
 
@@ -60,7 +60,7 @@ npm run test:release-controller
 
 ## Exact-head gate ledger
 
-Rebased onto `origin/main` at `ace340fe` (#483 merge). Latest commit is a **docs-only** remediation (CodeRabbit evidence clarity); **no runtime delta** since validated head `2c0d9d79`.
+Rebased onto `origin/main` at `ace340fe` (#483 merge). **No runtime delta** since `fb22f52f`; evidence doc updates are docs-only.
 
 ### Local validation (PASS)
 
@@ -72,7 +72,7 @@ Rebased onto `origin/main` at `ace340fe` (#483 merge). Latest commit is a **docs
 | Repo ownership boundaries | PASS | `npm run check:boundaries` |
 | Release controller policy | PASS | `npm run test:release-controller` |
 
-### CI / security / review validation (PASS at `2c0d9d79`)
+### Runtime validation (PASS at `2c0d9d79` — unchanged by docs-only head)
 
 | Gate | Result | Evidence |
 |---|---|---|
@@ -84,7 +84,19 @@ Rebased onto `origin/main` at `ace340fe` (#483 merge). Latest commit is a **docs
 | CodeRabbit | PASS | Review completed |
 | Vercel preview | PASS | [deployment](https://vercel.com/oasisbaklawa2006-6222s-projects/oasis-baklawa-central/12bMoQownU75oMMa3ZYkikFRxsw8) |
 
-**14/14 CI checks green at runtime-validated head `2c0d9d79`.** Exact-head CI re-runs on the docs-only remediation commit.
+### Docs-only exact-head validation (PASS at `0af9797b`)
+
+| Gate | Result | Evidence |
+|---|---|---|
+| Release Quality Gate | PASS | [run 33992386770](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/33992386770) |
+| Repo ownership boundaries (CI) | PASS | [run 33992386744](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/33992386744) |
+| CodeQL | PASS | [run 101376868285](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/runs/101376868285) |
+| Codacy | PASS | [PR #484](https://app.codacy.com/gh/oasisbaklawa2006/Oasis-Baklawa-Central/pull-requests/484) |
+| Snyk | PASS | [PR check](https://app.snyk.io/org/oasisbaklawa2006/pr-checks/95f4c8f7-5ca2-4e2a-9a53-2b6a99366ce8) |
+| CodeRabbit | PASS | Finding resolved |
+| Vercel preview | PASS | [deployment](https://vercel.com/oasisbaklawa2006-6222s-projects/oasis-baklawa-central/37uGrks8s8TMSR93MWToJSsqHotH) |
+
+**14/14 CI checks green at runtime head `2c0d9d79` and at docs-only exact head `0af9797b`.**
 
 **Prior head `bdc37771` collaborator approval is invalidated by rebase.** Fresh approval required on each subsequent head change.
 
@@ -93,11 +105,12 @@ Rebased onto `origin/main` at `ace340fe` (#483 merge). Latest commit is a **docs
 | Item | Status |
 |---|---|
 | Point 55 implementation (Central software delta) | **COMPLETE** at `fb22f52f` (rebased onto `ace340fe`) |
-| Point 55 runtime validation (local + CI/review) | **COMPLETE** at `2c0d9d79` (unchanged by docs-only remediation) |
+| Point 55 runtime validation (local + CI/review) | **COMPLETE** at `2c0d9d79` |
+| Point 55 docs remediation + exact-head validation | **COMPLETE** at `0af9797b` (docs-only, no runtime delta) |
 | PR merge | **BLOCKED** — fresh collaborator approval required on current head |
 | Point 55 programme strike (#459) | **NOT CLEARED** — `PR MERGED ≠ STAGE CLEARED` |
 | Runtime / physical UAT (#462) | **NOT STARTED** — return to Mission Control for operator evidence |
 
 ## Stop condition
 
-Implementation complete at `fb22f52f`; runtime validation complete at `2c0d9d79`. Latest commit is docs-only. **Do not merge** until fresh collaborator approval on current head. `PR MERGED ≠ STAGE CLEARED`.
+Implementation complete at `fb22f52f`; runtime validation complete at `2c0d9d79`; docs remediation validated at `0af9797b`. **Do not merge** until fresh collaborator approval on current head. `PR MERGED ≠ STAGE CLEARED`.
