@@ -5,6 +5,21 @@
 **Rebased onto main:** `67b3d1cc0baf7d494cb7a00ce55a74f16b6af43b` (#490)  
 **Mode:** Read-only evidence — **no remediation** in this programme.
 
+## #490 rebaseline execution — run [33999620404](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/33999620404)
+
+**Branch rebased onto main `67b3d1cc`** · **Head `b2566f32`** · **Artifact:** `uat-crawl-evidence-33999620404-1`
+
+| Tranche | Result | PASS | FAIL | BLOCKED | Notes |
+|---|---|---:|---:|---:|---|
+| AI-UAT UAT-001–010 | deploy BLOCKED | 0 | 0 | **10** | No `67b3d1cc` Vercel URL; ace340fe not used |
+| post-fix-483 | not executed | 0 | 0 | 2 | deploy BLOCKED (+ `TEST_SALES_*` missing) |
+| 131-surface auth crawl | not re-run | — | — | — | Prior **80/131** ace340fe evidence preserved |
+| buyer-mobile | not executed | 0 | 0 | 16 | deploy BLOCKED (+ `TEST_BUYER_*` missing) |
+
+**Deploy provenance:** `docs/uat-crawl/UAT_DEPLOY_PROVENANCE.json`  
+**New screenshots:** 0 (no fabricated PASS)  
+**Secrets present but unusable without deploy:** `TEST_DISPATCH_*`, `TEST_ASSEMBLY_*`, `TEST_ADMIN_*`, `TEST_FINANCE_*`, `TEST_OPERATIONS_*`
+
 ## #490 rebaseline policy
 
 - **Current trusted deploy target:** main `67b3d1cc` only — **ace340fe not reused** as post-#490 evidence.

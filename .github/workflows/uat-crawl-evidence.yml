@@ -305,12 +305,16 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: uat-crawl-evidence-${{ github.run_id }}-${{ github.run_attempt }}
-          path: .
+          path: artifact-download
 
       - name: Commit manifests and screenshots
         shell: bash
         run: |
           set -euo pipefail
+          shopt -s nullglob
+          for dir in artifact-download/*/; do
+            cp -a "${dir}"* .
+          done
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add uat-evidence/screenshots/ docs/uat-crawl/UAT_MANIFEST*.jsonl docs/uat-crawl/UAT_INDEX*.md \

@@ -1,0 +1,25 @@
+{
+  "generatedAt": "2026-09-05T23:48:14.026Z",
+  "runId": "33999620404",
+  "targetSha": "67b3d1cc0baf7d494cb7a00ce55a74f16b6af43b",
+  "crawlBaseUrl": "",
+  "deployStatus": "BLOCKED",
+  "deployProvenance": "No successful Vercel deployment for 67b3d1cc0baf7d494cb7a00ce55a74f16b6af43b (Vercel rate limit suspected); ace340fe not used as post-#490 evidence.",
+  "counts": {
+    "PASS": 0,
+    "FAIL": 0,
+    "BLOCKED": 10
+  },
+  "uatIds": [
+    "UAT-001",
+    "UAT-002",
+    "UAT-003",
+    "UAT-004",
+    "UAT-005",
+    "UAT-006",
+    "UAT-007",
+    "UAT-008",
+    "UAT-009",
+    "UAT-010"
+  ]
+}

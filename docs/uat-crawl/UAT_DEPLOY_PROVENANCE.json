@@ -1,0 +1,11 @@
+{
+  "generatedAt": "2026-09-05T23:48:14.026Z",
+  "runId": "33999620404",
+  "requiredSha": "67b3d1cc0baf7d494cb7a00ce55a74f16b6af43b",
+  "resolvedSha": null,
+  "resolvedUrl": null,
+  "status": "BLOCKED",
+  "reason": "No successful Vercel deployment for 67b3d1cc0baf7d494cb7a00ce55a74f16b6af43b (Vercel rate limit suspected); ace340fe not used as post-#490 evidence.",
+  "legacy483Sha": "ace340fe1d122a4cce5d7bb61cd237ed7ba1c894",
+  "policy": "Do not substitute ace340fe as post-#490 current evidence."
+}

@@ -1,8 +1,11 @@
 {
-  "runId": "33998199734",
+  "runId": "33999620404",
   "runAttempt": "1",
   "runTranche": "all",
   "ref": "refs/heads/cursor/physical-uat-readiness-matrix-e763",
-  "sha": "6d300eb304b054c9210c99ae97605f9c78ae625f",
-  "completedAt": "2026-09-05T23:25:32Z"
+  "sha": "b2566f3275f2260b663ac883f02c4fa07d616f7c",
+  "targetSha": "67b3d1cc0baf7d494cb7a00ce55a74f16b6af43b",
+  "deployBlocked": true,
+  "deployUrl": "",
+  "completedAt": "2026-09-05T23:48:15Z"
 }
