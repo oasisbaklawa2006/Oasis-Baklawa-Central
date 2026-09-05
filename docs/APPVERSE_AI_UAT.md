@@ -103,7 +103,7 @@ The hosted Actions path is stricter than local execution. Before any Dispatch/As
 - no query string or fragment
 - the real Oasis-team Vercel preview hostname shape: `<deployment-slug>-oasisbaklawa2006-6222s-projects.vercel.app` (letters, digits and hyphens only before the fixed team suffix)
 
-The preflight explicitly checks out trusted `main` with persisted GitHub credentials disabled. The validator uses the same shared hostname authority as the trusted release controller, preventing divergence between deployment discovery and AI-UAT admission. Only the normalized, validated target is passed to the credentialed tranche job.
+The preflight explicitly checks out trusted `main` with persisted GitHub credentials disabled. A manually dispatched run from any non-`main` ref fails before validator checkout and before role credentials are exposed. The validator uses the same shared hostname authority as the trusted release controller, preventing divergence between deployment discovery and AI-UAT admission. Only the normalized, validated target is passed to the credentialed tranche job.
 
 Inputs control:
 
