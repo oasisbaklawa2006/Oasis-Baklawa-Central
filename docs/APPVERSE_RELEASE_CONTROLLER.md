@@ -18,6 +18,7 @@ The controller never substitutes for:
 - Only PR #471 and PR #458 are merge targets in this controller version.
 - Governed target-PR merge requires exact-head success for the stable Dispatch-lane contexts: Release Quality, repo ownership, Codacy, CodeQL, and Cursor Security.
 - Each hard check is bound to both its check-run name and expected GitHub App slug; a namesake check emitted by a different app cannot satisfy release policy.
+- A trusted hard-check producer returning `neutral`, `cancelled`, `skipped`, `failure`, or any conclusion other than `success` remains a release blocker; infrastructure-neutral scanner runs are never treated as green.
 - GitHub Advanced Security agentic review remains an additional repository signal when GitHub emits it, but it is not a controller hard dependency because that check is not emitted for every governed Dispatch head.
 - Merge requires zero unresolved review threads; if review-thread pagination exceeds the bounded check, merge fails closed.
 - Merge requires an `APPROVED` review by `dineshmutrejabackup-cmd` whose `commit_id` equals the current PR head, and a later non-comment review on that same head supersedes an earlier decision.
