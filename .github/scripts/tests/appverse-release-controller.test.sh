@@ -3,6 +3,7 @@ set -euo pipefail
 
 repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." && pwd)"
 lib="$repo_root/.github/scripts/appverse-release-controller-lib.sh"
+ai_uat_workflow="$repo_root/.github/workflows/appverse-ai-uat.yml"
 # shellcheck source=/dev/null
 source "$lib"
 
@@ -134,5 +135,12 @@ assert_pass "valid Oasis preview URL accepted" normalize_vercel_target_url "$tar
 assert_pass "real Vercel deployment hostname accepted" normalize_vercel_target_url "$realistic_target"
 assert_fail "old dot-before-team pseudo-host rejected" normalize_vercel_target_url "https://preview.oasisbaklawa2006-6222s-projects.vercel.app"
 assert_fail "arbitrary host rejected" normalize_vercel_target_url "https://evil.example.com"
+
+# 6) The credential-bearing AI-UAT path must fail closed outside trusted main
+# and must source the same shared target validator as the release controller.
+assert_pass "AI-UAT records the triggering ref" grep -Fq 'AI_UAT_REF: ${{ github.ref }}' "$ai_uat_workflow"
+assert_pass "AI-UAT rejects non-main dispatch" grep -Fq 'if [[ "$AI_UAT_REF" != "refs/heads/main" ]]' "$ai_uat_workflow"
+assert_pass "AI-UAT checks out trusted main" grep -Fq 'ref: main' "$ai_uat_workflow"
+assert_pass "AI-UAT sources shared Vercel validator" grep -Fq 'source .github/scripts/appverse-release-controller-lib.sh' "$ai_uat_workflow"
 
 echo "appverse-release-controller.test.sh: all cases passed"
