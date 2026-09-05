@@ -20,7 +20,7 @@ on:
           - auth-rerun
           - tranche-03
           - both
-          - continue
+          - buyer-mobile
           - all
   push:
     branches:
@@ -40,7 +40,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     env:
-      RUN_TRANCHE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.run_tranche || 'all' }}
+      RUN_TRANCHE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.run_tranche || 'buyer-mobile' }}
       TEST_PREVIEW_URL: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.target_url != '' && github.event.inputs.target_url || secrets.TEST_PREVIEW_URL }}
       UAT_CRAWL_BASE_URL: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.target_url != '' && github.event.inputs.target_url || secrets.TEST_PREVIEW_URL }}
       TEST_ADMIN_EMAIL: ${{ secrets.TEST_ADMIN_EMAIL }}
@@ -108,7 +108,7 @@ jobs:
           url="${RAW_URL:-}"
           if [[ -z "$url" ]]; then
             echo "::notice::TEST_PREVIEW_URL secret missing — resolving Vercel deploy URL from GitHub deployments API."
-            for sha in "ace340fe1d122a4cce5d7bb61cd237ed7ba1c894" "${GITHUB_SHA}"; do
+            for sha in "0015e7b56532826a40c7beb3f33b028271c2c2f5" "ace340fe1d122a4cce5d7bb61cd237ed7ba1c894" "${GITHUB_SHA}"; do
               deploy_id="$(gh api "repos/${GITHUB_REPOSITORY}/deployments?sha=${sha}&per_page=10" --jq '[.[] | select(.environment=="Production" or .environment=="Preview")][0].id // empty' 2>/dev/null || true)"
               if [[ -n "$deploy_id" ]]; then
                 url="$(gh api "repos/${GITHUB_REPOSITORY}/deployments/${deploy_id}/statuses" --jq '[.[] | select(.state=="success")][0].target_url // empty' 2>/dev/null || true)"
@@ -211,6 +211,13 @@ jobs:
           UAT_TRANCHE_LABEL: tranche-08-auth
         run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/tranche-auth-range.spec.ts
 
+      - name: Run buyer mobile authenticated UAT (PR #10 surfaces)
+        if: env.RUN_TRANCHE == 'buyer-mobile' || env.RUN_TRANCHE == 'all'
+        continue-on-error: true
+        env:
+          UAT_BUYER_BASELINE_SHA: "0015e7b56532826a40c7beb3f33b028271c2c2f5"
+        run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/buyer-mobile-crawl.spec.ts
+
       - name: Write run metadata for commit job
         if: always()
         shell: bash
@@ -240,7 +247,8 @@ jobs:
             docs/uat-crawl/UAT_AUTH_RERUN_SUMMARY.json
             docs/uat-crawl/UAT_POST_FIX_483_SUMMARY.json
             docs/uat-crawl/UAT_GHA_RUN.json
-            docs/uat-crawl/UAT_FAILURE_LEDGER.md
+            docs/uat-crawl/UAT_BUYER_MOBILE_SUMMARY.json
+            docs/uat-crawl/UAT_BUYER_MOBILE_TARGETS.json
           if-no-files-found: warn
           retention-days: 30
 
@@ -270,7 +278,8 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add uat-evidence/screenshots/ docs/uat-crawl/UAT_MANIFEST*.jsonl docs/uat-crawl/UAT_INDEX*.md \
                   docs/uat-crawl/UAT_AUTH_RERUN_SUMMARY.json docs/uat-crawl/UAT_POST_FIX_483_SUMMARY.json \
-                  docs/uat-crawl/UAT_GHA_RUN.json docs/uat-crawl/UAT_FAILURE_LEDGER.md docs/uat-crawl/UAT_CRAWL_PROGRESS.md || true
+                  docs/uat-crawl/UAT_GHA_RUN.json docs/uat-crawl/UAT_FAILURE_LEDGER.md docs/uat-crawl/UAT_CRAWL_PROGRESS.md \
+                  docs/uat-crawl/UAT_BUYER_MOBILE_SUMMARY.json docs/uat-crawl/UAT_BUYER_MOBILE_TARGETS.json || true
           if git diff --staged --quiet; then
             echo "No evidence changes to commit."
             exit 0
