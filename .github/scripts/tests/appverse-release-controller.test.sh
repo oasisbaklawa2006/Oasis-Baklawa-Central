@@ -44,7 +44,7 @@ assert_eq "$(jq -r '.head.sha' <<<'{"head":{"sha":"'"$head"'"},"merge_commit_sha
   "$head" \
   "dispatch binding uses PR head SHA"
 
-# 2) Required checks must bind to trusted GitHub App slugs.
+# 2) Required checks must bind to trusted GitHub App slugs and require success.
 trusted_runs='{
   "check_runs": [
     {"name":"CodeQL","app":{"slug":"github-advanced-security"},"started_at":"2026-01-02T00:00:00Z","conclusion":"success"},
@@ -73,6 +73,15 @@ assert_eq "$(trusted_check_conclusion_from_runs "$cursor_spoof" "Cursor Security
 assert_eq "$(trusted_check_conclusion_from_runs "$cursor_spoof" "Cursor Security Agent: Security Reviewer" "github-actions")" \
   "success" \
   "github-actions spoof is visible only when explicitly requested"
+
+cursor_neutral='{
+  "check_runs": [
+    {"name":"Cursor Security Agent: Security Reviewer","app":{"slug":"cursor"},"started_at":"2026-01-04T00:00:00Z","conclusion":"neutral"}
+  ]
+}'
+assert_eq "$(trusted_check_conclusion_from_runs "$cursor_neutral" "Cursor Security Agent: Security Reviewer" "cursor")" \
+  "neutral" \
+  "trusted Cursor infrastructure-neutral result remains non-success"
 
 # 3) Vercel deployment status must be Vercel-authored, not arbitrary actor.
 statuses='[
