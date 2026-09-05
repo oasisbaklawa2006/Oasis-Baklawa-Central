@@ -97,12 +97,13 @@ It is intentionally `workflow_dispatch` only for Tranche 1. AI judgement is **no
 
 The hosted Actions path is stricter than local execution. Before any Dispatch/Assembly QA secret is bound to a job, a separate no-credential `validate-target` job requires:
 
+- the dispatch to run from the trusted default branch (`refs/heads/main`)
 - HTTPS
 - no URL userinfo
 - no query string or fragment
-- hostname ending in `.oasisbaklawa2006-6222s-projects.vercel.app`
+- the real Oasis-team Vercel preview hostname shape: `<deployment-slug>-oasisbaklawa2006-6222s-projects.vercel.app` (letters, digits and hyphens only before the fixed team suffix)
 
-Only the normalized, validated target is passed to the credentialed tranche job.
+The preflight explicitly checks out trusted `main` with persisted GitHub credentials disabled. A manually dispatched run from any non-`main` ref fails before validator checkout and before role credentials are exposed. The validator uses the same shared hostname authority as the trusted release controller, preventing divergence between deployment discovery and AI-UAT admission. Only the normalized, validated target is passed to the credentialed tranche job.
 
 Inputs control:
 

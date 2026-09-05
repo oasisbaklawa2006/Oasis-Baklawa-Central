@@ -3,6 +3,7 @@ set -euo pipefail
 
 repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." && pwd)"
 lib="$repo_root/.github/scripts/appverse-release-controller-lib.sh"
+ai_uat_workflow="$repo_root/.github/workflows/appverse-ai-uat.yml"
 # shellcheck source=/dev/null
 source "$lib"
 
@@ -37,6 +38,7 @@ assert_pass() {
 head="abc123def4567890abc123def4567890abcd1234"
 deployment_id="424242"
 target="https://preview-oasisbaklawa2006-6222s-projects.vercel.app"
+realistic_target="https://oasis-baklawa-central-9bffhy61m-oasisbaklawa2006-6222s-projects.vercel.app"
 merged_at="2026-01-01T00:00:00Z"
 
 # 1) Dispatch head must remain the PR head SHA, not merge/test-merge SHA.
@@ -126,8 +128,38 @@ assert_eq "$marker" \
   "APPVERSE_CONTROLLER:AI_UAT_CORRELATION:${head}:${deployment_id}:${target}" \
   "durable correlation marker shape"
 
-# 5) URL normalization rejects malformed Oasis-team hosts.
+# 5) URL normalization accepts the real Vercel team hostname shape and rejects
+# lookalikes. Vercel separates the deployment slug from the team slug with a
+# hyphen, not a DNS label boundary.
 assert_pass "valid Oasis preview URL accepted" normalize_vercel_target_url "$target"
+assert_pass "real Vercel deployment hostname accepted" normalize_vercel_target_url "$realistic_target"
+assert_fail "old dot-before-team pseudo-host rejected" normalize_vercel_target_url "https://preview.oasisbaklawa2006-6222s-projects.vercel.app"
 assert_fail "arbitrary host rejected" normalize_vercel_target_url "https://evil.example.com"
+
+# 6) Scope trusted-ref assertions to the validate-target preflight so an
+# unrelated checkout elsewhere in the workflow cannot satisfy this contract.
+validate_target_block="$(awk '
+  /^  validate-target:/ { capture=1 }
+  /^  tranche-1:/ { capture=0 }
+  capture
+' "$ai_uat_workflow")"
+validator_checkout_block="$(awk '
+  /- name: Checkout trusted target validator/ { capture=1 }
+  /- name: Validate exact Vercel deployment evidence/ { capture=0 }
+  capture
+' <<<"$validate_target_block")"
+
+assert_pass "AI-UAT preflight records the triggering ref" grep -Fq 'AI_UAT_REF: ${{ github.ref }}' <<<"$validate_target_block"
+assert_pass "AI-UAT preflight rejects non-main dispatch" grep -Fq 'if [[ "$AI_UAT_REF" != "refs/heads/main" ]]' <<<"$validate_target_block"
+assert_pass "AI-UAT validator checkout pins trusted main" grep -Fq 'ref: main' <<<"$validator_checkout_block"
+assert_pass "AI-UAT validator checkout disables persisted credentials" grep -Fq 'persist-credentials: false' <<<"$validator_checkout_block"
+assert_pass "AI-UAT preflight sources shared Vercel validator" grep -Fq 'source .github/scripts/appverse-release-controller-lib.sh' <<<"$validate_target_block"
+
+guard_line="$(grep -nF 'if [[ "$AI_UAT_REF" != "refs/heads/main" ]]' <<<"$validate_target_block" | head -1 | cut -d: -f1)"
+checkout_line="$(grep -nF -- '- name: Checkout trusted target validator' <<<"$validate_target_block" | head -1 | cut -d: -f1)"
+if [[ -z "$guard_line" || -z "$checkout_line" || "$guard_line" -ge "$checkout_line" ]]; then
+  echo "FAIL: AI-UAT non-main guard must execute before validator checkout" >&2
+  exit 1
+fi
 
 echo "appverse-release-controller.test.sh: all cases passed"
