@@ -284,7 +284,7 @@
     }
   ],
   "mandatoryRetests": [
-    { "issue": "#481", "uatIds": ["UAT-0068"], "criteria": [32, 33, 36], "route": "/admin/clients", "device": "phone" },
+    { "issue": "#483", "priorIssue": "#481", "uatIds": ["UAT-0018", "UAT-0020"], "criteria": [32, 33, 36], "route": "/admin/clients", "device": "phone", "note": "Re-test SAME FAIL-481-* / FAIL-UX-481-* IDs only after #483 deploy" },
     { "issue": "B2B Dispatch filter", "criteria": [57], "route": "/admin/dispatch-mgmt" },
     { "issue": "Dispatch RBAC nav", "criteria": [16, 17, 18, 19, 20], "persona": "DISPATCH" },
     { "issue": "TV read-only", "criteria": [139, 140, 141, 142, 143], "device": "tv" }

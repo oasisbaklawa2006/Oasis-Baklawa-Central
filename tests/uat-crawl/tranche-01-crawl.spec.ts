@@ -79,10 +79,6 @@ async function captureShot(page: import("@playwright/test").Page, filename: stri
 }
 
 test.describe("Appverse UAT crawl — tranche 01 (UAT-0001..0010) + UX matrix", () => {
-  test.beforeAll(() => {
-    writeFileSync(MANIFEST_PATH, "");
-  });
-
   for (const target of targets) {
     test(`${target.uatId} ${target.route} [${target.state}]`, async ({ page }) => {
       const consoleErrors: string[] = [];
@@ -115,7 +111,7 @@ test.describe("Appverse UAT crawl — tranche 01 (UAT-0001..0010) + UX matrix", 
       const title = await page.title();
       const bodyText = (await page.locator("body").innerText().catch(() => "")).slice(0, 400);
 
-      let visualStatus: ManifestRow["visualStatus"] = "OBSERVED";
+      const visualStatus: ManifestRow["visualStatus"] = "OBSERVED";
       let functionStatus: ManifestRow["functionStatus"] = "NOT-TESTED";
       let notes = target.route.includes("*") ? "Wildcard route visited as /buyer/catalogue substitute" : "";
 
@@ -239,10 +235,10 @@ test.describe("Appverse UAT crawl — tranche 01 (UAT-0001..0010) + UX matrix", 
     writeFileSync(INDEX_PATH, indexLines.join("\n"));
 
     const preRegistered = [
-      "| FAIL-481-001 | UAT-0068† | central | ADMIN_SALES | phone | /admin/clients | Pricing Slab select in review sheet | Dropdown visible above Sheet; slab selectable | Select portal z-50 behind Sheet z-200; options invisible | **P0** | *(physical recording 2026-09-05)* | Issue #481 | Open pending app review sheet on mobile | Central | UI/z-index | Issue **#481** fix merged+deployed |",
-      "| FAIL-481-002 | UAT-0068† | central | ADMIN_SALES | phone | /admin/clients | Account Manager select | Managers listed (mixed-case roles) | Role filter lowercase-only excludes production SALES_EXECUTIVE/ADMIN | **P1** | *(physical recording 2026-09-05)* | Issue #481 | Same sheet | Central | RBAC/query | Issue **#481** fix merged+deployed |",
-      "| FAIL-UX-481-001 | UAT-0068† | central | ADMIN_SALES | phone | /admin/clients | UX 32/33/36 | Overlay above Sheet | Select clipped behind Sheet | **P0** | physical 2026-09-05 | #481 | Mobile review sheet | Central | UI/UX | #481 |",
-      "| FAIL-UX-481-002 | UAT-0068† | central | ADMIN_SALES | phone | /admin/clients | UX 17/36 | Truthful unavailable explanation | Manager list empty (role filter) | **P1** | physical 2026-09-05 | #481 | Same | Central | UI/UX | #481 |",
+      "| FAIL-481-001 | UAT-0018† | central | ADMIN_SALES | phone | /admin/clients [sheet-review-open] | Pricing Slab select in review sheet | Dropdown visible above Sheet; slab selectable | Select portal z-50 behind Sheet z-200; options invisible | **P0** | *(physical recording 2026-09-05)* | Issue #481/#483 | Open pending app review sheet on mobile | Central | UI/z-index | Issue **#483** deploy — re-test SAME FAIL-ID post-fix |",
+      "| FAIL-481-002 | UAT-0018† | central | ADMIN_SALES | phone | /admin/clients [sheet-review-open] | Account Manager select | Managers listed (mixed-case roles) | Role filter lowercase-only excludes production SALES_EXECUTIVE/ADMIN | **P1** | *(physical recording 2026-09-05)* | Issue #481/#483 | Same sheet | Central | RBAC/query | Issue **#483** deploy — re-test SAME FAIL-ID post-fix |",
+      "| FAIL-UX-481-001 | UAT-0018† | central | ADMIN_SALES | phone | /admin/clients [sheet-review-open] | UX 32/33/36 | Overlay above Sheet | Select clipped behind Sheet | **P0** | physical 2026-09-05 | #481/#483 | Mobile review sheet | Central | UI/UX | **#483** deploy — re-test SAME FAIL-ID |",
+      "| FAIL-UX-481-002 | UAT-0018† | central | ADMIN_SALES | phone | /admin/clients [sheet-review-open] | UX 17/36 | Truthful unavailable explanation | Manager list empty (role filter) | **P1** | physical 2026-09-05 | #481/#483 | Same | Central | UI/UX | **#483** deploy — re-test SAME FAIL-ID |",
     ];
 
     const ledgerHeader = [
@@ -264,7 +260,7 @@ test.describe("Appverse UAT crawl — tranche 01 (UAT-0001..0010) + UX matrix", 
       "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
       ...preRegistered,
       "",
-      "† UAT-0068 = census ID for `/admin/clients` default state (see `UAT_ROUTE_CENSUS.json`).",
+      "† UAT-0018 = census interactive state for `/admin/clients` sheet-review-open; UAT-0020 mirrors on `/admin/approvals`. **Do not re-test until P0 #483 lands** — pre-fix evidence preserved.",
       "",
     ];
 

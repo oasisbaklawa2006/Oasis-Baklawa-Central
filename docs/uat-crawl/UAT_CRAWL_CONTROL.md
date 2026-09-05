@@ -11,8 +11,9 @@
 | Phase | Deliverable | Location | Status |
 |---|---|---|---|
 | 1 | Route/page/state census (131 IDs) | `docs/uat-crawl/UAT_ROUTE_CENSUS.json` | **COMPLETE** (2026-09-05) |
-| 2 | Screenshot crawl tranche 01 (UAT-0001..0010) | `uat-evidence/screenshots/tranche-01/` | **COMPLETE** (S0 only on auth gates; partial UX heuristics on public routes) |
-| 2b | **UI/UX failure matrix integrated** | `docs/uat-crawl/UAT_UX_FAILURE_MATRIX.md`, `ux-matrix.json` | **COMPLETE** (2026-09-05) |
+| 2a | Screenshot crawl tranche 01 (UAT-0001..0010) | `uat-evidence/screenshots/tranche-01/` | **COMPLETE** |
+| 2b | Screenshot crawl tranche 02 (UAT-0011..0020) | `uat-evidence/screenshots/tranche-02/` | **COMPLETE** (2026-09-05) |
+| 2c | **UI/UX failure matrix** | `UAT_UX_FAILURE_MATRIX.md`, `ux-matrix.json` | **COMPLETE** |
 | 3 | Function crawl | Per-page control matrix | **NOT STARTED** (blocked on credentials for auth surfaces) |
 | 3b | Full UX crawl (148 criteria × 131 IDs) | Manifest `uxCriteria*` fields | **NOT STARTED** (blocked on credentials + S1–S3 interactive states) |
 | 4 | Failure register | `docs/uat-crawl/UAT_FAILURE_LEDGER.md` | **BOOTSTRAPPED** |
@@ -74,7 +75,7 @@ UAT_CRAWL_BASE_URL="https://<preview-or-staging-host>" npx playwright test -c pl
 
 | Risk | UX-Refs | UAT / route | Device |
 |---|---|---|---|
-| Issue **#481** Select-in-Sheet | 32/33/36 | UAT-0068 `/admin/clients` | phone |
+| Issue **#483** Select-in-Sheet (was #481) | 32/33/36 | UAT-0018 `/admin/clients` sheet-review | phone |
 | B2B Dispatch empty filter | 57 | dispatch-mgmt | desktop |
 | Dispatch RBAC nav leakage | 16–20 | dispatch persona routes | desktop |
 | TV read-only surfaces | 139–143 | TV routes | TV viewport |
@@ -83,17 +84,17 @@ UAT_CRAWL_BASE_URL="https://<preview-or-staging-host>" npx playwright test -c pl
 
 | FAIL-ID | Source | Severity | UX-Refs | Blocker |
 |---|---|---|---|---|
-| FAIL-481-001 / FAIL-UX-481-001 | Issue **#481** — Pricing Slab Select behind Sheet | **P0** | 32/33/36 | Fix PR + deploy before Buyer approval physical re-test |
-| FAIL-481-002 / FAIL-UX-481-002 | Issue **#481** — Account Manager role filter | **P1** | 17/36 | Same |
+| FAIL-481-001 / FAIL-UX-481-001 | Issue **#483** (pre-fix #481) — Pricing Slab Select behind Sheet | **P0** | 32/33/36 | **#483 deploy** — re-test SAME UAT-0018 / FAIL-ID only post-fix |
+| FAIL-481-002 / FAIL-UX-481-002 | Account Manager role filter | **P1** | 17/36 | Same |
 | FAIL-001-* | Tranche 01 auth gates | P1 | *(blocked)* | Operator/TEST_* credentials |
 
 ## Remaining untested
 
-**121 / 131** UAT IDs have no screenshot yet (UAT-0011..UAT-0131).
+**111 / 131** UAT IDs have no screenshot yet (UAT-0021..UAT-0131) after tranche 02.
 
 **UX:** 131 / 131 IDs lack complete S0–S3 + full 148-criterion evaluation.
 
-Next tranche: UAT-0011..0020 on Central preview with role credentials when provisioned; capture S1–S3 for every overlay-capable surface.
+Next tranche: UAT-0021..0030 on Central preview; Dispatch (`UAT-0093+`) and Trace/AI Studio require respective deploy URLs + credentials when provisioned.
 
 ## Mission Control review rule
 
