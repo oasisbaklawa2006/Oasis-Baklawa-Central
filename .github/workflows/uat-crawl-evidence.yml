@@ -27,6 +27,7 @@ on:
 
 permissions:
   contents: read
+  deployments: read
 
 concurrency:
   group: uat-crawl-evidence-${{ github.ref }}
@@ -55,7 +56,6 @@ jobs:
       TEST_DISPATCH_PASSWORD: ${{ secrets.TEST_DISPATCH_PASSWORD }}
       TEST_OPERATIONS_EMAIL: ${{ secrets.TEST_OPERATIONS_EMAIL }}
       TEST_OPERATIONS_PASSWORD: ${{ secrets.TEST_OPERATIONS_PASSWORD }}
-      UAT_CRAWL_PRODUCTION: "true"
       GITHUB_RUN_ID: ${{ github.run_id }}
       GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
     steps:
@@ -88,12 +88,26 @@ jobs:
         shell: bash
         env:
           RAW_URL: ${{ env.TEST_PREVIEW_URL }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           url="${RAW_URL:-}"
           if [[ -z "$url" ]]; then
-            echo "::notice::TEST_PREVIEW_URL secret missing — using approved production fallback for post-#483 UAT crawl."
-            url="https://b2b.oasisbaklawa.com"
+            echo "::notice::TEST_PREVIEW_URL secret missing — resolving Vercel deploy URL from GitHub deployments API."
+            for sha in "ace340fe1d122a4cce5d7bb61cd237ed7ba1c894" "${GITHUB_SHA}"; do
+              deploy_id="$(gh api "repos/${GITHUB_REPOSITORY}/deployments?sha=${sha}&per_page=10" --jq '[.[] | select(.environment=="Production" or .environment=="Preview")][0].id // empty' 2>/dev/null || true)"
+              if [[ -n "$deploy_id" ]]; then
+                url="$(gh api "repos/${GITHUB_REPOSITORY}/deployments/${deploy_id}/statuses" --jq '[.[] | select(.state=="success")][0].target_url // empty' 2>/dev/null || true)"
+              fi
+              if [[ -n "$url" ]]; then
+                echo "Resolved deploy URL for ${sha}: $url"
+                break
+              fi
+            done
+          fi
+          if [[ -z "$url" ]]; then
+            echo "::error::No TEST_PREVIEW_URL secret and no successful Vercel deployment URL found for ace340fe or ${GITHUB_SHA}."
+            exit 1
           fi
           if [[ "$url" == *$'\n'* || "$url" == *$'\r'* ]]; then
             echo "::error::Target URL contains newline — refusing."
@@ -109,6 +123,9 @@ jobs:
           fi
           echo "TEST_PREVIEW_URL=$url" >> "$GITHUB_ENV"
           echo "UAT_CRAWL_BASE_URL=$url" >> "$GITHUB_ENV"
+          if [[ "$host" == "b2b.oasisbaklawa.com" ]]; then
+            echo "UAT_CRAWL_PRODUCTION=true" >> "$GITHUB_ENV"
+          fi
 
       - uses: actions/setup-node@v4
         with:
