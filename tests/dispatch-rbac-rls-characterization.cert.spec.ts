@@ -203,7 +203,7 @@ test.describe("Dispatch RBAC — production RLS certification", () => {
 
     const { data: line, error: lineError } = await adminClient
       .from("order_items")
-      .select("product_id, sku")
+      .select("product_id")
       .eq("order_id", orderId)
       .limit(1)
       .maybeSingle();
@@ -219,7 +219,7 @@ test.describe("Dispatch RBAC — production RLS certification", () => {
       reservation_number: `RBAC-PROBE-${Date.now()}`,
       order_id: orderId,
       product_id: line.product_id,
-      sku: line.sku ?? "RBAC-PROBE",
+      sku: "RBAC-PROBE",
       requested_qty: 1,
       reserved_qty: 0,
       fulfilled_qty: 0,
