@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 import {
   EMPTY_CENTRAL_ORDER_POOL_SNAPSHOT,
   isPackingStatus,
@@ -48,15 +49,23 @@ async function loadRecentOrders(): Promise<CentralOrderPoolSnapshot["recentOrder
   }));
 }
 
+type OrderCompanyProjection = Pick<Database["public"]["Tables"]["companies"]["Row"], "business_name">;
+
+function readCompanyBusinessName(company: OrderCompanyProjection): string | null {
+  return company.business_name ?? null;
+}
+
 /** Supabase infers `company:companies(...)` as a collection relation. */
 export function companyNameFromOrderRelation(company: unknown): string | null {
   if (!company) return null;
   if (Array.isArray(company)) {
-    return company[0]?.business_name ?? null;
+    const first = company[0];
+    return first && typeof first === "object" && "business_name" in first
+      ? readCompanyBusinessName(first as OrderCompanyProjection)
+      : null;
   }
   if (typeof company === "object" && "business_name" in company) {
-    const name = (company as { business_name?: string | null }).business_name;
-    return name ?? null;
+    return readCompanyBusinessName(company as OrderCompanyProjection);
   }
   return null;
 }
