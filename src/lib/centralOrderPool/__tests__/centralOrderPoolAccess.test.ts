@@ -15,12 +15,12 @@ describe("centralOrderPoolAccess POINT71", () => {
     expect(canAccessCentralOrderPool("OPERATIONS_MANAGER")).toBe(true);
   });
 
-  it("denies dispatch roles the hub to preserve P0 #458 least-privilege", () => {
-    expect(isDispatchScopedOrderPoolRole("DISPATCH_MANAGER")).toBe(true);
-    expect(visibleCentralOrderPoolLenses("DISPATCH_MANAGER")).toEqual([]);
-    expect(canAccessCentralOrderPool("DISPATCH_MANAGER")).toBe(false);
-    expect(canAccessCentralOrderPool("DISPATCH_INCHARGE")).toBe(false);
-    expect(canAccessCentralOrderPool("DISPATCH_HEAD")).toBe(false);
+  it("denies dispatch-scoped roles the hub to preserve P0 #458 least-privilege", () => {
+    for (const role of ["DISPATCH_MANAGER", "DISPATCH_INCHARGE", "DISPATCH_HEAD", "PACKING_SUPERVISOR"]) {
+      expect(isDispatchScopedOrderPoolRole(role)).toBe(true);
+      expect(visibleCentralOrderPoolLenses(role)).toEqual([]);
+      expect(canAccessCentralOrderPool(role)).toBe(false);
+    }
   });
 
   it("allows support intake without the commercial pipeline lens", () => {

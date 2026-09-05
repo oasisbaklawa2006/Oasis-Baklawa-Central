@@ -1,4 +1,3 @@
-import { isDispatchRole } from "@/lib/auth/securityGatePolicy";
 import { normalizeRole } from "@/lib/roleNormalization";
 import {
   getAllowedModulesForRole,
@@ -91,20 +90,20 @@ export const CENTRAL_ORDER_POOL_LENSES: CentralOrderPoolLens[] = [
   },
 ];
 
+/** Dispatch-scoped operational roles use workflow surfaces, not the commercial order hub. */
+export function isDispatchScopedOrderPoolRole(role: string | null | undefined): boolean {
+  const normalized = normalizeRole(role);
+  if (!normalized) return false;
+  return ["DISPATCH_MANAGER", "DISPATCH_INCHARGE", "DISPATCH_HEAD", "PACKING_SUPERVISOR"].includes(normalized);
+}
+
 export function visibleCentralOrderPoolLenses(role: string | null | undefined): CentralOrderPoolLens[] {
-  if (isDispatchRole(role)) return [];
+  if (isDispatchScopedOrderPoolRole(role)) return [];
   const allowedModules = getAllowedModulesForRole(role);
   return CENTRAL_ORDER_POOL_LENSES.filter((lens) => hasModuleAccess(allowedModules, lens.moduleKey));
 }
 
 export function canAccessCentralOrderPool(role: string | null | undefined): boolean {
-  if (isDispatchRole(role)) return false;
+  if (isDispatchScopedOrderPoolRole(role)) return false;
   return visibleCentralOrderPoolLenses(role).length > 0;
-}
-
-/** Dispatch roles reach packing via the packing module without the general orders module. */
-export function isDispatchScopedOrderPoolRole(role: string | null | undefined): boolean {
-  const normalized = normalizeRole(role);
-  if (!normalized) return false;
-  return ["DISPATCH_MANAGER", "DISPATCH_INCHARGE", "DISPATCH_HEAD", "PACKING_SUPERVISOR"].includes(normalized);
 }

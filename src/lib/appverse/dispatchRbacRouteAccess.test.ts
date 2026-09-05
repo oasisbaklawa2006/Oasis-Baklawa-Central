@@ -175,3 +175,9 @@ describe("Dispatch RBAC — commercial Dispatch TV audience", () => {
   });
 });
 
+describe("Dispatch RBAC — central order pool hub", () => {
+  it("denies PACKING_SUPERVISOR from the commercial order pool composition hub", () => {
+    expect(isAuthorizedForAdminPath("/admin/central-pool", "PACKING_SUPERVISOR")).toBe(false);
+  });
+});
+

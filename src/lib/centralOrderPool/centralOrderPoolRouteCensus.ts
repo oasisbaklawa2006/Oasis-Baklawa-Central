@@ -38,9 +38,9 @@ export const CENTRAL_ORDER_POOL_ROUTE_CENSUS: CentralOrderPoolRouteEntry[] = [
   },
   {
     path: "/admin/whatsapp",
-    disposition: "compatibility_redirect",
+    disposition: "governed_deep_link",
     authority: "OperatorInbox",
-    notes: "Compatibility alias to operator inbox.",
+    notes: "Governed WhatsApp intake review surface.",
   },
   {
     path: "/admin/cmd-war-room",
