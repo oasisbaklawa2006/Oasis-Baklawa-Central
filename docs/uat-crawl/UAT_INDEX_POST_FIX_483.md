@@ -1,10 +1,10 @@
 # UAT Visual + UX Crawl Index — post-fix-483
 
 **UAT range:** UAT-0018 + UAT-0020 (#483 deploy ace340fe)
-**Crawl base URL:** https://b2b.oasisbaklawa.com
+**Crawl base URL:** https://oasis-baklawa-central-6zo99hosg-oasisbaklawa2006-6222s-projects.vercel.app
 **Central baseline SHA:** `08ccb1cfd4a3624103f0681b5515e26727e77cd2`
 **UX matrix:** [UAT_UX_FAILURE_MATRIX.md](./UAT_UX_FAILURE_MATRIX.md) (148 criteria)
-**Captured:** 2026-09-05T21:07:11.199Z
+**Captured:** 2026-09-05T21:08:57.718Z
 
 | UAT ID | S0 | Route | State | Visual | Function | UX | Evaluated | Failures | Notes |
 |---|---|---|---|---|---|---|---:|---:|---|
