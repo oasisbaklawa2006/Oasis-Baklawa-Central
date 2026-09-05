@@ -4,6 +4,19 @@ Phase 4 register — **no remediation in this tranche**.
 
 Functional + UX failures. UX criteria authority: [`UAT_UX_FAILURE_MATRIX.md`](./UAT_UX_FAILURE_MATRIX.md).
 
+## Watchdog status — run [33997683723](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/33997683723) (2026-09-05)
+
+**Deploy:** ace340fe (`https://oasis-baklawa-central-6zo99hosg-oasisbaklawa2006-6222s-projects.vercel.app`) · **Evidence SHA:** `80e1f1c2` · **Authenticated S0–S3:** **80 / 131** · **Remaining:** **51**
+
+| FAIL-ID cluster | Status | Blocker | Governed re-crawl |
+|---|---|---|---|
+| FAIL-481-001, FAIL-481-002, FAIL-UX-481-001, FAIL-UX-481-002 | **OPEN** | `TEST_SALES_EMAIL`, `TEST_SALES_PASSWORD` | post-fix-483 tranche — 0/2 S0–S3 captured |
+| FAIL-485-001 | **OPEN** | Issue **#485** (KPI stale) | Physical recording only; repair not in UAT lane |
+| FAIL-AUTH-CRED-* (51 UAT IDs) | **BLOCKED** | See [`UAT_CRAWL_PROGRESS.md`](./UAT_CRAWL_PROGRESS.md) secret table | No screenshot = not tested |
+| Buyer mobile (16 surfaces) | **BLOCKED** | `TEST_BUYER_EMAIL`, `TEST_BUYER_PASSWORD` | PR #10 cert does not substitute |
+
+**Classification rule enforced:** No screenshot = not tested; no action/result evidence = function not tested. Pre-fix tranche-02 screenshots preserved; post-fix-483 folder empty pending `TEST_SALES_*`.
+
 ## Functional / access failures
 
 | FAIL-ID | UAT-ID | App | Role | Device | Route/Page | Function | Expected | Actual | Severity | Screenshot(s) | Console/Network | Repro | Owning repo | Layer | Fix dependency |
