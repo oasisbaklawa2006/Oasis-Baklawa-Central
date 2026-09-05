@@ -136,11 +136,30 @@ assert_pass "real Vercel deployment hostname accepted" normalize_vercel_target_u
 assert_fail "old dot-before-team pseudo-host rejected" normalize_vercel_target_url "https://preview.oasisbaklawa2006-6222s-projects.vercel.app"
 assert_fail "arbitrary host rejected" normalize_vercel_target_url "https://evil.example.com"
 
-# 6) The credential-bearing AI-UAT path must fail closed outside trusted main
-# and must source the same shared target validator as the release controller.
-assert_pass "AI-UAT records the triggering ref" grep -Fq 'AI_UAT_REF: ${{ github.ref }}' "$ai_uat_workflow"
-assert_pass "AI-UAT rejects non-main dispatch" grep -Fq 'if [[ "$AI_UAT_REF" != "refs/heads/main" ]]' "$ai_uat_workflow"
-assert_pass "AI-UAT checks out trusted main" grep -Fq 'ref: main' "$ai_uat_workflow"
-assert_pass "AI-UAT sources shared Vercel validator" grep -Fq 'source .github/scripts/appverse-release-controller-lib.sh' "$ai_uat_workflow"
+# 6) Scope trusted-ref assertions to the validate-target preflight so an
+# unrelated checkout elsewhere in the workflow cannot satisfy this contract.
+validate_target_block="$(awk '
+  /^  validate-target:/ { capture=1 }
+  /^  tranche-1:/ { capture=0 }
+  capture
+' "$ai_uat_workflow")"
+validator_checkout_block="$(awk '
+  /- name: Checkout trusted target validator/ { capture=1 }
+  /- name: Validate exact Vercel deployment evidence/ { capture=0 }
+  capture
+' <<<"$validate_target_block")"
+
+assert_pass "AI-UAT preflight records the triggering ref" grep -Fq 'AI_UAT_REF: ${{ github.ref }}' <<<"$validate_target_block"
+assert_pass "AI-UAT preflight rejects non-main dispatch" grep -Fq 'if [[ "$AI_UAT_REF" != "refs/heads/main" ]]' <<<"$validate_target_block"
+assert_pass "AI-UAT validator checkout pins trusted main" grep -Fq 'ref: main' <<<"$validator_checkout_block"
+assert_pass "AI-UAT validator checkout disables persisted credentials" grep -Fq 'persist-credentials: false' <<<"$validator_checkout_block"
+assert_pass "AI-UAT preflight sources shared Vercel validator" grep -Fq 'source .github/scripts/appverse-release-controller-lib.sh' <<<"$validate_target_block"
+
+guard_line="$(grep -nF 'if [[ "$AI_UAT_REF" != "refs/heads/main" ]]' <<<"$validate_target_block" | head -1 | cut -d: -f1)"
+checkout_line="$(grep -nF -- '- name: Checkout trusted target validator' <<<"$validate_target_block" | head -1 | cut -d: -f1)"
+if [[ -z "$guard_line" || -z "$checkout_line" || "$guard_line" -ge "$checkout_line" ]]; then
+  echo "FAIL: AI-UAT non-main guard must execute before validator checkout" >&2
+  exit 1
+fi
 
 echo "appverse-release-controller.test.sh: all cases passed"
