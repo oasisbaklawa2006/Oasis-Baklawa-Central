@@ -43,6 +43,7 @@ audit-artifacts/playwright-output/
 audit-artifacts/html-report/
 audit-artifacts/raw/
 audit-artifacts/playwright-report.json
+uat-evidence/playwright-output/
 
 # Supabase CLI local link artifacts (do not commit)
 supabase/.temp/
