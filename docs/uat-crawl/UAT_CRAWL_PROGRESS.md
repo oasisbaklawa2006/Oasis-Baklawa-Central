@@ -70,6 +70,20 @@ Public/pre-auth-only (no role-surface auth required): UAT-0001, 0004, 0005, 0008
 
 iPhone recording → [`UAT_PHYSICAL_EVIDENCE_EXTERNAL.md`](./UAT_PHYSICAL_EVIDENCE_EXTERNAL.md). **FAIL-485-001** (KPI stale post-approval) → Central **#485**. FAIL-481-* / FAIL-UX-481-* remain **OPEN** until `TEST_SALES_*` post-fix S0–S3 captured on deployed main.
 
+## Buyer mobile crawl (PR #10 @ `0015e7b5`)
+
+**GHA run [33996335627](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/33996335627)** — harness executed; **0 / 16 surfaces authenticated** (all BLOCKED on missing `TEST_BUYER_*`).
+
+| Artifact | Path |
+|---|---|
+| Surface map | `docs/uat-crawl/UAT_BUYER_MOBILE_TARGETS.json` |
+| Manifest | `docs/uat-crawl/UAT_MANIFEST_BUYER_MOBILE.jsonl` |
+| Summary | `docs/uat-crawl/UAT_BUYER_MOBILE_SUMMARY.json` |
+| Index | `docs/uat-crawl/UAT_INDEX_BUYER_MOBILE_AUTH.md` |
+| Screenshots | `uat-evidence/screenshots/buyer-mobile-auth/` (empty until creds provisioned) |
+
+Golden-path certification (PR #10 @ `0f81448`) uses **ephemeral synthetic buyer** credentials in CI — it does not populate `TEST_BUYER_*` repo secrets for this crawl.
+
 ## Next
 
 1. Operator adds missing repo secrets (`TEST_SALES_*`, `TEST_BUYER_*`, lane1 `TEST_RGS_*` / `TEST_PRODUCTION_*` / `TEST_TV_*`, plus ai-studio/trace preview URLs) → re-run `all` tranche on this branch  

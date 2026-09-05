@@ -201,6 +201,11 @@ export async function crawlBuyerMobileSurfaces(page: Page): Promise<{
       rows.push(blockedRow(target, missing, `AUTH BLOCKED — missing ${missing.join(", ")}.`));
       appendManifestRow(MANIFEST_PATH, rows[rows.length - 1] as never);
     }
+    writeTrancheIndex(INDEX_PATH, TRANCHE, "Buyer mobile surfaces (PR #10 @ 0015e7b5)", rows as never, [
+      "**All surfaces BLOCKED** — `TEST_BUYER_EMAIL` / `TEST_BUYER_PASSWORD` not present in repo secrets.",
+      "Golden-path certification uses ephemeral synthetic buyer credentials; UAT crawl requires governed repo secrets.",
+    ]);
+    appendFailureLedger(FAILURE_PATH, TRANCHE, failures, uxFailureRows);
     writeSummary(rows, missing);
     return { rows, failures, uxFailures: uxFailureRows };
   }
