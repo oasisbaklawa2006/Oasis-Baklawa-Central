@@ -48,6 +48,11 @@ jobs:
     outputs:
       url: ${{ steps.target.outputs.url }}
     steps:
+      - name: Checkout trusted target validator
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
       - name: Validate exact Vercel deployment evidence
         id: target
         shell: bash
@@ -58,6 +63,8 @@ jobs:
           INPUT_DEPLOYMENT_ID: ${{ inputs.deployment_id }}
         run: |
           set -euo pipefail
+          # shellcheck source=/dev/null
+          source .github/scripts/appverse-release-controller-lib.sh
 
           if [[ ! "$INPUT_HEAD" =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::dispatch_head_sha must be an exact 40-character commit SHA."
@@ -72,30 +79,11 @@ jobs:
             exit 1
           fi
 
-          normalize_url() {
-            python3 - "$1" <<'PY'
-          import sys
-          from urllib.parse import urlparse, urlunparse
+          if ! clean_input="$(normalize_vercel_target_url "$INPUT_URL")"; then
+            echo "::error::AI-UAT target is not an approved Oasis-team Vercel preview URL."
+            exit 1
+          fi
 
-          raw = sys.argv[1]
-          parsed = urlparse(raw)
-          host = parsed.hostname or ""
-          allowed_suffix = ".oasisbaklawa2006-6222s-projects.vercel.app"
-
-          if parsed.scheme != "https":
-              raise SystemExit("AI-UAT target must use HTTPS")
-          if parsed.username or parsed.password:
-              raise SystemExit("AI-UAT target must not contain URL userinfo")
-          if parsed.query or parsed.fragment:
-              raise SystemExit("AI-UAT target must not contain query or fragment data")
-          if not host.endswith(allowed_suffix):
-              raise SystemExit(f'AI-UAT host "{host}" is not an approved Oasis-team Vercel preview host')
-
-          print(urlunparse(("https", parsed.netloc, parsed.path.rstrip("/") or "", "", "", "")))
-          PY
-          }
-
-          clean_input="$(normalize_url "$INPUT_URL")"
           deployment="$(gh api "repos/$GITHUB_REPOSITORY/deployments/$INPUT_DEPLOYMENT_ID")"
           deployment_sha="$(jq -r '.sha // empty' <<<"$deployment")"
           deployment_app="$(jq -r '.performed_via_github_app.slug // empty' <<<"$deployment")"
@@ -128,7 +116,10 @@ jobs:
             exit 1
           fi
 
-          clean_status="$(normalize_url "$status_url")"
+          if ! clean_status="$(normalize_vercel_target_url "$status_url")"; then
+            echo "::error::Vercel-authored deployment status URL is outside the approved Oasis-team preview boundary."
+            exit 1
+          fi
           if [[ "$clean_input" != "$clean_status" ]]; then
             echo "::error::Requested AI-UAT target does not equal the Vercel-authored environment URL for the exact deployment."
             exit 1
