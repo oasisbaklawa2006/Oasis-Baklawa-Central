@@ -27,9 +27,14 @@ describe("POINT71 Central Order Pool closure", () => {
 
   it("mounts the governed composition hub at /admin/central-pool", () => {
     const app = source("src/App.tsx");
-    expect(app).toContain("CentralOrderPoolCommandCentre");
-    expect(app).toContain('path="central-pool"');
+    expect(app).toMatch(/path="central-pool"[\s\S]*?<CentralOrderPoolCommandCentre\s*\/>/);
     expect(app).not.toMatch(/import\("\.\/pages\/admin\/CentralOrderPool\.tsx"\)/);
+  });
+
+  it("records /admin/whatsapp as a governed direct intake route in the census", () => {
+    const whatsapp = CENTRAL_ORDER_POOL_ROUTE_CENSUS.find((entry) => entry.path === "/admin/whatsapp");
+    expect(whatsapp?.disposition).toBe("governed_deep_link");
+    expect(whatsapp?.authority).toBe("OperatorInbox");
   });
 
   it("redirects retired cmd-war-room bookmarks to the canonical hub", () => {

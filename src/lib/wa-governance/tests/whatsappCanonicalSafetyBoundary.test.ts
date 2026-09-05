@@ -25,8 +25,7 @@ describe("WhatsApp canonical safety boundary", () => {
   it("routes the retired Central Pool path to the governed composition hub", () => {
     const app = readRepoFile("src/App.tsx");
     expect(app).not.toMatch(/import\("\.\/pages\/admin\/CentralOrderPool\.tsx"\)/);
-    expect(app).toContain("CentralOrderPoolCommandCentre");
-    expect(app).toContain('path="central-pool"');
+    expect(app).toMatch(/path="central-pool"[\s\S]*?<CentralOrderPoolCommandCentre\s*\/>/);
     expect(app).not.toContain('<Route path="central-pool" element={<Navigate to="/admin/operator-inbox" replace />} />');
   });
 
