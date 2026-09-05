@@ -26,7 +26,7 @@ env:
   DISPATCH_RLS_CERT_SUPABASE_URL: https://tcxvcatsqqertcnycuop.supabase.co
   DISPATCH_RLS_CERT_SUPABASE_ANON_KEY: sb_publishable_UbNV2X25YHY3cupjpoLsjw_RhlDG4f_
   # PR #458 (cursor/p0-dispatch-rbac-least-privilege-de93) current exact head — freeze on rebase/head change.
-  DISPATCH_RLS_CERT_APPROVED_REF: 80873e0fa6a2550c4c539c588318d2754f91f13a
+  DISPATCH_RLS_CERT_APPROVED_REF: 9eeadbde17e09236f1c6ea88ca8fbefeb8bbee59
 
 jobs:
   dispatch-rls-cert:
