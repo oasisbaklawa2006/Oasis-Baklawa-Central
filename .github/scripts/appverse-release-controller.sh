@@ -9,6 +9,7 @@ set -euo pipefail
 : "${AI_UAT_WORKFLOW:?AI_UAT_WORKFLOW is required}"
 
 EVENT_NAME="${EVENT_NAME:-}"
+WORKFLOW_RUN_ID="${WORKFLOW_RUN_ID:-}"
 WORKFLOW_RUN_NAME="${WORKFLOW_RUN_NAME:-}"
 WORKFLOW_RUN_CONCLUSION="${WORKFLOW_RUN_CONCLUSION:-}"
 WORKFLOW_RUN_URL="${WORKFLOW_RUN_URL:-}"
@@ -16,12 +17,14 @@ WORKFLOW_RUN_URL="${WORKFLOW_RUN_URL:-}"
 owner="${REPO%%/*}"
 repo_name="${REPO#*/}"
 
+# Each hard gate is bound to both the human-readable check name and the
+# expected GitHub App slug so a namesake check cannot satisfy release policy.
 required_checks=(
-  "Typecheck, unit test, production build, and Playwright smoke"
-  "Enforce Catalogue AI-Studio repo ownership boundaries"
-  "Codacy Static Code Analysis"
-  "CodeQL"
-  "Cursor Security Agent: Security Reviewer"
+  "Typecheck, unit test, production build, and Playwright smoke|github-actions"
+  "Enforce Catalogue AI-Studio repo ownership boundaries|github-actions"
+  "Codacy Static Code Analysis|codacy-production"
+  "CodeQL|github-advanced-security"
+  "Cursor Security Agent: Security Reviewer|cursor"
 )
 
 # Fetch the current GitHub pull-request document for a governed PR number.
@@ -39,21 +42,29 @@ pr_merged_at() {
   pr_json "$1" | jq -r '.merged_at // empty'
 }
 
-# Return the newest conclusion for one named check context on an exact commit.
+# Return the newest conclusion for one named check from its expected GitHub App.
 check_conclusion() {
-  local head="$1" name="$2"
-  gh api -X GET "repos/$REPO/commits/$head/check-runs?per_page=100" \
-    --jq ".check_runs | map(select(.name == \"$name\")) | sort_by(.started_at) | last | .conclusion // \"missing\""
+  local head="$1" name="$2" app_slug="$3" runs
+  runs="$(gh api -X GET "repos/$REPO/commits/$head/check-runs?per_page=100")"
+  jq -r --arg name "$name" --arg app "$app_slug" '
+    [.check_runs[]
+      | select(.name == $name)
+      | select((.app.slug // "") == $app)]
+    | sort_by(.started_at)
+    | last
+    | .conclusion // "missing"
+  ' <<<"$runs"
 }
 
 # Verify every stable governed check is successful on the PR's exact current head.
 exact_checks_green() {
-  local pr="$1" head conclusion name
+  local pr="$1" head spec name app_slug conclusion
   head="$(pr_head "$pr")"
-  for name in "${required_checks[@]}"; do
-    conclusion="$(check_conclusion "$head" "$name")"
+  for spec in "${required_checks[@]}"; do
+    IFS='|' read -r name app_slug <<<"$spec"
+    conclusion="$(check_conclusion "$head" "$name" "$app_slug")"
     if [[ "$conclusion" != "success" ]]; then
-      echo "PR #$pr is not exact-head green: $name => $conclusion"
+      echo "PR #$pr is not exact-head green: $name ($app_slug) => $conclusion"
       return 1
     fi
   done
@@ -243,9 +254,9 @@ The controller could not dispatch $RLS_WORKFLOW after six trusted-main retries. 
   fi
 }
 
-# Return the exact merged Dispatch commit SHA used for deployment and AI-UAT binding.
+# Return the exact Dispatch PR head SHA used for deployment and AI-UAT binding.
 dispatch_pr_head_sha() {
-  pr_json "$DISPATCH_PR" | jq -r '.merge_commit_sha // .head.sha'
+  pr_head "$DISPATCH_PR"
 }
 
 # Normalize Oasis-team Vercel preview URLs for exact correlation comparisons.
@@ -259,7 +270,7 @@ normalize_vercel_target_url() {
   return 1
 }
 
-# Resolve a successful Oasis Vercel deployment bound to the exact Dispatch head SHA.
+# Resolve a successful Vercel-authored deployment/status bound to the exact Dispatch head SHA.
 vercel_deployment_for_dispatch_pr() {
   local head deployments id statuses status url
   head="$(dispatch_pr_head_sha)"
@@ -271,7 +282,11 @@ vercel_deployment_for_dispatch_pr() {
     status="$(jq '
       [.[][]
         | select(.state == "success")
-        | select((.environment_url // "") != "")]
+        | select((.environment_url // "") != "")
+        | select(
+            ((.performed_via_github_app.slug // "") == "vercel")
+            or ((.creator.login // "") == "vercel[bot]")
+          )]
       | sort_by(.created_at)
       | last // {}
     ' <<<"$statuses")"
@@ -307,6 +322,12 @@ expected_ai_uat_correlation() {
   printf '%s %s %s\n' "$head" "$deployment_id" "$target_url"
 }
 
+# Build the deterministic workflow run title used for exact AI-UAT correlation.
+expected_ai_uat_run_title() {
+  local head="$1" deployment_id="$2"
+  printf 'APPVERSE AI UAT %s deployment-%s\n' "$head" "$deployment_id"
+}
+
 # Build the durable correlation marker for a governed AI-UAT dispatch.
 ai_uat_correlation_marker() {
   local head="$1" deployment_id="$2" target_url="$3"
@@ -319,36 +340,31 @@ persist_ai_uat_correlation() {
   marker="$(ai_uat_correlation_marker "$head" "$deployment_id" "$target_url")"
   body="$marker
 
-Governed APPVERSE AI-UAT correlation for PR #$DISPATCH_PR: dispatch head $head, Vercel deployment $deployment_id, target ${target_url%/}."
+Governed APPVERSE AI-UAT correlation for PR #$DISPATCH_PR: dispatch head $head, Vercel deployment $deployment_id, target ${target_url%/}. The AI-UAT workflow independently revalidates this exact tuple before QA secrets are exposed."
   comment_once 437 "$marker" "$body"
 }
 
-# Recover the workflow_dispatch target_url input for one AI-UAT workflow run.
-workflow_run_target_url() {
-  local run_id="$1" run_json url
-  run_json="$(gh api "repos/$REPO/actions/runs/$run_id")"
-  url="$(jq -r '
-    if (.inputs.target_url // "") != "" then .inputs.target_url
-    elif (.event | type) == "string" and (.event | length) > 0 then (.event | fromjson | .inputs.target_url // empty)
-    else empty
-    end
-  ' <<<"$run_json")"
-  normalize_vercel_target_url "$url"
-}
-
-# Accept an AI-UAT workflow run only when it matches the exact Dispatch head and Vercel deployment.
+# Accept an AI-UAT run only when its deterministic identity matches current exact-head evidence.
 ai_uat_run_matches_correlation() {
-  local run_id="$1" head deployment_id expected_target run_target merged_at created
-  if ! read -r head deployment_id expected_target < <(expected_ai_uat_correlation); then
+  local run_id="$1" head deployment_id target expected_title merged_at run_json event branch title created
+  if ! read -r head deployment_id target < <(expected_ai_uat_correlation); then
     return 1
   fi
 
-  run_target="$(workflow_run_target_url "$run_id" || true)"
-  [[ -n "$run_target" && "$run_target" == "$expected_target" ]] || return 1
-
+  expected_title="$(expected_ai_uat_run_title "$head" "$deployment_id")"
+  run_json="$(gh api "repos/$REPO/actions/runs/$run_id")"
+  event="$(jq -r '.event // empty' <<<"$run_json")"
+  branch="$(jq -r '.head_branch // empty' <<<"$run_json")"
+  title="$(jq -r '.display_title // empty' <<<"$run_json")"
+  created="$(jq -r '.created_at // empty' <<<"$run_json")"
   merged_at="$(pr_merged_at "$DISPATCH_PR")"
-  created="$(gh api "repos/$REPO/actions/runs/$run_id" --jq -r '.created_at // empty')"
-  [[ -n "$merged_at" && -n "$created" && "$created" > "$merged_at" ]]
+
+  [[ "$event" == "workflow_dispatch" \
+    && "$branch" == "main" \
+    && "$title" == "$expected_title" \
+    && -n "$merged_at" \
+    && -n "$created" \
+    && "$created" > "$merged_at" ]]
 }
 
 # Report whether a correlated AI-UAT dispatch is already queued, running, or succeeded.
@@ -360,16 +376,15 @@ governed_ai_uat_in_flight_or_succeeded() {
   while IFS= read -r run_id; do
     [[ -n "$run_id" ]] || continue
     ai_uat_run_matches_correlation "$run_id" || continue
-    status="$(gh api "repos/$REPO/actions/runs/$run_id" --jq -r '.status // empty')"
-    conclusion="$(gh api "repos/$REPO/actions/runs/$run_id" --jq -r '.conclusion // empty')"
+    status="$(gh api "repos/$REPO/actions/runs/$run_id" --jq '.status // empty')"
+    conclusion="$(gh api "repos/$REPO/actions/runs/$run_id" --jq '.conclusion // empty')"
     if [[ "$status" == "queued" || "$status" == "in_progress" || "$conclusion" == "success" ]]; then
       return 0
     fi
   done < <(
     gh api --paginate --slurp -X GET "repos/$REPO/actions/workflows/$AI_UAT_WORKFLOW/runs?event=workflow_dispatch&branch=main&per_page=100" \
       | jq -r --arg merged_at "$merged_at" '
-          [.[][]
-            | select(.created_at > $merged_at)]
+          [.[][] | select(.created_at > $merged_at)]
           | sort_by(.created_at)
           | reverse
           | .[].id
@@ -379,7 +394,7 @@ governed_ai_uat_in_flight_or_succeeded() {
   return 1
 }
 
-# Dispatch AI-UAT exactly once against exact-head Vercel evidence after Dispatch merges.
+# Dispatch AI-UAT against exact Vercel evidence; the workflow revalidates the tuple before secrets.
 dispatch_ai_uat_if_needed() {
   local pr head deployment_id target marker body
   pr="$(pr_json "$DISPATCH_PR")"
@@ -390,15 +405,17 @@ dispatch_ai_uat_if_needed() {
     marker="APPVERSE_CONTROLLER:AI_UAT_TARGET_MISSING:$(dispatch_pr_head_sha)"
     body="$marker
 
-APPVERSE AI UAT was not dispatched because no successful Oasis-team Vercel deployment status could be recovered for the exact PR #$DISPATCH_PR head."
+APPVERSE AI UAT was not dispatched because no successful Vercel-authored deployment status could be recovered for the exact PR #$DISPATCH_PR head."
     comment_once 437 "$marker" "$body"
     return 0
   fi
 
   persist_ai_uat_correlation "$head" "$deployment_id" "$target"
-  echo "Dispatching APPVERSE AI UAT against deployment $deployment_id ($target) for dispatch head $head"
+  echo "Dispatching APPVERSE AI UAT against deployment $deployment_id ($target) for Dispatch head $head"
   gh workflow run "$AI_UAT_WORKFLOW" --repo "$REPO" --ref main \
     -f target_url="$target" \
+    -f dispatch_head_sha="$head" \
+    -f deployment_id="$deployment_id" \
     -f enable_ai=true \
     -f send_images=false \
     -f synthetic_target=false
@@ -468,7 +485,7 @@ Dispatch RLS certification did not produce a current-head PASS. #$DISPATCH_PR re
   fi
 
   if [[ "$WORKFLOW_RUN_NAME" == "APPVERSE AI UAT" ]]; then
-    if [[ -z "${WORKFLOW_RUN_ID:-}" ]]; then
+    if [[ -z "$WORKFLOW_RUN_ID" ]]; then
       echo "APPVERSE AI UAT completion ignored: missing workflow run id."
       return 0
     fi
@@ -481,13 +498,13 @@ Dispatch RLS certification did not produce a current-head PASS. #$DISPATCH_PR re
       marker="APPVERSE_CONTROLLER:PHYSICAL_DISPATCH_UAT_REQUIRED:${WORKFLOW_RUN_ID}"
       body="$marker
 
-Automated APPVERSE AI-UAT tranche completed successfully against the exact PR #$DISPATCH_PR head and correlated Vercel deployment. Final physical Dispatch verification is now required on the actual device/workstation before this UAT tranche is considered physically certified. Run: $WORKFLOW_RUN_URL"
+Automated APPVERSE AI-UAT completed successfully against the exact PR #$DISPATCH_PR head and Vercel-authored deployment. Final physical Dispatch verification is now required on the actual device/workstation before this UAT tranche is physically certified. Run: $WORKFLOW_RUN_URL"
       comment_once 437 "$marker" "$body"
     else
       marker="APPVERSE_CONTROLLER:AI_UAT_FAILED:${WORKFLOW_RUN_ID}"
       body="$marker
 
-APPVERSE AI-UAT reported a software failure/blocker for the correlated exact-head deployment. Physical sign-off is not requested until the automated evidence is reviewed and corrected. Run: $WORKFLOW_RUN_URL"
+APPVERSE AI-UAT reported a software failure/blocker for the correlated exact-head Vercel deployment. Physical sign-off is not requested until the automated evidence is reviewed and corrected. Run: $WORKFLOW_RUN_URL"
       comment_once 437 "$marker" "$body"
     fi
   fi
