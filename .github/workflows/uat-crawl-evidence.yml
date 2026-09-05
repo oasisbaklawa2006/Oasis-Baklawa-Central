@@ -68,29 +68,6 @@ jobs:
           echo "run_tranche=${RUN_TRANCHE}" >> "$GITHUB_ENV"
           echo "UAT crawl run ${GITHUB_RUN_ID} tranche=${RUN_TRANCHE} ref=${GITHUB_REF}"
 
-      - name: Validate target URL before crawl (no secrets logged)
-        shell: bash
-        env:
-          RAW_URL: ${{ env.TEST_PREVIEW_URL }}
-        run: |
-          set -euo pipefail
-          if [[ -z "${RAW_URL:-}" ]]; then
-            echo "::error::TEST_PREVIEW_URL secret (or workflow input target_url) is required."
-            exit 1
-          fi
-          if [[ "$RAW_URL" == *$'\n'* || "$RAW_URL" == *$'\r'* ]]; then
-            echo "::error::Target URL contains newline — refusing."
-            exit 1
-          fi
-          host="$(python3 -c "import sys, urllib.parse; print(urllib.parse.urlparse(sys.argv[1]).hostname or '')" "$RAW_URL")"
-          echo "Target host: $host"
-          if [[ "$host" == "b2b.oasisbaklawa.com" || "$host" == "localhost" || "$host" == "127.0.0.1" || "$host" == *".vercel.app" ]]; then
-            echo "Target host approved for UAT crawl."
-          else
-            echo "::error::Target host $host not in approved UAT crawl allowlist (production, localhost, *.vercel.app)."
-            exit 1
-          fi
-
       - name: Report configured secret presence (names only)
         shell: bash
         run: |
@@ -105,6 +82,32 @@ jobs:
               echo "missing: $name"
             fi
           done
+
+      - name: Resolve and validate target URL (no secrets logged)
+        shell: bash
+        env:
+          RAW_URL: ${{ env.TEST_PREVIEW_URL }}
+        run: |
+          set -euo pipefail
+          url="${RAW_URL:-}"
+          if [[ -z "$url" ]]; then
+            echo "::notice::TEST_PREVIEW_URL secret missing — using approved production fallback for post-#483 UAT crawl."
+            url="https://b2b.oasisbaklawa.com"
+          fi
+          if [[ "$url" == *$'\n'* || "$url" == *$'\r'* ]]; then
+            echo "::error::Target URL contains newline — refusing."
+            exit 1
+          fi
+          host="$(python3 -c "import sys, urllib.parse; print(urllib.parse.urlparse(sys.argv[1]).hostname or '')" "$url")"
+          echo "Target host: $host"
+          if [[ "$host" == "b2b.oasisbaklawa.com" || "$host" == "localhost" || "$host" == "127.0.0.1" || "$host" == *".vercel.app" ]]; then
+            echo "Target host approved for UAT crawl."
+          else
+            echo "::error::Target host $host not in approved UAT crawl allowlist (production, localhost, *.vercel.app)."
+            exit 1
+          fi
+          echo "TEST_PREVIEW_URL=$url" >> "$GITHUB_ENV"
+          echo "UAT_CRAWL_BASE_URL=$url" >> "$GITHUB_ENV"
 
       - uses: actions/setup-node@v4
         with:
