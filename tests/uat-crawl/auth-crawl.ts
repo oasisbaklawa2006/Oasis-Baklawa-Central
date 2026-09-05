@@ -229,17 +229,22 @@ export async function crawlTargetAuthenticated(
   }
 
   const { email, password } = getCredentials(creds.prefix);
-  await login(page, email, password);
+  let loginError: string | null = null;
+  try {
+    await login(page, email, password);
+  } catch (err) {
+    loginError = err instanceof Error ? err.message.slice(0, 300) : String(err);
+  }
   await page.goto(routePath, { waitUntil: "domcontentloaded", timeout: 60_000 });
   await page.waitForTimeout(3500);
 
   const url = page.url();
   const title = await page.title();
-  const stillOnLogin = url.includes("/login");
+  const stillOnLogin = Boolean(loginError) || url.includes("/login");
 
   if (stillOnLogin) {
     failures.push(
-      `| FAIL-AUTH-LOGIN-${target.uatId.slice(-4)} | ${target.uatId} | central | ${target.persona} | ${opts.deviceLabel} | ${target.route} | Login with ${creds.prefix} | Session established | Still on login after credential use | P1 | pre-auth preserved | — | Auth rerun | Central | Auth | Verify ${creds.prefix}_* identity role map |`,
+      `| FAIL-AUTH-LOGIN-${target.uatId.slice(-4)} | ${target.uatId} | central | ${target.persona} | ${opts.deviceLabel} | ${target.route} | Login with ${creds.prefix} | Session established | ${loginError ?? "Still on login after credential use"} | P1 | pre-auth preserved | — | Auth rerun | Central | Auth/Network | Verify ${creds.prefix}_* and crawl target URL |`,
     );
   }
 
