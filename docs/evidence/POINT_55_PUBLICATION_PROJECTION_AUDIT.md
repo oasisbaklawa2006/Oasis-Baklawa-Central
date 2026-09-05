@@ -3,7 +3,7 @@
 **Workstation:** Central Point 55 (immutable original scope)  
 **Dependency:** Core Point 54 read contract (`published_products_v1()`) — evidence-backed complete  
 **Census head:** `ace340fe` (rebased onto `main` after #483 merge)  
-**Verdict:** Point 55 **implementation complete** at `fb22f52f`. **Runtime validation complete** at `2c0d9d79` (local + CI). **Docs remediation validated** at `0af9797b` (docs-only, 14/14 CI green). Programme clearance **NOT CLEARED** (`PR MERGED ≠ STAGE CLEARED`). No shadow publication table. No Buyer Point 56 scope absorbed.
+**Verdict:** Point 55 **implementation complete** at `fb22f52f`. **Runtime validation complete** at `2c0d9d79`. Evidence ledger updates are docs-only (no runtime delta). Programme clearance **NOT CLEARED** (`PR MERGED ≠ STAGE CLEARED`). No shadow publication table. No Buyer Point 56 scope absorbed.
 
 ## Consumer census
 
@@ -72,31 +72,41 @@ Rebased onto `origin/main` at `ace340fe` (#483 merge). **No runtime delta** sinc
 | Repo ownership boundaries | PASS | `npm run check:boundaries` |
 | Release controller policy | PASS | `npm run test:release-controller` |
 
-### Runtime validation (PASS at `2c0d9d79` — unchanged by docs-only head)
+### Runtime validation — commit-scoped CI (PASS at `2c0d9d79`)
 
-| Gate | Result | Evidence |
-|---|---|---|
-| Release Quality Gate | PASS | [run 33989614451](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/33989614451) |
-| Repo ownership boundaries (CI) | PASS | [run 33989614456](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/33989614456) |
-| CodeQL | PASS | [run 101369447020](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/runs/101369447020) |
-| Codacy | PASS | [PR #484](https://app.codacy.com/gh/oasisbaklawa2006/Oasis-Baklawa-Central/pull-requests/484) |
-| Snyk | PASS | [PR check](https://app.snyk.io/org/oasisbaklawa2006/pr-checks/f449436e-9621-47f8-9dc9-f794d119c830) |
-| CodeRabbit | PASS | Review completed |
-| Vercel preview | PASS | [deployment](https://vercel.com/oasisbaklawa2006-6222s-projects/oasis-baklawa-central/12bMoQownU75oMMa3ZYkikFRxsw8) |
+| Gate | Scope | Result | Evidence |
+|---|---|---|---|
+| Release Quality Gate | commit | PASS | [run 33989614451](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/33989614451) @ `2c0d9d79` |
+| Repo ownership boundaries (CI) | commit | PASS | [run 33989614456](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/33989614456) @ `2c0d9d79` |
+| CodeQL | commit | PASS | [run 101369447020](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/runs/101369447020) @ `2c0d9d79` |
+| Codacy | commit | PASS | [PR #484](https://app.codacy.com/gh/oasisbaklawa2006/Oasis-Baklawa-Central/pull-requests/484) @ `2c0d9d79` |
+| Vercel preview | commit | PASS | [deployment](https://vercel.com/oasisbaklawa2006-6222s-projects/oasis-baklawa-central/12bMoQownU75oMMa3ZYkikFRxsw8) @ `2c0d9d79` |
 
-### Docs-only exact-head validation (PASS at `0af9797b`)
+### Runtime validation — PR-scoped review gates (PASS; status bound to `2c0d9d79`)
 
-| Gate | Result | Evidence |
-|---|---|---|
-| Release Quality Gate | PASS | [run 33992386770](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/33992386770) |
-| Repo ownership boundaries (CI) | PASS | [run 33992386744](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/33992386744) |
-| CodeQL | PASS | [run 101376868285](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/runs/101376868285) |
-| Codacy | PASS | [PR #484](https://app.codacy.com/gh/oasisbaklawa2006/Oasis-Baklawa-Central/pull-requests/484) |
-| Snyk | PASS | [PR check](https://app.snyk.io/org/oasisbaklawa2006/pr-checks/95f4c8f7-5ca2-4e2a-9a53-2b6a99366ce8) |
-| CodeRabbit | PASS | Finding resolved |
-| Vercel preview | PASS | [deployment](https://vercel.com/oasisbaklawa2006-6222s-projects/oasis-baklawa-central/37uGrks8s8TMSR93MWToJSsqHotH) |
+| Gate | Scope | Result | Evidence |
+|---|---|---|---|
+| Snyk | PR-level URL | PASS | [PR check](https://app.snyk.io/org/oasisbaklawa2006/pr-checks/f449436e-9621-47f8-9dc9-f794d119c830); commit status on `2c0d9d79` |
+| CodeRabbit | PR-level | PASS | Review completed; commit status on `2c0d9d79` |
 
-**14/14 CI checks green at runtime head `2c0d9d79` and at docs-only exact head `0af9797b`.**
+### Docs-only exact-head validation — commit-scoped CI (PASS at `0af9797b`)
+
+| Gate | Scope | Result | Evidence |
+|---|---|---|---|
+| Release Quality Gate | commit | PASS | [run 33992386770](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/33992386770) @ `0af9797b` |
+| Repo ownership boundaries (CI) | commit | PASS | [run 33992386744](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/33992386744) @ `0af9797b` |
+| CodeQL | commit | PASS | [run 101376868285](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/runs/101376868285) @ `0af9797b` |
+| Codacy | commit | PASS | [PR #484](https://app.codacy.com/gh/oasisbaklawa2006/Oasis-Baklawa-Central/pull-requests/484) @ `0af9797b` |
+| Vercel preview | commit | PASS | [deployment](https://vercel.com/oasisbaklawa2006-6222s-projects/oasis-baklawa-central/37uGrks8s8TMSR93MWToJSsqHotH) @ `0af9797b` |
+
+### Docs-only exact-head validation — PR-scoped review gates (PASS; status bound to `0af9797b`)
+
+| Gate | Scope | Result | Evidence |
+|---|---|---|---|
+| Snyk | PR-level URL | PASS | [PR check](https://app.snyk.io/org/oasisbaklawa2006/pr-checks/95f4c8f7-5ca2-4e2a-9a53-2b6a99366ce8); commit status on `0af9797b` |
+| CodeRabbit | PR-level | PASS | Finding resolved; commit status on `0af9797b` |
+
+**Commit-scoped checks: PASS at runtime head `2c0d9d79` and docs head `0af9797b`. PR-scoped Snyk/CodeRabbit: PASS with commit status on each head (excluded from commit-scoped count).**
 
 **Prior head `bdc37771` collaborator approval is invalidated by rebase.** Fresh approval required on each subsequent head change.
 
@@ -106,11 +116,11 @@ Rebased onto `origin/main` at `ace340fe` (#483 merge). **No runtime delta** sinc
 |---|---|
 | Point 55 implementation (Central software delta) | **COMPLETE** at `fb22f52f` (rebased onto `ace340fe`) |
 | Point 55 runtime validation (local + CI/review) | **COMPLETE** at `2c0d9d79` |
-| Point 55 docs remediation + exact-head validation | **COMPLETE** at `0af9797b` (docs-only, no runtime delta) |
+| Point 55 docs remediation + exact-head validation | **COMPLETE** (docs-only; commit-scoped + PR-scoped gates recorded) |
 | PR merge | **BLOCKED** — fresh collaborator approval required on current head |
 | Point 55 programme strike (#459) | **NOT CLEARED** — `PR MERGED ≠ STAGE CLEARED` |
 | Runtime / physical UAT (#462) | **NOT STARTED** — return to Mission Control for operator evidence |
 
 ## Stop condition
 
-Implementation complete at `fb22f52f`; runtime validation complete at `2c0d9d79`; docs remediation validated at `0af9797b`. **Do not merge** until fresh collaborator approval on current head. `PR MERGED ≠ STAGE CLEARED`.
+Implementation complete at `fb22f52f`; runtime validation complete at `2c0d9d79`; evidence ledger current. **Do not merge** until fresh collaborator approval on current head. `PR MERGED ≠ STAGE CLEARED`.
