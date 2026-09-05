@@ -76,7 +76,7 @@ async function executeCase(
 async function expectCleanLoginDenial(page: Page, context: string) {
   await expect(page, `${context} must land on the canonical Login route`).toHaveURL(/\/login(?:$|\?|\/)/, { timeout: 8_000 });
   await expect(page.getByRole("heading", { name: /^Welcome Back$/i }), `${context} must render the canonical Login heading`).toBeVisible({ timeout: 8_000 });
-  await expect(page.getByRole("button", { name: /Mobile Verification/i }), `${context} must render the canonical authentication control`).toBeVisible({ timeout: 8_000 });
+  await expect(page.getByRole("button", { name: /^Mobile Verification$/i }), `${context} must render the canonical authentication control`).toBeVisible({ timeout: 8_000 });
   await expect(page.getByText(/404|page not found|something went wrong|unexpected error/i)).toHaveCount(0);
 }
 
