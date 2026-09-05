@@ -140,3 +140,30 @@ Functional + UX failures. UX criteria authority: [`UAT_UX_FAILURE_MATRIX.md`](./
 ---
 
 ## tranche-03-auth crawl failures (2026-09-05)
+
+---
+
+## post-fix-483 (#483 deploy ace340fe) crawl failures (2026-09-05)
+
+### Functional / access / blocked
+
+| FAIL-ID | UAT-ID | App | Role | Device | Route/Page | Function | Expected | Actual | Severity | Screenshot(s) | Console/Network | Repro | Owning repo | Layer | Fix dependency |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| FAIL-AUTH-CRED-0018 | UAT-0018 | central | ADMIN_SALES | phone | /admin/clients [sheet-review-open] | Post-fix #483 retest | Authenticated sheet S0–S3 | BLOCKED — missing TEST_SALES_EMAIL, TEST_SALES_PASSWORD | P0 | pre-fix preserved | — | Post-fix #483 | Central | Deploy/Auth | TEST_SALES_EMAIL, TEST_SALES_PASSWORD |
+| FAIL-AUTH-CRED-0020 | UAT-0020 | central | ADMIN_SALES | phone | /admin/approvals [sheet-review-open] | Post-fix #483 retest | Authenticated sheet S0–S3 | BLOCKED — missing TEST_SALES_EMAIL, TEST_SALES_PASSWORD | P0 | pre-fix preserved | — | Post-fix #483 | Central | Deploy/Auth | TEST_SALES_EMAIL, TEST_SALES_PASSWORD |
+
+---
+
+## auth-rerun (authenticated repair) crawl failures (2026-09-05)
+
+### Functional / access / blocked
+
+| FAIL-ID | UAT-ID | App | Role | Device | Route/Page | Function | Expected | Actual | Severity | Screenshot(s) | Console/Network | Repro | Owning repo | Layer | Fix dependency |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| FAIL-AUTH-CRED-0003 | UAT-0003 | central | GATE_SECURITY | desktop | /security-gate | Authenticated crawl | Logged-in role surface | BLOCKED — missing secret(s): TEST_GATE_SECURITY_EMAIL, TEST_GATE_SECURITY_PASSWORD | P1 | pre-auth preserved | — | Auth rerun | Central | Deploy/Auth | TEST_GATE_SECURITY_EMAIL, TEST_GATE_SECURITY_PASSWORD |
+| FAIL-AUTH-CRED-0006 | UAT-0006 | central | BUYER | phone | /buyer/access-request | Authenticated crawl | Logged-in role surface | BLOCKED — missing secret(s): TEST_BUYER_EMAIL, TEST_BUYER_PASSWORD | P1 | pre-auth preserved | — | Auth rerun | Central | Deploy/Auth | TEST_BUYER_EMAIL, TEST_BUYER_PASSWORD |
+| FAIL-AUTH-CRED-0007 | UAT-0007 | central | BUYER | phone | /buyer/* | Authenticated crawl | Logged-in role surface | BLOCKED — missing secret(s): TEST_BUYER_EMAIL, TEST_BUYER_PASSWORD | P1 | pre-auth preserved | — | Auth rerun | Central | Deploy/Auth | TEST_BUYER_EMAIL, TEST_BUYER_PASSWORD |
+
+---
+
+## tranche-03-auth crawl failures (2026-09-05)
