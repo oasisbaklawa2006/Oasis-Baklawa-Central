@@ -119,6 +119,10 @@ jobs:
         if: steps.changes.outputs.app == 'true' || steps.changes.outputs.migration == 'true' || steps.changes.outputs.tooling == 'true' || steps.changes.outputs.tests == 'true'
         run: npm run test
 
+      - name: APPVERSE release controller regression tests
+        if: steps.changes.outputs.tooling == 'true'
+        run: npm run test:release-controller
+
       - name: Production build
         if: steps.changes.outputs.app == 'true' || steps.changes.outputs.ui == 'true' || steps.changes.outputs.tooling == 'true'
         env:

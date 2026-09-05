@@ -1,10 +1,19 @@
 name: APPVERSE AI UAT
+run-name: APPVERSE AI UAT ${{ inputs.dispatch_head_sha }} deployment-${{ inputs.deployment_id }}
 
 on:
   workflow_dispatch:
     inputs:
       target_url:
-        description: "Oasis-team Vercel preview URL (validated before QA secrets are bound)"
+        description: "Exact Oasis-team Vercel preview URL for the governed Dispatch head"
+        required: true
+        type: string
+      dispatch_head_sha:
+        description: "Exact governed Dispatch PR head SHA"
+        required: true
+        type: string
+      deployment_id:
+        description: "GitHub deployment id created by Vercel for dispatch_head_sha"
         required: true
         type: string
       enable_ai:
@@ -25,33 +34,46 @@ on:
 
 permissions:
   contents: read
+  deployments: read
 
 concurrency:
-  group: appverse-ai-uat-${{ github.ref }}
+  group: appverse-ai-uat-${{ inputs.dispatch_head_sha }}-${{ inputs.deployment_id }}
   cancel-in-progress: false
 
 jobs:
   validate-target:
-    name: Validate AI-UAT target before secrets
+    name: Validate exact-head AI-UAT target before secrets
     runs-on: ubuntu-latest
-    timeout-minutes: 2
+    timeout-minutes: 3
     outputs:
       url: ${{ steps.target.outputs.url }}
     steps:
-      - name: Validate Oasis Vercel preview target
+      - name: Validate exact Vercel deployment evidence
         id: target
         shell: bash
         env:
+          GH_TOKEN: ${{ github.token }}
           INPUT_URL: ${{ inputs.target_url }}
+          INPUT_HEAD: ${{ inputs.dispatch_head_sha }}
+          INPUT_DEPLOYMENT_ID: ${{ inputs.deployment_id }}
         run: |
           set -euo pipefail
-          url="$INPUT_URL"
-          if [[ -z "$url" || "$url" == *$'\n'* || "$url" == *$'\r'* ]]; then
+
+          if [[ ! "$INPUT_HEAD" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::dispatch_head_sha must be an exact 40-character commit SHA."
+            exit 1
+          fi
+          if [[ ! "$INPUT_DEPLOYMENT_ID" =~ ^[0-9]+$ ]]; then
+            echo "::error::deployment_id must be numeric."
+            exit 1
+          fi
+          if [[ -z "$INPUT_URL" || "$INPUT_URL" == *$'\n'* || "$INPUT_URL" == *$'\r'* ]]; then
             echo "::error::AI-UAT target URL is missing or contains a newline/carriage return."
             exit 1
           fi
 
-          python3 - "$url" <<'PY' > /tmp/ai-uat-target.txt
+          normalize_url() {
+            python3 - "$1" <<'PY'
           import sys
           from urllib.parse import urlparse, urlunparse
 
@@ -69,13 +91,51 @@ jobs:
           if not host.endswith(allowed_suffix):
               raise SystemExit(f'AI-UAT host "{host}" is not an approved Oasis-team Vercel preview host')
 
-          clean = urlunparse(("https", parsed.netloc, parsed.path.rstrip("/") or "", "", "", ""))
-          print(clean)
+          print(urlunparse(("https", parsed.netloc, parsed.path.rstrip("/") or "", "", "", "")))
           PY
+          }
 
-          clean_url="$(cat /tmp/ai-uat-target.txt)"
-          echo "url=$clean_url" >> "$GITHUB_OUTPUT"
-          echo "Validated non-production AI-UAT target host."
+          clean_input="$(normalize_url "$INPUT_URL")"
+          deployment="$(gh api "repos/$GITHUB_REPOSITORY/deployments/$INPUT_DEPLOYMENT_ID")"
+          deployment_sha="$(jq -r '.sha // empty' <<<"$deployment")"
+          deployment_app="$(jq -r '.performed_via_github_app.slug // empty' <<<"$deployment")"
+          deployment_creator="$(jq -r '.creator.login // empty' <<<"$deployment")"
+
+          if [[ "$deployment_sha" != "$INPUT_HEAD" ]]; then
+            echo "::error::Deployment $INPUT_DEPLOYMENT_ID is not bound to Dispatch head $INPUT_HEAD."
+            exit 1
+          fi
+          if [[ "$deployment_app" != "vercel" && "$deployment_creator" != "vercel[bot]" ]]; then
+            echo "::error::Deployment $INPUT_DEPLOYMENT_ID is not Vercel-authored."
+            exit 1
+          fi
+
+          statuses="$(gh api --paginate --slurp -X GET "repos/$GITHUB_REPOSITORY/deployments/$INPUT_DEPLOYMENT_ID/statuses?per_page=100")"
+          status="$(jq '
+            [.[][]
+              | select(.state == "success")
+              | select((.environment_url // "") != "")
+              | select(
+                  ((.performed_via_github_app.slug // "") == "vercel")
+                  or ((.creator.login // "") == "vercel[bot]")
+                )]
+            | sort_by(.created_at)
+            | last // {}
+          ' <<<"$statuses")"
+          status_url="$(jq -r '.environment_url // empty' <<<"$status")"
+          if [[ -z "$status_url" ]]; then
+            echo "::error::No successful Vercel-authored deployment status exists for deployment $INPUT_DEPLOYMENT_ID."
+            exit 1
+          fi
+
+          clean_status="$(normalize_url "$status_url")"
+          if [[ "$clean_input" != "$clean_status" ]]; then
+            echo "::error::Requested AI-UAT target does not equal the Vercel-authored environment URL for the exact deployment."
+            exit 1
+          fi
+
+          echo "url=$clean_status" >> "$GITHUB_OUTPUT"
+          echo "Validated exact Dispatch head, Vercel deployment provenance, and target URL before secrets."
 
   tranche-1:
     needs: validate-target
@@ -91,12 +151,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
           cache: npm
@@ -127,7 +187,7 @@ jobs:
 
       - name: Upload sanitized AI-UAT evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: appverse-ai-uat-${{ github.run_id }}-${{ github.run_attempt }}
           path: |

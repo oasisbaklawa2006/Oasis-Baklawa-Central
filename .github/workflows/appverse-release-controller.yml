@@ -1,0 +1,58 @@
+name: APPVERSE Release Controller
+
+# Trusted-default-branch release state machine for #471 -> #458 -> AI-UAT.
+# Human collaborator approval and final physical UAT remain mandatory.
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_run:
+    workflows:
+      - Dispatch RBAC Production RLS Certification
+      - APPVERSE AI UAT
+    branches: [main]
+    types: [completed]
+
+permissions:
+  actions: write
+  checks: read
+  contents: write
+  deployments: read
+  issues: write
+  pull-requests: write
+  statuses: read
+
+concurrency:
+  group: appverse-release-controller
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    if: github.repository == 'oasisbaklawa2006/Oasis-Baklawa-Central'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      HUMAN_REVIEWER: dineshmutrejabackup-cmd
+      BOOTSTRAP_PR: "471"
+      DISPATCH_PR: "458"
+      RLS_WORKFLOW: dispatch-rls-production-cert.yml
+      AI_UAT_WORKFLOW: appverse-ai-uat.yml
+    steps:
+      - name: Checkout trusted main controller code
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Reconcile governed release state
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          WORKFLOW_RUN_ID: ${{ github.event.workflow_run.id }}
+          WORKFLOW_RUN_NAME: ${{ github.event.workflow_run.name }}
+          WORKFLOW_RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          WORKFLOW_RUN_URL: ${{ github.event.workflow_run.html_url }}
+        run: bash .github/scripts/appverse-release-controller.sh
