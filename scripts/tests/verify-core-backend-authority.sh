@@ -84,4 +84,11 @@ git -C "$root" add supabase/uat/local_integrity.sql
 git -C "$root" commit -qm "local uat fixture"
 expect_pass "$root" "$base"
 
+root="$(new_fixture tab-pathname-edge-function)"
+base="$(git -C "$root" rev-parse HEAD)"
+tab_dir=$'supabase/functions/shadow\tpath'
+mkdir -p "$root/$tab_dir"
+printf '%s\n' 'export {}' > "$root/$tab_dir/index.ts"
+expect_fail_with "$root" "$base" 'CORE BACKEND AUTHORITY VIOLATION'
+
 echo 'verify-core-backend-authority.sh: all cases passed'
