@@ -36,6 +36,10 @@ import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
+import {
+  buildAccountManagerUsersOrFilter,
+  isAccountManagerEligibleUser,
+} from "@/lib/client-governance/accountManagerRoles";
 
 /* ─── types ─── */
 interface Application {
@@ -154,13 +158,15 @@ const AdminClients = () => {
     supabase
       .from("users")
       .select("id, full_name, email, role, is_sales_executive")
-      .or("role.eq.sales_executive,role.eq.admin,role.eq.super_admin,is_sales_executive.eq.true")
+      .or(buildAccountManagerUsersOrFilter())
       .eq("is_active", true)
       .then(({ data }) => {
-        const mgrs = ((data as { id: string; full_name: string | null; email: string | null }[]) ?? []).map((u) => ({
-          id: u.id,
-          label: u.full_name || u.email || u.id,
-        }));
+        const mgrs = (data ?? [])
+          .filter((u) => isAccountManagerEligibleUser(u.role, u.is_sales_executive))
+          .map((u) => ({
+            id: u.id,
+            label: u.full_name || u.email || u.id,
+          }));
         setManagers(mgrs);
       });
 

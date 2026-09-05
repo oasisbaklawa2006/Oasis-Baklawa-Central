@@ -156,6 +156,7 @@
  *   z-[180]: AdminHelpSidebar panel  |  page-level custom backdrops
  *   z-[190]: page-level custom drawers / panels
  *   z-[200]: Radix Dialog / Sheet overlay + content  ← always above everything above
+ *   z-[210]: Radix Select portal content (must sit above Dialog/Sheet, below lightboxes)
  *   z-[250]: lightboxes (War Room attachment zoom)
  *   z-[9999]: PremiumAnnouncementOverlay (global, untouched)
  *
