@@ -22,6 +22,7 @@ import AppverseAdminHome from "@/pages/admin/AppverseAdminHome";
 import { signOutAndClearSession } from "@/utils/authSession";
 import { useAdminRealtimeToasts } from "@/hooks/useAdminRealtimeToasts";
 import { shouldHideAdvancedGovernanceNav } from "@/lib/golden-chain/operatorNavigation";
+import { isDispatchRole } from "@/lib/auth/securityGatePolicy";
 import { getAllowedModulesForRole, hasModuleAccess, type AppVerseModuleKey } from "@/lib/appverse/roleAccess";
 import { canAccessGoldenChainOperatorRoute } from "@/lib/appverse/routeAccess";
 
@@ -46,7 +47,7 @@ const AdminLayout = () => {
       title: "Command",
       items: [
         { to: "/admin", icon: LayoutDashboard, label: "App-Verse Home", end: true, moduleKey: "dashboard" },
-        { to: "/admin/heartbeat", icon: Gauge, label: "Executive Dashboard", end: false, moduleKey: "dashboard" },
+        { to: "/admin/heartbeat", icon: Gauge, label: "Executive Dashboard", end: false, moduleKey: "cmd_war_room" },
         { to: "/admin/execution-command-center", icon: Gauge, label: "Execution CMD", end: false, moduleKey: "cmd_war_room" },
         { to: "/admin/execution/production", icon: LayoutGrid, label: "Production board", end: false, moduleKey: "production" },
         { to: "/admin/execution/assembly", icon: LayoutGrid, label: "Assembly board", end: false, moduleKey: "production" },
@@ -86,9 +87,9 @@ const AdminLayout = () => {
         { to: "/admin/customer-timeline-preview", icon: CalendarDays, label: "Customer timeline preview", moduleKey: "cmd_war_room" },
         { to: "/admin/operational-search", icon: Search, label: "Operational search", moduleKey: "cmd_war_room" },
         { to: "/admin/golden-chain-operator", icon: Workflow, label: "Golden Chain Operator", moduleKey: "dispatch" },
-        { to: "/admin/dispatch-readiness", icon: ClipboardList, label: "Dispatch readiness (audit)", moduleKey: "dispatch_audit" },
-        { to: "/admin/dispatch-completion", icon: Truck, label: "Dispatch completion (audit)", moduleKey: "dispatch_audit" },
-        { to: "/admin/dispatch-finalization", icon: Truck, label: "Dispatch finalization (audit)", moduleKey: "dispatch_audit" },
+        { to: "/admin/dispatch-readiness", icon: ClipboardList, label: "Dispatch readiness (audit)", moduleKey: "dispatch" },
+        { to: "/admin/dispatch-completion", icon: Truck, label: "Dispatch completion (audit)", moduleKey: "dispatch" },
+        { to: "/admin/dispatch-finalization", icon: Truck, label: "Dispatch finalization (audit)", moduleKey: "dispatch" },
         { to: "/admin/dispatch-mgmt", icon: Truck, label: "Dispatch", moduleKey: "packing" },
         { to: "/security-gate", icon: Shield, label: "Security Gate", moduleKey: "packing" },
       ],
@@ -144,6 +145,8 @@ const AdminLayout = () => {
       items: section.items.filter((item) => {
         if (item.to === "/admin/golden-chain-operator") {
           if (!canAccessGoldenChainOperator()) return false;
+        } else if (item.to === "/security-gate" && isDispatchRole(role)) {
+          return false;
         } else if (!hasAccess(item.moduleKey)) {
           return false;
         }

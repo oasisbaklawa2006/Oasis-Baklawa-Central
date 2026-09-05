@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  canAccessCommercialDispatchTvRoute,
   canAccessGoldenChainOperatorRoute,
   getRequiredModuleForAdminPath,
   isAuthorizedForAdminPath,
@@ -24,9 +25,33 @@ describe("getRequiredModuleForAdminPath", () => {
     expect(getRequiredModuleForAdminPath("/admin/inventory-risk-board")).toBe("inventory");
   });
 
-  it("maps the read-only Dispatch TV surface to the dispatch module, not the dashboard fallback", () => {
-    expect(getRequiredModuleForAdminPath("/admin/dispatch-tv")).toBe("dispatch");
-    expect(getRequiredModuleForAdminPath("/admin/dispatch-tv/anything")).toBe("dispatch");
+  it("maps the read-only Dispatch TV surface to orders (commercial), not the dispatch workflow module", () => {
+    expect(getRequiredModuleForAdminPath("/admin/dispatch-tv")).toBe("orders");
+    expect(getRequiredModuleForAdminPath("/admin/dispatch-tv/anything")).toBe("orders");
+  });
+
+  it("maps Executive Dashboard (heartbeat) to cmd_war_room, not the App-Verse home dashboard", () => {
+    expect(getRequiredModuleForAdminPath("/admin/heartbeat")).toBe("cmd_war_room");
+    expect(getRequiredModuleForAdminPath("/admin")).toBe("dashboard");
+  });
+
+  it("maps legacy commercial packing/dispatch screens to orders, not dispatch workflow modules", () => {
+    expect(getRequiredModuleForAdminPath("/admin/packing-dispatch")).toBe("orders");
+    expect(getRequiredModuleForAdminPath("/admin/dispatch")).toBe("orders");
+    expect(getRequiredModuleForAdminPath("/admin/dispatch-mgmt")).toBe("packing");
+    expect(getRequiredModuleForAdminPath("/admin/dispatch-tv")).toBe("orders");
+  });
+
+  it("maps hyphenated admin routes to their owning modules instead of dashboard fallback", () => {
+    expect(getRequiredModuleForAdminPath("/admin/ready-goods-stock")).toBe("inventory");
+    expect(getRequiredModuleForAdminPath("/admin/ready-goods-day-close")).toBe("inventory");
+    expect(getRequiredModuleForAdminPath("/admin/ready-goods-reports")).toBe("inventory");
+    expect(getRequiredModuleForAdminPath("/admin/production-demand-planner")).toBe("production");
+    expect(getRequiredModuleForAdminPath("/admin/assembly-tv")).toBe("production");
+  });
+
+  it("maps cross-functional target-vs-actual to cmd_war_room", () => {
+    expect(getRequiredModuleForAdminPath("/admin/target-vs-actual")).toBe("cmd_war_room");
   });
 });
 
@@ -42,5 +67,23 @@ describe("golden chain operator route access", () => {
     expect(isAuthorizedForAdminPath("/admin/golden-chain-operator", "FINANCE_HEAD")).toBe(true);
     expect(isAuthorizedForAdminPath("/admin/golden-chain-operator", "PROD_ARABIC_SWEETS")).toBe(false);
     expect(isAuthorizedForAdminPath("/admin/dispatch-readiness", "FINANCE_HEAD")).toBe(false);
+  });
+
+  it("denies Dispatch roles from commercial Dispatch TV and dashboard-fallback admin routes", () => {
+    expect(isAuthorizedForAdminPath("/admin/dispatch-tv", "DISPATCH_MANAGER")).toBe(false);
+    expect(isAuthorizedForAdminPath("/admin/ready-goods-stock", "DISPATCH_HEAD")).toBe(false);
+    expect(isAuthorizedForAdminPath("/admin", "DISPATCH_MANAGER")).toBe(true);
+  });
+
+  it("allows TV_DISPLAY and OPERATIONS_MANAGER to reach commercial Dispatch TV", () => {
+    expect(isAuthorizedForAdminPath("/admin/dispatch-tv", "TV_DISPLAY")).toBe(true);
+    expect(isAuthorizedForAdminPath("/admin/dispatch-tv", "OPERATIONS_MANAGER")).toBe(true);
+    expect(canAccessCommercialDispatchTvRoute("TV_DISPLAY")).toBe(true);
+    expect(canAccessCommercialDispatchTvRoute("OPERATIONS_MANAGER")).toBe(true);
+  });
+
+  it("keeps TV_DISPLAY off other orders-mapped admin routes", () => {
+    expect(isAuthorizedForAdminPath("/admin/order-management", "TV_DISPLAY")).toBe(false);
+    expect(isAuthorizedForAdminPath("/admin/packing-dispatch", "TV_DISPLAY")).toBe(false);
   });
 });

@@ -48,4 +48,10 @@ describe("App-Verse TV registry", () => {
   it("allows administrators to inspect every display surface", () => {
     expect(getTvSurfacesForRole("ADMIN")).toHaveLength(APPVERSE_TV_SURFACES.length);
   });
+
+  it("excludes Dispatch workflow roles from the commercial Dispatch TV surface", () => {
+    for (const role of ["DISPATCH_MANAGER", "DISPATCH_INCHARGE", "DISPATCH_HEAD"]) {
+      expect(getTvSurfacesForRole(role).map((surface) => surface.route)).not.toContain("/admin/dispatch-tv");
+    }
+  });
 });

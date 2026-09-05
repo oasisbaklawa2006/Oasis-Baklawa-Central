@@ -44,4 +44,21 @@ describe("App-Verse role-aware Home model", () => {
   it("keeps dedicated TV roles action-free", () => {
     expect(getRoleHomeDefinition("TV_DISPLAY").cards).toEqual([]);
   });
+
+  it.each(["DISPATCH_MANAGER", "DISPATCH_INCHARGE", "DISPATCH_HEAD"])(
+    "keeps %s on governed dispatch workflow routes only",
+    (role) => {
+      const cards = getVisibleRoleHomeCards(role, ["dashboard", "packing", "dispatch"]);
+      expect(cards.map((card) => card.route)).toEqual([
+        "/admin/golden-chain-operator",
+        "/admin/dispatch-mgmt",
+        "/admin/dispatch-readiness",
+        "/admin/dispatch-completion",
+        "/admin/dispatch-finalization",
+      ]);
+      expect(cards.some((card) => card.route.includes("order-management"))).toBe(false);
+      expect(cards.some((card) => card.route.includes("scan-timeline"))).toBe(false);
+      expect(cards.some((card) => card.route === "/security-gate")).toBe(false);
+    },
+  );
 });

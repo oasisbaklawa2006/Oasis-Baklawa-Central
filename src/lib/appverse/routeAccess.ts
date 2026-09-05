@@ -1,3 +1,4 @@
+import { isDispatchRole } from "@/lib/auth/securityGatePolicy";
 import {
   getAllowedModulesForRole,
   hasModuleAccess,
@@ -5,8 +6,10 @@ import {
 } from "./roleAccess";
 
 export const GOLDEN_CHAIN_OPERATOR_ROUTE = "/admin/golden-chain-operator";
+export const COMMERCIAL_DISPATCH_TV_ROUTE = "/admin/dispatch-tv";
 
 const GOLDEN_CHAIN_OPERATOR_MODULE_KEYS: AppVerseModuleKey[] = ["dispatch", "finance", "inventory"];
+const COMMERCIAL_DISPATCH_TV_KIOSK_ROLES = new Set(["TV_DISPLAY"]);
 
 const ADMIN_ROUTE_MODULES: Array<{ prefix: string; moduleKey: AppVerseModuleKey }> = [
   { prefix: "/admin/execution/production", moduleKey: "production" },
@@ -59,6 +62,11 @@ const ADMIN_ROUTE_MODULES: Array<{ prefix: string; moduleKey: AppVerseModuleKey 
   { prefix: "/admin/inventory-risk-board", moduleKey: "inventory" },
   { prefix: "/admin/scan-timeline", moduleKey: "inventory" },
   { prefix: "/admin/ready-goods", moduleKey: "inventory" },
+  { prefix: "/admin/ready-goods-stock", moduleKey: "inventory" },
+  { prefix: "/admin/ready-goods-day-close", moduleKey: "inventory" },
+  { prefix: "/admin/ready-goods-reports", moduleKey: "inventory" },
+  { prefix: "/admin/production-demand-planner", moduleKey: "production" },
+  { prefix: "/admin/assembly-tv", moduleKey: "production" },
   { prefix: "/admin/rgs-tv", moduleKey: "inventory" },
   { prefix: "/admin/3pgs-packing-material", moduleKey: "inventory" },
   { prefix: "/admin/3pgs-procurement-queue", moduleKey: "inventory" },
@@ -68,13 +76,13 @@ const ADMIN_ROUTE_MODULES: Array<{ prefix: string; moduleKey: AppVerseModuleKey 
   { prefix: "/admin/inventory", moduleKey: "inventory" },
   { prefix: "/admin/reservation-board", moduleKey: "inventory_audit" },
   { prefix: "/admin/stock-finalization", moduleKey: "inventory_audit" },
-  { prefix: "/admin/packing-dispatch", moduleKey: "packing" },
+  { prefix: "/admin/packing-dispatch", moduleKey: "orders" },
   { prefix: "/admin/dispatch-mgmt", moduleKey: "packing" },
   { prefix: "/admin/dispatch-readiness", moduleKey: "dispatch" },
   { prefix: "/admin/dispatch-completion", moduleKey: "dispatch" },
   { prefix: "/admin/dispatch-finalization", moduleKey: "dispatch" },
-  { prefix: "/admin/dispatch-tv", moduleKey: "dispatch" },
-  { prefix: "/admin/dispatch", moduleKey: "dispatch" },
+  { prefix: "/admin/dispatch-tv", moduleKey: "orders" },
+  { prefix: "/admin/dispatch", moduleKey: "orders" },
   { prefix: "/admin/golden-chain-operator", moduleKey: "dispatch" },
   { prefix: "/admin/users", moduleKey: "users" },
   { prefix: "/admin/roles", moduleKey: "users" },
@@ -85,8 +93,8 @@ const ADMIN_ROUTE_MODULES: Array<{ prefix: string; moduleKey: AppVerseModuleKey 
   { prefix: "/admin/display-management", moduleKey: "settings" },
   { prefix: "/admin/audit", moduleKey: "audit" },
   { prefix: "/admin/department", moduleKey: "audit" },
-  { prefix: "/admin/target-vs-actual", moduleKey: "dashboard" },
-  { prefix: "/admin/heartbeat", moduleKey: "dashboard" },
+  { prefix: "/admin/target-vs-actual", moduleKey: "cmd_war_room" },
+  { prefix: "/admin/heartbeat", moduleKey: "cmd_war_room" },
   { prefix: "/admin", moduleKey: "dashboard" },
 ];
 
@@ -103,6 +111,18 @@ function isGoldenChainOperatorPath(pathname: string): boolean {
   return pathname === GOLDEN_CHAIN_OPERATOR_ROUTE || pathname.startsWith(`${GOLDEN_CHAIN_OPERATOR_ROUTE}/`);
 }
 
+function isCommercialDispatchTvPath(pathname: string): boolean {
+  return pathname === COMMERCIAL_DISPATCH_TV_ROUTE || pathname.startsWith(`${COMMERCIAL_DISPATCH_TV_ROUTE}/`);
+}
+
+/** Kiosk TV_DISPLAY gets dispatch-tv only; other roles use standard orders module authority. */
+export function canAccessCommercialDispatchTvRoute(role: string | null | undefined): boolean {
+  const normalized = role?.trim().toUpperCase();
+  if (!normalized) return false;
+  if (COMMERCIAL_DISPATCH_TV_KIOSK_ROLES.has(normalized)) return true;
+  return hasModuleAccess(getAllowedModulesForRole(role), "orders");
+}
+
 /** Phase 24L pilot: finance and inventory operators share the wizard with dispatch. */
 export function canAccessGoldenChainOperatorRoute(role: string | null | undefined): boolean {
   const allowedModules = getAllowedModulesForRole(role);
@@ -113,7 +133,13 @@ export function canAccessGoldenChainOperatorRoute(role: string | null | undefine
 export function isAuthorizedForAdminPath(pathname: string, role: string | null | undefined): boolean {
   if (!pathname.startsWith("/admin")) return true;
   if (isGoldenChainOperatorPath(pathname)) return canAccessGoldenChainOperatorRoute(role);
+  if (isCommercialDispatchTvPath(pathname)) return canAccessCommercialDispatchTvRoute(role);
   const requiredModule = getRequiredModuleForAdminPath(pathname);
+  // P0 #456: Dispatch roles may use App-Verse home (/admin) only via dashboard;
+  // any other unmapped /admin path that falls back to dashboard must fail closed.
+  if (isDispatchRole(role) && requiredModule === "dashboard" && pathname !== "/admin") {
+    return false;
+  }
   const allowedModules = getAllowedModulesForRole(role);
   return requiredModule !== null && hasModuleAccess(allowedModules, requiredModule);
 }
