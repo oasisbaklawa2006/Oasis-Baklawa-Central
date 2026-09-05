@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
+  ACCOUNT_MANAGER_CANONICAL_ROLES,
   ACCOUNT_MANAGER_ELIGIBLE_ROLES,
-  ACCOUNT_MANAGER_ROLE_DB_VALUES,
   buildAccountManagerUsersOrFilter,
   isAccountManagerEligibleUser,
 } from "../accountManagerRoles";
@@ -12,6 +12,7 @@ describe("accountManagerRoles", () => {
   it("includes mixed-case production roles after normalization", () => {
     expect(isAccountManagerEligibleUser("SALES_EXECUTIVE")).toBe(true);
     expect(isAccountManagerEligibleUser("sales_executive")).toBe(true);
+    expect(isAccountManagerEligibleUser("Sales_Executive")).toBe(true);
     expect(isAccountManagerEligibleUser("ADMIN")).toBe(true);
     expect(isAccountManagerEligibleUser("admin")).toBe(true);
     expect(isAccountManagerEligibleUser("SUPER_ADMIN")).toBe(true);
@@ -29,22 +30,18 @@ describe("accountManagerRoles", () => {
     expect(isAccountManagerEligibleUser(null)).toBe(false);
   });
 
-  it("exposes canonical eligible roles and legacy DB values for PostgREST filters", () => {
+  it("exposes canonical eligible roles for PostgREST ilike filters", () => {
     expect(ACCOUNT_MANAGER_ELIGIBLE_ROLES.has("SALES_EXECUTIVE")).toBe(true);
-    expect(ACCOUNT_MANAGER_ROLE_DB_VALUES).toEqual(
-      expect.arrayContaining(["SALES_EXECUTIVE", "sales_executive", "ADMIN", "admin", "SUPER_ADMIN", "super_admin"]),
-    );
+    expect(ACCOUNT_MANAGER_CANONICAL_ROLES).toEqual(["SALES_EXECUTIVE", "ADMIN", "SUPER_ADMIN"]);
   });
 
-  it("builds an OR filter that includes uppercase and lowercase role variants", () => {
+  it("builds a case-insensitive OR filter so mixed-case production roles are not excluded", () => {
     const filter = buildAccountManagerUsersOrFilter();
-    expect(filter).toContain("role.eq.SALES_EXECUTIVE");
-    expect(filter).toContain("role.eq.sales_executive");
-    expect(filter).toContain("role.eq.ADMIN");
-    expect(filter).toContain("role.eq.admin");
-    expect(filter).toContain("role.eq.SUPER_ADMIN");
-    expect(filter).toContain("role.eq.super_admin");
+    expect(filter).toContain("role.ilike.SALES_EXECUTIVE");
+    expect(filter).toContain("role.ilike.ADMIN");
+    expect(filter).toContain("role.ilike.SUPER_ADMIN");
     expect(filter).toContain("is_sales_executive.eq.true");
+    expect(filter).not.toContain("role.eq.");
   });
 });
 

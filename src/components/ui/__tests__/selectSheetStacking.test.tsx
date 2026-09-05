@@ -45,5 +45,10 @@ describe("Select-in-Sheet stacking contract", () => {
 
     const content = option.closest("[data-radix-select-content]") ?? option.parentElement?.parentElement;
     expect(content?.className).toContain("z-[210]");
+
+    fireEvent.click(option);
+    await waitFor(() => {
+      expect(screen.getByRole("combobox", { name: "Pricing slab" })).toHaveTextContent("Slab A");
+    });
   });
 });

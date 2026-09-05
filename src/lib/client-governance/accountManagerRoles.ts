@@ -7,17 +7,11 @@ export const ACCOUNT_MANAGER_ELIGIBLE_ROLES = new Set([
   "SUPER_ADMIN",
 ]);
 
-/**
- * Legacy + canonical role strings for PostgREST `.in()` filters.
- * Production rows may use mixed case; client-side normalization is the source of truth.
- */
-export const ACCOUNT_MANAGER_ROLE_DB_VALUES = [
+/** Canonical roles used for case-insensitive PostgREST `role.ilike` filters. */
+export const ACCOUNT_MANAGER_CANONICAL_ROLES = [
   "SALES_EXECUTIVE",
-  "sales_executive",
   "ADMIN",
-  "admin",
   "SUPER_ADMIN",
-  "super_admin",
 ] as const;
 
 export function isAccountManagerEligibleUser(
@@ -30,6 +24,6 @@ export function isAccountManagerEligibleUser(
 }
 
 export function buildAccountManagerUsersOrFilter(): string {
-  const roleFilters = ACCOUNT_MANAGER_ROLE_DB_VALUES.map((role) => `role.eq.${role}`).join(",");
+  const roleFilters = ACCOUNT_MANAGER_CANONICAL_ROLES.map((role) => `role.ilike.${role}`).join(",");
   return `${roleFilters},is_sales_executive.eq.true`;
 }

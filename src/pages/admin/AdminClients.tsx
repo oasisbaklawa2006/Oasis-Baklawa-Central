@@ -161,15 +161,7 @@ const AdminClients = () => {
       .or(buildAccountManagerUsersOrFilter())
       .eq("is_active", true)
       .then(({ data }) => {
-        const mgrs = (
-          (data as {
-            id: string;
-            full_name: string | null;
-            email: string | null;
-            role: string | null;
-            is_sales_executive: boolean | null;
-          }[]) ?? []
-        )
+        const mgrs = (data ?? [])
           .filter((u) => isAccountManagerEligibleUser(u.role, u.is_sales_executive))
           .map((u) => ({
             id: u.id,
