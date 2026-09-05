@@ -40,6 +40,7 @@ import {
   buildAccountManagerUsersOrFilter,
   isAccountManagerEligibleUser,
 } from "@/lib/client-governance/accountManagerRoles";
+import { fetchClientGovernanceCounts } from "@/lib/client-governance/clientGovernanceCounts";
 
 /* ─── types ─── */
 interface Application {
@@ -141,6 +142,15 @@ const AdminClients = () => {
   const [isUpdatingCompany, setIsUpdatingCompany] = useState(false);
   const [listError, setListError] = useState<string | null>(null);
 
+  const refreshStableCounts = async () => {
+    const { counts, error } = await fetchClientGovernanceCounts(supabase);
+    if (error || !counts) {
+      console.error("Failed to fetch stable counts:", error);
+      return;
+    }
+    setStableCounts(counts);
+  };
+
   useEffect(() => {
     supabase
       .from("pricing_slabs")
@@ -170,24 +180,7 @@ const AdminClients = () => {
         setManagers(mgrs);
       });
 
-    // Stable counter query — single source of truth with Error Boundary
-    const fetchStableCounts = async () => {
-      try {
-        const [pendingRes, approvedRes, activeRes] = await Promise.all([
-          supabase.from("b2b_applications").select("id", { count: "exact", head: true }).eq("status", "pending"),
-          supabase.from("b2b_applications").select("id", { count: "exact", head: true }).eq("status", "approved"),
-          supabase.from("companies").select("id", { count: "exact", head: true }),
-        ]);
-        setStableCounts({
-          pending: pendingRes.count ?? 0,
-          approved: approvedRes.count ?? 0,
-          active: activeRes.count ?? 0,
-        });
-      } catch (err) {
-        console.error("Failed to fetch stable counts:", err);
-      }
-    };
-    fetchStableCounts();
+    void refreshStableCounts();
   }, []);
 
   const fetchApps = async (status: string) => {
@@ -279,7 +272,7 @@ const AdminClients = () => {
       }).catch(() => {});
 
       setSheetOpen(false);
-      fetchApps(tab);
+      await Promise.all([fetchApps(tab), refreshStableCounts()]);
     } catch (error) {
       console.error("[AdminClients] Approval failed:", error);
       toast.error("Failed to approve client.");
@@ -313,7 +306,7 @@ const AdminClients = () => {
 
       toast.success(`${app.business_name} rejected`);
       setSheetOpen(false);
-      fetchApps(tab);
+      await Promise.all([fetchApps(tab), refreshStableCounts()]);
     } catch (error) {
       console.error("[AdminClients] Rejection failed:", error);
       toast.error("Failed to reject application.");
@@ -341,7 +334,7 @@ const AdminClients = () => {
     if (!error) {
       toast.success("Information request logged. Application remains pending.");
       setSheetOpen(false);
-      fetchApps(tab);
+      await Promise.all([fetchApps(tab), refreshStableCounts()]);
     } else {
       toast.error("Failed to log request.");
     }
@@ -409,7 +402,7 @@ const AdminClients = () => {
     if (!error) {
       toast.success("Client profile updated successfully!");
       setSelectedCompany(null);
-      fetchApps("directory");
+      await Promise.all([fetchApps("directory"), refreshStableCounts()]);
     } else {
       toast.error("Failed to update client profile.");
     }
