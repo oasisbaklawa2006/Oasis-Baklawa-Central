@@ -16,9 +16,14 @@ import {
 } from "./ux-helpers";
 
 export const ROOT = path.resolve(import.meta.dirname, "../..");
+/** Pre-UAT programme baseline (tranche-01 pre-auth). Preserved — not reused as current deploy evidence. */
 export const BASELINE_SHA = "08ccb1cfd4a3624103f0681b5515e26727e77cd2";
-/** Main deploy SHA after #483 merge — post-fix buyer sheet re-test baseline. */
-export const POST_FIX_483_BASELINE_SHA = "ace340fe1d122a4cce5d7bb61cd237ed7ba1c894";
+/** Current Central main after #490 merge — governed post-#490 deploy target. */
+export const CURRENT_MAIN_SHA = "67b3d1cc0baf7d494cb7a00ce55a74f16b6af43b";
+/** Historical #483 merge SHA — pre-fix/post-fix tranche-02 reference only; not current deploy evidence. */
+export const LEGACY_483_DEPLOY_SHA = "ace340fe1d122a4cce5d7bb61cd237ed7ba1c894";
+/** Post-fix buyer sheet re-test binds to current main (#483+#490 lineage). */
+export const POST_FIX_483_BASELINE_SHA = CURRENT_MAIN_SHA;
 export const CRAWL_BASE_URL =
   process.env.UAT_CRAWL_BASE_URL ||
   process.env.TEST_PREVIEW_URL ||

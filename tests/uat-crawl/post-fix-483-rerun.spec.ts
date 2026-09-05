@@ -58,15 +58,15 @@ test.describe("Post-fix #483 buyer approval re-test (UAT-0018 + UAT-0020)", () =
     const blocked = rows.filter((r) => !r.authenticated);
     const closedSet = [...new Set(allClosed)];
 
-    writeTrancheIndex(INDEX_PATH, "post-fix-483", "UAT-0018 + UAT-0020 (#483 deploy ace340fe)", rows, [
+    writeTrancheIndex(INDEX_PATH, "post-fix-483", "UAT-0018 + UAT-0020 (current main #490 @ 67b3d1cc)", rows, [
       "**Pre-fix evidence preserved** in `tranche-02/` — not overwritten.",
-      `**Post-fix deploy SHA:** \`${POST_FIX_483_BASELINE_SHA}\``,
+      `**Post-fix deploy SHA:** \`${POST_FIX_483_BASELINE_SHA}\` (current main; ace340fe not reused as post-#490 evidence)`,
       `**Re-tested FAIL-IDs:** ${PRE_FIX_FAIL_IDS.join(", ")}`,
       `**Authenticated S0–S3 complete:** ${complete.length} / ${rows.length}`,
       blocked.length > 0
         ? `**Blocked:** missing TEST_SALES_EMAIL / TEST_SALES_PASSWORD and/or TEST_PREVIEW_URL — dispatch GHA workflow on main deploy URL.`
         : "**Credentials present — post-fix evidence captured.**",
-      closedSet.length > 0 ? `**CLOSED post-fix:** ${closedSet.join(", ")}` : "**No FAIL-IDs closed yet** — run with secrets on production/preview at ace340fe.",
+      closedSet.length > 0 ? `**CLOSED post-fix:** ${closedSet.join(", ")}` : "**No FAIL-IDs closed yet** — run with secrets on current-main deploy at 67b3d1cc.",
       "**S3 rule:** Approve & Activate enabled evidence only — button NOT clicked (HUMAN-GATED).",
     ]);
 
@@ -94,6 +94,6 @@ test.describe("Post-fix #483 buyer approval re-test (UAT-0018 + UAT-0020)", () =
       )}\n`,
     );
 
-    appendFailureLedger(FAILURE_PATH, "post-fix-483 (#483 deploy ace340fe)", allFailures, []);
+    appendFailureLedger(FAILURE_PATH, "post-fix-483 (current main #490 @ 67b3d1cc)", allFailures, []);
   });
 });

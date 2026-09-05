@@ -4,7 +4,17 @@ Phase 4 register — **no remediation in this tranche**.
 
 Functional + UX failures. UX criteria authority: [`UAT_UX_FAILURE_MATRIX.md`](./UAT_UX_FAILURE_MATRIX.md).
 
-## Watchdog status — run [33997683723](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/33997683723) (2026-09-05)
+## #490 rebaseline — current main `67b3d1cc` (2026-09-05)
+
+**Policy:** ace340fe not substituted as post-#490 current evidence. If no Vercel deploy for `67b3d1cc`, all deploy-dependent tranches record **BLOCKED** with provenance in `UAT_DEPLOY_PROVENANCE.json`.
+
+| Tranche | Deploy-dependent | Credential blockers |
+|---|---|---|
+| AI-UAT UAT-001–010 | Requires `67b3d1cc` Vercel URL | `TEST_DISPATCH_*`, `TEST_ASSEMBLY_*` |
+| post-fix-483 UAT-0018/0020 | Requires `67b3d1cc` Vercel URL | `TEST_SALES_*` |
+| 131-surface auth crawl | Requires `67b3d1cc` Vercel URL | per-role `TEST_*` (see progress doc) |
+
+**Prior ace340fe-era evidence (80/131 authenticated):** preserved unchanged in manifests/screenshots.
 
 **Deploy:** ace340fe (`https://oasis-baklawa-central-6zo99hosg-oasisbaklawa2006-6222s-projects.vercel.app`) · **Evidence SHA:** `80e1f1c2` · **Authenticated S0–S3:** **80 / 131** · **Remaining:** **51**
 

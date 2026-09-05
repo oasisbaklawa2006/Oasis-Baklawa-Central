@@ -21,6 +21,7 @@ on:
           - tranche-03
           - both
           - buyer-mobile
+          - ai-uat
           - all
   push:
     branches:
@@ -105,23 +106,31 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          CURRENT_MAIN_SHA="67b3d1cc0baf7d494cb7a00ce55a74f16b6af43b"
           url="${RAW_URL:-}"
+          resolved_sha=""
           if [[ -z "$url" ]]; then
-            echo "::notice::TEST_PREVIEW_URL secret missing — resolving Vercel deploy URL from GitHub deployments API."
-            for sha in "ace340fe1d122a4cce5d7bb61cd237ed7ba1c894" "0015e7b56532826a40c7beb3f33b028271c2c2f5" "67b3d1cc0baf7d494cb7a00ce55a74f16b6af43b" "${GITHUB_SHA}"; do
+            echo "::notice::TEST_PREVIEW_URL secret missing — resolving trusted deploy for current main ${CURRENT_MAIN_SHA} only (no ace340fe fallback)."
+            for sha in "${CURRENT_MAIN_SHA}" "${GITHUB_SHA}"; do
               deploy_id="$(gh api "repos/${GITHUB_REPOSITORY}/deployments?sha=${sha}&per_page=10" --jq '[.[] | select(.environment=="Production" or .environment=="Preview")][0].id // empty' 2>/dev/null || true)"
               if [[ -n "$deploy_id" ]]; then
                 url="$(gh api "repos/${GITHUB_REPOSITORY}/deployments/${deploy_id}/statuses" --jq '[.[] | select(.state=="success")][0].target_url // empty' 2>/dev/null || true)"
-              fi
-              if [[ -n "$url" ]]; then
-                echo "Resolved deploy URL for ${sha}: $url"
-                break
+                if [[ -n "$url" ]]; then
+                  resolved_sha="$sha"
+                  echo "Resolved deploy URL for ${sha}: $url"
+                  break
+                fi
               fi
             done
+          else
+            resolved_sha="${CURRENT_MAIN_SHA}"
           fi
+          echo "UAT_TARGET_SHA=${CURRENT_MAIN_SHA}" >> "$GITHUB_ENV"
           if [[ -z "$url" ]]; then
-            echo "::error::No TEST_PREVIEW_URL secret and no successful Vercel deployment URL found for ace340fe or ${GITHUB_SHA}."
-            exit 1
+            echo "::warning::No trusted Vercel deployment for current main ${CURRENT_MAIN_SHA}. Recording BLOCKED — ace340fe not substituted."
+            echo "UAT_DEPLOY_BLOCKED=true" >> "$GITHUB_ENV"
+            echo "UAT_DEPLOY_BLOCK_REASON=No successful Vercel deployment for ${CURRENT_MAIN_SHA} (Vercel rate limit suspected); ace340fe not used as post-#490 evidence." >> "$GITHUB_ENV"
+            exit 0
           fi
           if [[ "$url" == *$'\n'* || "$url" == *$'\r'* ]]; then
             echo "::error::Target URL contains newline — refusing."
@@ -135,39 +144,60 @@ jobs:
             echo "::error::Target host $host not in approved UAT crawl allowlist (production, localhost, *.vercel.app)."
             exit 1
           fi
+          echo "UAT_DEPLOY_BLOCKED=false" >> "$GITHUB_ENV"
+          echo "UAT_RESOLVED_DEPLOY_SHA=${resolved_sha}" >> "$GITHUB_ENV"
           echo "TEST_PREVIEW_URL=$url" >> "$GITHUB_ENV"
           echo "UAT_CRAWL_BASE_URL=$url" >> "$GITHUB_ENV"
           if [[ "$host" == "b2b.oasisbaklawa.com" ]]; then
             echo "UAT_CRAWL_PRODUCTION=true" >> "$GITHUB_ENV"
           fi
 
+      - name: Record deploy BLOCKED (current main — no trusted URL)
+        if: env.UAT_DEPLOY_BLOCKED == 'true'
+        run: node scripts/uat-crawl/record-deploy-blocked.mjs
+
       - uses: actions/setup-node@v4
         with:
           node-version: lts/*
 
       - name: Install dependencies
+        if: env.UAT_DEPLOY_BLOCKED != 'true'
         run: npm install
 
       - name: Install Playwright Chromium
+        if: env.UAT_DEPLOY_BLOCKED != 'true'
         run: npx playwright install --with-deps chromium
 
+      - name: Run APPVERSE AI-UAT Tranche 1 (UAT-001–010)
+        if: env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'ai-uat' || env.RUN_TRANCHE == 'all')
+        continue-on-error: true
+        env:
+          TEST_DISPATCH_EMAIL: ${{ secrets.TEST_DISPATCH_EMAIL }}
+          TEST_DISPATCH_PASSWORD: ${{ secrets.TEST_DISPATCH_PASSWORD }}
+          TEST_ASSEMBLY_EMAIL: ${{ secrets.TEST_ASSEMBLY_EMAIL }}
+          TEST_ASSEMBLY_PASSWORD: ${{ secrets.TEST_ASSEMBLY_PASSWORD }}
+        run: |
+          npx playwright test -c playwright.ai-uat.config.ts
+          node scripts/merge-ai-uat-report.mjs
+          node scripts/uat-crawl/archive-ai-uat-evidence.mjs
+
       - name: Run post-fix #483 buyer approval re-test (UAT-0018 + UAT-0020)
-        if: env.RUN_TRANCHE == 'post-fix-483' || env.RUN_TRANCHE == 'all'
+        if: env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'post-fix-483' || env.RUN_TRANCHE == 'all')
         continue-on-error: true
         run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/post-fix-483-rerun.spec.ts
 
       - name: Run authenticated UAT auth-rerun
-        if: env.RUN_TRANCHE == 'auth-rerun' || env.RUN_TRANCHE == 'both' || env.RUN_TRANCHE == 'all'
+        if: env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'auth-rerun' || env.RUN_TRANCHE == 'both' || env.RUN_TRANCHE == 'all')
         continue-on-error: true
         run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/auth-rerun.spec.ts
 
       - name: Run UAT tranche 03 (chronological continue)
-        if: env.RUN_TRANCHE == 'tranche-03' || env.RUN_TRANCHE == 'both' || env.RUN_TRANCHE == 'all'
+        if: env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'tranche-03' || env.RUN_TRANCHE == 'both' || env.RUN_TRANCHE == 'all')
         continue-on-error: true
         run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/tranche-03-crawl.spec.ts
 
       - name: Run UAT tranche 04-auth (UAT-0031..0050)
-        if: env.RUN_TRANCHE == 'all' || env.RUN_TRANCHE == 'continue'
+        if: env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'all' || env.RUN_TRANCHE == 'continue')
         continue-on-error: true
         env:
           UAT_TRANCHE_START: UAT-0031
@@ -176,7 +206,7 @@ jobs:
         run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/tranche-auth-range.spec.ts
 
       - name: Run UAT tranche 05-auth (UAT-0051..0070)
-        if: env.RUN_TRANCHE == 'all' || env.RUN_TRANCHE == 'continue'
+        if: env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'all' || env.RUN_TRANCHE == 'continue')
         continue-on-error: true
         env:
           UAT_TRANCHE_START: UAT-0051
@@ -185,7 +215,7 @@ jobs:
         run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/tranche-auth-range.spec.ts
 
       - name: Run UAT tranche 06-auth (UAT-0071..0090)
-        if: env.RUN_TRANCHE == 'all' || env.RUN_TRANCHE == 'continue'
+        if: env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'all' || env.RUN_TRANCHE == 'continue')
         continue-on-error: true
         env:
           UAT_TRANCHE_START: UAT-0071
@@ -194,7 +224,7 @@ jobs:
         run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/tranche-auth-range.spec.ts
 
       - name: Run UAT tranche 07-auth (UAT-0091..0110)
-        if: env.RUN_TRANCHE == 'all' || env.RUN_TRANCHE == 'continue'
+        if: env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'all' || env.RUN_TRANCHE == 'continue')
         continue-on-error: true
         env:
           UAT_TRANCHE_START: UAT-0091
@@ -203,7 +233,7 @@ jobs:
         run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/tranche-auth-range.spec.ts
 
       - name: Run UAT tranche 08-auth (UAT-0111..0131)
-        if: env.RUN_TRANCHE == 'all' || env.RUN_TRANCHE == 'continue'
+        if: env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'all' || env.RUN_TRANCHE == 'continue')
         continue-on-error: true
         env:
           UAT_TRANCHE_START: UAT-0111
@@ -212,7 +242,7 @@ jobs:
         run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/tranche-auth-range.spec.ts
 
       - name: Run buyer mobile authenticated UAT (PR #10 surfaces)
-        if: env.RUN_TRANCHE == 'buyer-mobile' || env.RUN_TRANCHE == 'all'
+        if: env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'buyer-mobile' || env.RUN_TRANCHE == 'all')
         continue-on-error: true
         env:
           UAT_BUYER_BASELINE_SHA: "0015e7b56532826a40c7beb3f33b028271c2c2f5"
@@ -231,6 +261,9 @@ jobs:
             "runTranche": "${RUN_TRANCHE}",
             "ref": "${GITHUB_REF}",
             "sha": "${GITHUB_SHA}",
+            "targetSha": "${UAT_TARGET_SHA:-67b3d1cc0baf7d494cb7a00ce55a74f16b6af43b}",
+            "deployBlocked": ${UAT_DEPLOY_BLOCKED:-false},
+            "deployUrl": "${TEST_PREVIEW_URL:-}",
             "completedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           }
           EOF
@@ -249,6 +282,10 @@ jobs:
             docs/uat-crawl/UAT_GHA_RUN.json
             docs/uat-crawl/UAT_BUYER_MOBILE_SUMMARY.json
             docs/uat-crawl/UAT_BUYER_MOBILE_TARGETS.json
+            docs/uat-crawl/UAT_MANIFEST_AI_UAT.jsonl
+            docs/uat-crawl/UAT_AI_UAT_SUMMARY.json
+            docs/uat-crawl/UAT_AI_UAT_REPORT.md
+            docs/uat-crawl/UAT_DEPLOY_PROVENANCE.json
           if-no-files-found: warn
           retention-days: 30
 
@@ -279,7 +316,8 @@ jobs:
           git add uat-evidence/screenshots/ docs/uat-crawl/UAT_MANIFEST*.jsonl docs/uat-crawl/UAT_INDEX*.md \
                   docs/uat-crawl/UAT_AUTH_RERUN_SUMMARY.json docs/uat-crawl/UAT_POST_FIX_483_SUMMARY.json \
                   docs/uat-crawl/UAT_GHA_RUN.json docs/uat-crawl/UAT_FAILURE_LEDGER.md docs/uat-crawl/UAT_CRAWL_PROGRESS.md \
-                  docs/uat-crawl/UAT_BUYER_MOBILE_SUMMARY.json docs/uat-crawl/UAT_BUYER_MOBILE_TARGETS.json || true
+                  docs/uat-crawl/UAT_BUYER_MOBILE_SUMMARY.json docs/uat-crawl/UAT_BUYER_MOBILE_TARGETS.json \
+                  docs/uat-crawl/UAT_AI_UAT_SUMMARY.json docs/uat-crawl/UAT_AI_UAT_REPORT.md docs/uat-crawl/UAT_DEPLOY_PROVENANCE.json || true
           if git diff --staged --quiet; then
             echo "No evidence changes to commit."
             exit 0
