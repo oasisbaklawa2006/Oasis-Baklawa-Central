@@ -15,12 +15,12 @@ describe("centralOrderPoolAccess POINT71", () => {
     expect(canAccessCentralOrderPool("OPERATIONS_MANAGER")).toBe(true);
   });
 
-  it("keeps dispatch roles on packing without the general orders pipeline lens", () => {
+  it("denies dispatch roles the hub to preserve P0 #458 least-privilege", () => {
     expect(isDispatchScopedOrderPoolRole("DISPATCH_MANAGER")).toBe(true);
-    const lenses = visibleCentralOrderPoolLenses("DISPATCH_MANAGER");
-    expect(lenses.map((lens) => lens.key)).toEqual(["packing"]);
-    expect(lenses.some((lens) => lens.key === "pipeline")).toBe(false);
-    expect(canAccessCentralOrderPool("DISPATCH_MANAGER")).toBe(true);
+    expect(visibleCentralOrderPoolLenses("DISPATCH_MANAGER")).toEqual([]);
+    expect(canAccessCentralOrderPool("DISPATCH_MANAGER")).toBe(false);
+    expect(canAccessCentralOrderPool("DISPATCH_INCHARGE")).toBe(false);
+    expect(canAccessCentralOrderPool("DISPATCH_HEAD")).toBe(false);
   });
 
   it("allows support intake without the commercial pipeline lens", () => {
