@@ -291,3 +291,116 @@ Functional + UX failures. UX criteria authority: [`UAT_UX_FAILURE_MATRIX.md`](./
 | FAIL-AUTH-DEPLOY-0129 | UAT-0129 | trace | TRACE_SCANNER | desktop-chrome | /scan | Authenticated crawl on trace deploy | Role surface on correct preview host | BLOCKED — missing TEST_TRACE_PREVIEW_URL (Central TEST_PREVIEW_URL is not valid for trace) | P1 | — | — | tranche-08-auth | oasis-trace | Deploy | TEST_TRACE_PREVIEW_URL |
 | FAIL-AUTH-DEPLOY-0130 | UAT-0130 | trace | TRACE_SCANNER | desktop-chrome | /scan | Authenticated crawl on trace deploy | Role surface on correct preview host | BLOCKED — missing TEST_TRACE_PREVIEW_URL (Central TEST_PREVIEW_URL is not valid for trace) | P1 | — | — | tranche-08-auth | oasis-trace | Deploy | TEST_TRACE_PREVIEW_URL |
 | FAIL-AUTH-DEPLOY-0131 | UAT-0131 | trace | TRACE_SCANNER | desktop-chrome | /scan | Authenticated crawl on trace deploy | Role surface on correct preview host | BLOCKED — missing TEST_TRACE_PREVIEW_URL (Central TEST_PREVIEW_URL is not valid for trace) | P1 | — | — | tranche-08-auth | oasis-trace | Deploy | TEST_TRACE_PREVIEW_URL |
+
+---
+
+## post-fix-483 (#483 deploy ace340fe) crawl failures (2026-09-05)
+
+### Functional / access / blocked
+
+| FAIL-ID | UAT-ID | App | Role | Device | Route/Page | Function | Expected | Actual | Severity | Screenshot(s) | Console/Network | Repro | Owning repo | Layer | Fix dependency |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| FAIL-AUTH-CRED-0018 | UAT-0018 | central | ADMIN_SALES | phone | /admin/clients [sheet-review-open] | Post-fix #483 retest | Authenticated sheet S0–S3 | BLOCKED — missing TEST_SALES_EMAIL, TEST_SALES_PASSWORD | P0 | pre-fix preserved | — | Post-fix #483 | Central | Deploy/Auth | TEST_SALES_EMAIL, TEST_SALES_PASSWORD |
+| FAIL-AUTH-CRED-0020 | UAT-0020 | central | ADMIN_SALES | phone | /admin/approvals [sheet-review-open] | Post-fix #483 retest | Authenticated sheet S0–S3 | BLOCKED — missing TEST_SALES_EMAIL, TEST_SALES_PASSWORD | P0 | pre-fix preserved | — | Post-fix #483 | Central | Deploy/Auth | TEST_SALES_EMAIL, TEST_SALES_PASSWORD |
+
+---
+
+## auth-rerun (authenticated repair) crawl failures (2026-09-05)
+
+### Functional / access / blocked
+
+| FAIL-ID | UAT-ID | App | Role | Device | Route/Page | Function | Expected | Actual | Severity | Screenshot(s) | Console/Network | Repro | Owning repo | Layer | Fix dependency |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| FAIL-AUTH-CRED-0003 | UAT-0003 | central | GATE_SECURITY | desktop | /security-gate | Authenticated crawl | Logged-in role surface | BLOCKED — missing secret(s): TEST_GATE_SECURITY_EMAIL, TEST_GATE_SECURITY_PASSWORD | P1 | pre-auth preserved | — | Auth rerun | Central | Deploy/Auth | TEST_GATE_SECURITY_EMAIL, TEST_GATE_SECURITY_PASSWORD |
+| FAIL-AUTH-CRED-0006 | UAT-0006 | central | BUYER | phone | /buyer/access-request | Authenticated crawl | Logged-in role surface | BLOCKED — missing secret(s): TEST_BUYER_EMAIL, TEST_BUYER_PASSWORD | P1 | pre-auth preserved | — | Auth rerun | Central | Deploy/Auth | TEST_BUYER_EMAIL, TEST_BUYER_PASSWORD |
+| FAIL-AUTH-CRED-0007 | UAT-0007 | central | BUYER | phone | /buyer/* | Authenticated crawl | Logged-in role surface | BLOCKED — missing secret(s): TEST_BUYER_EMAIL, TEST_BUYER_PASSWORD | P1 | pre-auth preserved | — | Auth rerun | Central | Deploy/Auth | TEST_BUYER_EMAIL, TEST_BUYER_PASSWORD |
+
+---
+
+## tranche-03-auth crawl failures (2026-09-05)
+
+---
+
+## tranche-04-auth crawl failures (2026-09-05)
+
+### Functional / access / blocked
+
+| FAIL-ID | UAT-ID | App | Role | Device | Route/Page | Function | Expected | Actual | Severity | Screenshot(s) | Console/Network | Repro | Owning repo | Layer | Fix dependency |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| FAIL-AUTH-CRED-0044 | UAT-0044 | central | SALES | desktop | /admin/sales-hub | Authenticated crawl | Logged-in role surface | BLOCKED — missing secret(s): TEST_SALES_EMAIL, TEST_SALES_PASSWORD | P1 | pre-auth preserved | — | Auth rerun | Central | Deploy/Auth | TEST_SALES_EMAIL, TEST_SALES_PASSWORD |
+
+---
+
+## tranche-05-auth crawl failures (2026-09-05)
+
+### Functional / access / blocked
+
+| FAIL-ID | UAT-ID | App | Role | Device | Route/Page | Function | Expected | Actual | Severity | Screenshot(s) | Console/Network | Repro | Owning repo | Layer | Fix dependency |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| FAIL-AUTH-CRED-0062 | UAT-0062 | central | RGS | desktop | /admin/ready-goods | Authenticated crawl | Logged-in role surface | BLOCKED — missing secret(s): TEST_RGS_EMAIL, TEST_RGS_PASSWORD | P1 | pre-auth preserved | — | Auth rerun | Central | Deploy/Auth | TEST_RGS_EMAIL, TEST_RGS_PASSWORD |
+| FAIL-AUTH-CRED-0063 | UAT-0063 | central | RGS | desktop | /admin/ready-goods-day-close | Authenticated crawl | Logged-in role surface | BLOCKED — missing secret(s): TEST_RGS_EMAIL, TEST_RGS_PASSWORD | P1 | pre-auth preserved | — | Auth rerun | Central | Deploy/Auth | TEST_RGS_EMAIL, TEST_RGS_PASSWORD |
+| FAIL-AUTH-CRED-0064 | UAT-0064 | central | RGS | desktop | /admin/ready-goods-reports | Authenticated crawl | Logged-in role surface | BLOCKED — missing secret(s): TEST_RGS_EMAIL, TEST_RGS_PASSWORD | P1 | pre-auth preserved | — | Auth rerun | Central | Deploy/Auth | TEST_RGS_EMAIL, TEST_RGS_PASSWORD |
+| FAIL-AUTH-CRED-0065 | UAT-0065 | central | RGS | desktop | /admin/ready-goods-stock | Authenticated crawl | Logged-in role surface | BLOCKED — missing secret(s): TEST_RGS_EMAIL, TEST_RGS_PASSWORD | P1 | pre-auth preserved | — | Auth rerun | Central | Deploy/Auth | TEST_RGS_EMAIL, TEST_RGS_PASSWORD |
+| FAIL-AUTH-CRED-0067 | UAT-0067 | central | 3PGS | desktop | /admin/3pgs-packing-material | Authenticated crawl | Logged-in role surface | BLOCKED — missing secret(s): TEST_PRODUCTION_EMAIL, TEST_PRODUCTION_PASSWORD | P1 | pre-auth preserved | — | Auth rerun | Central | Deploy/Auth | TEST_PRODUCTION_EMAIL, TEST_PRODUCTION_PASSWORD |
+
+---
+
+## tranche-06-auth crawl failures (2026-09-05)
+
+### Functional / access / blocked
+
+| FAIL-ID | UAT-ID | App | Role | Device | Route/Page | Function | Expected | Actual | Severity | Screenshot(s) | Console/Network | Repro | Owning repo | Layer | Fix dependency |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| FAIL-AUTH-CRED-0082 | UAT-0082 | central | RGS | desktop | /admin/execution/ready-goods | Authenticated crawl | Logged-in role surface | BLOCKED — missing secret(s): TEST_RGS_EMAIL, TEST_RGS_PASSWORD | P1 | pre-auth preserved | — | Auth rerun | Central | Deploy/Auth | TEST_RGS_EMAIL, TEST_RGS_PASSWORD |
+| FAIL-AUTH-CRED-0087 | UAT-0087 | central | RGS | desktop | /admin/rgs-tv | Authenticated crawl | Logged-in role surface | BLOCKED — missing secret(s): TEST_RGS_EMAIL, TEST_RGS_PASSWORD | P1 | pre-auth preserved | — | Auth rerun | Central | Deploy/Auth | TEST_RGS_EMAIL, TEST_RGS_PASSWORD |
+
+---
+
+## tranche-07-auth crawl failures (2026-09-05)
+
+### Functional / access / blocked
+
+| FAIL-ID | UAT-ID | App | Role | Device | Route/Page | Function | Expected | Actual | Severity | Screenshot(s) | Console/Network | Repro | Owning repo | Layer | Fix dependency |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| FAIL-AUTH-CRED-0097 | UAT-0097 | central | 3PGS | desktop | /admin/3pcs-store | Authenticated crawl | Logged-in role surface | BLOCKED — missing secret(s): TEST_PRODUCTION_EMAIL, TEST_PRODUCTION_PASSWORD | P1 | pre-auth preserved | — | Auth rerun | Central | Deploy/Auth | TEST_PRODUCTION_EMAIL, TEST_PRODUCTION_PASSWORD |
+| FAIL-AUTH-CRED-0098 | UAT-0098 | central | 3PGS | desktop | /admin/3pgs-procurement-queue | Authenticated crawl | Logged-in role surface | BLOCKED — missing secret(s): TEST_PRODUCTION_EMAIL, TEST_PRODUCTION_PASSWORD | P1 | pre-auth preserved | — | Auth rerun | Central | Deploy/Auth | TEST_PRODUCTION_EMAIL, TEST_PRODUCTION_PASSWORD |
+| FAIL-AUTH-CRED-0099 | UAT-0099 | central | 3PGS | desktop | /admin/3pgs-visibility | Authenticated crawl | Logged-in role surface | BLOCKED — missing secret(s): TEST_PRODUCTION_EMAIL, TEST_PRODUCTION_PASSWORD | P1 | pre-auth preserved | — | Auth rerun | Central | Deploy/Auth | TEST_PRODUCTION_EMAIL, TEST_PRODUCTION_PASSWORD |
+| FAIL-AUTH-CRED-0100 | UAT-0100 | central | 3PGS | desktop | /admin/3pgs-mobile-urgent | Authenticated crawl | Logged-in role surface | BLOCKED — missing secret(s): TEST_PRODUCTION_EMAIL, TEST_PRODUCTION_PASSWORD | P1 | pre-auth preserved | — | Auth rerun | Central | Deploy/Auth | TEST_PRODUCTION_EMAIL, TEST_PRODUCTION_PASSWORD |
+| FAIL-AUTH-CRED-0101 | UAT-0101 | central | 3PGS | desktop | /admin/3pgs-tv | Authenticated crawl | Logged-in role surface | BLOCKED — missing secret(s): TEST_PRODUCTION_EMAIL, TEST_PRODUCTION_PASSWORD | P1 | pre-auth preserved | — | Auth rerun | Central | Deploy/Auth | TEST_PRODUCTION_EMAIL, TEST_PRODUCTION_PASSWORD |
+| FAIL-AUTH-CRED-0104 | UAT-0104 | central | SALES | desktop | /sales/dashboard | Authenticated crawl | Logged-in role surface | BLOCKED — missing secret(s): TEST_SALES_EMAIL, TEST_SALES_PASSWORD | P1 | pre-auth preserved | — | Auth rerun | Central | Deploy/Auth | TEST_SALES_EMAIL, TEST_SALES_PASSWORD |
+| FAIL-AUTH-CRED-0105 | UAT-0105 | central | SALES | desktop | /sales/3pgs-visibility | Authenticated crawl | Logged-in role surface | BLOCKED — missing secret(s): TEST_SALES_EMAIL, TEST_SALES_PASSWORD | P1 | pre-auth preserved | — | Auth rerun | Central | Deploy/Auth | TEST_SALES_EMAIL, TEST_SALES_PASSWORD |
+| FAIL-AUTH-CRED-0106 | UAT-0106 | central | TV | tv | /tv/arabic-sweets | Authenticated crawl | Logged-in role surface | BLOCKED — missing secret(s): TEST_TV_RGS_EMAIL, TEST_TV_RGS_PASSWORD | P1 | pre-auth preserved | — | Auth rerun | Central | Deploy/Auth | TEST_TV_RGS_EMAIL, TEST_TV_RGS_PASSWORD |
+| FAIL-AUTH-CRED-0107 | UAT-0107 | central | TV | tv | /tv/chocolate | Authenticated crawl | Logged-in role surface | BLOCKED — missing secret(s): TEST_TV_RGS_EMAIL, TEST_TV_RGS_PASSWORD | P1 | pre-auth preserved | — | Auth rerun | Central | Deploy/Auth | TEST_TV_RGS_EMAIL, TEST_TV_RGS_PASSWORD |
+| FAIL-AUTH-CRED-0108 | UAT-0108 | central | TV | tv | /tv/dragees | Authenticated crawl | Logged-in role surface | BLOCKED — missing secret(s): TEST_TV_RGS_EMAIL, TEST_TV_RGS_PASSWORD | P1 | pre-auth preserved | — | Auth rerun | Central | Deploy/Auth | TEST_TV_RGS_EMAIL, TEST_TV_RGS_PASSWORD |
+| FAIL-AUTH-CRED-0109 | UAT-0109 | central | TV | tv | /tv/fusion | Authenticated crawl | Logged-in role surface | BLOCKED — missing secret(s): TEST_TV_RGS_EMAIL, TEST_TV_RGS_PASSWORD | P1 | pre-auth preserved | — | Auth rerun | Central | Deploy/Auth | TEST_TV_RGS_EMAIL, TEST_TV_RGS_PASSWORD |
+| FAIL-AUTH-CRED-0110 | UAT-0110 | central | TV | tv | /tv/bakery | Authenticated crawl | Logged-in role surface | BLOCKED — missing secret(s): TEST_TV_RGS_EMAIL, TEST_TV_RGS_PASSWORD | P1 | pre-auth preserved | — | Auth rerun | Central | Deploy/Auth | TEST_TV_RGS_EMAIL, TEST_TV_RGS_PASSWORD |
+
+---
+
+## tranche-08-auth crawl failures (2026-09-05)
+
+### Functional / access / blocked
+
+| FAIL-ID | UAT-ID | App | Role | Device | Route/Page | Function | Expected | Actual | Severity | Screenshot(s) | Console/Network | Repro | Owning repo | Layer | Fix dependency |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| FAIL-AUTH-CRED-0111 | UAT-0111 | central | TV | tv | /tv/nuts | Authenticated crawl | Logged-in role surface | BLOCKED — missing secret(s): TEST_TV_RGS_EMAIL, TEST_TV_RGS_PASSWORD | P1 | pre-auth preserved | — | Auth rerun | Central | Deploy/Auth | TEST_TV_RGS_EMAIL, TEST_TV_RGS_PASSWORD |
+| FAIL-AUTH-CRED-0112 | UAT-0112 | central | RGS | tv | /tv/rgs | Authenticated crawl | Logged-in role surface | BLOCKED — missing secret(s): TEST_TV_RGS_EMAIL, TEST_TV_RGS_PASSWORD | P1 | pre-auth preserved | — | Auth rerun | Central | Deploy/Auth | TEST_TV_RGS_EMAIL, TEST_TV_RGS_PASSWORD |
+| FAIL-AUTH-CRED-0113 | UAT-0113 | central | 3PGS | tv | /tv/3pgs | Authenticated crawl | Logged-in role surface | BLOCKED — missing secret(s): TEST_TV_PRODUCTION_EMAIL, TEST_TV_PRODUCTION_PASSWORD | P1 | pre-auth preserved | — | Auth rerun | Central | Deploy/Auth | TEST_TV_PRODUCTION_EMAIL, TEST_TV_PRODUCTION_PASSWORD |
+| FAIL-AUTH-CRED-0114 | UAT-0114 | central | BUYER | phone | /buyer | Authenticated crawl | Logged-in role surface | BLOCKED — missing secret(s): TEST_BUYER_EMAIL, TEST_BUYER_PASSWORD | P1 | pre-auth preserved | — | Auth rerun | Central | Deploy/Auth | TEST_BUYER_EMAIL, TEST_BUYER_PASSWORD |
+| FAIL-AUTH-CRED-0115 | UAT-0115 | central | BUYER | phone | /buyer/catalogue | Authenticated crawl | Logged-in role surface | BLOCKED — missing secret(s): TEST_BUYER_EMAIL, TEST_BUYER_PASSWORD | P1 | pre-auth preserved | — | Auth rerun | Central | Deploy/Auth | TEST_BUYER_EMAIL, TEST_BUYER_PASSWORD |
+| FAIL-AUTH-CRED-0116 | UAT-0116 | central | BUYER | phone | /buyer/cart | Authenticated crawl | Logged-in role surface | BLOCKED — missing secret(s): TEST_BUYER_EMAIL, TEST_BUYER_PASSWORD | P1 | pre-auth preserved | — | Auth rerun | Central | Deploy/Auth | TEST_BUYER_EMAIL, TEST_BUYER_PASSWORD |
+| FAIL-AUTH-CRED-0117 | UAT-0117 | central | BUYER | phone | /buyer/orders | Authenticated crawl | Logged-in role surface | BLOCKED — missing secret(s): TEST_BUYER_EMAIL, TEST_BUYER_PASSWORD | P1 | pre-auth preserved | — | Auth rerun | Central | Deploy/Auth | TEST_BUYER_EMAIL, TEST_BUYER_PASSWORD |
+| FAIL-AUTH-CRED-0118 | UAT-0118 | central | BUYER | phone | /buyer/account | Authenticated crawl | Logged-in role surface | BLOCKED — missing secret(s): TEST_BUYER_EMAIL, TEST_BUYER_PASSWORD | P1 | pre-auth preserved | — | Auth rerun | Central | Deploy/Auth | TEST_BUYER_EMAIL, TEST_BUYER_PASSWORD |
+| FAIL-AUTH-CRED-0119 | UAT-0119 | central | BUYER | phone | /buyer/support | Authenticated crawl | Logged-in role surface | BLOCKED — missing secret(s): TEST_BUYER_EMAIL, TEST_BUYER_PASSWORD | P1 | pre-auth preserved | — | Auth rerun | Central | Deploy/Auth | TEST_BUYER_EMAIL, TEST_BUYER_PASSWORD |
+| FAIL-AUTH-CRED-0120 | UAT-0120 | central | BUYER | phone | /buyer/documents | Authenticated crawl | Logged-in role surface | BLOCKED — missing secret(s): TEST_BUYER_EMAIL, TEST_BUYER_PASSWORD | P1 | pre-auth preserved | — | Auth rerun | Central | Deploy/Auth | TEST_BUYER_EMAIL, TEST_BUYER_PASSWORD |
+| FAIL-AUTH-CRED-0121 | UAT-0121 | central | BUYER | phone | /buyer/access-request | Authenticated crawl | Logged-in role surface | BLOCKED — missing secret(s): TEST_BUYER_EMAIL, TEST_BUYER_PASSWORD | P1 | pre-auth preserved | — | Auth rerun | Central | Deploy/Auth | TEST_BUYER_EMAIL, TEST_BUYER_PASSWORD |
+| FAIL-AUTH-DEPLOY-0122 | UAT-0122 | ai-studio | AI_CATALOGUE | desktop-chrome | / | Authenticated crawl on ai-studio deploy | Role surface on correct preview host | BLOCKED — missing TEST_AI_STUDIO_PREVIEW_URL (Central TEST_PREVIEW_URL is not valid for ai-studio) | P1 | — | — | tranche-08-auth | oasis-ai-studio | Deploy | TEST_AI_STUDIO_PREVIEW_URL |
+| FAIL-AUTH-DEPLOY-0123 | UAT-0123 | ai-studio | AI_CATALOGUE | iphone-14 | /media | Authenticated crawl on ai-studio deploy | Role surface on correct preview host | BLOCKED — missing TEST_AI_STUDIO_PREVIEW_URL (Central TEST_PREVIEW_URL is not valid for ai-studio) | P1 | — | — | tranche-08-auth | oasis-ai-studio | Deploy | TEST_AI_STUDIO_PREVIEW_URL |
+| FAIL-AUTH-DEPLOY-0124 | UAT-0124 | ai-studio | AI_APPROVER | desktop-chrome | /media/review | Authenticated crawl on ai-studio deploy | Role surface on correct preview host | BLOCKED — missing TEST_AI_STUDIO_PREVIEW_URL (Central TEST_PREVIEW_URL is not valid for ai-studio) | P1 | — | — | tranche-08-auth | oasis-ai-studio | Deploy | TEST_AI_STUDIO_PREVIEW_URL |
+| FAIL-AUTH-DEPLOY-0125 | UAT-0125 | ai-studio | AI_CATALOGUE | desktop-chrome | /products/new/fast | Authenticated crawl on ai-studio deploy | Role surface on correct preview host | BLOCKED — missing TEST_AI_STUDIO_PREVIEW_URL (Central TEST_PREVIEW_URL is not valid for ai-studio) | P1 | — | — | tranche-08-auth | oasis-ai-studio | Deploy | TEST_AI_STUDIO_PREVIEW_URL |
+| FAIL-AUTH-DEPLOY-0126 | UAT-0126 | ai-studio | AI_CATALOGUE | desktop-chrome | /testing/pilot-readiness | Authenticated crawl on ai-studio deploy | Role surface on correct preview host | BLOCKED — missing TEST_AI_STUDIO_PREVIEW_URL (Central TEST_PREVIEW_URL is not valid for ai-studio) | P1 | — | — | tranche-08-auth | oasis-ai-studio | Deploy | TEST_AI_STUDIO_PREVIEW_URL |
+| FAIL-AUTH-DEPLOY-0127 | UAT-0127 | ai-studio | AI_CATALOGUE | iphone-14 | /media | Authenticated crawl on ai-studio deploy | Role surface on correct preview host | BLOCKED — missing TEST_AI_STUDIO_PREVIEW_URL (Central TEST_PREVIEW_URL is not valid for ai-studio) | P1 | — | — | tranche-08-auth | oasis-ai-studio | Deploy | TEST_AI_STUDIO_PREVIEW_URL |
+| FAIL-AUTH-DEPLOY-0128 | UAT-0128 | trace | TRACE_SCANNER | desktop-chrome | / | Authenticated crawl on trace deploy | Role surface on correct preview host | BLOCKED — missing TEST_TRACE_PREVIEW_URL (Central TEST_PREVIEW_URL is not valid for trace) | P1 | — | — | tranche-08-auth | oasis-trace | Deploy | TEST_TRACE_PREVIEW_URL |
+| FAIL-AUTH-DEPLOY-0129 | UAT-0129 | trace | TRACE_SCANNER | desktop-chrome | /scan | Authenticated crawl on trace deploy | Role surface on correct preview host | BLOCKED — missing TEST_TRACE_PREVIEW_URL (Central TEST_PREVIEW_URL is not valid for trace) | P1 | — | — | tranche-08-auth | oasis-trace | Deploy | TEST_TRACE_PREVIEW_URL |
+| FAIL-AUTH-DEPLOY-0130 | UAT-0130 | trace | TRACE_SCANNER | desktop-chrome | /scan | Authenticated crawl on trace deploy | Role surface on correct preview host | BLOCKED — missing TEST_TRACE_PREVIEW_URL (Central TEST_PREVIEW_URL is not valid for trace) | P1 | — | — | tranche-08-auth | oasis-trace | Deploy | TEST_TRACE_PREVIEW_URL |
+| FAIL-AUTH-DEPLOY-0131 | UAT-0131 | trace | TRACE_SCANNER | desktop-chrome | /scan | Authenticated crawl on trace deploy | Role surface on correct preview host | BLOCKED — missing TEST_TRACE_PREVIEW_URL (Central TEST_PREVIEW_URL is not valid for trace) | P1 | — | — | tranche-08-auth | oasis-trace | Deploy | TEST_TRACE_PREVIEW_URL |
