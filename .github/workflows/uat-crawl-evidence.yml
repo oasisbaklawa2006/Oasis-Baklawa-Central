@@ -21,6 +21,9 @@ on:
           - tranche-03
           - both
           - all
+  push:
+    branches:
+      - cursor/physical-uat-readiness-matrix-e763
 
 permissions:
   contents: read
@@ -35,8 +38,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
-      TEST_PREVIEW_URL: ${{ inputs.target_url != '' && inputs.target_url || secrets.TEST_PREVIEW_URL }}
-      UAT_CRAWL_BASE_URL: ${{ inputs.target_url != '' && inputs.target_url || secrets.TEST_PREVIEW_URL }}
+      RUN_TRANCHE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.run_tranche || 'all' }}
+      TEST_PREVIEW_URL: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.target_url != '' && github.event.inputs.target_url || secrets.TEST_PREVIEW_URL }}
+      UAT_CRAWL_BASE_URL: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.target_url != '' && github.event.inputs.target_url || secrets.TEST_PREVIEW_URL }}
       TEST_ADMIN_EMAIL: ${{ secrets.TEST_ADMIN_EMAIL }}
       TEST_ADMIN_PASSWORD: ${{ secrets.TEST_ADMIN_PASSWORD }}
       TEST_BUYER_EMAIL: ${{ secrets.TEST_BUYER_EMAIL }}
@@ -51,8 +55,18 @@ jobs:
       TEST_DISPATCH_PASSWORD: ${{ secrets.TEST_DISPATCH_PASSWORD }}
       TEST_OPERATIONS_EMAIL: ${{ secrets.TEST_OPERATIONS_EMAIL }}
       TEST_OPERATIONS_PASSWORD: ${{ secrets.TEST_OPERATIONS_PASSWORD }}
+      GITHUB_RUN_ID: ${{ github.run_id }}
+      GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Record crawl plan (run id + tranche)
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "run_id=${GITHUB_RUN_ID}" >> "$GITHUB_ENV"
+          echo "run_tranche=${RUN_TRANCHE}" >> "$GITHUB_ENV"
+          echo "UAT crawl run ${GITHUB_RUN_ID} tranche=${RUN_TRANCHE} ref=${GITHUB_REF}"
 
       - name: Validate target URL before crawl (no secrets logged)
         shell: bash
@@ -103,16 +117,33 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Run post-fix #483 buyer approval re-test (UAT-0018 + UAT-0020)
-        if: inputs.run_tranche == 'post-fix-483' || inputs.run_tranche == 'all'
+        if: env.RUN_TRANCHE == 'post-fix-483' || env.RUN_TRANCHE == 'all'
         run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/post-fix-483-rerun.spec.ts
 
       - name: Run authenticated UAT auth-rerun
-        if: inputs.run_tranche == 'auth-rerun' || inputs.run_tranche == 'both' || inputs.run_tranche == 'all'
+        if: env.RUN_TRANCHE == 'auth-rerun' || env.RUN_TRANCHE == 'both' || env.RUN_TRANCHE == 'all'
         run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/auth-rerun.spec.ts
 
       - name: Run UAT tranche 03 (chronological continue)
-        if: inputs.run_tranche == 'tranche-03' || inputs.run_tranche == 'both' || inputs.run_tranche == 'all'
+        if: env.RUN_TRANCHE == 'tranche-03' || env.RUN_TRANCHE == 'both' || env.RUN_TRANCHE == 'all'
         run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/tranche-03-crawl.spec.ts
+
+      - name: Write run metadata for commit job
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p docs/uat-crawl
+          cat > docs/uat-crawl/UAT_GHA_RUN.json <<EOF
+          {
+            "runId": "${GITHUB_RUN_ID}",
+            "runAttempt": "${GITHUB_RUN_ATTEMPT}",
+            "runTranche": "${RUN_TRANCHE}",
+            "ref": "${GITHUB_REF}",
+            "sha": "${GITHUB_SHA}",
+            "completedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          }
+          EOF
 
       - name: Upload UAT evidence bundle
         if: always()
@@ -125,6 +156,41 @@ jobs:
             docs/uat-crawl/UAT_INDEX*.md
             docs/uat-crawl/UAT_AUTH_RERUN_SUMMARY.json
             docs/uat-crawl/UAT_POST_FIX_483_SUMMARY.json
+            docs/uat-crawl/UAT_GHA_RUN.json
             docs/uat-crawl/UAT_FAILURE_LEDGER.md
           if-no-files-found: warn
           retention-days: 30
+
+  commit-evidence:
+    name: Commit UAT evidence to branch
+    needs: uat-crawl
+    if: always() && needs.uat-crawl.result != 'cancelled' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+
+      - name: Download evidence artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: uat-crawl-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .
+
+      - name: Commit manifests and screenshots
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add uat-evidence/screenshots/ docs/uat-crawl/UAT_MANIFEST*.jsonl docs/uat-crawl/UAT_INDEX*.md \
+                  docs/uat-crawl/UAT_AUTH_RERUN_SUMMARY.json docs/uat-crawl/UAT_POST_FIX_483_SUMMARY.json \
+                  docs/uat-crawl/UAT_GHA_RUN.json docs/uat-crawl/UAT_FAILURE_LEDGER.md docs/uat-crawl/UAT_CRAWL_PROGRESS.md || true
+          if git diff --staged --quiet; then
+            echo "No evidence changes to commit."
+            exit 0
+          fi
+          git commit -m "UAT evidence from GHA run ${{ github.run_id }} (tranche ${{ needs.uat-crawl.outputs.run_tranche || 'all' }})"
+          git push
