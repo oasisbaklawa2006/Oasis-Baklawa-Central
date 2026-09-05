@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { notifyEvent } from "@/utils/notifyEvent";
@@ -40,6 +40,7 @@ import {
   buildAccountManagerUsersOrFilter,
   isAccountManagerEligibleUser,
 } from "@/lib/client-governance/accountManagerRoles";
+import { fetchClientGovernanceCounts } from "@/lib/client-governance/clientGovernanceCounts";
 
 /* ─── types ─── */
 interface Application {
@@ -141,6 +142,46 @@ const AdminClients = () => {
   const [isUpdatingCompany, setIsUpdatingCompany] = useState(false);
   const [listError, setListError] = useState<string | null>(null);
 
+  const refreshStableCounts = useCallback(async () => {
+    try {
+      const counts = await fetchClientGovernanceCounts(supabase);
+      setStableCounts(counts);
+    } catch (err) {
+      console.error("Failed to fetch stable counts:", err);
+    }
+  }, []);
+
+  const fetchApps = useCallback(async (status: string) => {
+    setLoading(true);
+    setListError(null);
+    try {
+      if (status === "directory") {
+        const { data, error } = await supabase.from("companies").select("*").order("created_at", { ascending: false });
+        if (error) throw error;
+        setActiveCompanies((data as unknown as Company[]) ?? []);
+      } else {
+        const { data, error } = await supabase
+          .from("b2b_applications")
+          .select("*")
+          .eq("status", status)
+          .order("created_at", { ascending: false });
+        if (error) throw error;
+        setApps((data as unknown as Application[]) ?? []);
+      }
+    } catch (err: unknown) {
+      console.error("Failed to fetch applications:", err);
+      const msg = err instanceof Error ? err.message : "Failed to load records.";
+      setListError(msg);
+      toast.error("Failed to load records. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const refreshAfterPipelineMutation = useCallback(async () => {
+    await Promise.all([fetchApps(tab), refreshStableCounts()]);
+  }, [tab, fetchApps, refreshStableCounts]);
+
   useEffect(() => {
     supabase
       .from("pricing_slabs")
@@ -170,56 +211,12 @@ const AdminClients = () => {
         setManagers(mgrs);
       });
 
-    // Stable counter query — single source of truth with Error Boundary
-    const fetchStableCounts = async () => {
-      try {
-        const [pendingRes, approvedRes, activeRes] = await Promise.all([
-          supabase.from("b2b_applications").select("id", { count: "exact", head: true }).eq("status", "pending"),
-          supabase.from("b2b_applications").select("id", { count: "exact", head: true }).eq("status", "approved"),
-          supabase.from("companies").select("id", { count: "exact", head: true }),
-        ]);
-        setStableCounts({
-          pending: pendingRes.count ?? 0,
-          approved: approvedRes.count ?? 0,
-          active: activeRes.count ?? 0,
-        });
-      } catch (err) {
-        console.error("Failed to fetch stable counts:", err);
-      }
-    };
-    fetchStableCounts();
-  }, []);
-
-  const fetchApps = async (status: string) => {
-    setLoading(true);
-    setListError(null);
-    try {
-      if (status === "directory") {
-        const { data, error } = await supabase.from("companies").select("*").order("created_at", { ascending: false });
-        if (error) throw error;
-        setActiveCompanies((data as unknown as Company[]) ?? []);
-      } else {
-        const { data, error } = await supabase
-          .from("b2b_applications")
-          .select("*")
-          .eq("status", status)
-          .order("created_at", { ascending: false });
-        if (error) throw error;
-        setApps((data as unknown as Application[]) ?? []);
-      }
-    } catch (err: unknown) {
-      console.error("Failed to fetch applications:", err);
-      const msg = err instanceof Error ? err.message : "Failed to load records.";
-      setListError(msg);
-      toast.error("Failed to load records. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
+    refreshStableCounts();
+  }, [refreshStableCounts]);
 
   useEffect(() => {
     fetchApps(tab);
-  }, [tab]);
+  }, [tab, fetchApps]);
 
   const pendingCount = stableCounts.pending;
   const approvedCount = stableCounts.approved;
@@ -279,7 +276,7 @@ const AdminClients = () => {
       }).catch(() => {});
 
       setSheetOpen(false);
-      fetchApps(tab);
+      await refreshAfterPipelineMutation();
     } catch (error) {
       console.error("[AdminClients] Approval failed:", error);
       toast.error("Failed to approve client.");
@@ -313,7 +310,7 @@ const AdminClients = () => {
 
       toast.success(`${app.business_name} rejected`);
       setSheetOpen(false);
-      fetchApps(tab);
+      await refreshAfterPipelineMutation();
     } catch (error) {
       console.error("[AdminClients] Rejection failed:", error);
       toast.error("Failed to reject application.");
@@ -341,7 +338,7 @@ const AdminClients = () => {
     if (!error) {
       toast.success("Information request logged. Application remains pending.");
       setSheetOpen(false);
-      fetchApps(tab);
+      await refreshAfterPipelineMutation();
     } else {
       toast.error("Failed to log request.");
     }
