@@ -61,6 +61,19 @@ assert_eq "$(trusted_check_conclusion_from_runs '{"check_runs":[{"name":"CodeQL"
   "missing" \
   "namesake without trusted producer fails closed"
 
+cursor_spoof='{
+  "check_runs": [
+    {"name":"Cursor Security Agent: Security Reviewer","app":{"slug":"cursor"},"started_at":"2026-01-02T00:00:00Z","conclusion":"success"},
+    {"name":"Cursor Security Agent: Security Reviewer","app":{"slug":"github-actions"},"started_at":"2026-01-03T00:00:00Z","conclusion":"success"}
+  ]
+}'
+assert_eq "$(trusted_check_conclusion_from_runs "$cursor_spoof" "Cursor Security Agent: Security Reviewer" "cursor")" \
+  "success" \
+  "Cursor Security must come from cursor app, not newest namesake"
+assert_eq "$(trusted_check_conclusion_from_runs "$cursor_spoof" "Cursor Security Agent: Security Reviewer" "github-actions")" \
+  "success" \
+  "github-actions spoof is visible only when explicitly requested"
+
 # 3) Vercel deployment status must be Vercel-authored, not arbitrary actor.
 statuses='[
   [{"state":"success","environment_url":"https://good-oasisbaklawa2006-6222s-projects.vercel.app","creator":{"login":"vercel[bot]"},"created_at":"2026-01-01T00:00:00Z"}],
@@ -70,6 +83,15 @@ selected="$(select_vercel_authored_success_status <<<"$statuses")"
 assert_eq "$(jq -r '.environment_url' <<<"$selected")" \
   "https://good-oasisbaklawa2006-6222s-projects.vercel.app" \
   "Vercel-authored status wins over later arbitrary actor"
+
+vercel_app_slug_status='[[{"state":"success","environment_url":"https://slug-oasisbaklawa2006-6222s-projects.vercel.app","performed_via_github_app":{"slug":"vercel"},"created_at":"2026-01-01T00:00:00Z"}]]'
+assert_eq "$(jq -r '.environment_url' <<<"$(select_vercel_authored_success_status <<<"$vercel_app_slug_status")")" \
+  "https://slug-oasisbaklawa2006-6222s-projects.vercel.app" \
+  "Vercel app slug status is accepted"
+assert_fail "attacker-only status is rejected" vercel_authored_status '{"state":"success","environment_url":"https://evil-oasisbaklawa2006-6222s-projects.vercel.app","creator":{"login":"attacker"}}'
+assert_eq "$(jq -r '.environment_url // empty' <<<"$(select_vercel_authored_success_status <<< '[[{"state":"success","environment_url":"https://evil-oasisbaklawa2006-6222s-projects.vercel.app","creator":{"login":"attacker"},"created_at":"2026-01-02T00:00:00Z"}]]')")" \
+  "" \
+  "attacker-only deployment status yields no accepted URL"
 
 # 4) AI-UAT correlation uses deterministic workflow identity, not workflow inputs.
 title="$(expected_ai_uat_run_title "$head" "$deployment_id")"

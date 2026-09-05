@@ -39,6 +39,18 @@ trusted_check_conclusion_from_runs() {
   ' <<<"$check_runs_json"
 }
 
+# Report whether one deployment status object is Vercel-authored.
+vercel_authored_status() {
+  jq -e '
+    (.state == "success")
+    and ((.environment_url // "") != "")
+    and (
+      ((.creator.login // "") == "vercel[bot]")
+      or ((.performed_via_github_app.slug // "") == "vercel")
+    )
+  ' <<<"$1" >/dev/null
+}
+
 # Select the newest Vercel-authored successful deployment status JSON object.
 select_vercel_authored_success_status() {
   jq '
