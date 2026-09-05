@@ -16,6 +16,8 @@
     "test:ux-audit": "playwright test -c playwright.ux-audit.config.ts",
     "test:ux-audit:report": "node scripts/merge-ux-audit-report.mjs",
     "test:uat-crawl": "playwright test -c playwright.uat-crawl.config.ts",
+    "test:uat-auth-rerun": "playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/auth-rerun.spec.ts",
+    "test:uat-tranche-03": "playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/tranche-03-crawl.spec.ts",
     "uat:census": "node scripts/uat-crawl/generate-census.mjs",
     "test:ai-uat": "playwright test -c playwright.ai-uat.config.ts",
     "test:ai-uat:report": "node scripts/merge-ai-uat-report.mjs",

@@ -19,6 +19,7 @@ export const ROOT = path.resolve(import.meta.dirname, "../..");
 export const BASELINE_SHA = "08ccb1cfd4a3624103f0681b5515e26727e77cd2";
 export const CRAWL_BASE_URL =
   process.env.UAT_CRAWL_BASE_URL ||
+  process.env.TEST_PREVIEW_URL ||
   process.env.APP_URL ||
   "https://oasis-baklawa-centra-git-b9f168-oasisbaklawa2006-6222s-projects.vercel.app";
 

@@ -1,0 +1,123 @@
+name: UAT Crawl Evidence (authenticated)
+
+# Read-only Appverse UAT evidence collection for PR #462 / Workstation 5.
+# Reuses governed TEST_* secret names from lane1-live-smoke and dispatch RLS cert.
+# Never logs credential values. Pre-auth tranche screenshots are preserved separately.
+on:
+  workflow_dispatch:
+    inputs:
+      target_url:
+        description: "Optional override — defaults to TEST_PREVIEW_URL secret (must be *.vercel.app or localhost)"
+        required: false
+        type: string
+      run_tranche:
+        description: "Crawl tranche: auth-rerun (repair 0002–0020), tranche-03 (0021–0030), or both"
+        required: true
+        default: auth-rerun
+        type: choice
+        options:
+          - auth-rerun
+          - tranche-03
+          - both
+
+permissions:
+  contents: read
+
+concurrency:
+  group: uat-crawl-evidence-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  uat-crawl:
+    name: Authenticated UAT evidence crawl
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      TEST_PREVIEW_URL: ${{ inputs.target_url != '' && inputs.target_url || secrets.TEST_PREVIEW_URL }}
+      UAT_CRAWL_BASE_URL: ${{ inputs.target_url != '' && inputs.target_url || secrets.TEST_PREVIEW_URL }}
+      TEST_ADMIN_EMAIL: ${{ secrets.TEST_ADMIN_EMAIL }}
+      TEST_ADMIN_PASSWORD: ${{ secrets.TEST_ADMIN_PASSWORD }}
+      TEST_BUYER_EMAIL: ${{ secrets.TEST_BUYER_EMAIL }}
+      TEST_BUYER_PASSWORD: ${{ secrets.TEST_BUYER_PASSWORD }}
+      TEST_SALES_EMAIL: ${{ secrets.TEST_SALES_EMAIL }}
+      TEST_SALES_PASSWORD: ${{ secrets.TEST_SALES_PASSWORD }}
+      TEST_FINANCE_EMAIL: ${{ secrets.TEST_FINANCE_EMAIL }}
+      TEST_FINANCE_PASSWORD: ${{ secrets.TEST_FINANCE_PASSWORD }}
+      TEST_ASSEMBLY_EMAIL: ${{ secrets.TEST_ASSEMBLY_EMAIL }}
+      TEST_ASSEMBLY_PASSWORD: ${{ secrets.TEST_ASSEMBLY_PASSWORD }}
+      TEST_DISPATCH_EMAIL: ${{ secrets.TEST_DISPATCH_EMAIL }}
+      TEST_DISPATCH_PASSWORD: ${{ secrets.TEST_DISPATCH_PASSWORD }}
+      TEST_OPERATIONS_EMAIL: ${{ secrets.TEST_OPERATIONS_EMAIL }}
+      TEST_OPERATIONS_PASSWORD: ${{ secrets.TEST_OPERATIONS_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate target URL before crawl (no secrets logged)
+        shell: bash
+        env:
+          RAW_URL: ${{ env.TEST_PREVIEW_URL }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${RAW_URL:-}" ]]; then
+            echo "::error::TEST_PREVIEW_URL secret (or workflow input target_url) is required."
+            exit 1
+          fi
+          if [[ "$RAW_URL" == *$'\n'* || "$RAW_URL" == *$'\r'* ]]; then
+            echo "::error::Target URL contains newline — refusing."
+            exit 1
+          fi
+          host="$(python3 -c "import sys, urllib.parse; print(urllib.parse.urlparse(sys.argv[1]).hostname or '')" "$RAW_URL")"
+          echo "Target host: $host"
+          if [[ "$host" == "b2b.oasisbaklawa.com" || "$host" == "localhost" || "$host" == "127.0.0.1" || "$host" == *".vercel.app" ]]; then
+            echo "Target host approved for UAT crawl."
+          else
+            echo "::error::Target host $host not in approved UAT crawl allowlist (production, localhost, *.vercel.app)."
+            exit 1
+          fi
+
+      - name: Report configured secret presence (names only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in TEST_PREVIEW_URL TEST_ADMIN_EMAIL TEST_ADMIN_PASSWORD TEST_BUYER_EMAIL TEST_BUYER_PASSWORD \
+                      TEST_SALES_EMAIL TEST_SALES_PASSWORD TEST_FINANCE_EMAIL TEST_FINANCE_PASSWORD \
+                      TEST_ASSEMBLY_EMAIL TEST_ASSEMBLY_PASSWORD TEST_DISPATCH_EMAIL TEST_DISPATCH_PASSWORD \
+                      TEST_OPERATIONS_EMAIL TEST_OPERATIONS_PASSWORD TEST_GATE_SECURITY_EMAIL TEST_GATE_SECURITY_PASSWORD; do
+            if [[ -n "${!name:-}" ]]; then
+              echo "present: $name"
+            else
+              echo "missing: $name"
+            fi
+          done
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run authenticated UAT auth-rerun
+        if: inputs.run_tranche == 'auth-rerun' || inputs.run_tranche == 'both'
+        run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/auth-rerun.spec.ts
+
+      - name: Run UAT tranche 03 (chronological continue)
+        if: inputs.run_tranche == 'tranche-03' || inputs.run_tranche == 'both'
+        run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/tranche-03-crawl.spec.ts
+
+      - name: Upload UAT evidence bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: uat-crawl-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            uat-evidence/screenshots/
+            docs/uat-crawl/UAT_MANIFEST*.jsonl
+            docs/uat-crawl/UAT_INDEX*.md
+            docs/uat-crawl/UAT_AUTH_RERUN_SUMMARY.json
+            docs/uat-crawl/UAT_FAILURE_LEDGER.md
+          if-no-files-found: warn
+          retention-days: 30

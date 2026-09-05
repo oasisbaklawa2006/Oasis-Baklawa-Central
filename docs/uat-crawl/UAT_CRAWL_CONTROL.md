@@ -14,8 +14,8 @@
 | 2a | Screenshot crawl tranche 01 (UAT-0001..0010) | `uat-evidence/screenshots/tranche-01/` | **COMPLETE** |
 | 2b | Screenshot crawl tranche 02 (UAT-0011..0020) | `uat-evidence/screenshots/tranche-02/` | **COMPLETE** (2026-09-05) |
 | 2c | **UI/UX failure matrix** | `UAT_UX_FAILURE_MATRIX.md`, `ux-matrix.json` | **COMPLETE** |
-| 3 | Function crawl | Per-page control matrix | **NOT STARTED** (blocked on credentials for auth surfaces) |
-| 3b | Full UX crawl (148 criteria × 131 IDs) | Manifest `uxCriteria*` fields | **NOT STARTED** (blocked on credentials + S1–S3 interactive states) |
+| 2d | **Authenticated auth-rerun** (UAT-0002..0020) | `uat-evidence/screenshots/auth-rerun/`, `UAT_MANIFEST_AUTH.jsonl` | **HARNESS READY** — 0/15 authenticated until GHA `TEST_*` secrets |
+| 3 | Function + UX crawl (authenticated) | `tests/uat-crawl/auth-crawl.ts`, workflow `uat-crawl-evidence.yml` | **BLOCKED** on secret provisioning in CI |
 | 4 | Failure register | `docs/uat-crawl/UAT_FAILURE_LEDGER.md` | **BOOTSTRAPPED** |
 
 ## Census totals (Phase 1)
@@ -32,22 +32,33 @@
 
 ```
 uat-evidence/
-  screenshots/tranche-01/     # chronological PNG captures (S0–S3 suffix)
-  playwright-output/          # transient (gitignored)
+  screenshots/tranche-01/     # pre-auth evidence (preserved)
+  screenshots/tranche-02/
+  screenshots/auth-rerun/     # authenticated S0–S3 (separate from pre-auth)
+  screenshots/tranche-03-auth/
 docs/uat-crawl/
-  UAT_ROUTE_CENSUS.json       # machine-readable census
-  UAT_ROUTE_CENSUS.md         # human summary
-  UAT_MANIFEST.jsonl          # one JSON object per capture (+ uxEvidence)
-  UAT_INDEX.md                # markdown index tranche 01
-  UAT_FAILURE_LEDGER.md       # FAIL-ID register (functional + UX)
-  UAT_UX_FAILURE_MATRIX.md    # 148-criterion human matrix (sections A–T)
-  ux-matrix.json              # machine-readable UX criteria
-  UAT_TRANCHE_01_TARGETS.json
-scripts/uat-crawl/generate-census.mjs
-tests/uat-crawl/tranche-01-crawl.spec.ts
-tests/uat-crawl/ux-helpers.ts
-playwright.uat-crawl.config.ts
+  UAT_MANIFEST.jsonl          # pre-auth captures
+  UAT_MANIFEST_AUTH.jsonl     # authenticated captures + checksums
+  UAT_AUTH_RERUN_SUMMARY.json
+  UAT_INDEX_AUTH_RERUN.md
+.github/workflows/uat-crawl-evidence.yml
+tests/uat-crawl/auth-rerun.spec.ts
+tests/uat-crawl/auth-crawl.ts
+tests/uat-crawl/credential-matrix.ts
 ```
+
+## Authenticated crawl (required for role surfaces)
+
+**Login-gate screenshots do not satisfy function/UX crawl.** Re-run via:
+
+```bash
+# GitHub Actions (recommended): workflow_dispatch "UAT Crawl Evidence"
+# Local (secrets exported, never commit values):
+TEST_PREVIEW_URL=https://<host> npm run test:uat-auth-rerun
+TEST_PREVIEW_URL=https://<host> npm run test:uat-tranche-03
+```
+
+Credential matrix: `tests/uat-crawl/credential-matrix.ts` — reuses `TEST_ADMIN_*`, `TEST_BUYER_*`, `TEST_SALES_*`, `TEST_FINANCE_*`, `TEST_ASSEMBLY_*`, `TEST_DISPATCH_*`, `TEST_OPERATIONS_*` from lane1 / dispatch cert / buyer cert conventions.
 
 ## Manifest UX fields (required from tranche 02+)
 
