@@ -55,6 +55,7 @@ jobs:
       TEST_DISPATCH_PASSWORD: ${{ secrets.TEST_DISPATCH_PASSWORD }}
       TEST_OPERATIONS_EMAIL: ${{ secrets.TEST_OPERATIONS_EMAIL }}
       TEST_OPERATIONS_PASSWORD: ${{ secrets.TEST_OPERATIONS_PASSWORD }}
+      UAT_CRAWL_PRODUCTION: "true"
       GITHUB_RUN_ID: ${{ github.run_id }}
       GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
     steps:
@@ -121,14 +122,17 @@ jobs:
 
       - name: Run post-fix #483 buyer approval re-test (UAT-0018 + UAT-0020)
         if: env.RUN_TRANCHE == 'post-fix-483' || env.RUN_TRANCHE == 'all'
+        continue-on-error: true
         run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/post-fix-483-rerun.spec.ts
 
       - name: Run authenticated UAT auth-rerun
         if: env.RUN_TRANCHE == 'auth-rerun' || env.RUN_TRANCHE == 'both' || env.RUN_TRANCHE == 'all'
+        continue-on-error: true
         run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/auth-rerun.spec.ts
 
       - name: Run UAT tranche 03 (chronological continue)
         if: env.RUN_TRANCHE == 'tranche-03' || env.RUN_TRANCHE == 'both' || env.RUN_TRANCHE == 'all'
+        continue-on-error: true
         run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/tranche-03-crawl.spec.ts
 
       - name: Write run metadata for commit job

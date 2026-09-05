@@ -6,42 +6,40 @@
 
 ## GHA execution log
 
-| Run ID | Trigger | Tranche | Result | Blocker |
+| Run ID | SHA | Tranche | Result | Notes |
 |---:|---|---|---|---|
-| [33991923048](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/33991923048) | push @ `995e6c0a` | `all` | **FAIL** (early exit) | `TEST_PREVIEW_URL` secret missing — fixed in next push with production fallback + secret report first |
+| [33991923048](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/33991923048) | `995e6c0a` | `all` | **FAIL** | `TEST_PREVIEW_URL` secret missing — early exit before crawl |
+| [33991965797](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/33991965797) | `bb6ea2f1` | `all` | **PARTIAL** | post-fix-483 ✓ (blocked on `TEST_SALES_*`); auth-rerun ✗ (e2e hostname guard); tranche-03 skipped |
 
-**Workflow dispatch from agent:** HTTP 403 — token lacks `actions:write` / workflow not on default branch. Push trigger used instead.
+**Run 33991965797 secret report (names only):**
 
-## Coverage
+| Status | Secrets |
+|---|---|
+| **present** | `TEST_ADMIN_*`, `TEST_FINANCE_*`, `TEST_ASSEMBLY_*`, `TEST_DISPATCH_*`, `TEST_OPERATIONS_*` |
+| **missing** | `TEST_PREVIEW_URL`, `TEST_BUYER_*`, `TEST_SALES_*`, `TEST_GATE_SECURITY_*` |
+
+Production fallback URL used: `https://b2b.oasisbaklawa.com` (deploy ace340fe).
+
+**Agent workflow_dispatch:** HTTP 403 — lacks `actions:write`; push trigger used instead.
+
+## Coverage (after run 33991965797)
 
 | Metric | Count |
 |---|---:|
-| Census total | 131 |
-| Pre-auth screenshots (tranche 01–02) | **20** |
-| Post-fix #483 targets | **2** (UAT-0018 + UAT-0020) |
-| Post-fix S0–S3 complete | **0** — pending `TEST_SALES_*` in GHA |
-| Authenticated auth-rerun targets | **13** |
-| Authenticated S0–S3 complete | **0** — pending role secrets in GHA |
+| Pre-auth screenshots | **20 / 131** |
+| Post-fix #483 S0–S3 | **0 / 2** — blocked `TEST_SALES_EMAIL`, `TEST_SALES_PASSWORD` |
+| Auth-rerun S0–S3 | **0 / 13** — blocked by e2e hostname guard (fixed in next push) |
+| Tranche-03 | **0 / 10** — not reached |
 | Remaining untested | **111** |
 
-## External physical evidence (iPhone)
+## External physical evidence
 
-Operator recording mapped in [`UAT_PHYSICAL_EVIDENCE_EXTERNAL.md`](./UAT_PHYSICAL_EVIDENCE_EXTERNAL.md). Overlay failures **provisional PASS** pending governed re-crawl. **FAIL-485-001** (KPI stale after approval) routed to Central **#485**.
+iPhone recording mapped in [`UAT_PHYSICAL_EVIDENCE_EXTERNAL.md`](./UAT_PHYSICAL_EVIDENCE_EXTERNAL.md). **FAIL-485-001** (KPI stale) → Central **#485**.
 
-## Required repo secrets (names only)
+## Operator actions required
 
-| Secret | Blocks |
-|---|---|
-| `TEST_PREVIEW_URL` | All crawls (fallback: `https://b2b.oasisbaklawa.com` when absent) |
-| `TEST_SALES_EMAIL` / `TEST_SALES_PASSWORD` | UAT-0018, 0020 post-fix #483 |
-| `TEST_ADMIN_EMAIL` / `TEST_ADMIN_PASSWORD` | UAT-0010, 0011, 0015–0017, 0019 |
-| `TEST_BUYER_EMAIL` / `TEST_BUYER_PASSWORD` | UAT-0006, 0007 |
-| `TEST_FINANCE_EMAIL` / `TEST_FINANCE_PASSWORD` | UAT-0013, 0014 |
-| `TEST_ASSEMBLY_EMAIL` / `TEST_ASSEMBLY_PASSWORD` | UAT-0012 |
-| `TEST_OPERATIONS_EMAIL` / `TEST_OPERATIONS_PASSWORD` | UAT-0002 |
-| `TEST_DISPATCH_EMAIL` / `TEST_DISPATCH_PASSWORD` | tranche-03 dispatch routes |
-| `TEST_GATE_SECURITY_EMAIL` / `TEST_GATE_SECURITY_PASSWORD` | UAT-0003 — not wired in repo |
+1. Add repo secrets: **`TEST_SALES_EMAIL`**, **`TEST_SALES_PASSWORD`** (blocks UAT-0018/0020 post-fix #483)
+2. Optional: **`TEST_PREVIEW_URL`** = `https://b2b.oasisbaklawa.com` (fallback already used when absent)
+3. Optional: **`TEST_BUYER_*`**, **`TEST_GATE_SECURITY_*`** for UAT-0006/0007/0003
 
-## Next
-
-Re-run in progress after workflow fix — push triggers `all` tranche on this branch.
+Third GHA run in progress after `UAT_CRAWL_PRODUCTION` hostname fix + continue-on-error tranches.
