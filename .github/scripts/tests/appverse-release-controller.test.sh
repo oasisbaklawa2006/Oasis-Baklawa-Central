@@ -37,6 +37,7 @@ assert_pass() {
 head="abc123def4567890abc123def4567890abcd1234"
 deployment_id="424242"
 target="https://preview-oasisbaklawa2006-6222s-projects.vercel.app"
+realistic_target="https://oasis-baklawa-central-9bffhy61m-oasisbaklawa2006-6222s-projects.vercel.app"
 merged_at="2026-01-01T00:00:00Z"
 
 # 1) Dispatch head must remain the PR head SHA, not merge/test-merge SHA.
@@ -126,8 +127,12 @@ assert_eq "$marker" \
   "APPVERSE_CONTROLLER:AI_UAT_CORRELATION:${head}:${deployment_id}:${target}" \
   "durable correlation marker shape"
 
-# 5) URL normalization rejects malformed Oasis-team hosts.
+# 5) URL normalization accepts the real Vercel team hostname shape and rejects
+# lookalikes. Vercel separates the deployment slug from the team slug with a
+# hyphen, not a DNS label boundary.
 assert_pass "valid Oasis preview URL accepted" normalize_vercel_target_url "$target"
+assert_pass "real Vercel deployment hostname accepted" normalize_vercel_target_url "$realistic_target"
+assert_fail "old dot-before-team pseudo-host rejected" normalize_vercel_target_url "https://preview.oasisbaklawa2006-6222s-projects.vercel.app"
 assert_fail "arbitrary host rejected" normalize_vercel_target_url "https://evil.example.com"
 
 echo "appverse-release-controller.test.sh: all cases passed"
