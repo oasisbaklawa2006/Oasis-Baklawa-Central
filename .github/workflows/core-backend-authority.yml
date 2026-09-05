@@ -6,6 +6,11 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      base_sha:
+        description: Auditable comparison base commit SHA (required for manual runs)
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -33,10 +38,13 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           PUSH_BEFORE: ${{ github.event.before }}
+          DISPATCH_BASE_SHA: ${{ github.event.inputs.base_sha }}
         run: |
           set -euo pipefail
           if [[ "$EVENT_NAME" == "pull_request" ]]; then
             base="$PR_BASE_SHA"
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            base="$DISPATCH_BASE_SHA"
           else
             base="$PUSH_BEFORE"
           fi

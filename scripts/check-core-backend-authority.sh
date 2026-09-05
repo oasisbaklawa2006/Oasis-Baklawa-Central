@@ -28,10 +28,12 @@ is_core_owned_path() {
 }
 
 violations=()
-while IFS=$'\t' read -r status path1 path2; do
+while IFS= read -r -d '' status; do
+  IFS= read -r -d '' path1 || fail "invalid diff pathname record"
   [[ -n "$status" ]] || continue
   case "$status" in
     R*|C*)
+      IFS= read -r -d '' path2 || fail "invalid rename/copy pathname record"
       if is_core_owned_path "$path1" || is_core_owned_path "$path2"; then
         violations+=("$status $path1 -> $path2")
       fi
@@ -42,14 +44,14 @@ while IFS=$'\t' read -r status path1 path2; do
       fi
       ;;
   esac
-done < <(git diff --name-status -M -C "$base_ref" HEAD)
+done < <(git diff --name-status -z -M -C "$base_ref" HEAD)
 
-while IFS= read -r path; do
+while IFS= read -r -d '' path; do
   [[ -n "$path" ]] || continue
   if is_core_owned_path "$path"; then
     violations+=("untracked $path")
   fi
-done < <(git ls-files --others --exclude-standard)
+done < <(git ls-files -z --others --exclude-standard)
 
 if ((${#violations[@]})); then
   echo "CORE BACKEND AUTHORITY VIOLATION: Oasis-Baklawa-Central may consume Core contracts but may not add, edit, delete, rename or copy Supabase migrations, archived migrations, or Edge Functions." >&2
