@@ -1,314 +1,173 @@
 # Physical UAT Readiness Matrix — Workstation 5
 
 **ASM scope:** Documentation and evidence orchestration only — no code, schema, or production mutation.  
-**Audit date:** 2026-09-05 (refreshed after Central **#458** merge + production Dispatch RLS certification PASS)  
+**Audit date:** 2026-09-05 (control refresh — strict software **+ production** gate audit)  
 **Hardware available:** tablet, Chromebook, laptop, multiple mobile phones, smart TV, scanner.  
 **Authority:** `APPVERSE_MISSION_CONTROL.md`, `appverse-control/state.json`, `docs/APP_VERSE_MASTER_PROGRAMME_REGISTER.md`.
 
 ## Software baselines (exact heads audited)
 
-Re-verify heads before each session. A newer merge invalidates prior exact-head certification (`MERGED ≠ CLEARED`). Physical UAT evidence does not by itself clear a programme point.
+Re-verify heads before each session. Physical evidence ≠ PASS ≠ programme CLEARED.
 
-| Repository | Role | Audited SHA | Latest merged anchor | Physical-UAT relevance |
+| Repository | Role | Audited SHA | Latest anchor | Production-relevant gate |
 |---|---|---|---|---|
-| **Oasis-Baklawa-Central** | Admin / operational control tower | `ad6c05ad3e8e064953d5ee6a41b462ded2c48d44` | **#458** P0 Dispatch RBAC least-privilege (merge commit) | `/admin/dispatch-mgmt`, scan-timeline, Factory TVs, governance boards |
-| **oasis-supabase-core** | Migration / RPC / RLS authority | `049950fb5f7c681c5cbcc58f0d2d7825075a52d7` | #191 POINT29-CORE preview compat overlay | Governed RPC paths; production PostgREST deny probes for Dispatch |
-| **oasis-trace** | Label / barcode / scanner app | `e395b77f115803ab998266fb7459744fd743110a` | #18 POINT96 offline scan retry | Scanner ingest, offline queue, HMAC submit to Central |
-| **oasis-baklawa** | Customer Buyer app (Expo RN) | `570853c14b18d652301943810f9089acc967a76a` | #8 Governance: forbid shadow backend authority | Mobile buyer journey (100a–100h subset) |
-| **oasis-ai-studio** | Product editorial authority | `cdf901498c48a2716d038ddc33bee7a5170f73ab` | #138 POINT30 governed AI extraction | Media workspace software on **PR #143** head `a373564a` (not merged) |
+| **Oasis-Baklawa-Central** | Admin / operational control tower | `08ccb1cfd4a3624103f0681b5515e26727e77cd2` | #479 AI-UAT sign-out (current `main`) | Dispatch RBAC from **#458** @ `ad6c05ad` — confirm live deploy SHA ≥ `ad6c05ad` |
+| **oasis-supabase-core** | Migration / RPC / RLS authority | `06bc02f635be59e8cd505e41e7e963748c0feebf` | #197 POINT68 WhatsApp draft review | Production PostgREST deny for Dispatch on `finance_review_evidence` + `inventory_reservations` |
+| **oasis-trace** | Scanner / label app | `e395b77f115803ab998266fb7459744fd743110a` | #18 POINT96 offline retry | Unchanged; scanner lane independent |
+| **oasis-baklawa** | Customer Buyer app | `570853c14b18d652301943810f9089acc967a76a` | #8 governance | Access-request submit wired; **approval blocked on Central #481** |
+| **oasis-ai-studio** | Media workspace | `c010b26e96002ca666e470d3f578b2fc1c64e362` (`main`) | POINT30 runtime remediation | Point 41 software **not on `main`** — use PR **#143** preview @ `a373564a` only |
 
-### Cleared Dispatch software gates (formerly blocking)
+### Production gates — cleared vs open
 
-| Gate | Repo | Evidence | State | Physical-UAT effect |
-|---|---|---|---|---|
-| P0 Dispatch RBAC least-privilege | Central | **#458** merged @ `ad6c05ad` | **MERGED** | Dispatch operator physical UAT may proceed on deployed target matching merge head |
-| Production Dispatch RLS characterization | Central + Core | Workflow `.github/workflows/dispatch-rls-production-cert.yml` pin `9eeadbde17e09236f1c6ea88ca8fbefeb8bbee59`; summary **2/2 denied, 0 allowed, 0 inconclusive** on `finance_review_evidence` + `inventory_reservations` direct INSERT probes | **PASS** | PostgREST bypass concern for these surfaces is **software-certified**; physical Dispatch UAT no longer blocked on this gate |
-| Point 55 legacy URL cutover | Central | #448 @ `18415df1` | **MERGED** | Governed `/admin/dispatch-mgmt` entry (Point 55 bundle row 1) |
-
-**Dispatch physical rule (updated):** Dispatch **software** gates for operator UAT are **cleared**. Dispatch **programme clearance** still requires physical operator evidence (Point 55 bundle rows 1–10, stage 11 census, Point 98 lifecycle). Do not conflate RLS certification PASS or #458 merge with stage-11 CLEARED.
-
-Trace scanner/device testing remains **distinct and independent** of Dispatch physical UAT.
-
----
-
-## Minimal next physical session order
-
-Run in this order to maximize evidence without duplicating setup. Skip any lane whose checklist is already accepted by Mission Control.
-
-| Order | Lane | Devices | Programme slice | Gate note |
-|---:|---|---|---|---|
-| **1** | **LANE-A — Trace scanner ingest** | Scanner + laptop (+ phone offline) | Points 94–96; Trace stage 15 | Independent of Dispatch; **execute first if not yet evidenced** |
-| **2** | **LANE-F — Point 41 live storage + camera** | Phone (camera) + laptop (gallery/review) | Point 41 media workspace | AI Studio **PR #143** exact-head preview only; **does not claim Point 41 COMPLETE** |
-| **3** | **LANE-G — Dispatch operator physical** | Scanner + laptop (+ dispatch TV optional) | Point 55 rows 1–10; stage 11 / 98 slice | **Now READY** — #458 merged + production RLS cert PASS |
-| **4** | **LANE-E — Buyer governed onboarding (100a)** | Phone | 100a auth / access request | Software wired; **do not invent PASS** for approval workflow or production golden path |
-| **5** | **LANE-B/C/D — Factory floor combined** | Smart TV + scanner/tablet + laptop | Points 51–53, 87–90 | Combine in one floor session when Trace + Dispatch sessions complete |
-
----
-
-## Master disposition — programme points requiring physical/device evidence
-
-Legend: **READY** = safe to run now at audited baselines. **BLOCKED** = upstream software or authority gate. **NOT NEEDED** = no separate device session.
-
-### Phase C — AI Studio media & publication (Points 41, 44, 55–56)
-
-| Point | Work item | Disposition | Primary device | Blocker / note |
-|---:|---|---|---|---|
-| **41** | Complete media workspace | **READY** (physical) | Phone (camera) + laptop | Software on AI Studio **PR #143** @ `a373564a` (exact-head CI green); **live storage + camera UAT not PASS until checklist signed** — see LANE-F |
-| 44 | Guided mobile camera capture | **READY** (partial) | Phone | Absorbed into Point 41 camera steps C1–C4; not a separate session |
-| 55 | Publish operational product data to Central | **BLOCKED** | Laptop + phone | Publication contract + Core approve mapping still fail-closed |
-| 56 | Publish customer-safe product data to Customer App | **BLOCKED** | Phone (Buyer) | Depends on Point 55 + Buyer Core binding |
-
-### Phase E — Factory / stores / production (Points 87–92, ASM stages 07–10)
-
-| Point / stage | Work item | Disposition | Devices | Blocker / note |
-|---|---|---|---|---|
-| 51 / stage 07 RGS | Ready Goods Store custody | **READY** | Scanner/handheld + smart TV (`/tv/rgs`) + laptop | Factory cert green (#433); use staging identities |
-| 52 / stage 10 Production | Department execution + six-TV estate | **READY** | Smart TV (`/tv/*`) + phone/tablet + laptop | Fixture `E3ED28B0` / UUID `e3ed28b0-0000-4000-8000-000000000001` |
-| 53 / stage 09 P&A | Assembly execution | **READY** | Scanner/handheld + tablet + laptop | `/admin/assembly-tasks` FACTORY_CURRENT |
-| 54 / stage 08 3PGS | Third-party store / put-away | **READY** (partial) | Laptop + tablet | #410 merged |
-| 90–92 | Assembly / RGS / packing rules | **READY** (evidence-only) | Same as 51–53 session | Software custody green |
-
-### Phase F — Trace, dispatch, physical compliance (Points 93–99, stage 11 / 15)
-
-| Point / stage | Work item | Disposition | Devices | Blocker / note |
-|---|---|---|---|---|
-| 93 | Central–Trace command contract | **NOT NEEDED** (device) | — | 64/64 Trace contract tests at Factory cert |
-| 94 | Barcode identities | **READY** | Scanner + laptop | Trace @ `e395b77f` |
-| 95 | Label printing / reprint / verification | **READY** (partial) | Scanner + laptop + printer LAN | Print bridge `127.0.0.1:9191` |
-| 96 | Signed scan ingestion, offline retry, duplicate prevention | **READY** | Scanner + phone + laptop | **LANE-A** — distinct from Dispatch |
-| 97 | Physical handovers (all departments) | **READY** (partial) | Scanner + handheld | Scan→ingest→timeline now; full handover chain needs governed fixture order |
-| **98** | Dispatch readiness / loading / finalisation / gate | **READY** (physical) | Scanner + laptop + TV | Software unblocked; **physical evidence still required** |
-| 99 | Trace embedded in Central / mobile / TV | **READY** (partial) | Laptop + phone + TV | After LANE-A timeline proof |
-| 55 (Factory DPL slice) | Governed DPL through finance submission | **READY** (physical) | Scanner + laptop | Rows 1–10 per `docs/POINT_55_DISPATCH_DPL_CLOSURE_WORKSTATION.md` — **LANE-G** |
-| **stage 11 Dispatch** | Full governed lifecycle + legacy cutover | **READY** (physical) | All dispatch devices | Software gates cleared; shipment/gate/POD physical census still separate programme work |
-
-### Phase G — Customer app + programme closure (Point 100)
-
-| Subpoint | Work item | Disposition | Device | Blocker / note |
-|---|---|---|---|---|
-| **100a** | Authentication and onboarding | **READY** (physical, staging) | Phone | `submit_b2b_trade_application_v1` wired per APP-E2E ledger; **approval + protected runtime NOT PASS** — capture onboarding UX only |
-| 100b–100h | Catalogue → support | **READY** (staging software) / **NOT PASS** (production golden path) | Phone(s) | Use non-production Buyer build; Finance/document child capabilities Core-blocked |
-| 100i | Central desktop/mobile dashboards | **READY** (partial) | Laptop + tablet + phone | Evidence-only |
-| 100j | Operator handheld + Smart TV | **READY** | Scanner + TV + tablet | Overlaps Factory lanes |
-| 100k | Cross-app E2E UAT | **BLOCKED** | All | Mission Control stage 20 LOCKED |
-| 100l–100m | Security / performance / launch | **BLOCKED** | All | Stage 21 LOCKED |
-
-### Device-efficiency map
-
-| Session | Devices | Points / stages |
+| Gate | State | Effect on physical UAT |
 |---|---|---|
-| **A — Trace scanner** | Scanner + laptop (+ phone) | 94, 95 (partial), 96, 99 (partial), Trace 15 |
-| **F — Point 41 media** | Phone + laptop | 41, 44 (partial) |
-| **G — Dispatch operator** | Scanner + laptop (+ TV) | 55 rows 1–10, 92 (partial), 97–98 (slice), stage 11 |
-| **E — Buyer 100a** | Phone | 100a onboarding/access request only |
-| **B — Production TV** | Smart TV + laptop (+ phone) | 52, 87–88, 100j |
-| **C — Stores floor** | Scanner + tablet + TV | 51, 90–91 |
-| **D — P&A floor** | Scanner + tablet | 53, 90 |
+| Central **#458** Dispatch RBAC @ `ad6c05ad` | **MERGED** | Dispatch operator lane software-ready |
+| Production Dispatch RLS cert pin `9eeadbde` | **PASS** (2/2 denied, 0 allowed, 0 inconclusive) | PostgREST bypass probes cleared for probed surfaces |
+| Central production deploy includes #458 | **VERIFY before session** | Record deployed SHA in evidence — do not assume `main` = production |
+| Trace `barcode-scan-ingest` + HMAC secrets aligned | **VERIFY on target Supabase** | Staging-first per ingest runbook; production only after staging pilot green |
+| AI Studio Point 41 PR **#143** | **OPEN** (not merged) | Point 41 physical UAT **preview-only** |
+| Central issue **#481** Buyer approval sheet | **OPEN** (physical FAIL recorded 2026-09-05) | **Buyer admin approval lane BLOCKED** until fix merged **and** deployed |
 
 ---
 
-## READY device lanes — compact run sheets
+## Strict lane disposition (software + production)
 
-### LANE-A — Trace scanner ingest (order 1 — distinct hardware proof)
+Only lanes marked **READY** may be scheduled now. **READY (preview)** and **READY (staging)** require the stated deploy target. **BLOCKED** lanes include prepared re-test scripts but must not be run until gates clear.
 
-**Coverage:** Points **94, 95 (partial), 96**; Trace stage **15**.  
-**Disposition:** **READY** — independent of Dispatch lanes.
+| Lane | Focus | Disposition | Deploy target | Why |
+|---|---|---|---|---|
+| **A — Trace scanner** | Points 94–96 | **READY (staging)** | Staging Supabase + Trace @ `e395b77f` + Central ≥ `ad6c05ad` | Ingest software merged; independent hardware proof; production ingest not assumed |
+| **F — Point 41 camera/storage** | Point 41 | **READY (preview)** | AI Studio PR **#143** Vercel preview @ `a373564a` | Software not on `main`; bucket must exist on linked Supabase project |
+| **G — Dispatch operator** | Point 55 rows 1–10; 98 slice | **READY (production)** | Central production deploy SHA ≥ `ad6c05ad`; Core production with RLS cert PASS | Software + RLS gates cleared; physical evidence still outstanding |
+| **H — Buyer admin approval** | 100a approval chain | **BLOCKED** | — | Issue **#481**: Pricing Slab / Account Manager selects invisible in Admin Clients sheet (z-index + role-case); pending app `dc370b46-…` stuck |
+| **E — Buyer access request (phone only)** | 100a submit slice | **READY (production)** | Buyer app + production Core RPCs | Submit path works; **does not include approval PASS** |
+| B/C/D — Factory floor | 51–53, 87–90 | **READY (staging)** | Staging identities / disposable cert | Deprioritized until focus lanes evidenced |
 
-#### Prerequisites
+---
 
-| Item | Required value |
-|---|---|
-| Central deploy | `main` @ `ad6c05ad` or newer; `barcode-scan-ingest` on **staging** |
-| Trace deploy | `main` @ `e395b77f` |
-| Core deploy | `main` @ `049950fb` on same backend |
-| Test account | Trace user with `dispatch` or `security` in `ols_roles` |
-| Fixture | Staging SO with known CTN-SO barcode |
-| Central read | `/admin/scan-timeline` |
+## Exact next human test sequence
 
-#### Evidence checklist A1–A8
+Run **only READY lanes** below in order. Capture evidence per step. Report **OBSERVED** / **FAIL** / **BLOCKED** — never claim programme PASS without attached artifacts.
 
-| # | Artifact | Required content |
+### Sequence 1 — LANE-A: Trace scanner (staging)
+
+**Prerequisites:** Staging project with `barcode-scan-ingest` deployed; `BARCODE_APP_SCAN_SIGNING_SECRET` aligned; fixture SO with CTN-SO barcode; Trace user with `dispatch`/`security` role.
+
+| Step | Actor / device | Screen / route | Action | Expected result | Evidence capture |
+|---:|---|---|---|---|---|
+| A1 | Laptop | Trace app | Open fixture order; scan/enter CTN-SO | Barcode resolves; `verification_status: verified` | Photo: label + Trace UI |
+| A2 | **Scanner** | Trace scan flow | Scan gate barcode; submit | Status `submitted`; no client error | Screenshot + timestamp |
+| A3 | Laptop | Central `/admin/scan-timeline` | Refresh after submit | Row: `scan_type=dispatch_gate`, matching `order_number` | Full-screen timeline screenshot |
+| A4 | **Scanner** | Trace | Scan carton barcode; submit | Second distinct row path | Trace + timeline screenshots |
+| A5 | **Scanner** | Trace | Re-submit same idempotency key | No duplicate row (count unchanged) | Before/after row count |
+| A6 | **Scanner** | Trace | Scan wrong CTN-SO | Rejected on device or Central 4xx with reason | Error screenshot |
+| A7 | **Phone** | Trace PWA | Offline mid-scan → queue → reconnect | `retry_pending` → `submitted`; one timeline row | 3-frame phone sequence |
+| A8 | Laptop | Notes | Record env | Staging ref + Central/Trace/Core SHAs + fixture order id | Text block in evidence pack |
+
+**Outcome field:** `LANE-A: OBSERVED / FAIL / BLOCKED` — not Point 96 COMPLETE until Mission Control accepts A1–A8.
+
+---
+
+### Sequence 2 — LANE-F: Point 41 live storage + camera (AI Studio preview)
+
+**Prerequisites:** PR **#143** preview URL @ `a373564a`; `product-media` bucket reachable; contributor + reviewer accounts.
+
+| Step | Actor / device | Screen / route | Action | Expected result | Evidence capture |
+|---:|---|---|---|---|---|
+| F1 | Laptop | `/testing/pilot-readiness` or `/media` | Bucket probe | Bucket OK — not `missing` | Probe screenshot |
+| F2 | Laptop | `/media` | Gallery upload valid JPEG ≤50 MiB | Upload succeeds; card with approval badge | Success toast + card |
+| F3 | Laptop | `/media` | Attempt disallowed MIME or >50 MiB | **Rejected before storage** | Validation toast; no storage object |
+| F4 | **Phone** (Safari/Chrome) | `/media` | **Take photo** → complete upload | Camera intent → image on card; public URL loads on device | Device screenshots |
+| F5 | Laptop | `/media/review` | Open pending submission; reject with reason | Queue shows payload; reject succeeds | Review desk screenshots |
+| F6 | Laptop | `/media/review` | Confirm Approve absent/disabled | Fail-closed notice (Core mapping not finalized) | Screenshot of blocked Approve |
+| F7 | Phone + laptop | `/media` | Hard refresh | Asset persists; badge unchanged | Post-refresh screenshots |
+| F8 | Laptop | Sign-off row | Record preview URL, `a373564a`, project ref, tester, date | **OBSERVED/FAIL/BLOCKED** only | Sign-off table |
+
+**Do not claim:** Point 41 COMPLETE or programme strike.
+
+---
+
+### Sequence 3 — LANE-G: Dispatch operator (production)
+
+**Prerequisites:** Confirm production Central deploy SHA ≥ `ad6c05ad`; `dispatch@` or `DISPATCH_MANAGER` account; controlled test order; finance role for row 9.
+
+| Step | Actor / device | Screen / route | Action | Expected result | Evidence capture |
+|---:|---|---|---|---|---|
+| G1 | Laptop | `/admin/dispatch-mgmt` | Login as dispatch role | Governed surface loads — not legacy execution URL | Entry screenshot |
+| G1b | Laptop | `/admin/execution/dispatch` bookmark | Navigate | Redirects to `/admin/dispatch-mgmt` | Redirect screenshot |
+| G2 | Laptop | Dispatch mgmt | Create/open consignment + carton (RPC UI) | Consignment + open carton without direct table writes | IDs on screen |
+| G3 | **Scanner** | Carton scan UI | Scan governed product barcode | Packed qty increments server-side; duplicate/wrong rejected | Scanner photo + UI qty |
+| G4 | Laptop | Carton flow | Capture weight/photo evidence | Evidence recorded before lock allowed | Evidence panel screenshot |
+| G5 | Laptop | Carton flow | Lock carton | Locked immutable; stale version rejected if retried | Lock confirmation + reload |
+| G6 | Laptop | DPL flow | Create DPL from locked cartons only | DPL version created; unlocked carton path rejected | DPL version id |
+| G7 | Laptop | DPL flow | Submit active DPL to Finance | `submitted_to_finance_at` visible after reload | Timestamp screenshot |
+| G8 | Laptop | Finance read surface | Login `FINANCE_HEAD`/`FINANCE_EXEC` | Submitted DPL visible — not browser-composed lines | Finance view screenshot |
+| G9 | Laptop | Legacy path attempt | Open legacy packing/dispatch for same order | Fail closed (`blockLegacyB2bCartonDplMutation`) | Denial screenshot |
+| G10 | Laptop | Notes | Record deploy SHA, order/consignment/DPL ids, RLS cert head `9eeadbde` | Evidence pack metadata | Text block |
+
+**Outcome field:** `LANE-G: OBSERVED / FAIL / BLOCKED` — not stage-11 CLEARED or Point 98 COMPLETE.
+
+---
+
+### Sequence 4 — LANE-H: Buyer admin approval — **DO NOT RUN NOW**
+
+**Gate:** Central issue **#481** OPEN. Physical recording 2026-09-05: Pricing Slab and Account Manager selectors non-responsive inside Admin Clients sheet (Select portal `z-50` behind Sheet `z-[200]`; mixed-case manager roles excluded).
+
+**Status:** **BLOCKED** until bounded fix merged and deployed to production. No approval PASS may be recorded against pending application `dc370b46-ae39-44ec-9d1c-4c4bcdc9a60c` or successors until re-test below passes.
+
+#### Re-test script (execute only after #481 fix deployed)
+
+| Step | Actor / device | Screen / route | Action | Expected result | Evidence capture |
+|---:|---|---|---|---|---|
+| H1 | **Phone** | Buyer app | Submit or reuse pending access request | `application_id` returned; status `pending` | Phone screenshot + id |
+| H2 | Phone or tablet | Central `/admin/clients` | Open pending application review sheet | Sheet opens; application details visible | Sheet screenshot |
+| H3 | Phone/tablet | Review sheet | Tap **Pricing Slab** select | Dropdown renders **above** sheet; options visible and selectable | Video or 2-frame proof |
+| H4 | Phone/tablet | Review sheet | Select active slab (production has 5) | Selection sticks; no invisible menu | Selected value visible |
+| H5 | Phone/tablet | Review sheet | Tap **Account Manager** (optional) | Managers listed including mixed-case production roles | Dropdown screenshot |
+| H6 | Phone/tablet | Review sheet | Approve via governed action | `approve_b2b_trade_application_v1` succeeds; `assigned_price_tier` set | Success toast + reload row |
+| H7 | **Phone** | Buyer app | Login / refresh as approved buyer | Approved state — not approval-pending | Buyer dashboard screenshot |
+
+**Outcome field:** `LANE-H: OBSERVED / FAIL` — still not 100a programme COMPLETE without golden-path scope acceptance.
+
+---
+
+## Minimal session order (strict)
+
+| Order | Lane | Run now? |
 |---:|---|---|
-| A1 | Scanner photo | Device + barcode + Trace `verified` |
-| A2 | Submit success | Trace `submitted` + timestamp |
-| A3 | Central timeline | Gate + carton rows with order id |
-| A4 | Idempotency | Duplicate submit → no extra row |
-| A5 | Rejection | Wrong-barcode error captured |
-| A6 | Offline retry | Phone: offline → queued → submitted → timeline row |
-| A7 | Environment | Staging ref + Central/Trace/Core SHAs (no secrets) |
-| A8 | Attestation | Operator, role, date, fixture order id |
+| 1 | **A — Trace scanner (staging)** | **Yes** — if staging ingest verified |
+| 2 | **F — Point 41 preview (phone + laptop)** | **Yes** — on PR #143 preview only |
+| 3 | **G — Dispatch operator (production)** | **Yes** — after deploy SHA check |
+| 4 | **H — Buyer admin approval** | **No** — blocked on **#481** |
+| 5 | **E — Buyer access request submit (phone)** | **Optional** — submit evidence only; not approval |
+| — | Factory B/C/D | **Defer** until focus lanes attached |
 
 ---
 
-### LANE-F — Point 41 live storage + physical camera (order 2)
-
-**Coverage:** Programme Point **41** (media workspace).  
-**Disposition:** **READY** on AI Studio exact-head preview — **software PR #143 not merged**; physical sign-off is the sole remaining programme gate per that PR.
-
-**Authority checklist:** `oasis-ai-studio` branch `cursor/point41-media-workspace-closure-0890` @ `a373564acac6738a9f450201d8bf2c2b3a7c93a2` — sections A–E of `docs/programme/POINT41_MEDIA_LIVE_STORAGE_UAT_CHECKLIST.md` on that branch.
-
-#### Prerequisites
-
-| Item | Required value |
-|---|---|
-| AI Studio deploy | Exact-head Vercel preview for PR **#143** @ `a373564a` |
-| Supabase target | Same project as preview `VITE_SUPABASE_URL`; bucket `product-media` present |
-| Roles | Catalogue contributor (`/media`) + reviewer (`/media/review`) |
-| Devices | **Phone** (iOS Safari / Android Chrome) for camera; **laptop** for gallery + review desk |
-
-#### Compact steps
-
-| Step | Device | PASS (evidence — not programme COMPLETE) |
-|---|---|---|
-| F1 Bucket probe | Laptop `/testing/pilot-readiness` or `/media` | Bucket reachable — not `missing` |
-| F2 Gallery upload | Laptop `/media` | Valid JPEG uploads; disallowed MIME / >50 MiB rejected **before** storage |
-| F3 Physical camera | **Phone** `/media` | Camera capture → upload → public URL renders on device |
-| F4 Review desk | Laptop `/media/review` | Pending submission visible; reject works; **Approve hidden** (Core mapping fail-closed) |
-| F5 Persistence | Phone + laptop | Hard refresh shows asset; approval-state badge correct |
-
-#### Evidence checklist F1–F6
-
-| # | Artifact | Required content |
-|---:|---|---|
-| F1 | Bucket OK | Pilot-readiness or probe screenshot |
-| F2 | Validation reject | Toast for bad MIME or oversize — no storage object |
-| F3 | Camera capture | Device photo of capture flow + uploaded card on phone |
-| F4 | Review reject | Reviewer screenshot with rejection reason |
-| F5 | Approve blocked | Screenshot showing no functional Approve (expected until Core mapping) |
-| F6 | Sign-off row | Preview URL, commit `a373564a`, project ref, tester, date — **PASS/FAIL/BLOCKED** (not programme strike) |
-
-**Do not claim:** Point 41 COMPLETE, programme Point 55/56 publish, or Core `approve_catalogue_media_submission` clearance.
-
----
-
-### LANE-G — Dispatch operator physical (order 3 — newly unblocked)
-
-**Coverage:** Point **55** bundle rows 1–10 (`docs/POINT_55_DISPATCH_DPL_CLOSURE_WORKSTATION.md`); stage **11** / Point **98** operator slice.  
-**Disposition:** **READY** — Central **#458** merged; production RLS cert **PASS** on `9eeadbde`.
-
-#### Prerequisites
-
-| Item | Required value |
-|---|---|
-| Central deploy | `main` @ `ad6c05ad` on staging or Mission Control-approved target |
-| Core deploy | Production/staging with deployed deny policies evidenced by RLS cert |
-| Roles | `DISPATCH_MANAGER` / `DISPATCH_INCHARGE`; `FINANCE_HEAD` or `FINANCE_EXEC` for row 9 |
-| Devices | **Scanner** (row 3); **laptop** (rows 1–2, 4–10); optional **dispatch TV** |
-| Fixture | Controlled test order — **no ad hoc production mutation** |
-
-#### Compact steps (rows 1–10 summary)
-
-| Row | Scenario | PASS |
-|---:|---|---|
-| 1 | Governed entry `/admin/dispatch-mgmt` | Legacy URL redirects; correct role lands on governed surface |
-| 2–7 | Consignment → scan → evidence → lock → DPL | Governed RPC chain; scanner resolves barcode server-side |
-| 8 | Submit to Finance | `submitted_to_finance_at` visible on reload |
-| 9 | Finance visibility | Submitted DPL in Accounts Release read surface |
-| 10 | Legacy denial | Legacy paths fail closed for same order universe |
-
-#### Evidence checklist G1–G5
-
-| # | Artifact | Required content |
-|---:|---|---|
-| G1 | Entry + redirect | Screenshot of dispatch-mgmt + bookmark redirect |
-| G2 | Scanner scan | Device + packed qty match |
-| G3 | DPL + finance submit | DPL version id + finance timestamp |
-| G4 | Finance read | Finance role view of submitted DPL |
-| G5 | Environment | Central `ad6c05ad`, RLS cert head `9eeadbde`, order/consignment ids |
-
-**Do not claim:** Stage 11 CLEARED, Point 98 COMPLETE, or shipment/gate/POD clearance.
-
----
-
-### LANE-E — Buyer governed onboarding 100a (order 4 — staging only)
-
-**Coverage:** Subpoint **100a** only (auth, access request, approval-pending states).  
-**Disposition:** **READY** for physical UX evidence on **non-production** Buyer build @ `570853c1`.
-
-#### Governed gate (do not invent PASS)
-
-| Claim | Allowed | Not allowed |
-|---|---|---|
-| Access request form submits via `submit_b2b_trade_application_v1` | Capture staging submit success + returned `application_id` | Claim production onboarding COMPLETE |
-| Approval workflow | Show approval-pending / unauthorised states | Claim admin approval or buyer activation PASS |
-| Golden path | — | Claim 100a–100h production PASS or Finance/document PASS |
-
-#### Compact steps
-
-| Step | Phone | Evidence |
-|---|---|---|
-| E1 Splash/login/password recovery | Buyer staging | Bounded error copy; no raw backend errors |
-| E2 Access request submit | Authenticated or guest flow per env | Form labels + successful RPC response id |
-| E3 Approval-pending state | Test identity in pending state | Safe customer copy — no role codes |
-| E4 Sign-out / stale session | Phone | Session terminates; no dashboard leak |
-
-**Blockers unchanged:** production authenticated golden path; wallet/credit/statements (Core contract); general non-order support query.
-
----
-
-### LANE-B — Production Smart TV wall (order 5 batch)
-
-**Coverage:** Points 52, 87–88; stage 10. **READY.**
-
-| Step | Device | PASS |
-|---|---|---|
-| Job on TV | Smart TV `/tv/arabic-sweets` (or peer line) | Fixture `E3ED28B0` visible with correct qty/status |
-| Stale/error honesty | Laptop network toggle | TV shows error — not false zero |
-| Readability | TV photo @ 3m | Department identity + numerals readable |
-
----
-
-### LANE-C — RGS handheld + RGS TV (order 5 batch)
-
-**Coverage:** Point 51; stage 07. **READY.**
-
-| Step | Device | PASS |
-|---|---|---|
-| Reservation/issue | Scanner + `/admin/ready-goods` | Governed RPC success |
-| TV mirror | Smart TV `/tv/rgs` | Matches handheld after refresh |
-
----
-
-### LANE-D — P&A assembly floor (order 5 batch)
-
-**Coverage:** Points 53, 90; stage 09. **READY.**
-
-| Step | Device | PASS |
-|---|---|---|
-| Task queue | Tablet `/admin/assembly-tasks` | Governed task visible |
-| Scan/consume | Scanner | Consume RPC succeeds |
-
----
-
-## BLOCKED lanes — do not schedule
-
-| Lane | Points | Reason |
-|---|---|---|
-| **AI Studio publish to Central/Buyer** | 55–56 | Publication + Core approve mapping not CLEARED |
-| **Buyer production golden path** | 100b–100h (production) | APP-E2E: authenticated production runtime + Finance/document contracts pending |
-| **Cross-app E2E** | 100k, stage 20 | Mission Control LOCKED |
-| **Production readiness / formal launch** | 100l–100m, stage 21 | LOCKED |
-
----
-
-## NOT NEEDED — separate device session omitted
+## BLOCKED — do not schedule
 
 | Item | Reason |
 |---|---|
-| Chromebook-only Central pass | Equivalent to laptop; fold into laptop/tablet session |
-| TV for Buyer app | Phone-only customer surface |
-| Scanner for AI Studio Point 41 | Phone camera is authoritative gate per Point 41 checklist |
-| Duplicate Production TV per department | One TV session with two boards suffices for stage-10 slice |
-| Re-running production RLS cert probes | Software-certified on `9eeadbde`; physical Dispatch UAT is operator/scanner proof |
+| Buyer admin approval (LANE-H) | **#481** open — physical FAIL already recorded |
+| AI Studio publish 55–56 | Core approve mapping fail-closed |
+| Buyer production golden path 100b–h | Finance/document Core contracts not production-exposed |
+| Cross-app E2E 100k / launch 100l–m | Mission Control stages 20–21 LOCKED |
+
+---
+
+## NOT NEEDED
+
+| Item | Reason |
+|---|---|
+| Chromebook-only pass | Fold into laptop/tablet |
+| Scanner for Point 41 | Phone camera is authoritative |
+| Re-run production RLS probes | Software-certified on `9eeadbde` |
+| Dispatch final UAT before Trace evidence | Lanes independent — but Trace first preserves distinct hardware proof |
 
 ---
 
 ## Workstation 5 stop condition
 
-Return to Mission Control when:
-
-1. This refreshed matrix is accepted as routing authority.
-2. **LANE-A** checklist A1–A8 and/or **LANE-F** F1–F6 and/or **LANE-G** G1–G5 evidence is attached — each lane reported separately; no collapsed “everything PASS”.
-3. Buyer **100a** evidence explicitly scoped as staging UX — **not** programme Point 100 COMPLETE.
+Return to Mission Control when focus-lane evidence packs are attached with **OBSERVED/FAIL/BLOCKED** per lane — no collapsed PASS. **#481** remains a hard stop for Buyer approval until fix deploy + H1–H7 re-test.
 
 **No production mutation performed by this workstation.**
