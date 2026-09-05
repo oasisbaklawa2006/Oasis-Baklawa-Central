@@ -204,11 +204,6 @@ export async function crawlTargetAuthenticated(
   const routePath = target.route.replace(/\*$/, "catalogue");
   const app = target.app === "central" ? "central" : target.app;
 
-  const routeSlug = slugRoute(target.route);
-  const stateSlug = target.state.replace(/[^a-zA-Z0-9_-]/g, "-");
-  const routePath = target.route.replace(/\*$/, "catalogue");
-  const app = target.app === "central" ? "central" : target.app;
-
   if (target.app !== "central" && target.app !== "buyer-mobile") {
     const deploySecret = resolveDeploySecret(target.app);
     failures.push(
