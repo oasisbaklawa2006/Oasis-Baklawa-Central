@@ -286,12 +286,40 @@ const App = () => (
                     <Route path="production" element={<AdminProduction />} />
                     <Route path="operations" element={<AdminOperations />} />
                     <Route path="packing-dispatch" element={<AdminPackingDispatch />} />
-                    <Route path="accounts-release" element={<AdminAccountsRelease />} />
+                    <Route
+                      path="accounts-release"
+                      element={
+                        <AdminModuleRoute moduleKey="accounts">
+                          <AdminAccountsRelease />
+                        </AdminModuleRoute>
+                      }
+                    />
                     <Route path="exceptions" element={<AdminExceptions />} />
                     <Route path="dispatch" element={<AdminPackingDispatch />} />
-                    <Route path="finance" element={<AdminFinance />} />
-                    <Route path="finance-board" element={<FinanceReleaseBoard />} />
-                    <Route path="finance-governance" element={<FinanceGovernanceBoard />} />
+                    <Route
+                      path="finance"
+                      element={
+                        <AdminModuleRoute moduleKey="finance">
+                          <AdminFinance />
+                        </AdminModuleRoute>
+                      }
+                    />
+                    <Route
+                      path="finance-board"
+                      element={
+                        <AdminModuleRoute moduleKey="finance">
+                          <FinanceReleaseBoard />
+                        </AdminModuleRoute>
+                      }
+                    />
+                    <Route
+                      path="finance-governance"
+                      element={
+                        <AdminModuleRoute moduleKey="finance_audit">
+                          <FinanceGovernanceBoard />
+                        </AdminModuleRoute>
+                      }
+                    />
                     <Route path="users" element={<AdminUsers />} />
                     <Route path="moq" element={<AdminMOQ />} />
                     <Route path="currency" element={<AdminCurrency />} />

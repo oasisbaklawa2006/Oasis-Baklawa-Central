@@ -181,3 +181,76 @@ describe("AdminModuleRoute 3PGS TV gate", () => {
     expect(getRoleDestination("TV_3PGS")).toBe("/tv/3pgs");
   });
 });
+
+function renderFinanceAt(pathname: string) {
+  return render(
+    <MemoryRouter initialEntries={[pathname]}>
+      <Routes>
+        <Route
+          path="/admin/finance"
+          element={
+            <AdminModuleRoute moduleKey="finance">
+              <div>Finance workspace</div>
+            </AdminModuleRoute>
+          }
+        />
+        <Route
+          path="/admin/finance-governance"
+          element={
+            <AdminModuleRoute moduleKey="finance_audit">
+              <div>Finance governance workspace</div>
+            </AdminModuleRoute>
+          }
+        />
+        <Route
+          path="/admin/accounts-release"
+          element={
+            <AdminModuleRoute moduleKey="accounts">
+              <div>Accounts release workspace</div>
+            </AdminModuleRoute>
+          }
+        />
+        <Route path="/admin" element={<div>Admin landing</div>} />
+        <Route path="/admin/dispatch-mgmt" element={<div>Dispatch landing</div>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
+describe("AdminModuleRoute finance surface gate (UAT-005)", () => {
+  it.each(["DISPATCH_MANAGER", "DISPATCH_INCHARGE", "DISPATCH_HEAD"] as const)(
+    "blocks %s from /admin/finance",
+    (role) => {
+      mockRole = role;
+      renderFinanceAt("/admin/finance");
+      expect(screen.queryByText("Finance workspace")).toBeNull();
+      expect(screen.getByText("Admin landing")).toBeTruthy();
+    },
+  );
+
+  it.each(["DISPATCH_MANAGER", "DISPATCH_INCHARGE", "DISPATCH_HEAD"] as const)(
+    "blocks %s from /admin/finance-governance",
+    (role) => {
+      mockRole = role;
+      renderFinanceAt("/admin/finance-governance");
+      expect(screen.queryByText("Finance governance workspace")).toBeNull();
+      expect(screen.getByText("Admin landing")).toBeTruthy();
+    },
+  );
+
+  it.each(["DISPATCH_MANAGER", "DISPATCH_INCHARGE", "DISPATCH_HEAD"] as const)(
+    "blocks %s from /admin/accounts-release",
+    (role) => {
+      mockRole = role;
+      renderFinanceAt("/admin/accounts-release");
+      expect(screen.queryByText("Accounts release workspace")).toBeNull();
+      expect(screen.getByText("Admin landing")).toBeTruthy();
+    },
+  );
+
+  it("admits FINANCE_HEAD to /admin/finance", () => {
+    mockRole = "FINANCE_HEAD";
+    renderFinanceAt("/admin/finance");
+    expect(screen.getByText("Finance workspace")).toBeTruthy();
+  });
+});

@@ -1,38 +1,37 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { isAuthorizedForAdminPath } from "@/lib/appverse/routeAccess";
+import { getRoleDestination } from "@/lib/auth-routing";
+
+function getUnauthorizedRedirect(role: string | null | undefined): string {
+  const normalizedRole = role?.trim().toUpperCase();
+  if (normalizedRole === "SALES_EXECUTIVE") return "/sales/dashboard";
+  const destination = getRoleDestination(role);
+  return destination === "/customer-app-redirect" ? "/admin" : destination;
+}
 
 export default function AdminRouteGuard({ children }: { children: React.ReactNode }) {
-  const { user, role } = useAuth();
+  const { user, role, loading: authLoading } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
-  const [checked, setChecked] = useState(false);
-  const [blocked, setBlocked] = useState(false);
+  const lastLoggedViolation = useRef<string | null>(null);
+
+  const enforce = Boolean(user && location.pathname.startsWith("/admin"));
+  const authorized = !enforce || isAuthorizedForAdminPath(location.pathname, role);
 
   useEffect(() => {
-    if (!user || !location.pathname.startsWith("/admin")) {
-      setChecked(true);
-      setBlocked(false);
-      return;
-    }
+    if (!enforce || authorized || authLoading) return;
 
-    const authorized = isAuthorizedForAdminPath(location.pathname, role);
-
-    if (authorized) {
-      setChecked(true);
-      setBlocked(false);
-      return;
-    }
-
-    setChecked(false);
-    setBlocked(true);
+    const violationKey = `${location.pathname}|${role ?? "UNKNOWN"}`;
+    if (lastLoggedViolation.current === violationKey) return;
+    lastLoggedViolation.current = violationKey;
 
     void supabase.from("audit_logs").insert({
       action_type: "security_violation_blocked",
-      actor_id: user.id,
+      actor_id: user!.id,
       module_name: "AdminRouteGuard",
       entity_name: "route_access",
       entity_id: location.pathname,
@@ -40,12 +39,10 @@ export default function AdminRouteGuard({ children }: { children: React.ReactNod
       risk_level: "high",
     });
     toast.error("Security Violation — Unauthorized admin access blocked.");
+    navigate(getUnauthorizedRedirect(role), { replace: true });
+  }, [enforce, authorized, authLoading, user, role, location.pathname, navigate]);
 
-    const normalizedRole = role?.trim().toUpperCase();
-    navigate(normalizedRole === "SALES_EXECUTIVE" ? "/sales/dashboard" : "/admin", { replace: true });
-    setChecked(true);
-  }, [user, role, location.pathname, navigate]);
-
-  if (!checked || blocked) return null;
+  if (authLoading && enforce) return null;
+  if (!authorized) return null;
   return <>{children}</>;
 }
