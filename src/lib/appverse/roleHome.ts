@@ -28,7 +28,7 @@ const executive: RoleHomeDefinition = { title: "Command overview", subtitle: "Bu
 
 const operations: RoleHomeDefinition = { title: "Operations today", subtitle: "Queues, blockers and the next physical execution actions.", cards: [
   { key: "execution", label: "Execution queue", kind: "queue", route: "/admin/execution-command-center", moduleKey: "cmd_war_room", priority: 1 },
-  { key: "production", label: "Production board", kind: "queue", route: "/admin/execution/production", moduleKey: "production", priority: 1 },
+  { key: "production", label: "Production board", kind: "queue", route: "/operations-controller", moduleKey: "production", priority: 1 },
   { key: "packing", label: "Packing & dispatch", kind: "queue", route: "/admin/order-management?view=packing", moduleKey: "packing", priority: 1 },
   { key: "inventory", label: "Inventory risk", kind: "alert", route: "/admin/inventory-risk-board", moduleKey: "inventory", priority: 2 },
   { key: "ready-goods", label: "Ready goods", kind: "metric", route: "/admin/ready-goods", moduleKey: "inventory", priority: 2 },
@@ -57,14 +57,14 @@ const support: RoleHomeDefinition = { title: "Customer attention", subtitle: "Me
 ] };
 
 const production: RoleHomeDefinition = { title: "Production today", subtitle: "Only production work, blockers and relevant order context.", cards: [
-  { key: "production", label: "Production board", kind: "queue", route: "/admin/execution/production", moduleKey: "production", priority: 1 },
+  { key: "production", label: "Production board", kind: "queue", route: "/operations-controller", moduleKey: "production", priority: 1 },
   { key: "orders", label: "Order requirements", kind: "shortcut", route: "/admin/order-management?view=production", moduleKey: "orders", priority: 2 },
 ] };
 
 const store: RoleHomeDefinition = { title: "Store today", subtitle: "Inventory availability, reservations and production requirements.", cards: [
   { key: "inventory", label: "Inventory command", kind: "queue", route: "/admin/inventory-command-center", moduleKey: "inventory", priority: 1 },
   { key: "risk", label: "Inventory risk", kind: "alert", route: "/admin/inventory-risk-board", moduleKey: "inventory", priority: 1 },
-  { key: "production", label: "Production demand", kind: "shortcut", route: "/admin/execution/production", moduleKey: "production", priority: 2 },
+  { key: "production", label: "Production demand", kind: "shortcut", route: "/operations-controller", moduleKey: "production", priority: 2 },
 ] };
 
 const catalogue: RoleHomeDefinition = { title: "Catalogue work", subtitle: "Product records, merchandising and catalogue publication work only.", cards: [
