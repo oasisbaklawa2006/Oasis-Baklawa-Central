@@ -42,7 +42,7 @@ Original UAT-005 failure evidence preserved in prior manifests — post-merge ro
 |---|---|---|---|
 | FAIL-481-001, FAIL-481-002, FAIL-UX-481-001, FAIL-UX-481-002 | **OPEN** | `TEST_SALES_EMAIL`, `TEST_SALES_PASSWORD` | post-fix-483 tranche — 0/2 S0–S3 captured |
 | FAIL-485-001 | **OPEN** | Issue **#485** (KPI stale) | Physical recording only; repair not in UAT lane |
-| FAIL-AUTH-CRED-* (51 UAT IDs) | **BLOCKED** | See [`UAT_CRAWL_PROGRESS.md`](./UAT_CRAWL_PROGRESS.md) secret table | No screenshot = not tested |
+| FAIL-AUTH-CRED-* (46 UAT IDs) | **BLOCKED** | See [`UAT_VERIFIED_BLOCKERS.jsonl`](./UAT_VERIFIED_BLOCKERS.jsonl) | Verified registry run — exact secret per ID |
 | Buyer mobile (16 surfaces) | **BLOCKED** | `TEST_BUYER_EMAIL`, `TEST_BUYER_PASSWORD` | PR #10 cert does not substitute |
 
 **Classification rule enforced:** No screenshot = not tested; no action/result evidence = function not tested. Pre-fix tranche-02 screenshots preserved; post-fix-483 folder empty pending `TEST_SALES_*`.
@@ -447,3 +447,25 @@ Original UAT-005 failure evidence preserved in prior manifests — post-merge ro
 | FAIL-AUTH-DEPLOY-0129 | UAT-0129 | trace | TRACE_SCANNER | desktop-chrome | /scan | Authenticated crawl on trace deploy | Role surface on correct preview host | BLOCKED — missing TEST_TRACE_PREVIEW_URL (Central TEST_PREVIEW_URL is not valid for trace) | P1 | — | — | tranche-08-auth | oasis-trace | Deploy | TEST_TRACE_PREVIEW_URL |
 | FAIL-AUTH-DEPLOY-0130 | UAT-0130 | trace | TRACE_SCANNER | desktop-chrome | /scan | Authenticated crawl on trace deploy | Role surface on correct preview host | BLOCKED — missing TEST_TRACE_PREVIEW_URL (Central TEST_PREVIEW_URL is not valid for trace) | P1 | — | — | tranche-08-auth | oasis-trace | Deploy | TEST_TRACE_PREVIEW_URL |
 | FAIL-AUTH-DEPLOY-0131 | UAT-0131 | trace | TRACE_SCANNER | desktop-chrome | /scan | Authenticated crawl on trace deploy | Role surface on correct preview host | BLOCKED — missing TEST_TRACE_PREVIEW_URL (Central TEST_PREVIEW_URL is not valid for trace) | P1 | — | — | tranche-08-auth | oasis-trace | Deploy | TEST_TRACE_PREVIEW_URL |
+
+---
+
+## auth-rerun (authenticated repair) crawl failures (2026-09-06)
+
+### Functional / access / blocked
+
+| FAIL-ID | UAT-ID | App | Role | Device | Route/Page | Function | Expected | Actual | Severity | Screenshot(s) | Console/Network | Repro | Owning repo | Layer | Fix dependency |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| FAIL-AUTH-CRED-0002 | UAT-0002 | central | ADMIN_STAFF | desktop | /operations-controller | Authenticated crawl | Logged-in role surface | BLOCKED — missing secret(s): TEST_OPERATIONS_EMAIL, TEST_OPERATIONS_PASSWORD | P1 | pre-auth preserved | — | Auth rerun | Central | Deploy/Auth | TEST_OPERATIONS_EMAIL, TEST_OPERATIONS_PASSWORD |
+| FAIL-AUTH-CRED-0003 | UAT-0003 | central | GATE_SECURITY | desktop | /security-gate | Authenticated crawl | Logged-in role surface | BLOCKED — missing secret(s): TEST_GATE_SECURITY_EMAIL, TEST_GATE_SECURITY_PASSWORD | P1 | pre-auth preserved | — | Auth rerun | Central | Deploy/Auth | TEST_GATE_SECURITY_EMAIL, TEST_GATE_SECURITY_PASSWORD |
+| FAIL-AUTH-CRED-0006 | UAT-0006 | central | BUYER | phone | /buyer/access-request | Authenticated crawl | Logged-in role surface | BLOCKED — missing secret(s): TEST_BUYER_EMAIL, TEST_BUYER_PASSWORD | P1 | pre-auth preserved | — | Auth rerun | Central | Deploy/Auth | TEST_BUYER_EMAIL, TEST_BUYER_PASSWORD |
+| FAIL-AUTH-CRED-0007 | UAT-0007 | central | BUYER | phone | /buyer/* | Authenticated crawl | Logged-in role surface | BLOCKED — missing secret(s): TEST_BUYER_EMAIL, TEST_BUYER_PASSWORD | P1 | pre-auth preserved | — | Auth rerun | Central | Deploy/Auth | TEST_BUYER_EMAIL, TEST_BUYER_PASSWORD |
+| FAIL-AUTH-CRED-0010 | UAT-0010 | central | ADMIN_STAFF | desktop | /admin | Authenticated crawl | Logged-in role surface | BLOCKED — missing secret(s): TEST_ADMIN_EMAIL, TEST_ADMIN_PASSWORD | P1 | pre-auth preserved | — | Auth rerun | Central | Deploy/Auth | TEST_ADMIN_EMAIL, TEST_ADMIN_PASSWORD |
+| FAIL-AUTH-CRED-0011 | UAT-0011 | central | ADMIN_STAFF | desktop | /admin/customers | Authenticated crawl | Logged-in role surface | BLOCKED — missing secret(s): TEST_ADMIN_EMAIL, TEST_ADMIN_PASSWORD | P1 | pre-auth preserved | — | Auth rerun | Central | Deploy/Auth | TEST_ADMIN_EMAIL, TEST_ADMIN_PASSWORD |
+| FAIL-AUTH-CRED-0012 | UAT-0012 | central | P_AND_A | desktop | /admin/assembly | Authenticated crawl | Logged-in role surface | BLOCKED — missing secret(s): TEST_ASSEMBLY_EMAIL, TEST_ASSEMBLY_PASSWORD | P1 | pre-auth preserved | — | Auth rerun | Central | Deploy/Auth | TEST_ASSEMBLY_EMAIL, TEST_ASSEMBLY_PASSWORD |
+| FAIL-AUTH-CRED-0013 | UAT-0013 | central | FINANCE | desktop | /admin/finance/payments | Authenticated crawl | Logged-in role surface | BLOCKED — missing secret(s): TEST_FINANCE_EMAIL, TEST_FINANCE_PASSWORD | P1 | pre-auth preserved | — | Auth rerun | Central | Deploy/Auth | TEST_FINANCE_EMAIL, TEST_FINANCE_PASSWORD |
+| FAIL-AUTH-CRED-0014 | UAT-0014 | central | FINANCE | desktop | /admin/finance/invoices | Authenticated crawl | Logged-in role surface | BLOCKED — missing secret(s): TEST_FINANCE_EMAIL, TEST_FINANCE_PASSWORD | P1 | pre-auth preserved | — | Auth rerun | Central | Deploy/Auth | TEST_FINANCE_EMAIL, TEST_FINANCE_PASSWORD |
+| FAIL-AUTH-CRED-0015 | UAT-0015 | central | ADMIN_STAFF | desktop | /admin/crm | Authenticated crawl | Logged-in role surface | BLOCKED — missing secret(s): TEST_ADMIN_EMAIL, TEST_ADMIN_PASSWORD | P1 | pre-auth preserved | — | Auth rerun | Central | Deploy/Auth | TEST_ADMIN_EMAIL, TEST_ADMIN_PASSWORD |
+| FAIL-AUTH-CRED-0016 | UAT-0016 | central | ADMIN_STAFF | desktop | /admin/roles | Authenticated crawl | Logged-in role surface | BLOCKED — missing secret(s): TEST_ADMIN_EMAIL, TEST_ADMIN_PASSWORD | P1 | pre-auth preserved | — | Auth rerun | Central | Deploy/Auth | TEST_ADMIN_EMAIL, TEST_ADMIN_PASSWORD |
+| FAIL-AUTH-CRED-0017 | UAT-0017 | central | ADMIN_STAFF | desktop | /admin/clients | Authenticated crawl | Logged-in role surface | BLOCKED — missing secret(s): TEST_ADMIN_EMAIL, TEST_ADMIN_PASSWORD | P1 | pre-auth preserved | — | Auth rerun | Central | Deploy/Auth | TEST_ADMIN_EMAIL, TEST_ADMIN_PASSWORD |
+| FAIL-AUTH-CRED-0019 | UAT-0019 | central | ADMIN_STAFF | desktop | /admin/approvals | Authenticated crawl | Logged-in role surface | BLOCKED — missing secret(s): TEST_ADMIN_EMAIL, TEST_ADMIN_PASSWORD | P1 | pre-auth preserved | — | Auth rerun | Central | Deploy/Auth | TEST_ADMIN_EMAIL, TEST_ADMIN_PASSWORD |
