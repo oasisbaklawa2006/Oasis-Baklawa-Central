@@ -34,7 +34,7 @@ const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard.tsx"));
 const AdminClients = lazy(() => import("./pages/admin/AdminClients.tsx"));
 const AdminProducts = lazy(() => import("./pages/admin/AdminProducts.tsx"));
 const AdminPricing = lazy(() => import("./pages/admin/AdminPricing.tsx"));
-const AdminOrders = lazy(() => import("./pages/admin/AdminOrders.tsx"));
+const CentralOrderPoolCommandCentre = lazy(() => import("./pages/admin/CentralOrderPoolCommandCentre.tsx"));
 const AdminProduction = lazy(() => import("./pages/admin/AdminProduction.tsx"));
 const AdminOperations = lazy(() => import("./pages/admin/AdminOperations.tsx"));
 const AdminPackingDispatch = lazy(() => import("./pages/admin/AdminPackingDispatch.tsx"));
@@ -282,7 +282,7 @@ const App = () => (
                     <Route path="approvals" element={<AdminClients />} />
                     <Route path="products" element={<AdminProducts />} />
                     <Route path="pricing" element={<ErrorBoundary fallbackTitle="Pricing Matrix crashed"><AdminPricing /></ErrorBoundary>} />
-                    <Route path="orders" element={<AdminOrders />} />
+                    <Route path="orders" element={<Navigate to="/admin/central-pool" replace />} />
                     <Route path="production" element={<AdminProduction />} />
                     <Route path="operations" element={<AdminOperations />} />
                     <Route path="packing-dispatch" element={<AdminPackingDispatch />} />
@@ -339,8 +339,15 @@ const App = () => (
                     <Route path="catalogue-sync" element={<AdminCatalogueSyncStatus />} />
                     <Route path="catalogue-approvals" element={<ApprovalInbox />} />
                     <Route path="order-management" element={<OrderManagement />} />
-                    <Route path="central-pool" element={<Navigate to="/admin/operator-inbox" replace />} />
-                    <Route path="cmd-war-room" element={<Navigate to="/admin/operator-inbox" replace />} />
+                    <Route
+                      path="central-pool"
+                      element={
+                        <AdminModuleRoute moduleKey="orders">
+                          <CentralOrderPoolCommandCentre />
+                        </AdminModuleRoute>
+                      }
+                    />
+                    <Route path="cmd-war-room" element={<Navigate to="/admin/central-pool" replace />} />
                     <Route path="inventory-command-center" element={<InventoryCommandCenter />} />
                     <Route path="inventory-receiving" element={<InventoryReceiving />} />
                     <Route path="carton-explorer" element={<CartonExplorer />} />

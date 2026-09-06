@@ -25,6 +25,7 @@ import { shouldHideAdvancedGovernanceNav } from "@/lib/golden-chain/operatorNavi
 import { isDispatchRole } from "@/lib/auth/securityGatePolicy";
 import { getAllowedModulesForRole, hasModuleAccess, type AppVerseModuleKey } from "@/lib/appverse/roleAccess";
 import { canAccessGoldenChainOperatorRoute } from "@/lib/appverse/routeAccess";
+import { canAccessCentralOrderPool } from "@/lib/centralOrderPool/centralOrderPoolAccess";
 
 interface NavItem {
   to: string; icon: React.ElementType; label: string; end?: boolean; moduleKey: AppVerseModuleKey;
@@ -70,6 +71,7 @@ const AdminLayout = () => {
         { to: "/admin/stock-finalization", icon: PackageMinus, label: "Stock finalization (audit)", end: false, moduleKey: "inventory_audit" },
         { to: "/admin/inventory-risk-board", icon: AlertOctagon, label: "Inventory risk board (preview)", end: false, moduleKey: "inventory" },
         { to: "/admin/scan-timeline", icon: ScanBarcode, label: "Scan timeline", end: false, moduleKey: "inventory" },
+        { to: "/admin/central-pool", icon: Inbox, label: "Central Order Pool", moduleKey: "orders" },
         { to: "/admin/order-management", icon: ClipboardList, label: t("Order Pipeline"), moduleKey: "orders" },
         { to: "/admin/order-management?view=production", icon: Factory, label: t("Production"), moduleKey: "production" },
         { to: "/admin/order-management?view=packing", icon: PackageCheck, label: t("Packing & Dispatch"), moduleKey: "packing" },
@@ -143,7 +145,9 @@ const AdminLayout = () => {
     .map((section) => ({
       ...section,
       items: section.items.filter((item) => {
-        if (item.to === "/admin/golden-chain-operator") {
+        if (item.to === "/admin/central-pool") {
+          if (!canAccessCentralOrderPool(role)) return false;
+        } else if (item.to === "/admin/golden-chain-operator") {
           if (!canAccessGoldenChainOperator()) return false;
         } else if (item.to === "/security-gate" && isDispatchRole(role)) {
           return false;
