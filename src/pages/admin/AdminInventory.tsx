@@ -94,8 +94,8 @@ const AdminInventory = () => {
       });
 
       setItems(mapped);
-    } catch (err: any) {
-      toast.error(err.message || "Failed to load inventory");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to load inventory");
     } finally {
       setLoading(false);
     }
