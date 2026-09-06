@@ -15,6 +15,8 @@ import type {
   Customer360ViewerContext,
 } from "./customer360Types";
 import type { CrmCommunicationHistoryReadModel } from "@/lib/crm-communication-history/crmCommunicationHistoryTypes";
+import { buildCustomerHealthProjection } from "@/lib/customer-health/customerHealthProjection";
+import type { CustomerHealthProjectionInput } from "@/lib/customer-health/customerHealthTypes";
 
 type CompanyRow = {
   id: string;
@@ -216,6 +218,61 @@ export async function fetchCustomer360ReadModel(
         ),
       };
 
+  const upstreamErrors: string[] = [];
+  if (ordersRes.error) upstreamErrors.push(`orders: ${ordersRes.error.message}`);
+  if (interactionsRes.error) upstreamErrors.push(`interactions: ${interactionsRes.error.message}`);
+  if (tasksRes.error) upstreamErrors.push(`tasks: ${tasksRes.error.message}`);
+  if (ticketsRes.error) upstreamErrors.push(`tickets: ${ticketsRes.error.message}`);
+
+  const projectedAt = new Date().toISOString();
+  const healthInput: CustomerHealthProjectionInput = {
+    companyId,
+    profile: {
+      totalOutstanding: companyRow.total_outstanding,
+      creditLimit: companyRow.credit_limit,
+      allowCredit: companyRow.allow_credit,
+      currentBalance: companyRow.current_balance,
+      observedAt: projectedAt,
+    },
+    orders: (ordersRes.data ?? []).map((row) => ({
+      orderId: row.id,
+      status: row.status,
+      createdAt: row.created_at,
+    })),
+    tasks: (tasksRes.data ?? []).map((row) => ({
+      id: row.id,
+      status: row.status,
+      dueDate: row.due_date,
+    })),
+    tickets: parsedTickets.map((ticket) => ({
+      id: ticket.id,
+      status: ticket.status,
+      issueType: ticket.issue_type,
+      createdAt: ticket.created_at,
+    })),
+    communications:
+      communicationsLedgerSlice.data?.entries.map((entry) => ({
+        entryId: entry.entryId,
+        occurredAt: entry.occurredAt,
+      })) ?? [],
+    upstreamErrors,
+  };
+
+  const customerHealthData = buildCustomerHealthProjection(healthInput, projectedAt);
+  const customerHealthSlice: Customer360Slice<typeof customerHealthData> =
+    upstreamErrors.length > 0
+      ? {
+          availability: "error",
+          programmeOwner: "POINT64",
+          errorMessage: upstreamErrors.join("; "),
+          data: customerHealthData,
+        }
+      : {
+          availability: "available",
+          programmeOwner: "POINT64",
+          data: customerHealthData,
+        };
+
   return {
     identity: {
       companyId,
@@ -239,9 +296,6 @@ export async function fetchCustomer360ReadModel(
       "POINT77",
       "Finance ageing and exposure consolidation (Points 77–81) is not yet governed in Customer 360.",
     ),
-    customerHealth: notGovernedSlice(
-      "POINT64",
-      "Customer health, risk scoring, and next-best-action are not yet governed.",
-    ),
+    customerHealth: customerHealthSlice,
   };
 }

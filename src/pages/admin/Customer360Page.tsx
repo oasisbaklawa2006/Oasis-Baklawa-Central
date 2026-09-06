@@ -11,6 +11,7 @@ import {
   Package,
   ShieldAlert,
   Users,
+  Activity,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,6 +19,24 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useCustomer360 } from "@/hooks/useCustomer360";
 import type { Customer360Slice, Customer360SliceAvailability } from "@/lib/customer-360/customer360Types";
+import type { CustomerHealthCategory } from "@/lib/customer-health/customerHealthTypes";
+
+function healthCategoryBadge(category: CustomerHealthCategory) {
+  switch (category) {
+    case "healthy":
+      return <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">Healthy</Badge>;
+    case "watch":
+      return <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">Watch</Badge>;
+    case "at_risk":
+      return <Badge className="bg-orange-100 text-orange-800 hover:bg-orange-100">At risk</Badge>;
+    case "critical":
+      return <Badge variant="destructive">Critical</Badge>;
+    case "indeterminate":
+      return <Badge variant="outline">Indeterminate</Badge>;
+    default:
+      return null;
+  }
+}
 
 function availabilityBadge(availability: Customer360SliceAvailability) {
   switch (availability) {
@@ -204,7 +223,7 @@ export default function Customer360Page() {
               {availabilityBadge(model.tickets.availability)}
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent id="support-tickets">
             {model.tickets.availability === "available" && model.tickets.data ? (
               model.tickets.data.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No support tickets linked via orders.</p>
@@ -363,6 +382,100 @@ export default function Customer360Page() {
 
       <Card>
         <CardHeader>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Activity className="h-5 w-5" />
+                Customer health &amp; next-best-action
+              </CardTitle>
+              <CardDescription>
+                Point 64 advisory projection — explainable signals only, no production mutation.
+              </CardDescription>
+            </div>
+            {model.customerHealth.data && healthCategoryBadge(model.customerHealth.data.category)}
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {model.customerHealth.availability !== "unavailable_not_governed" && model.customerHealth.data ? (
+            <>
+              <div className="flex flex-wrap gap-4 text-sm">
+                <p>
+                  <span className="text-muted-foreground">Confidence:</span>{" "}
+                  <span className="font-medium">{model.customerHealth.data.confidence}%</span>
+                </p>
+                <p>
+                  <span className="text-muted-foreground">Projected:</span>{" "}
+                  {format(new Date(model.customerHealth.data.projectedAt), "dd MMM yyyy HH:mm")}
+                </p>
+              </div>
+
+              <div>
+                <p className="mb-2 text-sm font-medium">Risk dimensions</p>
+                <ul className="space-y-2">
+                  {model.customerHealth.data.riskDimensions.map((dimension) => (
+                    <li key={dimension.dimensionId} className="rounded-lg border p-3 text-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="font-medium">{dimension.label}</p>
+                        <Badge variant="outline">{dimension.level}</Badge>
+                      </div>
+                      {dimension.contributingFacts.length > 0 && (
+                        <ul className="mt-2 space-y-1 text-muted-foreground">
+                          {dimension.contributingFacts.map((fact) => (
+                            <li key={fact.signalId}>
+                              {fact.label}: {fact.value}
+                              {fact.freshness !== "unknown" ? ` · ${fact.freshness}` : ""}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      {dimension.unavailableInputs.length > 0 && (
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          Unavailable: {dimension.unavailableInputs.map((u) => u.signalId).join(", ")}
+                        </p>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div>
+                <p className="mb-2 text-sm font-medium">Advisory next-best actions</p>
+                <ul className="space-y-2">
+                  {model.customerHealth.data.nextBestActions.map((action) => (
+                    <li key={action.actionId} className="rounded-lg border border-dashed p-3 text-sm">
+                      <p className="font-medium">{action.advisoryLabel}</p>
+                      <p className="text-muted-foreground">{action.rationale}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {action.programmeOwner} · {action.capability}
+                        {action.staffRouteHint ? ` · ${action.staffRouteHint}` : ""}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {model.customerHealth.data.unavailableSignals.length > 0 && (
+                <div className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
+                  <p className="mb-2 font-medium text-foreground">Signals not used (explicit unavailable)</p>
+                  <ul className="space-y-1">
+                    {model.customerHealth.data.unavailableSignals.map((signal) => (
+                      <li key={signal.signalId}>
+                        <span className="font-medium">{signal.signalId}</span> ({signal.programmeOwner}):{" "}
+                        {signal.reason}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </>
+          ) : (
+            <SliceUnavailable slice={model.customerHealth} />
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
             <CreditCard className="h-5 w-5" />
             Deferred programme slices
@@ -375,7 +488,6 @@ export default function Customer360Page() {
           <SliceUnavailable slice={model.branchesAndContacts} />
           <SliceUnavailable slice={model.dispatchHistory} />
           <SliceUnavailable slice={model.financeExposure} />
-          <SliceUnavailable slice={model.customerHealth} />
         </CardContent>
       </Card>
     </div>

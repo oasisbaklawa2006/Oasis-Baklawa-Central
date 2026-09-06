@@ -4,6 +4,7 @@
  */
 
 import type { CrmCommunicationHistoryReadModel } from "@/lib/crm-communication-history/crmCommunicationHistoryTypes";
+import type { CustomerHealthReadModel } from "@/lib/customer-health/customerHealthTypes";
 
 export type Customer360SliceAvailability =
   | "available"
@@ -93,7 +94,7 @@ export type Customer360ReadModel = {
   communicationsLedger: Customer360Slice<CrmCommunicationHistoryReadModel>;
   dispatchHistory: Customer360Slice<never>;
   financeExposure: Customer360Slice<never>;
-  customerHealth: Customer360Slice<never>;
+  customerHealth: Customer360Slice<CustomerHealthReadModel>;
 };
 
 export type Customer360ViewerContext = {

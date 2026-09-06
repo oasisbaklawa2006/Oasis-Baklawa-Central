@@ -100,5 +100,8 @@ describe("fetchCustomer360ReadModel", () => {
     expect(model.communicationsLedger.availability).toBe("available");
     expect(model.communicationsLedger.programmeOwner).toBe("POINT61");
     expect(model.communicationsLedger.data?.entries).toEqual([]);
+    expect(model.customerHealth.availability).toBe("available");
+    expect(model.customerHealth.programmeOwner).toBe("POINT64");
+    expect(model.customerHealth.data?.category).toBe("watch");
   });
 });
