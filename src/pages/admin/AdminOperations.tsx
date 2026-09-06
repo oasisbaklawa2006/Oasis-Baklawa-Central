@@ -14,11 +14,8 @@ import {
   RefreshCw,
 } from "lucide-react";
 import TopNavBar from "@/components/TopNavBar";
-<<<<<<< HEAD
-import { blockLegacyPartialSplitMutation } from "@/lib/order-partial-fulfilment";
-=======
 import { assertNotShadowWrite } from "@/lib/exception-governance";
->>>>>>> f4de25c0 (feat(point89): fail-closed exception/QH governance contract over Core RPCs)
+import { blockLegacyPartialSplitMutation } from "@/lib/order-partial-fulfilment";
 
 const DEPARTMENTS = ["Baklawa", "Chocolate", "Laddu", "Bakery", "Hampers", "Packaging Store"];
 

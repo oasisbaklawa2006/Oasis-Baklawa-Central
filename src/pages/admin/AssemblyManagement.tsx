@@ -299,10 +299,16 @@ export default function AssemblyManagement() {
     );
   }, [partialReasonDraft, runAction]);
 
-  const handleIssue = useCallback((jobId: string) => runAction(
-    "Components issued", "issue_assembly_components",
-    { p_assembly_job_id: jobId, p_correlation_id: crypto.randomUUID() },
-  ), [runAction]);
+  const issueCorrelationRef = useRef<Record<string, string>>({});
+  const handleIssue = useCallback((jobId: string) => {
+    if (!issueCorrelationRef.current[jobId]) issueCorrelationRef.current[jobId] = crypto.randomUUID();
+    const correlationId = issueCorrelationRef.current[jobId];
+    return runAction(
+      "Components issued", "issue_assembly_components",
+      { p_assembly_job_id: jobId, p_correlation_id: correlationId },
+      () => { delete issueCorrelationRef.current[jobId]; },
+    );
+  }, [runAction]);
 
   const handleConsumption = useCallback((componentId: string) => {
     const draft = consumptionDraft[componentId] ?? { consumed: "", wasted: "", returned: "" };
