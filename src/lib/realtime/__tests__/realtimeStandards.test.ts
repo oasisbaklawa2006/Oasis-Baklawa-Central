@@ -276,15 +276,15 @@ describe("Point23 subscription controller", () => {
 
   it("cleans a subscription returned after a synchronous stop callback", async () => {
     const unsubscribe = vi.fn();
-    let controller: RealtimeSubscriptionController;
-    controller = createRealtimeSubscriptionController({
+    const holder: { controller?: RealtimeSubscriptionController } = {};
+    const controller = createRealtimeSubscriptionController({
       domain: "orders",
       scope: { type: "global_staff" },
       changes: [{ event: "*", schema: "public", table: "orders" }],
       mode: "refetch",
       snapshot: async () => {},
       onStatusChange: (status) => {
-        if (status === "subscribed") controller.stop();
+        if (status === "subscribed") holder.controller?.stop();
       },
       channelAdapter: {
         subscribe: (_name, onStatus) => {
@@ -293,6 +293,7 @@ describe("Point23 subscription controller", () => {
         },
       },
     });
+    holder.controller = controller;
 
     await controller.start();
     expect(unsubscribe).toHaveBeenCalled();
