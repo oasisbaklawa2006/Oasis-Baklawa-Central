@@ -1,6 +1,15 @@
 import { useEffect, useState, useMemo } from "react";
+import { Link as RouterLink, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { releaseOrderToManufacturing } from "@/lib/order-authority/orderAuthorityClient";
+import {
+  confirmPrepaidOrderAwaitingAdvance,
+  releaseOrderToManufacturing,
+} from "@/lib/order-authority/orderAuthorityClient";
+import {
+  getCanonicalFinanceEgressRoute,
+  getCanonicalFinanceIngressRoute,
+  isFinanceCapabilityAvailable,
+} from "@/lib/finance-authority/financeAuthorityMap";
 import {
   buildPaymentIdempotencyKey,
   buildPaymentCorrelationId,
@@ -186,6 +195,7 @@ interface FinancialEntryState {
 const PAYMENT_MODES = ["NEFT/RTGS", "UPI", "Cheque", "Cash", "Wire Transfer", "Credit Note"];
 
 const AdminFinance = () => {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [orders, setOrders] = useState<FinanceOrder[]>([]);
   const [creditRequests, setCreditRequests] = useState<CreditRequest[]>([]);
@@ -503,6 +513,10 @@ const AdminFinance = () => {
   };
 
   const handleSettleCommission = async (exec: SalesExecPayout) => {
+    if (!isFinanceCapabilityAvailable("commission_payout")) {
+      toast.error("Commission payout requires a Core RPC (record_commission_payout_v1) — not available in Central.");
+      return;
+    }
     const amount = parseFloat(payoutAmounts[exec.id] || "0");
     if (amount <= 0) { toast.error("Enter a valid amount."); return; }
     setPayoutActing(exec.id);
@@ -904,37 +918,11 @@ const AdminFinance = () => {
   };
 
 
-  const handleRequestBalance = async () => {
-    if (!docOrder || !tallyAmount || !tallyInvoiceNo || !invoiceUploaded) {
-      toast.error("Please fill all Tally details and attach the PDF.");
-      return;
-    }
-    setActing(docOrder.id);
-    try {
-      const parsedTally = parseFloat(tallyAmount);
-      if (isNaN(parsedTally) || parsedTally <= 0) {
-        toast.error("⛔ Tally amount must be greater than ₹0.");
-        setActing(null);
-        return;
-      }
-      await supabase
-        .from("orders")
-        .update({
-          sales_order_value: parsedTally,
-          status: "awaiting_final_payment",
-        })
-        .eq("id", docOrder.id);
-
-      toast.success("Invoice Locked! Payment request sent to customer.");
-      setDocOrder(null);
-      setInvoiceUploaded(false);
-      setTallyAmount("");
-      setTallyInvoiceNo("");
-      fetchOrders();
-    } catch (err) {
-      toast.error("Upload failed.");
-    }
-    setActing(null);
+  const handleRequestBalance = () => {
+    if (!docOrder) return;
+    toast.info("Final invoice issuance is governed by Accounts & Release (Core RPC only).");
+    setDocOrder(null);
+    navigate(getCanonicalFinanceEgressRoute());
   };
 
   // Queues — FILTER OUT ₹0 orders so Finance only sees actionable, valued orders
@@ -1002,7 +990,15 @@ const AdminFinance = () => {
         <div className="max-w-7xl mx-auto flex justify-between items-end mb-8">
           <div>
             <h1 className="font-display text-3xl font-bold">Finance Control Tower</h1>
-            <p className="text-sm text-slate-400 mt-1">Approval, invoicing, and payment validation.</p>
+            <p className="text-sm text-slate-400 mt-1">Supporting ops — advance receipts, credit, wallet, returns. Canonical ingress/egress on dedicated boards.</p>
+            <div className="mt-3 flex flex-wrap gap-2 text-xs">
+              <RouterLink to={getCanonicalFinanceIngressRoute()} className="rounded-lg bg-[#B8860B]/20 px-3 py-1.5 font-bold text-[#B8860B] hover:bg-[#B8860B]/30">
+                → Finance Release Board (ingress)
+              </RouterLink>
+              <RouterLink to={getCanonicalFinanceEgressRoute()} className="rounded-lg bg-white/10 px-3 py-1.5 font-bold text-white hover:bg-white/20">
+                → Accounts & Release (egress)
+              </RouterLink>
+            </div>
           </div>
           <div className="text-right">
             <p className="text-xs text-slate-400 uppercase tracking-widest font-bold">Total SO Value</p>
@@ -1164,25 +1160,26 @@ const AdminFinance = () => {
                       </button>
                       <button
                         onClick={async () => {
-                          // 1. Insert notification for client
-                          const notifMsg = `Action Required: Please upload advance for Order #${order.id.slice(0, 8).toUpperCase()}.`;
-                          await supabase.from("notifications").insert({
-                            company_id: order.company_id,
-                            type: "payment_request",
-                            message: notifMsg,
-                          });
-                          // 2. Update order to awaiting_advance so Dashboard reacts
-                          await supabase.from("orders").update({ payment_status: "awaiting_advance" }).eq("id", order.id);
-                          // 3. Queue notification for email delivery
-                          await queueNotification({
-                            eventType: "advance_requested",
-                            messageBody: notifMsg,
-                            priority: "high",
-                          });
-                          // 4. WhatsApp placeholder
-                          console.log(`[WhatsApp Placeholder] Sending to company ${order.company_id}: "${notifMsg}"`);
-                          toast.success(`Payment request sent to ${order.company?.business_name || "Client"}`);
-                          fetchOrders();
+                          setActing(order.id);
+                          try {
+                            const notifMsg = `Action Required: Please upload advance for Order #${order.id.slice(0, 8).toUpperCase()}.`;
+                            await confirmPrepaidOrderAwaitingAdvance(order.id);
+                            await supabase.from("notifications").insert({
+                              company_id: order.company_id,
+                              type: "payment_request",
+                              message: notifMsg,
+                            });
+                            await queueNotification({
+                              eventType: "advance_requested",
+                              messageBody: notifMsg,
+                              priority: "high",
+                            });
+                            toast.success(`Payment request sent to ${order.company?.business_name || "Client"}`);
+                            fetchOrders();
+                          } catch (err) {
+                            toast.error(err instanceof Error ? err.message : "Governed advance request failed.");
+                          }
+                          setActing(null);
                         }}
                         className="w-full py-2 border border-slate-200 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-50 flex justify-center items-center gap-1"
                       >
@@ -1295,16 +1292,12 @@ const AdminFinance = () => {
                       />
                     </div>
                     <div className="space-y-2">
-                      <button
-                        onClick={() => {
-                          setDocOrder(order);
-                          setSoNumber(`SO-${order.id.split("-")[0].toUpperCase()}`);
-                          fetchDplForOrder(order.id);
-                        }}
+                      <RouterLink
+                        to={getCanonicalFinanceEgressRoute()}
                         className="w-full py-2.5 bg-slate-900 text-white rounded-lg text-xs font-bold hover:bg-black flex justify-center items-center gap-1.5"
                       >
-                        <Calculator size={14} /> Process Final Invoice
-                      </button>
+                        <Calculator size={14} /> Open Accounts & Release
+                      </RouterLink>
                       <button
                         onClick={() => generateBarcodeLabel(order.id, order.company?.business_name || "Client", 1, 1, "")}
                         className="w-full py-2 border border-slate-300 text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-50 flex justify-center items-center gap-1.5"
@@ -1713,8 +1706,8 @@ const AdminFinance = () => {
             >
               <div className="flex shrink-0 items-center justify-between border-b border-slate-100 p-6">
                 <div>
-                  <h3 className="font-display text-2xl font-bold text-slate-900">Process Final Invoice</h3>
-                  <p className="mt-1 text-sm text-slate-500">{docOrder.company?.business_name}</p>
+                  <h3 className="font-display text-2xl font-bold text-slate-900">DPL Reference (read-only)</h3>
+                  <p className="mt-1 text-sm text-slate-500">{docOrder.company?.business_name} — final invoice via Accounts & Release</p>
                 </div>
                 <button
                   type="button"
@@ -1910,16 +1903,9 @@ const AdminFinance = () => {
                 <button
                   type="button"
                   onClick={handleRequestBalance}
-                  disabled={acting === docOrder.id}
-                  className="flex min-h-[3rem] flex-1 items-center justify-center gap-2 rounded-xl bg-slate-900 py-4 font-bold text-white shadow-xl shadow-slate-900/20 transition-all hover:bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 focus-visible:ring-offset-2 active:scale-[0.99] disabled:opacity-50"
+                  className="flex min-h-[3rem] flex-1 items-center justify-center gap-2 rounded-xl bg-slate-900 py-4 font-bold text-white shadow-xl shadow-slate-900/20 transition-all hover:bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 focus-visible:ring-offset-2 active:scale-[0.99]"
                 >
-                  {acting === docOrder.id ? (
-                    <Loader2 size={18} className="animate-spin" />
-                  ) : (
-                    <>
-                      <Link size={18} /> Lock Invoice & Request Balance
-                    </>
-                  )}
+                  <Link size={18} /> Continue in Accounts & Release
                 </button>
               </div>
             </motion.div>
