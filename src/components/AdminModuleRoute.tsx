@@ -54,8 +54,7 @@ export default function AdminModuleRoute({ moduleKey, children }: AdminModuleRou
   }
 
   if (!hasModuleAccess(allowedModules, moduleKey)) {
-    const destination = getRoleDestination(role);
-    return <Navigate to={destination === "/customer-app-redirect" ? "/admin" : destination} replace />;
+    return <Navigate to={getRoleDestination(role)} replace />;
   }
   return <>{children}</>;
 }

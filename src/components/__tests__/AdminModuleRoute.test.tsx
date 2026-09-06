@@ -212,6 +212,7 @@ function renderFinanceAt(pathname: string) {
         />
         <Route path="/admin" element={<div>Admin landing</div>} />
         <Route path="/admin/dispatch-mgmt" element={<div>Dispatch landing</div>} />
+        <Route path="/customer-app-redirect" element={<div>Customer redirect</div>} />
       </Routes>
     </MemoryRouter>,
   );
@@ -223,8 +224,8 @@ describe("AdminModuleRoute finance surface gate (UAT-005)", () => {
     (role) => {
       mockRole = role;
       renderFinanceAt("/admin/finance");
-      expect(screen.queryByText("Finance workspace")).toBeNull();
-      expect(screen.getByText("Dispatch landing")).toBeTruthy();
+      expect(screen.queryByText("Finance workspace")).not.toBeInTheDocument();
+      expect(screen.getByText("Dispatch landing")).toBeInTheDocument();
     },
   );
 
@@ -233,8 +234,8 @@ describe("AdminModuleRoute finance surface gate (UAT-005)", () => {
     (role) => {
       mockRole = role;
       renderFinanceAt("/admin/finance-governance");
-      expect(screen.queryByText("Finance governance workspace")).toBeNull();
-      expect(screen.getByText("Dispatch landing")).toBeTruthy();
+      expect(screen.queryByText("Finance governance workspace")).not.toBeInTheDocument();
+      expect(screen.getByText("Dispatch landing")).toBeInTheDocument();
     },
   );
 
@@ -243,8 +244,8 @@ describe("AdminModuleRoute finance surface gate (UAT-005)", () => {
     (role) => {
       mockRole = role;
       renderFinanceAt("/admin/accounts-release");
-      expect(screen.queryByText("Accounts release workspace")).toBeNull();
-      expect(screen.getByText("Dispatch landing")).toBeTruthy();
+      expect(screen.queryByText("Accounts release workspace")).not.toBeInTheDocument();
+      expect(screen.getByText("Dispatch landing")).toBeInTheDocument();
     },
   );
 
@@ -252,5 +253,12 @@ describe("AdminModuleRoute finance surface gate (UAT-005)", () => {
     mockRole = "FINANCE_HEAD";
     renderFinanceAt("/admin/finance");
     expect(screen.getByText("Finance workspace")).toBeTruthy();
+  });
+
+  it("preserves customer-app-redirect for unknown roles denied finance access", () => {
+    mockRole = "UNKNOWN_ROLE";
+    renderFinanceAt("/admin/finance");
+    expect(screen.queryByText("Finance workspace")).not.toBeInTheDocument();
+    expect(screen.getByText("Customer redirect")).toBeInTheDocument();
   });
 });
