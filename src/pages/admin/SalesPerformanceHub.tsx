@@ -18,6 +18,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import { format, subDays } from "date-fns";
+import { getWalletBalance } from "@/lib/order-authority/creditWalletAuthorityClient";
 
 /* ─── Types ─── */
 interface Manager {
@@ -114,11 +115,19 @@ const SalesPerformanceHub = () => {
       // Fetch companies assigned to this manager. Non-admin users are forced to their own user.id via effectiveManagerId.
       const { data: comps } = await supabase
         .from("companies")
-        .select("id, business_name, wallet_balance, account_manager_id")
+        .select("id, business_name, account_manager_id")
         .eq("account_manager_id", effectiveManagerId);
-      setCompanies(comps || []);
+      const companyList: Company[] = await Promise.all((comps || []).map(async (company) => {
+        try {
+          return { ...company, wallet_balance: await getWalletBalance(company.id) };
+        } catch {
+          // PF-6B is fail-closed: an unavailable Core balance is not ₹0.
+          return { ...company, wallet_balance: null };
+        }
+      }));
+      setCompanies(companyList);
 
-      const companyIds = (comps || []).map((c) => c.id);
+      const companyIds = companyList.map((c) => c.id);
       if (companyIds.length > 0) {
         // Fetch orders for these companies (last 60 days for graph + calculations)
         const since = subDays(new Date(), 60).toISOString();
@@ -408,7 +417,7 @@ const SalesPerformanceHub = () => {
                               {lastOrderMap[c.id] ? format(new Date(lastOrderMap[c.id]), "dd MMM yyyy") : "—"}
                             </TableCell>
                             <TableCell className="text-right font-mono font-bold">
-                              ₹{(c.wallet_balance || 0).toLocaleString("en-IN")}
+                              {c.wallet_balance == null ? "Unavailable" : `₹${c.wallet_balance.toLocaleString("en-IN")}`}
                             </TableCell>
                           </TableRow>
                         ))}
