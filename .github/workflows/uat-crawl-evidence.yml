@@ -22,6 +22,7 @@ on:
           - both
           - buyer-mobile
           - ai-uat
+          - post-merge-proofs
           - all
   push:
     branches:
@@ -41,7 +42,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     env:
-      RUN_TRANCHE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.run_tranche || 'all' }}
+      RUN_TRANCHE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.run_tranche || 'post-merge-proofs' }}
       TEST_PREVIEW_URL: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.target_url != '' && github.event.inputs.target_url || secrets.TEST_PREVIEW_URL }}
       UAT_CRAWL_BASE_URL: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.target_url != '' && github.event.inputs.target_url || secrets.TEST_PREVIEW_URL }}
       TEST_ADMIN_EMAIL: ${{ secrets.TEST_ADMIN_EMAIL }}
@@ -99,14 +100,30 @@ jobs:
             fi
           done
 
+      - name: Configure post-merge targeted proofs (FAST PATH A/B — NOT current-main cert)
+        if: env.RUN_TRANCHE == 'post-merge-proofs'
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "UAT_DEPLOY_BLOCKED=false" >> "$GITHUB_ENV"
+          echo "FAST_PATH_493_URL=https://oasis-baklawa-central-omgfjj6e3-oasisbaklawa2006-6222s-projects.vercel.app" >> "$GITHUB_ENV"
+          echo "FAST_PATH_493_SHA=8f042fa4abd70eba4e56636883dbcfaf30c864c7" >> "$GITHUB_ENV"
+          echo "FAST_PATH_493_DEPLOYMENT_ID=6289603800" >> "$GITHUB_ENV"
+          echo "FAST_PATH_491_URL=https://oasis-baklawa-central-adpz5kw86-oasisbaklawa2006-6222s-projects.vercel.app" >> "$GITHUB_ENV"
+          echo "FAST_PATH_491_SHA=efd141944fd77aee58779209fe529497177d9118" >> "$GITHUB_ENV"
+          echo "FAST_PATH_491_DEPLOYMENT_ID=6289622998" >> "$GITHUB_ENV"
+          echo "UAT_CURRENT_MAIN_HOLD_SHA=64a107dfc167be76673a3d18f177a72472dcb241" >> "$GITHUB_ENV"
+          echo "::notice::FAST PATH uses exact-head Vercel previews only. Current main 64a107df held — no stale ace340fe/67b3d1cc substitution."
+
       - name: Resolve and validate target URL (no secrets logged)
+        if: env.RUN_TRANCHE != 'post-merge-proofs'
         shell: bash
         env:
           RAW_URL: ${{ env.TEST_PREVIEW_URL }}
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          CURRENT_MAIN_SHA="67b3d1cc0baf7d494cb7a00ce55a74f16b6af43b"
+          CURRENT_MAIN_SHA="64a107dfc167be76673a3d18f177a72472dcb241"
           url="${RAW_URL:-}"
           resolved_sha=""
           if [[ -z "$url" ]]; then
@@ -153,7 +170,7 @@ jobs:
           fi
 
       - name: Record deploy BLOCKED (current main — no trusted URL)
-        if: env.UAT_DEPLOY_BLOCKED == 'true'
+        if: env.RUN_TRANCHE != 'post-merge-proofs' && env.UAT_DEPLOY_BLOCKED == 'true'
         run: node scripts/uat-crawl/record-deploy-blocked.mjs
 
       - uses: actions/setup-node@v4
@@ -161,15 +178,63 @@ jobs:
           node-version: lts/*
 
       - name: Install dependencies
-        if: env.UAT_DEPLOY_BLOCKED != 'true'
+        if: env.UAT_DEPLOY_BLOCKED != 'true' || env.RUN_TRANCHE == 'post-merge-proofs'
         run: npm install
 
       - name: Install Playwright Chromium
-        if: env.UAT_DEPLOY_BLOCKED != 'true'
+        if: env.UAT_DEPLOY_BLOCKED != 'true' || env.RUN_TRANCHE == 'post-merge-proofs'
         run: npx playwright install --with-deps chromium
 
+      - name: FAST PATH A — #493 UAT-005 security regression
+        if: env.RUN_TRANCHE == 'post-merge-proofs'
+        id: fast_path_a_005
+        continue-on-error: true
+        env:
+          TEST_PREVIEW_URL: https://oasis-baklawa-central-omgfjj6e3-oasisbaklawa2006-6222s-projects.vercel.app
+          UAT_CRAWL_BASE_URL: https://oasis-baklawa-central-omgfjj6e3-oasisbaklawa2006-6222s-projects.vercel.app
+          FAST_PATH_493_SHA: 8f042fa4abd70eba4e56636883dbcfaf30c864c7
+          FAST_PATH_493_DEPLOYMENT_ID: "6289603800"
+          FAST_PATH_493_URL: https://oasis-baklawa-central-omgfjj6e3-oasisbaklawa2006-6222s-projects.vercel.app
+          TEST_DISPATCH_EMAIL: ${{ secrets.TEST_DISPATCH_EMAIL }}
+          TEST_DISPATCH_PASSWORD: ${{ secrets.TEST_DISPATCH_PASSWORD }}
+          TEST_ASSEMBLY_EMAIL: ${{ secrets.TEST_ASSEMBLY_EMAIL }}
+          TEST_ASSEMBLY_PASSWORD: ${{ secrets.TEST_ASSEMBLY_PASSWORD }}
+        run: |
+          npx playwright test -c playwright.ai-uat.config.ts tests/ai-uat/tranche1.spec.ts -g "UAT-005"
+          node scripts/merge-ai-uat-report.mjs
+          node scripts/uat-crawl/archive-post-merge-493-proof.mjs
+
+      - name: FAST PATH A — #493 UAT-006–010 (after UAT-005 PASS)
+        if: env.RUN_TRANCHE == 'post-merge-proofs' && steps.fast_path_a_005.outcome == 'success'
+        continue-on-error: true
+        env:
+          TEST_PREVIEW_URL: https://oasis-baklawa-central-omgfjj6e3-oasisbaklawa2006-6222s-projects.vercel.app
+          FAST_PATH_493_SHA: 8f042fa4abd70eba4e56636883dbcfaf30c864c7
+          FAST_PATH_493_DEPLOYMENT_ID: "6289603800"
+          FAST_PATH_493_URL: https://oasis-baklawa-central-omgfjj6e3-oasisbaklawa2006-6222s-projects.vercel.app
+          TEST_DISPATCH_EMAIL: ${{ secrets.TEST_DISPATCH_EMAIL }}
+          TEST_DISPATCH_PASSWORD: ${{ secrets.TEST_DISPATCH_PASSWORD }}
+          TEST_ASSEMBLY_EMAIL: ${{ secrets.TEST_ASSEMBLY_EMAIL }}
+          TEST_ASSEMBLY_PASSWORD: ${{ secrets.TEST_ASSEMBLY_PASSWORD }}
+        run: |
+          npx playwright test -c playwright.ai-uat.config.ts tests/ai-uat/tranche1.spec.ts -g "UAT-006|UAT-007|UAT-008|UAT-009|UAT-010"
+          node scripts/merge-ai-uat-report.mjs
+          node scripts/uat-crawl/archive-post-merge-493-proof.mjs --append
+
+      - name: FAST PATH B — #491 KPI regression (synthetic fixture)
+        if: env.RUN_TRANCHE == 'post-merge-proofs'
+        continue-on-error: true
+        env:
+          TEST_PREVIEW_URL: https://oasis-baklawa-central-adpz5kw86-oasisbaklawa2006-6222s-projects.vercel.app
+          UAT_CRAWL_BASE_URL: https://oasis-baklawa-central-adpz5kw86-oasisbaklawa2006-6222s-projects.vercel.app
+          FAST_PATH_491_SHA: efd141944fd77aee58779209fe529497177d9118
+          FAST_PATH_491_DEPLOYMENT_ID: "6289622998"
+          TEST_SALES_EMAIL: ${{ secrets.TEST_SALES_EMAIL }}
+          TEST_SALES_PASSWORD: ${{ secrets.TEST_SALES_PASSWORD }}
+        run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/post-merge-491-kpi.spec.ts
+
       - name: Run APPVERSE AI-UAT Tranche 1 (UAT-001–010)
-        if: env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'ai-uat' || env.RUN_TRANCHE == 'all')
+        if: env.RUN_TRANCHE != 'post-merge-proofs' && env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'ai-uat' || env.RUN_TRANCHE == 'all')
         continue-on-error: true
         env:
           TEST_DISPATCH_EMAIL: ${{ secrets.TEST_DISPATCH_EMAIL }}
@@ -182,22 +247,22 @@ jobs:
           node scripts/uat-crawl/archive-ai-uat-evidence.mjs
 
       - name: Run post-fix #483 buyer approval re-test (UAT-0018 + UAT-0020)
-        if: env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'post-fix-483' || env.RUN_TRANCHE == 'all')
+        if: env.RUN_TRANCHE != 'post-merge-proofs' && env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'post-fix-483' || env.RUN_TRANCHE == 'all')
         continue-on-error: true
         run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/post-fix-483-rerun.spec.ts
 
       - name: Run authenticated UAT auth-rerun
-        if: env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'auth-rerun' || env.RUN_TRANCHE == 'both' || env.RUN_TRANCHE == 'all')
+        if: env.RUN_TRANCHE != 'post-merge-proofs' && env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'auth-rerun' || env.RUN_TRANCHE == 'both' || env.RUN_TRANCHE == 'all')
         continue-on-error: true
         run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/auth-rerun.spec.ts
 
       - name: Run UAT tranche 03 (chronological continue)
-        if: env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'tranche-03' || env.RUN_TRANCHE == 'both' || env.RUN_TRANCHE == 'all')
+        if: env.RUN_TRANCHE != 'post-merge-proofs' && env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'tranche-03' || env.RUN_TRANCHE == 'both' || env.RUN_TRANCHE == 'all')
         continue-on-error: true
         run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/tranche-03-crawl.spec.ts
 
       - name: Run UAT tranche 04-auth (UAT-0031..0050)
-        if: env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'all' || env.RUN_TRANCHE == 'continue')
+        if: env.RUN_TRANCHE != 'post-merge-proofs' && env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'all' || env.RUN_TRANCHE == 'continue')
         continue-on-error: true
         env:
           UAT_TRANCHE_START: UAT-0031
@@ -206,7 +271,7 @@ jobs:
         run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/tranche-auth-range.spec.ts
 
       - name: Run UAT tranche 05-auth (UAT-0051..0070)
-        if: env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'all' || env.RUN_TRANCHE == 'continue')
+        if: env.RUN_TRANCHE != 'post-merge-proofs' && env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'all' || env.RUN_TRANCHE == 'continue')
         continue-on-error: true
         env:
           UAT_TRANCHE_START: UAT-0051
@@ -215,7 +280,7 @@ jobs:
         run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/tranche-auth-range.spec.ts
 
       - name: Run UAT tranche 06-auth (UAT-0071..0090)
-        if: env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'all' || env.RUN_TRANCHE == 'continue')
+        if: env.RUN_TRANCHE != 'post-merge-proofs' && env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'all' || env.RUN_TRANCHE == 'continue')
         continue-on-error: true
         env:
           UAT_TRANCHE_START: UAT-0071
@@ -224,7 +289,7 @@ jobs:
         run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/tranche-auth-range.spec.ts
 
       - name: Run UAT tranche 07-auth (UAT-0091..0110)
-        if: env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'all' || env.RUN_TRANCHE == 'continue')
+        if: env.RUN_TRANCHE != 'post-merge-proofs' && env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'all' || env.RUN_TRANCHE == 'continue')
         continue-on-error: true
         env:
           UAT_TRANCHE_START: UAT-0091
@@ -233,7 +298,7 @@ jobs:
         run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/tranche-auth-range.spec.ts
 
       - name: Run UAT tranche 08-auth (UAT-0111..0131)
-        if: env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'all' || env.RUN_TRANCHE == 'continue')
+        if: env.RUN_TRANCHE != 'post-merge-proofs' && env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'all' || env.RUN_TRANCHE == 'continue')
         continue-on-error: true
         env:
           UAT_TRANCHE_START: UAT-0111
@@ -242,7 +307,7 @@ jobs:
         run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/tranche-auth-range.spec.ts
 
       - name: Run buyer mobile authenticated UAT (PR #10 surfaces)
-        if: env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'buyer-mobile' || env.RUN_TRANCHE == 'all')
+        if: env.RUN_TRANCHE != 'post-merge-proofs' && env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'buyer-mobile' || env.RUN_TRANCHE == 'all')
         continue-on-error: true
         env:
           UAT_BUYER_BASELINE_SHA: "0015e7b56532826a40c7beb3f33b028271c2c2f5"
@@ -286,6 +351,12 @@ jobs:
             docs/uat-crawl/UAT_AI_UAT_SUMMARY.json
             docs/uat-crawl/UAT_AI_UAT_REPORT.md
             docs/uat-crawl/UAT_DEPLOY_PROVENANCE.json
+            docs/uat-crawl/UAT_POST_MERGE_493_PROOF.jsonl
+            docs/uat-crawl/UAT_POST_MERGE_493_SUMMARY.json
+            docs/uat-crawl/UAT_POST_MERGE_493_REPORT.md
+            docs/uat-crawl/UAT_POST_MERGE_491_PROOF.jsonl
+            docs/uat-crawl/UAT_POST_MERGE_491_SUMMARY.json
+            uat-evidence/screenshots/post-merge-491-kpi/
           if-no-files-found: warn
           retention-days: 30
 
@@ -321,7 +392,10 @@ jobs:
                   docs/uat-crawl/UAT_AUTH_RERUN_SUMMARY.json docs/uat-crawl/UAT_POST_FIX_483_SUMMARY.json \
                   docs/uat-crawl/UAT_GHA_RUN.json docs/uat-crawl/UAT_FAILURE_LEDGER.md docs/uat-crawl/UAT_CRAWL_PROGRESS.md \
                   docs/uat-crawl/UAT_BUYER_MOBILE_SUMMARY.json docs/uat-crawl/UAT_BUYER_MOBILE_TARGETS.json \
-                  docs/uat-crawl/UAT_AI_UAT_SUMMARY.json docs/uat-crawl/UAT_AI_UAT_REPORT.md docs/uat-crawl/UAT_DEPLOY_PROVENANCE.json || true
+                  docs/uat-crawl/UAT_AI_UAT_SUMMARY.json docs/uat-crawl/UAT_AI_UAT_REPORT.md docs/uat-crawl/UAT_DEPLOY_PROVENANCE.json \
+                  docs/uat-crawl/UAT_POST_MERGE_493_PROOF.jsonl docs/uat-crawl/UAT_POST_MERGE_493_SUMMARY.json docs/uat-crawl/UAT_POST_MERGE_493_REPORT.md \
+                  docs/uat-crawl/UAT_POST_MERGE_491_PROOF.jsonl docs/uat-crawl/UAT_POST_MERGE_491_SUMMARY.json \
+                  docs/uat-crawl/UAT_REBASE_490_SUMMARY.json uat-evidence/screenshots/post-merge-491-kpi/ || true
           if git diff --staged --quiet; then
             echo "No evidence changes to commit."
             exit 0

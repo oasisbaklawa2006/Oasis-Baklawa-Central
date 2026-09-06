@@ -1,68 +1,52 @@
 # UAT Crawl Progress Summary
 
-**Last updated:** 2026-09-05 (#490 rebaseline execution)  
+**Last updated:** 2026-09-06 (post-merge targeted proofs)  
 **Branch / PR:** `cursor/physical-uat-readiness-matrix-e763` → **#462**  
-**Rebased onto main:** `67b3d1cc0baf7d494cb7a00ce55a74f16b6af43b` (#490)  
+**Current main (HELD):** `64a107dfc167be76673a3d18f177a72472dcb241` (#491) — **NOT deployed on Vercel**  
 **Mode:** Read-only evidence — **no remediation** in this programme.
 
-## #490 rebaseline execution — run [33999620404](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/33999620404)
+## Release hold lifted — targeted post-merge proofs
 
-**Branch rebased onto main `67b3d1cc`** · **Head `b2566f32`** · **Artifact:** `uat-crawl-evidence-33999620404-1`
+Full **131-surface current-main rebaseline HELD** until trusted Vercel deploy exists for `64a107df`. No ace340fe / 67b3d1cc substitution.
 
-| Tranche | Result | PASS | FAIL | BLOCKED | Notes |
-|---|---|---:|---:|---:|---|
-| AI-UAT UAT-001–010 | deploy BLOCKED | 0 | 0 | **10** | No `67b3d1cc` Vercel URL; ace340fe not used |
-| post-fix-483 | not executed | 0 | 0 | 2 | deploy BLOCKED (+ `TEST_SALES_*` missing) |
-| 131-surface auth crawl | not re-run | — | — | — | Prior **80/131** ace340fe evidence preserved |
-| buyer-mobile | not executed | 0 | 0 | 16 | deploy BLOCKED (+ `TEST_BUYER_*` missing) |
+### FAST PATH A — #493 security (`8f042fa`)
 
-**Deploy provenance:** `docs/uat-crawl/UAT_DEPLOY_PROVENANCE.json`  
-**New screenshots:** 0 (no fabricated PASS)  
-**Secrets present but unusable without deploy:** `TEST_DISPATCH_*`, `TEST_ASSEMBLY_*`, `TEST_ADMIN_*`, `TEST_FINANCE_*`, `TEST_OPERATIONS_*`
+| Field | Value |
+|---|---|
+| Merge SHA | `3bebf39c7327ed28951d4ad68a8db4c19e0f6717` |
+| GitHub deployment ID | **6289603800** |
+| Vercel deployment | `BCyAHAee6qn7rg2Cjop91pYaGK93` |
+| Verified preview URL | `https://oasis-baklawa-central-omgfjj6e3-oasisbaklawa2006-6222s-projects.vercel.app` |
+| Label | **#493 security regression ONLY — NOT current-main certification** |
+| Sequence | UAT-005 first → UAT-006–010 if PASS |
 
-## #490 rebaseline policy
+### FAST PATH B — #491 KPI (`efd1419`)
 
-- **Current trusted deploy target:** main `67b3d1cc` only — **ace340fe not reused** as post-#490 evidence.
-- **Prior evidence preserved:** all tranche-01..08, auth-rerun, post-fix-483 pre-fix tranche-02 screenshots/checksums remain committed (append-only).
-- **If Vercel rate-limited:** record **BLOCKED** with exact deploy provenance; do not substitute legacy ace340fe URL as PASS.
+| Field | Value |
+|---|---|
+| Merge on main | `64a107dfc167be76673a3d18f177a72472dcb241` |
+| GitHub deployment ID | **6289622998** |
+| Verified preview URL | `https://oasis-baklawa-central-adpz5kw86-oasisbaklawa2006-6222s-projects.vercel.app` |
+| Target | FAIL-485-001 KPI convergence on **synthetic fixture only** |
+| Blocker if absent | `TEST_SALES_*` or cert pending fixture `dc370b46` |
 
-## Durable evidence (pre-#490 rebaseline crawl)
+### Evidence paths (append-only)
 
-| Metric | Count |
-|---|---:|
-| Authenticated S0–S3 (131 census, ace340fe-era) | **80 / 131** |
-| Remaining without auth function evidence | **51** |
-| Screenshot PNGs (Central admin, preserved) | ~190 |
+- `docs/uat-crawl/UAT_POST_MERGE_493_PROOF.jsonl`
+- `docs/uat-crawl/UAT_POST_MERGE_493_SUMMARY.json`
+- `docs/uat-crawl/UAT_POST_MERGE_491_PROOF.jsonl`
+- `docs/uat-crawl/UAT_POST_MERGE_491_SUMMARY.json`
+- `uat-evidence/screenshots/post-merge-491-kpi/`
 
-## AI-UAT UAT-001–010
+### Prior evidence preserved
 
-Governed tranche wired into `uat-crawl-evidence.yml` (`ai-uat` / `all`). Evidence paths:
-
-- `docs/uat-crawl/UAT_MANIFEST_AI_UAT.jsonl`
-- `docs/uat-crawl/UAT_AI_UAT_SUMMARY.json`
-- `docs/uat-crawl/UAT_AI_UAT_REPORT.md`
-- `docs/uat-crawl/UAT_DEPLOY_PROVENANCE.json`
+Ace340fe-era **80/131** authenticated crawl + all pre-fix/post-fix tranche screenshots unchanged.
 
 ## Blocked secret names (values never logged)
 
-| Secret | UAT IDs |
+| Secret | Blocks |
 |---|---|
-| `TEST_SALES_*` | 0018, 0020, 0044, 0104, 0105 |
-| `TEST_BUYER_*` | 0006, 0007, 0114–0121 + buyer-mobile |
-| `TEST_GATE_SECURITY_*` | 0003 |
-| `TEST_RGS_*` | 0062–0065, 0082, 0087 |
-| `TEST_PRODUCTION_*` | 0067, 0097–0101 |
-| `TEST_TV_*` | 0106–0113 |
-| `TEST_AI_STUDIO_PREVIEW_URL` | 0122–0127 |
-| `TEST_TRACE_PREVIEW_URL` | 0128–0131 |
-| `TEST_DISPATCH_*` / `TEST_ASSEMBLY_*` | AI-UAT UAT-001–010 (when deploy available) |
-
-## Evidence locations (preserved + append)
-
-| Phase | Path |
-|---|---|
-| Pre-auth tranche-01/02 | `uat-evidence/screenshots/tranche-01/` … `tranche-02/` |
-| ace340fe-era auth crawl | `uat-evidence/screenshots/auth-rerun/` … `tranche-08-auth/` |
-| post-fix-483 | `uat-evidence/screenshots/post-fix-483/` |
-| buyer-mobile | `uat-evidence/screenshots/buyer-mobile-auth/` |
-| AI-UAT (#490) | append via `UAT_MANIFEST_AI_UAT.jsonl` |
+| `TEST_SALES_*` | FAST PATH B, post-fix-483, buyer-mobile, lane1 sales |
+| `TEST_DISPATCH_*` / `TEST_ASSEMBLY_*` | FAST PATH A AI-UAT |
+| `TEST_BUYER_*` | buyer-mobile |
+| Trusted deploy for `64a107df` | full 131-surface rebaseline |
