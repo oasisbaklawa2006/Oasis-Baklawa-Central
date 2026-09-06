@@ -74,7 +74,7 @@ export const FACTORY_SOURCE_TRUTH: FactorySourceTruthEntry[] = [
     relation: "b2b_assembly_jobs",
     subsystem: "ASSEMBLY",
     status: "AUTHORITATIVE",
-    readConsumers: ["AssemblyManagement", "InventoryCommandCenter"],
+    readConsumers: ["AssemblyManagement", "AssemblyTV", "InventoryCommandCenter"],
     writeAuthority: "Governed P&A assembly RPC lifecycle",
     evidence: "AssemblyManagement explicitly treats Job Closed as terminal and never writes job rows directly.",
   },
