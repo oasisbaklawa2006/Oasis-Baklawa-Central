@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ExecutionReadModelResult, ProjectionSource, ReadModelMetadata } from "./types";
 import { deriveGovernanceBoardNoticeFlags } from "./boardNoticeFlags";
+import { classifyIntegrationError } from "@/lib/integration-contracts";
 import { resolveBoardProjectionSource } from "./previewFallback";
 
 export interface GovernanceBoardState<T> {
@@ -44,7 +45,12 @@ export function useGovernanceBoardState<TInput, TRow extends { input: TInput }>(
       })
       .catch((err: unknown) => {
         if (!cancelled) {
-          setLoadError(err instanceof Error ? err.message : "Read model load failed");
+          const classified = classifyIntegrationError({
+            err,
+            source: "governance-read-model",
+            operation: "read",
+          });
+          setLoadError(classified.message);
           setLiveResult(null);
         }
       })
