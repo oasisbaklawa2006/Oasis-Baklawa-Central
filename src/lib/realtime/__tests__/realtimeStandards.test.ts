@@ -255,6 +255,44 @@ describe("Point23 subscription controller", () => {
     controller.stop();
   });
 
+  it("runs snapshot and polling fallback without connecting when pollingOnly", async () => {
+    vi.useFakeTimers();
+    try {
+      const subscribe = vi.fn(() => ({ unsubscribe: vi.fn() }));
+      let snapshotCalls = 0;
+      const controller = createRealtimeSubscriptionController({
+        domain: "orders",
+        scope: { type: "global_staff" },
+        changes: [{ event: "*", schema: "public", table: "orders" }],
+        mode: "refetch",
+        snapshot: async () => {
+          snapshotCalls += 1;
+        },
+        pollingFallbackMs: 50,
+        pollingOnly: true,
+        channelAdapter: { subscribe },
+      });
+
+      await controller.start();
+      expect(controller.getStatus()).toBe("unavailable");
+      expect(controller.isPollingFallbackActive()).toBe(true);
+      expect(subscribe).not.toHaveBeenCalled();
+      expect(snapshotCalls).toBe(1);
+
+      await vi.advanceTimersByTimeAsync(50);
+      expect(snapshotCalls).toBe(2);
+
+      controller.stop();
+      expect(controller.getStatus()).toBe("idle");
+      expect(controller.isPollingFallbackActive()).toBe(false);
+
+      await vi.advanceTimersByTimeAsync(50);
+      expect(snapshotCalls).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("cleans up on stop", async () => {
     const unsubscribe = vi.fn();
     const controller = createRealtimeSubscriptionController({

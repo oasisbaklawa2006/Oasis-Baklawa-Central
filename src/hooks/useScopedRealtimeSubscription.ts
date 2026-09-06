@@ -65,7 +65,7 @@ export function useScopedRealtimeSubscription(options: ScopedRealtimeSubscriptio
   }, [scope, changes, snapshot, onDelta, onAcceptedDelta, onStatusChange]);
 
   useEffect(() => {
-    if (!enabled || !isRealtimeEnabled) return;
+    if (!enabled) return;
 
     const currentScope = scopeRef.current;
     const currentChanges = changesRef.current;
@@ -73,6 +73,30 @@ export function useScopedRealtimeSubscription(options: ScopedRealtimeSubscriptio
     if (auth.allowed !== true) {
       console.warn("[useScopedRealtimeSubscription] unauthorized channel:", auth.reason);
       return;
+    }
+
+    if (!isRealtimeEnabled) {
+      const controller = createRealtimeSubscriptionController({
+        domain,
+        scope: currentScope,
+        changes: currentChanges,
+        mode,
+        snapshot: () => snapshotRef.current(),
+        onStatusChange: (status) => onStatusChangeRef.current?.(status),
+        pollingFallbackMs,
+        pollingOnly: true,
+        channelAdapter: {
+          subscribe: () => {
+            throw new Error("useScopedRealtimeSubscription polling-only path must not subscribe");
+          },
+        },
+      });
+
+      void controller.start();
+
+      return () => {
+        controller.stop();
+      };
     }
 
     const channelName = normalizeRealtimeChannelName(auth.channelName);

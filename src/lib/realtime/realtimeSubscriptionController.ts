@@ -41,6 +41,8 @@ export type RealtimeSubscriptionController = {
 type ControllerOptions = RealtimeSubscriptionConfig & {
   channelAdapter: RealtimeChannelAdapter;
   now?: () => number;
+  /** Snapshot + periodic polling only — no realtime channel (global kill switch). */
+  pollingOnly?: boolean;
 };
 
 export function createRealtimeSubscriptionController(
@@ -57,6 +59,7 @@ export function createRealtimeSubscriptionController(
     reconnectBackoffMs = 10_000,
     pollingFallbackMs = 30_000,
     now = () => Date.now(),
+    pollingOnly = false,
   } = options;
 
   const auth = assertAuthorizedRealtimeChannel(domain, scope);
@@ -181,6 +184,12 @@ export function createRealtimeSubscriptionController(
     dedupe = createRealtimeDedupeState();
     const snapshotOk = await runSnapshot();
     if (stopped || currentGen !== generation) return;
+    if (pollingOnly) {
+      if (snapshotOk) {
+        setStatus("unavailable");
+      }
+      return;
+    }
     if (snapshotOk) {
       connectChannel();
     }
