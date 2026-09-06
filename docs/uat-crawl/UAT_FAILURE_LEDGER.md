@@ -24,6 +24,7 @@ Original UAT-005 failure evidence preserved in prior manifests — post-merge ro
 |---|---|---|---|---|
 | FAIL-493-001 | UAT-005 | 34015742110 @ `8f042fa` | Dispatch direct probe `/admin/finance` did not fail closed (stale harness + async guard) | **OPEN on original deploy** — preserved |
 | FAIL-493-001 repair | UAT-005–010 | 34016393457 @ `9715c20d` (#497) | All forbidden routes fail closed to `/admin/dispatch-mgmt` | **REPAIR PROVEN** — pending #497 merge to main |
+| FAIL-493-001 repair (newer #497 head) | — | — | `fa3b879` preview — **NOT re-run**; preserved evidence at `9715c20d` only | **NOT current-main cert** while #497 open |
 
 **Policy:** ace340fe not substituted as post-#490 current evidence. If no Vercel deploy for `67b3d1cc`, all deploy-dependent tranches record **BLOCKED** with provenance in `UAT_DEPLOY_PROVENANCE.json`.
 

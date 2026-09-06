@@ -42,7 +42,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     env:
-      RUN_TRANCHE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.run_tranche || 'post-merge-proofs' }}
+      RUN_TRANCHE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.run_tranche || 'all' }}
       TEST_PREVIEW_URL: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.target_url != '' && github.event.inputs.target_url || secrets.TEST_PREVIEW_URL }}
       UAT_CRAWL_BASE_URL: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.target_url != '' && github.event.inputs.target_url || secrets.TEST_PREVIEW_URL }}
       TEST_ADMIN_EMAIL: ${{ secrets.TEST_ADMIN_EMAIL }}
@@ -125,10 +125,13 @@ jobs:
         run: |
           set -euo pipefail
           CURRENT_MAIN_SHA="64a107dfc167be76673a3d18f177a72472dcb241"
+          CONTINUATION_LEGACY_SHA="ace340fe1d122a4cce5d7bb61cd237ed7ba1c894"
+          CONTINUATION_LEGACY_URL="https://oasis-baklawa-central-6zo99hosg-oasisbaklawa2006-6222s-projects.vercel.app"
           url="${RAW_URL:-}"
           resolved_sha=""
+          continuation_fallback=false
           if [[ -z "$url" ]]; then
-            echo "::notice::TEST_PREVIEW_URL secret missing — resolving trusted deploy for current main ${CURRENT_MAIN_SHA} only (no ace340fe fallback)."
+            echo "::notice::TEST_PREVIEW_URL secret missing — resolving deploy (current main first, then ace340fe continuation fallback for crawl tranches)."
             for sha in "${CURRENT_MAIN_SHA}" "${GITHUB_SHA}"; do
               deploy_id="$(gh api "repos/${GITHUB_REPOSITORY}/deployments?sha=${sha}&per_page=10" --jq '[.[] | select(.environment=="Production" or .environment=="Preview")][0].id // empty' 2>/dev/null || true)"
               if [[ -n "$deploy_id" ]]; then
@@ -140,14 +143,30 @@ jobs:
                 fi
               fi
             done
+            if [[ -z "$url" && ( "${RUN_TRANCHE}" == "all" || "${RUN_TRANCHE}" == "continue" || "${RUN_TRANCHE}" == "auth-rerun" || "${RUN_TRANCHE}" == "tranche-03" || "${RUN_TRANCHE}" == "both" || "${RUN_TRANCHE}" == "post-fix-483" || "${RUN_TRANCHE}" == "buyer-mobile" || "${RUN_TRANCHE}" == "ai-uat" ) ]]; then
+              echo "::notice::Current main ${CURRENT_MAIN_SHA} has no deploy — using ace340fe continuation fallback (NOT current-main certification)."
+              deploy_id="$(gh api "repos/${GITHUB_REPOSITORY}/deployments?sha=${CONTINUATION_LEGACY_SHA}&per_page=10" --jq '[.[] | select(.environment=="Production" or .environment=="Preview")][0].id // empty' 2>/dev/null || true)"
+              if [[ -n "$deploy_id" ]]; then
+                url="$(gh api "repos/${GITHUB_REPOSITORY}/deployments/${deploy_id}/statuses" --jq '[.[] | select(.state=="success")][0].target_url // empty' 2>/dev/null || true)"
+              fi
+              if [[ -z "$url" ]]; then
+                url="${CONTINUATION_LEGACY_URL}"
+              fi
+              resolved_sha="${CONTINUATION_LEGACY_SHA}"
+              continuation_fallback=true
+            fi
           else
             resolved_sha="${CURRENT_MAIN_SHA}"
           fi
           echo "UAT_TARGET_SHA=${CURRENT_MAIN_SHA}" >> "$GITHUB_ENV"
+          echo "UAT_CONTINUATION_FALLBACK=${continuation_fallback}" >> "$GITHUB_ENV"
+          if [[ "$continuation_fallback" == "true" ]]; then
+            echo "UAT_DEPLOY_PROVENANCE_LABEL=ace340fe continuation crawl — NOT current-main 64a107df certification; post-merge FAIL-493 evidence preserved separately." >> "$GITHUB_ENV"
+          fi
           if [[ -z "$url" ]]; then
-            echo "::warning::No trusted Vercel deployment for current main ${CURRENT_MAIN_SHA}. Recording BLOCKED — ace340fe not substituted."
+            echo "::warning::No trusted Vercel deployment for current main ${CURRENT_MAIN_SHA} and no continuation fallback available."
             echo "UAT_DEPLOY_BLOCKED=true" >> "$GITHUB_ENV"
-            echo "UAT_DEPLOY_BLOCK_REASON=No successful Vercel deployment for ${CURRENT_MAIN_SHA} (Vercel rate limit suspected); ace340fe not used as post-#490 evidence." >> "$GITHUB_ENV"
+            echo "UAT_DEPLOY_BLOCK_REASON=No successful Vercel deployment for ${CURRENT_MAIN_SHA} (Vercel rate limit suspected); continuation fallback not applicable for tranche ${RUN_TRANCHE}." >> "$GITHUB_ENV"
             exit 0
           fi
           if [[ "$url" == *$'\n'* || "$url" == *$'\r'* ]]; then
@@ -173,6 +192,10 @@ jobs:
       - name: Record deploy BLOCKED (current main — no trusted URL)
         if: env.RUN_TRANCHE != 'post-merge-proofs' && env.UAT_DEPLOY_BLOCKED == 'true'
         run: node scripts/uat-crawl/record-deploy-blocked.mjs
+
+      - name: Record continuation deploy provenance (ace340fe fallback)
+        if: env.RUN_TRANCHE != 'post-merge-proofs' && env.UAT_DEPLOY_BLOCKED != 'true' && env.UAT_CONTINUATION_FALLBACK == 'true'
+        run: node scripts/uat-crawl/record-continuation-provenance.mjs
 
       - uses: actions/setup-node@v4
         with:
@@ -330,9 +353,13 @@ jobs:
             "runTranche": "${RUN_TRANCHE}",
             "ref": "${GITHUB_REF}",
             "sha": "${GITHUB_SHA}",
-            "targetSha": "${UAT_TARGET_SHA:-67b3d1cc0baf7d494cb7a00ce55a74f16b6af43b}",
+            "currentMainHoldSha": "${UAT_TARGET_SHA:-64a107dfc167be76673a3d18f177a72472dcb241}",
+            "resolvedDeploySha": "${UAT_RESOLVED_DEPLOY_SHA:-}",
+            "continuationFallback": ${UAT_CONTINUATION_FALLBACK:-false},
+            "deployProvenanceLabel": "${UAT_DEPLOY_PROVENANCE_LABEL:-}",
             "deployBlocked": ${UAT_DEPLOY_BLOCKED:-false},
             "deployUrl": "${TEST_PREVIEW_URL:-}",
+            "fail493RepairPreserved": "9715c20d (#497 preview PASS run 34016393457) — fa3b879 is newer #497 head but NOT current-main cert while #497 open",
             "completedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           }
           EOF

@@ -3,11 +3,17 @@
 **Last updated:** 2026-09-06 (post-merge targeted proofs)  
 **Branch / PR:** `cursor/physical-uat-readiness-matrix-e763` → **#462**  
 **Current main (HELD):** `64a107dfc167be76673a3d18f177a72472dcb241` (#491) — **NOT deployed on Vercel**  
+**#497 repair preview (open PR):** `fa3b87992720902efbeee3467905aa3493fff431` — **NOT current-main certification**  
+**Preserved FAIL-493 repair proof:** `9715c20d` run [34016393457](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34016393457) — **unchanged**  
 **Mode:** Read-only evidence — **no remediation** in this programme.
 
 ## Release hold lifted — targeted post-merge proofs
 
-Full **131-surface current-main rebaseline HELD** until trusted Vercel deploy exists for `64a107df`. No ace340fe / 67b3d1cc substitution.
+Full **131-surface current-main rebaseline HELD** until trusted Vercel deploy exists for `64a107df`. Chronological continuation crawl may use ace340fe fallback with explicit provenance — **NOT** current-main certification.
+
+### Continuation crawl (ace340fe fallback)
+
+When `64a107df` has no Vercel deploy, GHA `all` tranche resolves ace340fe continuation URL with provenance in `UAT_DEPLOY_PROVENANCE.json`. Prior ace340fe-era **80/131** evidence preserved append-only.
 
 ### FAST PATH A — #493 security (`8f042fa`)
 
