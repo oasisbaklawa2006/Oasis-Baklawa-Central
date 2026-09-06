@@ -308,7 +308,7 @@ const AdminNotifications = () => {
                           </td>
                           <td className="px-4 py-3 text-xs font-medium text-foreground">{msg.eventType || "—"}</td>
                           <td className="px-4 py-3 text-xs text-muted-foreground">
-                            {msg.recipientPhone || msg.recipientEmail || "—"}
+                            {msg.recipientEmail || msg.recipientPhone || "—"}
                           </td>
                           <td className="px-4 py-3 text-xs text-muted-foreground max-w-[280px] truncate">
                             {msg.messageBody?.slice(0, 100)}
