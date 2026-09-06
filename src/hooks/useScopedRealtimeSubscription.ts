@@ -46,6 +46,13 @@ export function useScopedRealtimeSubscription(options: ScopedRealtimeSubscriptio
     pollingFallbackMs,
   } = options;
 
+  const scopeKey = JSON.stringify(scope);
+  const changesKey = JSON.stringify(changes);
+  const scopeRef = useRef(scope);
+  const changesRef = useRef(changes);
+  scopeRef.current = scope;
+  changesRef.current = changes;
+
   const snapshotRef = useRef(snapshot);
   const onDeltaRef = useRef(onDelta);
   const onAcceptedDeltaRef = useRef(onAcceptedDelta);
@@ -61,7 +68,9 @@ export function useScopedRealtimeSubscription(options: ScopedRealtimeSubscriptio
   useEffect(() => {
     if (!enabled || !isRealtimeEnabled) return;
 
-    const auth = assertAuthorizedRealtimeChannel(domain, scope);
+    const currentScope = scopeRef.current;
+    const currentChanges = changesRef.current;
+    const auth = assertAuthorizedRealtimeChannel(domain, currentScope);
     if (auth.allowed !== true) {
       console.warn("[useScopedRealtimeSubscription] unauthorized channel:", auth.reason);
       return;
@@ -72,8 +81,8 @@ export function useScopedRealtimeSubscription(options: ScopedRealtimeSubscriptio
 
     const controller = createRealtimeSubscriptionController({
       domain,
-      scope,
-      changes,
+      scope: currentScope,
+      changes: currentChanges,
       mode,
       snapshot: () => snapshotRef.current(),
       onDelta: (payload) => {
@@ -88,7 +97,7 @@ export function useScopedRealtimeSubscription(options: ScopedRealtimeSubscriptio
       channelAdapter: {
         subscribe: (name, onStatus, onChange) => {
           let channel = supabase.channel(name);
-          for (const spec of changes) {
+          for (const spec of currentChanges) {
             channel = channel.on(
               "postgres_changes",
               {
@@ -98,7 +107,13 @@ export function useScopedRealtimeSubscription(options: ScopedRealtimeSubscriptio
                 ...(spec.filter ? { filter: spec.filter } : {}),
               },
               (payload) => {
-                const row = (payload.new ?? payload.old ?? {}) as Record<string, unknown>;
+                const preferred = payload.eventType === "DELETE" ? payload.old : payload.new;
+                const fallback = payload.eventType === "DELETE" ? payload.new : payload.old;
+                const candidate =
+                  preferred && Object.keys(preferred).length > 0 ? preferred : fallback;
+                const row = (candidate && Object.keys(candidate).length > 0
+                  ? candidate
+                  : {}) as Record<string, unknown>;
                 onChange({
                   ...toRealtimeDeltaPayload(spec.table, row),
                   changeEvent: payload.eventType,
@@ -129,5 +144,5 @@ export function useScopedRealtimeSubscription(options: ScopedRealtimeSubscriptio
     return () => {
       controller.stop();
     };
-  }, [domain, scope, changes, enabled, mode, pollingFallbackMs]);
+  }, [domain, scopeKey, changesKey, enabled, mode, pollingFallbackMs]);
 }
