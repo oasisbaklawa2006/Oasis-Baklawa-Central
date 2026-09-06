@@ -32,6 +32,7 @@ const BuyerAccessRequest = lazy(() => import("./pages/customer/BuyerApp.tsx").th
 const AdminLayout = lazy(() => import("./components/AdminLayout.tsx"));
 const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard.tsx"));
 const AdminClients = lazy(() => import("./pages/admin/AdminClients.tsx"));
+const Customer360Page = lazy(() => import("./pages/admin/Customer360Page.tsx"));
 const AdminProducts = lazy(() => import("./pages/admin/AdminProducts.tsx"));
 const AdminPricing = lazy(() => import("./pages/admin/AdminPricing.tsx"));
 const AdminOrders = lazy(() => import("./pages/admin/AdminOrders.tsx"));
@@ -278,6 +279,7 @@ const App = () => (
                     <Route path="finance/invoices" element={<Navigate to="/admin/finance" replace />} />
                     <Route path="crm" element={<Navigate to="/admin/clients" replace />} />
                     <Route path="roles" element={<Navigate to="/admin/users" replace />} />
+                    <Route path="clients/:companyId" element={<Customer360Page />} />
                     <Route path="clients" element={<AdminClients />} />
                     <Route path="approvals" element={<AdminClients />} />
                     <Route path="products" element={<AdminProducts />} />
