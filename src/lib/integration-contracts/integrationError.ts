@@ -85,9 +85,6 @@ function classifyMessage(lower: string): IntegrationErrorCode | null {
   if (lower.includes("stale queue version") || lower.includes("stale_version")) {
     return "stale_version";
   }
-  if (lower.includes("cannot ") || lower.includes("illegal_transition")) {
-    return "illegal_transition";
-  }
   if (
     lower.includes("denied") ||
     lower.includes("cannot cancel") ||
@@ -97,8 +94,22 @@ function classifyMessage(lower: string): IntegrationErrorCode | null {
   ) {
     return "authority_denied";
   }
-  if (lower.includes("non-empty reason") || lower.includes("requires a non-empty reason")) {
+  if (
+    lower.includes("non-empty reason") ||
+    lower.includes("requires a non-empty reason") ||
+    lower.includes("cannot approve without")
+  ) {
     return "reason_required";
+  }
+  if (
+    lower.includes("illegal_transition") ||
+    lower.includes("invalid transition") ||
+    lower.includes("cannot transition") ||
+    lower.includes("cannot start from state") ||
+    lower.includes("cannot complete from state") ||
+    lower.includes("cannot cancel from state")
+  ) {
+    return "illegal_transition";
   }
   if (lower.includes("not found") || lower.includes("does not exist")) {
     return "not_found";
@@ -123,7 +134,8 @@ function classifyMessage(lower: string): IntegrationErrorCode | null {
     lower.includes("network") ||
     lower.includes("fetch failed") ||
     lower.includes("failed to fetch") ||
-    lower.includes("econnreset")
+    lower.includes("econnreset") ||
+    lower.includes("cannot connect")
   ) {
     return "network_error";
   }
@@ -186,6 +198,17 @@ export function classifyIntegrationError(input: ClassifyIntegrationErrorInput): 
     return err;
   }
 
+  if (httpStatus !== undefined && PERMANENT_HTTP.has(httpStatus)) {
+    return new IntegrationError({
+      code: classifyHttpStatus(httpStatus),
+      failureClass: "permanent",
+      message,
+      retryable: false,
+      httpStatus,
+      source,
+    });
+  }
+
   let code: IntegrationErrorCode = classifyMessage(lower) ?? "unknown";
 
   if (code === "unknown" && httpStatus !== undefined) {
@@ -202,17 +225,6 @@ export function classifyIntegrationError(input: ClassifyIntegrationErrorInput): 
 
   const failureClass = failureClassForCode(code);
   const retryable = isRetryable(code);
-
-  if (httpStatus !== undefined && PERMANENT_HTTP.has(httpStatus) && code === "unknown") {
-    return new IntegrationError({
-      code: classifyHttpStatus(httpStatus),
-      failureClass: "permanent",
-      message,
-      retryable: false,
-      httpStatus,
-      source,
-    });
-  }
 
   if (httpStatus !== undefined && TRANSIENT_HTTP.has(httpStatus) && failureClass === "permanent") {
     return new IntegrationError({

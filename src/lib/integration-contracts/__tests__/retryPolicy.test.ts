@@ -1,9 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   IntegrationError,
   MAX_READ_RETRY_ATTEMPTS,
   computeBoundedBackoffMs,
   evaluateRetryDecision,
+  withBoundedRetry,
 } from "../index";
 
 describe("evaluateRetryDecision", () => {
@@ -37,11 +38,19 @@ describe("evaluateRetryDecision", () => {
 
   it("stops after retry budget exhausted", () => {
     const decision = evaluateRetryDecision(new Error("network error"), {
-      attempt: MAX_READ_RETRY_ATTEMPTS,
+      attempt: MAX_READ_RETRY_ATTEMPTS + 1,
       operation: "read",
     });
     expect(decision.shouldRetry).toBe(false);
     expect(decision.reason).toBe("retry_budget_exhausted");
+  });
+
+  it("allows the final configured read retry attempt", () => {
+    const decision = evaluateRetryDecision(new Error("network error"), {
+      attempt: MAX_READ_RETRY_ATTEMPTS,
+      operation: "read",
+    });
+    expect(decision.shouldRetry).toBe(true);
   });
 
   it("denies retry for permanent business rule violations", () => {
@@ -65,6 +74,29 @@ describe("evaluateRetryDecision", () => {
     );
     expect(decision.shouldRetry).toBe(false);
     expect(decision.reason).toBe("authority_unavailable");
+  });
+});
+
+describe("withBoundedRetry", () => {
+  it("performs the configured number of read retries before failing", async () => {
+    vi.useFakeTimers();
+    try {
+      let calls = 0;
+      const assertion = expect(
+        withBoundedRetry(
+          async () => {
+            calls += 1;
+            throw new Error("fetch failed");
+          },
+          { operation: "read" },
+        ),
+      ).rejects.toThrow("fetch failed");
+      await vi.runAllTimersAsync();
+      await assertion;
+      expect(calls).toBe(MAX_READ_RETRY_ATTEMPTS + 1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

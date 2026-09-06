@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { IntegrationError } from "../integrationError";
 import { assertOperatorRetryAllowed, formatOperatorRetryDenied } from "../operatorRetry";
 
 const baseCtx = {
@@ -33,7 +34,7 @@ describe("assertOperatorRetryAllowed", () => {
         actorRole: "OPERATIONS_MANAGER",
         stepUpVerified: false,
       }),
-    ).toThrow(/step-up/i);
+    ).toThrow(IntegrationError);
   });
 
   it("allows sensitive retry when step-up verified", () => {
@@ -54,6 +55,28 @@ describe("assertOperatorRetryAllowed", () => {
       }),
     ).toThrow(/idempotency key/i);
   });
+
+  it("maps finance retry to approved queue:start authority action", () => {
+    expect(() =>
+      assertOperatorRetryAllowed("finance:retry", {
+        ...baseCtx,
+        actorRole: "FINANCE_HEAD",
+        queueType: "finance_review_queue",
+        stepUpVerified: true,
+      }),
+    ).not.toThrow();
+  });
+
+  it("maps dispatch retry to approved queue:start authority action", () => {
+    expect(() =>
+      assertOperatorRetryAllowed("dispatch:retry", {
+        ...baseCtx,
+        actorRole: "DISPATCH_MANAGER",
+        queueType: "dispatch_queue",
+        stepUpVerified: true,
+      }),
+    ).not.toThrow();
+  });
 });
 
 describe("formatOperatorRetryDenied", () => {
@@ -61,5 +84,19 @@ describe("formatOperatorRetryDenied", () => {
     expect(
       formatOperatorRetryDenied(new Error("Role STORE_INCHARGE not scoped to queue unknown")),
     ).toMatch(/permission/i);
+  });
+
+  it("returns authentication message for AAL2 step-up denial", () => {
+    expect(
+      formatOperatorRetryDenied(
+        new IntegrationError({
+          code: "unauthorized",
+          failureClass: "permanent",
+          message: "Step-up authentication (AAL2) required for operator retry",
+          retryable: false,
+          source: "operator-retry",
+        }),
+      ),
+    ).toMatch(/authentication required/i);
   });
 });
