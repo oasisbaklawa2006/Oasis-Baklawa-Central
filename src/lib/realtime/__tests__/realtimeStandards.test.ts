@@ -299,6 +299,15 @@ describe("Point23 programme separation", () => {
     expect(CENTRAL_REALTIME_CENSUS.separation.point20).toMatch(/event truth/i);
     expect(CENTRAL_REALTIME_CENSUS.separation.point24).toMatch(/retry/i);
   });
+
+  it("records TopNavBar as Point23-migrated user-scoped notifications", () => {
+    const entry = CENTRAL_REALTIME_CENSUS.postgresChangesSubscriptions.find(
+      (s) => s.file === "src/components/TopNavBar.tsx",
+    );
+    expect(entry).toBeDefined();
+    expect(entry?.channel).toMatch(/central:notifications:user/);
+    expect(entry).toMatchObject({ migrated: "useScopedRealtimeSubscription" });
+  });
 });
 
 describe("Point23 scope validation edge cases", () => {

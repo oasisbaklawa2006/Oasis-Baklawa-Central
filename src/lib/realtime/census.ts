@@ -11,7 +11,7 @@ export const CENTRAL_REALTIME_CENSUS = {
   postgresChangesSubscriptions: [
     { file: "src/hooks/useAdminRealtimeToasts.ts", channel: "admin-global-toasts", scope: "global_staff", tables: ["orders", "b2b_applications"] },
     { file: "src/hooks/useApplicationBadge.ts", channel: "admin-b2b-applications", scope: "global_staff", tables: ["b2b_applications"] },
-    { file: "src/components/TopNavBar.tsx", channel: "realtime:notif-count-{userId}", scope: "user (channel name only)", tables: ["notifications"], issue: "double realtime: prefix breaks dedup" },
+    { file: "src/components/TopNavBar.tsx", channel: "central:notifications:user:{userId}", scope: "user", tables: ["notifications"], migrated: "useScopedRealtimeSubscription" },
     { file: "src/components/NotificationsPanel.tsx", channel: "outbox-live-{userId}", scope: "user (client filter)", tables: ["notification_outbox"] },
     { file: "src/pages/admin/CMDWarRoom.tsx", channels: ["warroom-orders-live", "warroom-companies-live", "warroom-items-live"], scope: "global_staff", tables: ["orders", "companies", "order_items"] },
     { file: "src/pages/admin/AdminDashboard.tsx", channel: "governance-rt", scope: "global_staff", tables: ["orders", "b2b_applications", "audit_logs", "factory_inventory"] },
