@@ -134,6 +134,26 @@ async function captureInteractionStates(
         uxEvidence.s1 = s1.rel;
         uxEvidenceSha256.s1 = sha256File(s1.abs);
         shotNames.push(s1Name);
+      } else {
+        const mainNavHover = page
+          .locator('[role="tablist"] [role="tab"], nav[aria-label] a, header nav a, main nav a')
+          .first();
+        const mainInteractive = page
+          .locator('main button:visible, main [role="button"]:visible, main a[href]:visible')
+          .first();
+        const s1Target = (await mainNavHover.isVisible().catch(() => false)) ? mainNavHover : mainInteractive;
+        if (await s1Target.isVisible().catch(() => false)) {
+          await s1Target.hover().catch(() => undefined);
+          await page.waitForTimeout(400);
+          const s1Label = (await mainNavHover.isVisible().catch(() => false))
+            ? "auth-main-nav-hover"
+            : "auth-main-interactive-hover";
+          const s1Name = screenshotName(target.uatId, app, target.persona, `${routeSlug}-${stateSlug}`, "S1", s1Label);
+          const s1 = await captureAuthShot(page, screenshotDir, relPrefix, s1Name);
+          uxEvidence.s1 = s1.rel;
+          uxEvidenceSha256.s1 = sha256File(s1.abs);
+          shotNames.push(s1Name);
+        }
       }
     }
   }
@@ -164,6 +184,7 @@ async function captureInteractionStates(
     const overlayTrigger = page
       .locator('[role="combobox"], button:has-text("Filter"), button:has-text("Search"), input[type="search"]')
       .first();
+    let s2Captured = false;
     if (await overlayTrigger.isVisible().catch(() => false)) {
       if (await overlayTrigger.evaluate((el) => el.tagName === "INPUT").catch(() => false)) {
         await overlayTrigger.focus().catch(() => undefined);
@@ -176,6 +197,44 @@ async function captureInteractionStates(
       uxEvidence.s2 = s2.rel;
       uxEvidenceSha256.s2 = sha256File(s2.abs);
       shotNames.push(s2Name);
+      s2Captured = true;
+    }
+    if (!s2Captured) {
+      const tabTrigger = page.locator('[role="tablist"] [role="tab"]:not([data-state="active"])').first();
+      const tableRow = page.locator('table tbody tr, [role="rowgroup"] [role="row"]').first();
+      const mainButton = page.locator('main button:visible, main [role="button"]:visible').first();
+      const cardTrigger = page.locator('main [class*="card"]:visible, main article:visible').first();
+      let s2Label = "auth-tab-open";
+      let s2Action: (() => Promise<void>) | null = null;
+      if (await tabTrigger.isVisible().catch(() => false)) {
+        s2Action = async () => {
+          await tabTrigger.click().catch(() => undefined);
+        };
+      } else if (await tableRow.isVisible().catch(() => false)) {
+        s2Label = "auth-row-hover";
+        s2Action = async () => {
+          await tableRow.hover().catch(() => undefined);
+        };
+      } else if (await mainButton.isVisible().catch(() => false)) {
+        s2Label = "auth-main-button-focus";
+        s2Action = async () => {
+          await mainButton.focus().catch(() => undefined);
+        };
+      } else if (await cardTrigger.isVisible().catch(() => false)) {
+        s2Label = "auth-card-hover";
+        s2Action = async () => {
+          await cardTrigger.hover().catch(() => undefined);
+        };
+      }
+      if (s2Action) {
+        await s2Action();
+        await page.waitForTimeout(600);
+        const s2Name = screenshotName(target.uatId, app, target.persona, `${routeSlug}-${stateSlug}`, "S2", s2Label);
+        const s2 = await captureAuthShot(page, screenshotDir, relPrefix, s2Name);
+        uxEvidence.s2 = s2.rel;
+        uxEvidenceSha256.s2 = sha256File(s2.abs);
+        shotNames.push(s2Name);
+      }
     }
 
     const s3Name = screenshotName(

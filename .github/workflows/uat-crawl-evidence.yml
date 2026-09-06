@@ -433,9 +433,14 @@ jobs:
         run: |
           set -euo pipefail
           shopt -s nullglob
-          for dir in artifact-download/*/; do
-            cp -a "${dir}"* .
-          done
+          if [ -d artifact-download/uat-evidence ] || [ -d artifact-download/docs ]; then
+            cp -a artifact-download/* .
+          else
+            for dir in artifact-download/*/; do
+              [ -d "$dir" ] || continue
+              cp -a "${dir}"* .
+            done
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           for path in \

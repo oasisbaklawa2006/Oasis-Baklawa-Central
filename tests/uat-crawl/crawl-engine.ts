@@ -193,10 +193,24 @@ export async function crawlTarget(
       uxEvidence.s1 = await captureShot(page, opts.screenshotDir, opts.relPrefix, s1File);
       uxEvidenceSha256.s1 = sha256File(path.join(opts.screenshotDir, s1File));
       shotNames.push(s1File);
+    } else {
+      const linkHover = page
+        .locator('a[href*="reset"], a[href*="password"], a[href*="login"], main a[href]:visible')
+        .first();
+      if (await linkHover.isVisible().catch(() => false)) {
+        await linkHover.hover().catch(() => undefined);
+        await page.waitForTimeout(400);
+        const s1File = screenshotName(target.uatId, app, target.persona, `${routeSlug}-${stateSlug}`, "S1", "link-hover");
+        uxEvidence.s1 = await captureShot(page, opts.screenshotDir, opts.relPrefix, s1File);
+        uxEvidenceSha256.s1 = sha256File(path.join(opts.screenshotDir, s1File));
+        shotNames.push(s1File);
+      }
     }
 
     const dialogTrigger = page
-      .locator('button:has-text("Sign"), button[type="submit"], input[type="email"], input[type="password"]')
+      .locator(
+        'input[type="email"], input[name="email"], input[autocomplete="email"], input[type="password"], button:has-text("Sign"), button[type="submit"]',
+      )
       .first();
     if (await dialogTrigger.isVisible().catch(() => false)) {
       await dialogTrigger.focus().catch(() => undefined);
