@@ -3,7 +3,7 @@
  * Preserves pre-auth tranche-01 evidence; append-only manifest on continuation deploy.
  */
 import { test, expect } from "@playwright/test";
-import { mkdirSync, readFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import {
   appendFailureLedger,
@@ -44,6 +44,10 @@ const uxFailures: string[] = [];
 mkdirSync(SCREENSHOT_DIR, { recursive: true });
 
 test.describe(`UAT crawl — ${TRANCHE} (unblocked public surfaces)`, () => {
+  test.beforeAll(() => {
+    writeFileSync(MANIFEST_PATH, "");
+  });
+
   for (const target of loadPublicTargets()) {
     test(`${target.uatId} ${target.route} [${target.state}]`, async ({ page }) => {
       const result = await crawlTarget(page, target, {

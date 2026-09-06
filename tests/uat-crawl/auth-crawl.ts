@@ -104,7 +104,7 @@ async function captureInteractionStates(
   shotNames.push(s0Name);
 
   const navTrigger = page.locator(
-    '[data-sidebar-trigger], nav button, aside button, header button[aria-label*="menu" i], [aria-haspopup="menu"]',
+    '[data-sidebar="trigger"], [data-sidebar-trigger], button:has-text("Toggle Sidebar"), nav button, aside button, header button[aria-label*="menu" i], [aria-haspopup="menu"]',
   ).first();
   if (await navTrigger.isVisible().catch(() => false)) {
     await navTrigger.click().catch(() => undefined);

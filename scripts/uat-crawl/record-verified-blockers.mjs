@@ -8,6 +8,9 @@ import path from "node:path";
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
 const RUN_ID = process.env.GITHUB_RUN_ID || "local";
+const VERIFICATION_NOTE =
+  process.env.UAT_WATCHDOG_VERIFICATION?.trim() ||
+  "Watchdog re-verification — no fabricated PASS; blocked IDs retain exact secret names only.";
 const RESOLVED_SHA =
   process.env.UAT_RESOLVED_DEPLOY_SHA?.trim() || "ace340fe1d122a4cce5d7bb61cd237ed7ba1c894";
 const RESOLVED_URL =
@@ -153,6 +156,7 @@ for (const entry of census.entries) {
     missingSecretNames: blockers,
     deployProvenance:
       "ace340fe continuation — NOT current-main certification; FAIL-493 evidence preserved separately",
+    verificationNote: VERIFICATION_NOTE,
     notes:
       disposition === "BLOCKED"
         ? `Verified blocker — missing ${blockers.join(", ") || "deploy/credential authority"}`
