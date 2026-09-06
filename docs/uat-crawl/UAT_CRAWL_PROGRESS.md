@@ -1,10 +1,34 @@
 # UAT Crawl Progress Summary
 
-**Last updated:** 2026-09-06 (post-#497 merge current-main cert — GHA run [34037424554](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34037424554) @ `9df732fa`)  
+**Last updated:** 2026-09-06 (watchdog-continue — GHA run [34046709938](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34046709938) @ `f512371a`)  
 **Branch / PR:** `cursor/physical-uat-readiness-matrix-e763` → **#462**  
 **Current main:** `e2f123b0fe257b8a1f39ec40d5f544fff1ebe313` (#497 merged) — deploy `https://oasis-baklawa-central-8lkgmf1q2-oasisbaklawa2006-6222s-projects.vercel.app`  
-**Preserved FAIL-493 evidence (append-only):** pre-fix FAIL @ `8f042fa` run [34015742110](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34015742110); preview PASS @ `9715c20d` run [34016393457](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34016393457) — **NOT substituted**  
+**Preserved FAIL-493 evidence (append-only):** pre-fix FAIL @ `8f042fa` run [34015742110](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34015742110); preview PASS @ `9715c20d` run [34016393457](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34016393457); current-main PASS run [34037424554](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34037424554) — **NOT substituted**  
 **Mode:** Read-only evidence — **no remediation** in this programme.
+
+## Watchdog continue — GHA run [34046709938](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34046709938) @ `e2f123b0`
+
+| Field | Value |
+|---|---|
+| Tranche | `watchdog-continue` (all executable surfaces, skip UAT-005 re-cert) |
+| Duration | ~16m |
+| Deploy | `e2f123b0` @ current-main Vercel URL |
+| Artifact | `uat-crawl-evidence-34046709938-1` |
+| Evidence commit | `f512371a` |
+
+| Metric | Before (34037424554) | After (34046709938) |
+|---|---:|---:|
+| Authenticated S0–S3 (manifest) | **80 / 131** | **80 / 131** (unchanged — no credential unlock) |
+| UAT-005 current-main cert | PASS | **Preserved** (not re-run) |
+| Public continuation | **5 / 5** | **5 / 5** (checksum refresh) |
+| Verified **BLOCKED** | **46 / 46** | **46 / 46** (runtime re-verified) |
+| Secrets present in GHA | — | **10 / 27** audited (`UAT_SECRET_PRESENCE.json`) |
+
+**Executed:** post-fix-483 · auth-rerun · tranche-03..08 · buyer-mobile · AI-UAT · public continuation · S2 gap deepening · blocker re-registry.
+
+**Evidence delta:** current-main checksum refresh on all 80 auth rows; new S2 `auth-overlay-open` captures for **UAT-0037** / **UAT-0038**; secret presence audit append-only; blocker registry updated with current-main provenance (no ace340fe stale label).
+
+**No credential/deploy blocker cleared** — buyer (`TEST_BUYER_*`), sales/post-fix-483 (`TEST_SALES_*`), gate security, RGS, production, TV, AI Studio, Trace remain **BLOCKED** with exact secret names per ID.
 
 ## Post-#497 merge — current-main certification (`post-merge-497-main`)
 
