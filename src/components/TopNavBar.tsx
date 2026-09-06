@@ -9,6 +9,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { useAuth } from "@/hooks/useAuth";
 import { signOutAndClearSession } from "@/utils/authSession";
+import { buildCentralRealtimeChannelName } from "@/lib/realtime/realtimeChannelNaming";
 import { removeDuplicateRealtimeChannel } from "@/utils/realtime";
 
 const TopNavBar = () => {
@@ -31,7 +32,10 @@ const TopNavBar = () => {
     if (!user?.id) return;
 
     let aborted = false;
-    const channelName = `realtime:notif-count-${user.id}`;
+    const channelName = buildCentralRealtimeChannelName("notifications", {
+      type: "user",
+      userId: user.id,
+    });
 
     const fetchUnread = async () => {
       const { count } = await supabase
