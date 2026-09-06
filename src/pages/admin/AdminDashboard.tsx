@@ -1,12 +1,12 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { isRealtimeEnabled } from "@/hooks/useRealtime";
 import { useAuth } from "@/hooks/useAuth";
+import { useScopedRealtimeSubscription } from "@/hooks/useScopedRealtimeSubscription";
+import { GOVERNANCE_DASHBOARD_CHANGES } from "@/lib/realtime";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useCurrency } from "@/hooks/useCurrency";
 import { signOutAndClearSession } from "@/utils/authSession";
-import { removeDuplicateRealtimeChannel } from "@/utils/realtime";
 import {
   Loader2, LogOut, AlertTriangle, ArrowRight, ClipboardList,
   ShoppingCart, Factory, PackageCheck, Landmark, AlertCircle,
@@ -270,24 +270,20 @@ const AdminDashboard = () => {
     setLoading(false);
   }, [t]);
 
+  useScopedRealtimeSubscription({
+    domain: "orders",
+    scope: { type: "global_staff" },
+    changes: GOVERNANCE_DASHBOARD_CHANGES,
+    mode: "refetch",
+    snapshot: fetchData,
+    pollingFallbackMs: 30_000,
+  });
+
   useEffect(() => {
     setLoadTimeout(false);
     const timer = setTimeout(() => { if (loading) setLoadTimeout(true); }, 10000);
     fetchData().finally(() => clearTimeout(timer));
-
-    if (!isRealtimeEnabled) {
-      return () => clearTimeout(timer);
-    }
-
-    const channelName = "governance-rt";
-    removeDuplicateRealtimeChannel(channelName);
-    const ch = supabase.channel(channelName)
-      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => fetchData())
-      .on("postgres_changes", { event: "*", schema: "public", table: "b2b_applications" }, () => fetchData())
-      .on("postgres_changes", { event: "*", schema: "public", table: "audit_logs" }, () => fetchData())
-      .on("postgres_changes", { event: "*", schema: "public", table: "factory_inventory" }, () => fetchData())
-      .subscribe();
-    return () => { clearTimeout(timer); void supabase.removeChannel(ch); };
+    return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchData]);
 
