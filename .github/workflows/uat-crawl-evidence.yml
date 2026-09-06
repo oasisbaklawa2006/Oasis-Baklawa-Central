@@ -26,6 +26,7 @@ on:
           - public-continuation
           - s2-gap-deepening
           - post-merge-497-main
+          - watchdog-continue
           - all
   push:
     branches:
@@ -48,7 +49,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     env:
-      RUN_TRANCHE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.run_tranche || 'post-merge-497-main' }}
+      RUN_TRANCHE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.run_tranche || 'watchdog-continue' }}
       TEST_PREVIEW_URL: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.target_url != '' && github.event.inputs.target_url || secrets.TEST_PREVIEW_URL }}
       UAT_CRAWL_BASE_URL: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.target_url != '' && github.event.inputs.target_url || secrets.TEST_PREVIEW_URL }}
       TEST_ADMIN_EMAIL: ${{ secrets.TEST_ADMIN_EMAIL }}
@@ -106,6 +107,10 @@ jobs:
             fi
           done
 
+      - name: Record secret presence audit (names only)
+        if: always()
+        run: node scripts/uat-crawl/record-secret-presence.mjs
+
       - name: Configure post-merge targeted proofs (FAST PATH A/B — NOT current-main cert)
         if: env.RUN_TRANCHE == 'post-merge-proofs'
         shell: bash
@@ -122,8 +127,8 @@ jobs:
           echo "UAT_CURRENT_MAIN_HOLD_SHA=64a107dfc167be76673a3d18f177a72472dcb241" >> "$GITHUB_ENV"
           echo "::notice::FAST PATH uses exact-head Vercel previews only. Current main 64a107df held — no stale ace340fe/67b3d1cc substitution."
 
-      - name: Configure post-merge-497-main current-main certification (#497 @ e2f123b0)
-        if: env.RUN_TRANCHE == 'post-merge-497-main'
+      - name: Configure current-main deploy (#497 @ e2f123b0)
+        if: env.RUN_TRANCHE == 'post-merge-497-main' || env.RUN_TRANCHE == 'watchdog-continue'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -141,7 +146,7 @@ jobs:
           if [[ -z "$url" ]]; then
             echo "::warning::No trusted Vercel deployment for current main ${CURRENT_MAIN_SHA} (#497 merge)."
             echo "UAT_DEPLOY_BLOCKED=true" >> "$GITHUB_ENV"
-            echo "UAT_DEPLOY_BLOCK_REASON=No successful Vercel deployment for ${CURRENT_MAIN_SHA}; post-merge-497-main requires current-main cert — no ace340fe substitution." >> "$GITHUB_ENV"
+            echo "UAT_DEPLOY_BLOCK_REASON=No successful Vercel deployment for ${CURRENT_MAIN_SHA}; ${RUN_TRANCHE} requires current-main cert — no ace340fe substitution." >> "$GITHUB_ENV"
             echo "UAT_TARGET_SHA=${CURRENT_MAIN_SHA}" >> "$GITHUB_ENV"
             exit 0
           fi
@@ -159,10 +164,10 @@ jobs:
           echo "TEST_PREVIEW_URL=$url" >> "$GITHUB_ENV"
           echo "UAT_CRAWL_BASE_URL=$url" >> "$GITHUB_ENV"
           echo "UAT_DEPLOY_PROVENANCE_LABEL=Current-main #497 merge certification @ e2f123b0 — NOT substituting 9715c20d preview PASS." >> "$GITHUB_ENV"
-          echo "::notice::post-merge-497-main bound to ${CURRENT_MAIN_SHA} @ ${url}"
+          echo "::notice::${RUN_TRANCHE} bound to ${CURRENT_MAIN_SHA} @ ${url}"
 
       - name: Resolve and validate target URL (no secrets logged)
-        if: env.RUN_TRANCHE != 'post-merge-proofs' && env.RUN_TRANCHE != 'post-merge-497-main'
+        if: env.RUN_TRANCHE != 'post-merge-proofs' && env.RUN_TRANCHE != 'post-merge-497-main' && env.RUN_TRANCHE != 'watchdog-continue'
         shell: bash
         env:
           RAW_URL: ${{ env.TEST_PREVIEW_URL }}
@@ -188,7 +193,7 @@ jobs:
                 fi
               fi
             done
-            if [[ -z "$url" && ( "${RUN_TRANCHE}" == "all" || "${RUN_TRANCHE}" == "continue" || "${RUN_TRANCHE}" == "auth-rerun" || "${RUN_TRANCHE}" == "tranche-03" || "${RUN_TRANCHE}" == "both" || "${RUN_TRANCHE}" == "post-fix-483" || "${RUN_TRANCHE}" == "buyer-mobile" || "${RUN_TRANCHE}" == "ai-uat" ) ]]; then
+            if [[ -z "$url" && ( "${RUN_TRANCHE}" == "all" || "${RUN_TRANCHE}" == "continue" || "${RUN_TRANCHE}" == "auth-rerun" || "${RUN_TRANCHE}" == "tranche-03" || "${RUN_TRANCHE}" == "both" || "${RUN_TRANCHE}" == "post-fix-483" || "${RUN_TRANCHE}" == "buyer-mobile" || "${RUN_TRANCHE}" == "ai-uat" || "${RUN_TRANCHE}" == "watchdog-continue" ) ]]; then
               echo "::notice::Current main ${CURRENT_MAIN_SHA} has no deploy — using ace340fe continuation fallback (NOT current-main certification)."
               deploy_id="$(gh api "repos/${GITHUB_REPOSITORY}/deployments?sha=${CONTINUATION_LEGACY_SHA}&per_page=10" --jq '[.[] | select(.environment=="Production" or .environment=="Preview")][0].id // empty' 2>/dev/null || true)"
               if [[ -n "$deploy_id" ]]; then
@@ -239,11 +244,11 @@ jobs:
         run: node scripts/uat-crawl/record-deploy-blocked.mjs
 
       - name: Record continuation deploy provenance (ace340fe fallback)
-        if: env.RUN_TRANCHE != 'post-merge-proofs' && env.RUN_TRANCHE != 'post-merge-497-main' && env.UAT_DEPLOY_BLOCKED != 'true' && env.UAT_CONTINUATION_FALLBACK == 'true'
+        if: env.RUN_TRANCHE != 'post-merge-proofs' && env.RUN_TRANCHE != 'post-merge-497-main' && env.RUN_TRANCHE != 'watchdog-continue' && env.UAT_DEPLOY_BLOCKED != 'true' && env.UAT_CONTINUATION_FALLBACK == 'true'
         run: node scripts/uat-crawl/record-continuation-provenance.mjs
 
       - name: Record current-main deploy provenance (#497 merge @ e2f123b0)
-        if: env.RUN_TRANCHE == 'post-merge-497-main' && env.UAT_DEPLOY_BLOCKED != 'true'
+        if: (env.RUN_TRANCHE == 'post-merge-497-main' || env.RUN_TRANCHE == 'watchdog-continue') && env.UAT_DEPLOY_BLOCKED != 'true'
         run: node scripts/uat-crawl/record-current-main-provenance.mjs
 
       - uses: actions/setup-node@v4
@@ -338,7 +343,7 @@ jobs:
         run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/post-merge-491-kpi.spec.ts
 
       - name: Run APPVERSE AI-UAT Tranche 1 (UAT-001–010)
-        if: env.RUN_TRANCHE != 'post-merge-proofs' && env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'ai-uat' || env.RUN_TRANCHE == 'all' || (env.RUN_TRANCHE == 'post-merge-497-main' && env.UAT_005_CURRENT_MAIN_PASS == 'true'))
+        if: env.RUN_TRANCHE != 'post-merge-proofs' && env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'ai-uat' || env.RUN_TRANCHE == 'all' || (env.RUN_TRANCHE == 'post-merge-497-main' && env.UAT_005_CURRENT_MAIN_PASS == 'true') || env.RUN_TRANCHE == 'watchdog-continue')
         continue-on-error: true
         env:
           TEST_DISPATCH_EMAIL: ${{ secrets.TEST_DISPATCH_EMAIL }}
@@ -351,22 +356,22 @@ jobs:
           node scripts/uat-crawl/archive-ai-uat-evidence.mjs
 
       - name: Run post-fix #483 buyer approval re-test (UAT-0018 + UAT-0020)
-        if: env.RUN_TRANCHE != 'post-merge-proofs' && env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'post-fix-483' || env.RUN_TRANCHE == 'all' || (env.RUN_TRANCHE == 'post-merge-497-main' && env.UAT_005_CURRENT_MAIN_PASS == 'true'))
+        if: env.RUN_TRANCHE != 'post-merge-proofs' && env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'post-fix-483' || env.RUN_TRANCHE == 'all' || (env.RUN_TRANCHE == 'post-merge-497-main' && env.UAT_005_CURRENT_MAIN_PASS == 'true') || env.RUN_TRANCHE == 'watchdog-continue')
         continue-on-error: true
         run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/post-fix-483-rerun.spec.ts
 
       - name: Run authenticated UAT auth-rerun
-        if: env.RUN_TRANCHE != 'post-merge-proofs' && env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'auth-rerun' || env.RUN_TRANCHE == 'both' || env.RUN_TRANCHE == 'all' || (env.RUN_TRANCHE == 'post-merge-497-main' && env.UAT_005_CURRENT_MAIN_PASS == 'true'))
+        if: env.RUN_TRANCHE != 'post-merge-proofs' && env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'auth-rerun' || env.RUN_TRANCHE == 'both' || env.RUN_TRANCHE == 'all' || (env.RUN_TRANCHE == 'post-merge-497-main' && env.UAT_005_CURRENT_MAIN_PASS == 'true') || env.RUN_TRANCHE == 'watchdog-continue')
         continue-on-error: true
         run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/auth-rerun.spec.ts
 
       - name: Run UAT tranche 03 (chronological continue)
-        if: env.RUN_TRANCHE != 'post-merge-proofs' && env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'tranche-03' || env.RUN_TRANCHE == 'both' || env.RUN_TRANCHE == 'all' || (env.RUN_TRANCHE == 'post-merge-497-main' && env.UAT_005_CURRENT_MAIN_PASS == 'true'))
+        if: env.RUN_TRANCHE != 'post-merge-proofs' && env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'tranche-03' || env.RUN_TRANCHE == 'both' || env.RUN_TRANCHE == 'all' || (env.RUN_TRANCHE == 'post-merge-497-main' && env.UAT_005_CURRENT_MAIN_PASS == 'true') || env.RUN_TRANCHE == 'watchdog-continue')
         continue-on-error: true
         run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/tranche-03-crawl.spec.ts
 
       - name: Run UAT tranche 04-auth (UAT-0031..0050)
-        if: env.RUN_TRANCHE != 'post-merge-proofs' && env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'all' || env.RUN_TRANCHE == 'continue' || (env.RUN_TRANCHE == 'post-merge-497-main' && env.UAT_005_CURRENT_MAIN_PASS == 'true'))
+        if: env.RUN_TRANCHE != 'post-merge-proofs' && env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'all' || env.RUN_TRANCHE == 'continue' || (env.RUN_TRANCHE == 'post-merge-497-main' && env.UAT_005_CURRENT_MAIN_PASS == 'true') || env.RUN_TRANCHE == 'watchdog-continue')
         continue-on-error: true
         env:
           UAT_TRANCHE_START: UAT-0031
@@ -375,7 +380,7 @@ jobs:
         run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/tranche-auth-range.spec.ts
 
       - name: Run UAT tranche 05-auth (UAT-0051..0070)
-        if: env.RUN_TRANCHE != 'post-merge-proofs' && env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'all' || env.RUN_TRANCHE == 'continue' || (env.RUN_TRANCHE == 'post-merge-497-main' && env.UAT_005_CURRENT_MAIN_PASS == 'true'))
+        if: env.RUN_TRANCHE != 'post-merge-proofs' && env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'all' || env.RUN_TRANCHE == 'continue' || (env.RUN_TRANCHE == 'post-merge-497-main' && env.UAT_005_CURRENT_MAIN_PASS == 'true') || env.RUN_TRANCHE == 'watchdog-continue')
         continue-on-error: true
         env:
           UAT_TRANCHE_START: UAT-0051
@@ -384,7 +389,7 @@ jobs:
         run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/tranche-auth-range.spec.ts
 
       - name: Run UAT tranche 06-auth (UAT-0071..0090)
-        if: env.RUN_TRANCHE != 'post-merge-proofs' && env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'all' || env.RUN_TRANCHE == 'continue' || (env.RUN_TRANCHE == 'post-merge-497-main' && env.UAT_005_CURRENT_MAIN_PASS == 'true'))
+        if: env.RUN_TRANCHE != 'post-merge-proofs' && env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'all' || env.RUN_TRANCHE == 'continue' || (env.RUN_TRANCHE == 'post-merge-497-main' && env.UAT_005_CURRENT_MAIN_PASS == 'true') || env.RUN_TRANCHE == 'watchdog-continue')
         continue-on-error: true
         env:
           UAT_TRANCHE_START: UAT-0071
@@ -393,7 +398,7 @@ jobs:
         run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/tranche-auth-range.spec.ts
 
       - name: Run UAT tranche 07-auth (UAT-0091..0110)
-        if: env.RUN_TRANCHE != 'post-merge-proofs' && env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'all' || env.RUN_TRANCHE == 'continue' || (env.RUN_TRANCHE == 'post-merge-497-main' && env.UAT_005_CURRENT_MAIN_PASS == 'true'))
+        if: env.RUN_TRANCHE != 'post-merge-proofs' && env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'all' || env.RUN_TRANCHE == 'continue' || (env.RUN_TRANCHE == 'post-merge-497-main' && env.UAT_005_CURRENT_MAIN_PASS == 'true') || env.RUN_TRANCHE == 'watchdog-continue')
         continue-on-error: true
         env:
           UAT_TRANCHE_START: UAT-0091
@@ -402,7 +407,7 @@ jobs:
         run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/tranche-auth-range.spec.ts
 
       - name: Run UAT tranche 08-auth (UAT-0111..0131)
-        if: env.RUN_TRANCHE != 'post-merge-proofs' && env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'all' || env.RUN_TRANCHE == 'continue' || (env.RUN_TRANCHE == 'post-merge-497-main' && env.UAT_005_CURRENT_MAIN_PASS == 'true'))
+        if: env.RUN_TRANCHE != 'post-merge-proofs' && env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'all' || env.RUN_TRANCHE == 'continue' || (env.RUN_TRANCHE == 'post-merge-497-main' && env.UAT_005_CURRENT_MAIN_PASS == 'true') || env.RUN_TRANCHE == 'watchdog-continue')
         continue-on-error: true
         env:
           UAT_TRANCHE_START: UAT-0111
@@ -411,24 +416,24 @@ jobs:
         run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/tranche-auth-range.spec.ts
 
       - name: Run buyer mobile authenticated UAT (PR #10 surfaces)
-        if: env.RUN_TRANCHE != 'post-merge-proofs' && env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'buyer-mobile' || env.RUN_TRANCHE == 'all' || (env.RUN_TRANCHE == 'post-merge-497-main' && env.UAT_005_CURRENT_MAIN_PASS == 'true'))
+        if: env.RUN_TRANCHE != 'post-merge-proofs' && env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'buyer-mobile' || env.RUN_TRANCHE == 'all' || (env.RUN_TRANCHE == 'post-merge-497-main' && env.UAT_005_CURRENT_MAIN_PASS == 'true') || env.RUN_TRANCHE == 'watchdog-continue')
         continue-on-error: true
         env:
           UAT_BUYER_BASELINE_SHA: "0015e7b56532826a40c7beb3f33b028271c2c2f5"
         run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/buyer-mobile-crawl.spec.ts
 
       - name: Run public-surface continuation crawl (unblocked UAT-0001/0004/0005/0008/0009)
-        if: env.RUN_TRANCHE != 'post-merge-proofs' && env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'all' || env.RUN_TRANCHE == 'public-continuation' || (env.RUN_TRANCHE == 'post-merge-497-main' && env.UAT_005_CURRENT_MAIN_PASS == 'true'))
+        if: env.RUN_TRANCHE != 'post-merge-proofs' && env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'all' || env.RUN_TRANCHE == 'public-continuation' || (env.RUN_TRANCHE == 'post-merge-497-main' && env.UAT_005_CURRENT_MAIN_PASS == 'true') || env.RUN_TRANCHE == 'watchdog-continue')
         continue-on-error: true
         run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/public-continuation-crawl.spec.ts
 
       - name: Run S2 gap deepening (UAT-0002/0037/0038/0052/0053/0061/0080/0094)
-        if: env.RUN_TRANCHE != 'post-merge-proofs' && env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'all' || env.RUN_TRANCHE == 's2-gap-deepening' || (env.RUN_TRANCHE == 'post-merge-497-main' && env.UAT_005_CURRENT_MAIN_PASS == 'true'))
+        if: env.RUN_TRANCHE != 'post-merge-proofs' && env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'all' || env.RUN_TRANCHE == 's2-gap-deepening' || (env.RUN_TRANCHE == 'post-merge-497-main' && env.UAT_005_CURRENT_MAIN_PASS == 'true') || env.RUN_TRANCHE == 'watchdog-continue')
         continue-on-error: true
         run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/s2-gap-deepening.spec.ts
 
       - name: Record verified BLOCKED registry (remaining 51 minus public continuation)
-        if: env.RUN_TRANCHE != 'post-merge-proofs' && (env.RUN_TRANCHE == 'all' || env.RUN_TRANCHE == 'public-continuation' || env.RUN_TRANCHE == 'continue' || (env.RUN_TRANCHE == 'post-merge-497-main' && env.UAT_005_CURRENT_MAIN_PASS == 'true'))
+        if: env.RUN_TRANCHE != 'post-merge-proofs' && (env.RUN_TRANCHE == 'all' || env.RUN_TRANCHE == 'public-continuation' || env.RUN_TRANCHE == 'continue' || (env.RUN_TRANCHE == 'post-merge-497-main' && env.UAT_005_CURRENT_MAIN_PASS == 'true') || env.RUN_TRANCHE == 'watchdog-continue')
         continue-on-error: true
         run: node scripts/uat-crawl/record-verified-blockers.mjs
 
@@ -482,6 +487,7 @@ jobs:
             docs/uat-crawl/UAT_POST_MERGE_491_SUMMARY.json
             docs/uat-crawl/UAT_VERIFIED_BLOCKERS.jsonl
             docs/uat-crawl/UAT_VERIFIED_BLOCKERS_SUMMARY.json
+            docs/uat-crawl/UAT_SECRET_PRESENCE.json
             docs/uat-crawl/UAT_S2_GAP_DEEPENING_SUMMARY.json
             docs/uat-crawl/UAT_INDEX_S2_GAP_DEEPENING.md
             docs/uat-crawl/UAT_INDEX_PUBLIC_CONTINUATION.md
@@ -533,7 +539,7 @@ jobs:
             docs/uat-crawl/UAT_MANIFEST*.jsonl docs/uat-crawl/UAT_INDEX*.md \
             docs/uat-crawl/UAT_AUTH_RERUN_SUMMARY.json docs/uat-crawl/UAT_POST_FIX_483_SUMMARY.json \
             docs/uat-crawl/UAT_MANIFEST_PUBLIC_CONTINUATION.jsonl docs/uat-crawl/UAT_INDEX_PUBLIC_CONTINUATION.md \
-            docs/uat-crawl/UAT_VERIFIED_BLOCKERS.jsonl docs/uat-crawl/UAT_VERIFIED_BLOCKERS_SUMMARY.json \
+            docs/uat-crawl/UAT_VERIFIED_BLOCKERS.jsonl docs/uat-crawl/UAT_VERIFIED_BLOCKERS_SUMMARY.json docs/uat-crawl/UAT_SECRET_PRESENCE.json \
             docs/uat-crawl/UAT_S2_GAP_DEEPENING_SUMMARY.json docs/uat-crawl/UAT_INDEX_S2_GAP_DEEPENING.md \
             docs/uat-crawl/UAT_GHA_RUN.json docs/uat-crawl/UAT_FAILURE_LEDGER.md docs/uat-crawl/UAT_CRAWL_PROGRESS.md \
             docs/uat-crawl/UAT_BUYER_MOBILE_SUMMARY.json docs/uat-crawl/UAT_BUYER_MOBILE_TARGETS.json \
@@ -542,7 +548,7 @@ jobs:
             docs/uat-crawl/UAT_POST_MERGE_491_PROOF.jsonl docs/uat-crawl/UAT_POST_MERGE_491_SUMMARY.json \
             docs/uat-crawl/UAT_MANIFEST_POST_MERGE_497_MAIN.jsonl docs/uat-crawl/UAT_POST_MERGE_497_MAIN_SUMMARY.json docs/uat-crawl/UAT_INDEX_POST_MERGE_497_MAIN.md \
             docs/uat-crawl/UAT_MANIFEST_PUBLIC_CONTINUATION.jsonl docs/uat-crawl/UAT_INDEX_PUBLIC_CONTINUATION.md \
-            docs/uat-crawl/UAT_VERIFIED_BLOCKERS.jsonl docs/uat-crawl/UAT_VERIFIED_BLOCKERS_SUMMARY.json \
+            docs/uat-crawl/UAT_VERIFIED_BLOCKERS.jsonl docs/uat-crawl/UAT_VERIFIED_BLOCKERS_SUMMARY.json docs/uat-crawl/UAT_SECRET_PRESENCE.json \
             docs/uat-crawl/UAT_REBASE_490_SUMMARY.json uat-evidence/screenshots/post-merge-491-kpi \
             uat-evidence/screenshots/post-merge-497-main \
             uat-evidence/screenshots/public-continuation; do

@@ -12,7 +12,7 @@ const RESOLVED_URL =
   "";
 const DEPLOY_ID = process.env.POST_MERGE_497_DEPLOYMENT_ID?.trim() || "";
 const RUN_ID = process.env.GITHUB_RUN_ID || "local";
-const RUN_TRANCHE = process.env.RUN_TRANCHE || "post-merge-497-main";
+const RUN_TRANCHE = process.env.RUN_TRANCHE || "watchdog-continue";
 
 const outPath = path.join(ROOT, "docs/uat-crawl/UAT_DEPLOY_PROVENANCE.json");
 const payload = {
