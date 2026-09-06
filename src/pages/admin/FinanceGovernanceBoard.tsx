@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Landmark, ShieldAlert } from "lucide-react";
+import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,13 +14,19 @@ import {
 import { canCommerciallyRelease } from "@/lib/finance-governance/financeApprovalWorkflow";
 import { createFinanceGovernanceBundle, type FinanceGovernanceBundle } from "@/lib/finance-governance/createFinanceGovernanceBundle";
 import { financeSignalLabel } from "@/lib/dispatch-readiness/financeDispatchSignal";
-import { financeEventsToOperational } from "@/lib/finance-governance/financeOperationalBridge";
 import { OperationalTimeline } from "@/components/admin/OperationalTimeline";
 import { GovernanceBoardLiveNotice } from "@/components/admin/GovernanceBoardLiveNotice";
 import { GovernancePrerequisiteList } from "@/components/admin/GovernancePrerequisiteList";
 import type { OperationalEventRecord } from "@/lib/operational-events/types";
 import { FINANCE_HOLD_LABELS } from "@/lib/finance-governance/financeHoldRules";
 import type { FinanceEvidenceRecord } from "@/lib/finance-governance/financeGovernanceTypes";
+import {
+  COMMERCIAL_HOLD_RELEASE_CORE_PREREQUISITE,
+  assertCommercialHoldReleaseCoreAvailable,
+  executeFinanceControlWrite,
+  FinanceHoldReleaseAuthorityError,
+  requiresSecondApproval,
+} from "@/lib/order-authority/financeHoldReleaseAuthorityClient";
 import {
   loadFinanceGovernanceRows,
   PREVIEW_FINANCE_INPUTS,
@@ -42,6 +49,17 @@ const PREVIEW_ROWS = PREVIEW_FINANCE_INPUTS.map((input) => ({
 
 function formatEvidenceRow(row: FinanceEvidenceRecord): string {
   return `${row.reviewType} · ${row.reviewStatus} · ref=${row.evidenceRef ?? "—"}`;
+}
+
+function commercialShadowWriteBlockedMessage(): string {
+  try {
+    assertCommercialHoldReleaseCoreAvailable();
+  } catch (error) {
+    if (error instanceof FinanceHoldReleaseAuthorityError) {
+      return error.prerequisite ?? error.message;
+    }
+  }
+  return COMMERCIAL_HOLD_RELEASE_CORE_PREREQUISITE;
 }
 
 export default function FinanceGovernanceBoard() {
@@ -107,37 +125,108 @@ export default function FinanceGovernanceBoard() {
     void reloadEvidence(ids);
   }, [bundle?.service, cardSources]);
 
-  const writeCtx = (orderId: string) => ({
-    correlationId: `fin-${orderId}-${Date.now()}`,
-    actorUserId: user?.id ?? "",
-    actorRole: role ?? "FINANCE_HEAD",
-    overrideReason: role === "SUPER_ADMIN" ? "CMD finance governance" : null,
-    rejectionReason: null,
-  });
+  const appendControlEvent = (orderId: string, title: string, detail: string) => {
+    setEvents((current) => [
+      {
+        id: `point80-${orderId}-${Date.now()}`,
+        kind: "governance.finance_control",
+        category: "financial",
+        severity: "info",
+        title,
+        detail,
+        occurredAt: new Date().toISOString(),
+        sortKey: Date.now(),
+        actor: { role: "finance", displayLabel: role ?? "FINANCE_HEAD" },
+        entities: [{ entityType: "order", id: orderId }],
+        source: "derived_governance",
+      },
+      ...current,
+    ]);
+  };
 
-  const runReview = async (input: FinanceGovernanceInput) => {
-    if (!user?.id || !role || !bundle?.canExecuteWrites) return;
+  const runOperationsHold = async (input: FinanceGovernanceInput) => {
+    if (!user?.id || !role) return;
     setActing(input.orderId);
     try {
-      await bundle.service.startReview(input, writeCtx(input.orderId));
-      const evts = await bundle.service.listEvents(input.orderId);
-      setEvents(financeEventsToOperational(evts));
-      await reloadEvidence([input.orderId]);
+      const result = await executeFinanceControlWrite({
+        lane: "operations",
+        action: "hold",
+        orderId: input.orderId,
+        reason: "Finance review hold — manual review required",
+        evidenceReference: `point80:operations-hold:${input.orderId}`,
+        actorId: user.id,
+        actorRole: role,
+        aal2Verified: false,
+        commercialValue: input.orderValue,
+      });
+      appendControlEvent(
+        input.orderId,
+        result.alreadyDecided ? "Operations hold already recorded" : "Operations hold recorded",
+        `Core decision ${result.decision} · event ${result.eventId}`,
+      );
       boardState.reload();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Operations hold failed";
+      toast.error(message);
     } finally {
       setActing(null);
     }
   };
 
-  const runCommercialRelease = async (input: FinanceGovernanceInput) => {
-    if (!user?.id || !role || !bundle?.canExecuteWrites) return;
+  const runOperationsRelease = async (input: FinanceGovernanceInput) => {
+    if (!user?.id || !role) return;
     setActing(input.orderId);
     try {
-      await bundle.service.commercialRelease(input, writeCtx(input.orderId));
-      const evts = await bundle.service.listEvents(input.orderId);
-      setEvents(financeEventsToOperational(evts));
-      await reloadEvidence([input.orderId]);
+      const result = await executeFinanceControlWrite({
+        lane: "operations",
+        action: "release",
+        orderId: input.orderId,
+        reason: "Finance review approved Operations Clearance",
+        evidenceReference: `point80:operations-release:${input.orderId}`,
+        actorId: user.id,
+        actorRole: role,
+        aal2Verified: false,
+        commercialValue: input.orderValue,
+        secondApproverActorId: requiresSecondApproval(input.orderValue) ? null : undefined,
+      });
+      appendControlEvent(
+        input.orderId,
+        result.alreadyDecided ? "Operations clearance already granted" : "Operations clearance granted",
+        `Core decision ${result.decision} · event ${result.eventId}`,
+      );
       boardState.reload();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Operations release failed";
+      toast.error(message);
+    } finally {
+      setActing(null);
+    }
+  };
+
+  const runOperationsReversal = async (input: FinanceGovernanceInput) => {
+    if (!user?.id || !role) return;
+    setActing(input.orderId);
+    try {
+      const result = await executeFinanceControlWrite({
+        lane: "operations",
+        action: "reversal",
+        orderId: input.orderId,
+        reason: "Finance reversal — revoke prior Operations Clearance",
+        evidenceReference: `point80:operations-reversal:${input.orderId}`,
+        actorId: user.id,
+        actorRole: role,
+        aal2Verified: false,
+        commercialValue: input.orderValue,
+      });
+      appendControlEvent(
+        input.orderId,
+        result.alreadyDecided ? "Operations reversal already recorded" : "Operations reversal recorded",
+        `Core decision ${result.decision} · event ${result.eventId}`,
+      );
+      boardState.reload();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Operations reversal failed";
+      toast.error(message);
     } finally {
       setActing(null);
     }
@@ -154,7 +243,7 @@ export default function FinanceGovernanceBoard() {
         <Landmark className="h-7 w-7 text-primary" aria-hidden />
         <h1 className="text-xl font-bold tracking-tight">Finance governance</h1>
         <Badge variant="outline" className="text-[10px] uppercase">
-          Commercial release only
+          Point 80 Core control
         </Badge>
         {bundle && (
           <Badge variant="outline" className="text-[10px]">
@@ -177,11 +266,11 @@ export default function FinanceGovernanceBoard() {
           <ShieldAlert className="h-5 w-5 shrink-0 text-amber-600" aria-hidden />
           <div className="space-y-1">
             <p>
-              <strong>Step 1 — Start finance review</strong> appends <code className="text-[11px]">finance_review_evidence</code>{" "}
-              (<code className="text-[11px]">credit_review</code> / pending).{" "}
-              <strong>Step 2 — Record commercial release</strong> appends commercial_release / released when projection is{" "}
-              <code className="text-[11px]">commercially_released</code>. Neither step dispatches or captures payment.
+              Writes route only through Core hold/release/reversal authority (<code className="text-[11px]">decide_finance_operations_clearance_v1</code>).
+              Commercial hold/release evidence remains blocked until Core deploys the commercial control RPC family.
+              AAL2 step-up and dual approval are enforced fail-closed in Central before any Core mutation.
             </p>
+            <p className="text-[11px] text-muted-foreground">{commercialShadowWriteBlockedMessage()}</p>
           </div>
         </CardContent>
       </Card>
@@ -240,23 +329,27 @@ export default function FinanceGovernanceBoard() {
                     size="sm"
                     variant="outline"
                     className="w-full justify-start"
-                    disabled={!!acting || !bundle?.canExecuteWrites}
-                    onClick={() => void runReview(input)}
+                    disabled={!!acting}
+                    onClick={() => void runOperationsHold(input)}
                   >
-                    Step 1 — Start finance review (writes credit_review evidence)
+                    Place operations hold (Core DENIED)
                   </Button>
                   <Button
                     size="sm"
                     className="w-full justify-start"
-                    disabled={
-                      !!acting ||
-                      !bundle?.canExecuteWrites ||
-                      alreadyReleased ||
-                      !releaseEligible
-                    }
-                    onClick={() => void runCommercialRelease(input)}
+                    disabled={!!acting || alreadyReleased || !releaseEligible}
+                    onClick={() => void runOperationsRelease(input)}
                   >
-                    Step 2 — Record commercial release
+                    Grant operations clearance (Core GRANTED)
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    className="w-full justify-start"
+                    disabled={!!acting}
+                    onClick={() => void runOperationsReversal(input)}
+                  >
+                    Revoke operations clearance (Core REVOKED)
                   </Button>
                   {!releaseEligible && !alreadyReleased && (
                     <p className="text-[10px] text-destructive">
