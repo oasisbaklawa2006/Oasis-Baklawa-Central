@@ -1,5 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { parseCrmLiteTickets } from "@/lib/crm-lite/parseCrmLiteTickets";
+import { customer360HierarchySliceFromResolution } from "@/lib/customer-hierarchy/customerHierarchySliceMapper";
+import { resolveCustomerHierarchy } from "@/lib/customer-hierarchy/customerHierarchyResolver";
 import { assertCustomer360CompanyAccess, normalizeCompanyId } from "./customer360Identity";
 import { Customer360IdentityError } from "./customer360Identity";
 import type {
@@ -88,6 +90,8 @@ export async function fetchCustomer360ReadModel(
     programmeOwner: "POINT59",
     data: mapCompanyProfile(companyRow as unknown as CompanyRow),
   };
+
+  const hierarchyResolution = await resolveCustomerHierarchy(companyId, viewer);
 
   const [ordersRes, interactionsRes, tasksRes, ticketsRes] = await Promise.all([
     supabase
@@ -208,10 +212,7 @@ export async function fetchCustomer360ReadModel(
     interactions: interactionsSlice,
     tasks: tasksSlice,
     tickets: ticketsSlice,
-    branchesAndContacts: notGovernedSlice(
-      "POINT60",
-      "Company branch and contact hierarchy is not yet governed in Central.",
-    ),
+    branchesAndContacts: customer360HierarchySliceFromResolution(hierarchyResolution),
     communicationsLedger: notGovernedSlice(
       "POINT61",
       "Unified CRM communications ledger (calls, WA, email) is not yet governed.",

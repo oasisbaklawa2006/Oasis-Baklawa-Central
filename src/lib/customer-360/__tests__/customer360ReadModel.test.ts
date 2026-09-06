@@ -85,7 +85,8 @@ describe("fetchCustomer360ReadModel", () => {
     expect(model.profile.data?.businessName).toBe("Acme Sweets");
     expect(model.orders.availability).toBe("available");
     expect(model.orders.data).toHaveLength(1);
-    expect(model.branchesAndContacts.availability).toBe("unavailable_not_governed");
+    expect(model.branchesAndContacts.availability).toBe("unavailable_core_prerequisite");
+    expect(model.branchesAndContacts.corePrerequisiteId).toBe("CORE-HIERARCHY-MAP-01");
     expect(model.financeExposure.programmeOwner).toBe("POINT77");
   });
 

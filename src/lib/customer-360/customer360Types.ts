@@ -3,10 +3,14 @@
  * Canonical customer identity is `companies.id` (company_id).
  */
 
+import type { CustomerHierarchySummary } from "@/lib/customer-hierarchy/customerHierarchyTypes";
+
 export type Customer360SliceAvailability =
   | "available"
   | "partial_crm_lite"
   | "unavailable_not_governed"
+  | "unavailable_core_prerequisite"
+  | "unavailable_unlinked"
   | "error";
 
 export type Customer360IdentityFailure =
@@ -75,6 +79,7 @@ export type Customer360Slice<T> = {
   reason?: string;
   data?: T;
   errorMessage?: string;
+  corePrerequisiteId?: string;
 };
 
 export type Customer360ReadModel = {
@@ -87,7 +92,7 @@ export type Customer360ReadModel = {
   interactions: Customer360Slice<Customer360InteractionSummary[]>;
   tasks: Customer360Slice<Customer360TaskSummary[]>;
   tickets: Customer360Slice<Customer360TicketSummary[]>;
-  branchesAndContacts: Customer360Slice<never>;
+  branchesAndContacts: Customer360Slice<CustomerHierarchySummary>;
   communicationsLedger: Customer360Slice<never>;
   dispatchHistory: Customer360Slice<never>;
   financeExposure: Customer360Slice<never>;

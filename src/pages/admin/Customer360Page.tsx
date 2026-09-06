@@ -27,6 +27,10 @@ function availabilityBadge(availability: Customer360SliceAvailability) {
       return <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">CRM-lite partial</Badge>;
     case "unavailable_not_governed":
       return <Badge variant="outline">Not yet governed</Badge>;
+    case "unavailable_core_prerequisite":
+      return <Badge variant="outline">Core prerequisite pending</Badge>;
+    case "unavailable_unlinked":
+      return <Badge variant="outline">Unlinked</Badge>;
     case "error":
       return <Badge variant="destructive">Read error</Badge>;
     default:
@@ -39,6 +43,11 @@ function SliceUnavailable({ slice }: { slice: Customer360Slice<unknown> }) {
     <div className="rounded-lg border border-dashed border-muted-foreground/30 bg-muted/20 p-4 text-sm text-muted-foreground">
       <p className="font-medium text-foreground">Unavailable — {slice.programmeOwner}</p>
       <p className="mt-1">{slice.reason ?? slice.errorMessage ?? "This slice is not yet governed."}</p>
+      {slice.corePrerequisiteId && (
+        <p className="mt-2 text-xs">
+          Core prerequisite: <code className="rounded bg-muted px-1 py-0.5">{slice.corePrerequisiteId}</code>
+        </p>
+      )}
     </div>
   );
 }
@@ -138,6 +147,65 @@ export default function Customer360Page() {
           </CardContent>
         </Card>
       )}
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Building2 className="h-5 w-5" />
+              Branches & contacts
+            </CardTitle>
+            {availabilityBadge(model.branchesAndContacts.availability)}
+          </div>
+          {model.branchesAndContacts.reason && (
+            <CardDescription>{model.branchesAndContacts.reason}</CardDescription>
+          )}
+        </CardHeader>
+        <CardContent>
+          {model.branchesAndContacts.availability === "available" && model.branchesAndContacts.data ? (
+            <div className="grid gap-6 md:grid-cols-2">
+              <div>
+                <p className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">Branches</p>
+                {model.branchesAndContacts.data.branches.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No governed branches linked.</p>
+                ) : (
+                  <ul className="space-y-2">
+                    {model.branchesAndContacts.data.branches.map((branch) => (
+                      <li key={branch.branchId} className="rounded-lg border p-3 text-sm">
+                        <p className="font-medium">{branch.branchName}</p>
+                        <p className="text-muted-foreground">
+                          {[branch.branchType, branch.status].filter(Boolean).join(" · ") || "—"}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+              <div>
+                <p className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">Contacts</p>
+                {model.branchesAndContacts.data.contacts.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No governed contacts linked.</p>
+                ) : (
+                  <ul className="space-y-2">
+                    {model.branchesAndContacts.data.contacts.map((contact) => (
+                      <li key={contact.contactId} className="rounded-lg border p-3 text-sm">
+                        <p className="font-medium">{contact.displayName}</p>
+                        <p className="text-muted-foreground">
+                          {[contact.email, contact.phone, contact.membershipStatus]
+                            .filter(Boolean)
+                            .join(" · ") || "—"}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          ) : (
+            <SliceUnavailable slice={model.branchesAndContacts} />
+          )}
+        </CardContent>
+      </Card>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
@@ -313,7 +381,6 @@ export default function Customer360Page() {
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-2">
-          <SliceUnavailable slice={model.branchesAndContacts} />
           <SliceUnavailable slice={model.communicationsLedger} />
           <SliceUnavailable slice={model.dispatchHistory} />
           <SliceUnavailable slice={model.financeExposure} />
