@@ -30,7 +30,16 @@ Full **131-surface current-main rebaseline HELD** until trusted Vercel deploy ex
 | Target | FAIL-485-001 KPI convergence on **synthetic fixture only** |
 | Blocker if absent | `TEST_SALES_*` or cert pending fixture `dc370b46` |
 
-### GHA run [34015742110](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34015742110) — post-merge-proofs
+### GHA run [34016393457](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34016393457) — FAIL-493-001 repair retest (#497 @ `9715c20d`)
+
+| UAT ID | Result | Deploy |
+|---|---|---|
+| UAT-005 | **PASS** | #497 preview `7GCAJ79HNbN5oLDKtbVfefvjkg6q` |
+| UAT-006–010 | **PASS (5/5)** | same |
+
+**Artifact:** `uat-crawl-evidence-34016393457-1` · Prior FAIL row @ `8f042fa` preserved in `UAT_POST_MERGE_493_PROOF.jsonl`
+
+### GHA run [34015742110](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34015742110) — post-merge-proofs (original)
 
 | Path | UAT-005 | UAT-006–010 | FAIL-485-001 |
 |---|---|---|---|

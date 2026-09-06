@@ -1,21 +1,21 @@
 {
-  "generatedAt": "2026-09-06T06:09:41Z",
-  "runId": "34015742110",
-  "prHeadSha": "8f042fa4abd70eba4e56636883dbcfaf30c864c7",
+  "generatedAt": "2026-09-06T06:26:09.966Z",
+  "runId": "34016393457",
+  "prHeadSha": "9715c20d8bc585948d15e7b74bc61b529d527061",
+  "repairPr": "497",
   "mergeSha": "3bebf39c7327ed28951d4ad68a8db4c19e0f6717",
-  "githubDeploymentId": "6289603800",
-  "vercelDeploymentId": "BCyAHAee6qn7rg2Cjop91pYaGK93",
-  "crawlBaseUrl": "https://oasis-baklawa-central-omgfjj6e3-oasisbaklawa2006-6222s-projects.vercel.app",
+  "githubDeploymentId": "7GCAJ79HNbN5oLDKtbVfefvjkg6q",
+  "vercelDeploymentId": "7GCAJ79HNbN5oLDKtbVfefvjkg6q",
+  "crawlBaseUrl": "https://oasis-baklawa-centra-git-719166-oasisbaklawa2006-6222s-projects.vercel.app",
   "counts": {
-    "PASS": 0,
-    "FAIL": 1,
-    "BLOCKED": 0,
-    "NOT_RUN": 5
+    "PASS": 6,
+    "FAIL": 0,
+    "BLOCKED": 0
   },
-  "uatIdsExecuted": ["UAT-005"],
-  "uatIdsNotRun": ["UAT-006", "UAT-007", "UAT-008", "UAT-009", "UAT-010"],
-  "failIds": ["FAIL-493-001"],
-  "label": "#493 security regression proof ONLY — NOT current-main certification",
+  "uatIds": ["UAT-005", "UAT-006", "UAT-007", "UAT-008", "UAT-009", "UAT-010"],
+  "priorFailRunId": "34015742110",
+  "priorFailPreserved": true,
+  "label": "FAIL-493-001 repair proof (#497) — NOT current-main certification",
   "currentMainHoldSha": "64a107dfc167be76673a3d18f177a72472dcb241",
-  "disposition": "REGRESSION — #493 fix NOT proven PASS on governed deploy"
+  "disposition": "REPAIR PROVEN on governed preview — pending #497 merge to main"
 }

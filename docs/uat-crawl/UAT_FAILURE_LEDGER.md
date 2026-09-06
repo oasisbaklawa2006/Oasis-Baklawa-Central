@@ -8,19 +8,22 @@ Functional + UX failures. UX criteria authority: [`UAT_UX_FAILURE_MATRIX.md`](./
 
 | Proof | Deploy SHA | GitHub deploy ID | GHA run | Status |
 |---|---|---:|---:|---|
-| FAST PATH A #493 security | `8f042fa` | 6289603800 | [34015742110](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34015742110) | **UAT-005 FAIL** — UAT-006–010 NOT RUN |
-| FAST PATH B #491 KPI (FAIL-485-001) | `efd1419` | 6289622998 | 34015742110 | **BLOCKED** (`TEST_SALES_*`) |
+| FAST PATH A #493 original | `8f042fa` | 6289603800 | [34015742110](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34015742110) | **UAT-005 FAIL** — UAT-006–010 NOT RUN |
+| FAST PATH A #497 repair | `9715c20d` | 7GCAJ79HNbN5oLDKtbVfefvjkg6q | [34016393457](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34016393457) | **UAT-005–010 PASS (6/6)** |
+| FAST PATH B #491 KPI (FAIL-485-001) | `efd1419` | 6289622998 | 34015742110 / 34016393457 | **BLOCKED** (`TEST_SALES_*`) |
 | Full 131-surface rebaseline | `64a107df` | — | — | **HELD** (no Vercel deploy) |
 
 **Verified preview URLs (GitHub Deployments API — not user-supplied host):**
-- #493: `https://oasis-baklawa-central-omgfjj6e3-oasisbaklawa2006-6222s-projects.vercel.app`
+- #493 original: `https://oasis-baklawa-central-omgfjj6e3-oasisbaklawa2006-6222s-projects.vercel.app`
+- #497 repair: `https://oasis-baklawa-centra-git-719166-oasisbaklawa2006-6222s-projects.vercel.app`
 - #491: `https://oasis-baklawa-central-adpz5kw86-oasisbaklawa2006-6222s-projects.vercel.app`
 
 Original UAT-005 failure evidence preserved in prior manifests — post-merge rows append only.
 
 | FAIL-ID | UAT-ID | Run | Actual | Disposition |
 |---|---|---|---|---|
-| FAIL-493-001 | UAT-005 | 34015742110 | Dispatch direct probe `/admin/finance` did not fail closed | **OPEN** — route to bounded #493 repair lane |
+| FAIL-493-001 | UAT-005 | 34015742110 @ `8f042fa` | Dispatch direct probe `/admin/finance` did not fail closed (stale harness + async guard) | **OPEN on original deploy** — preserved |
+| FAIL-493-001 repair | UAT-005–010 | 34016393457 @ `9715c20d` (#497) | All forbidden routes fail closed to `/admin/dispatch-mgmt` | **REPAIR PROVEN** — pending #497 merge to main |
 
 **Policy:** ace340fe not substituted as post-#490 current evidence. If no Vercel deploy for `67b3d1cc`, all deploy-dependent tranches record **BLOCKED** with provenance in `UAT_DEPLOY_PROVENANCE.json`.
 
