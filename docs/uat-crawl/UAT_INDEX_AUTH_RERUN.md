@@ -4,11 +4,11 @@
 **Crawl base URL:** https://oasis-baklawa-central-6zo99hosg-oasisbaklawa2006-6222s-projects.vercel.app
 **Central baseline SHA:** `08ccb1cfd4a3624103f0681b5515e26727e77cd2`
 **UX matrix:** [UAT_UX_FAILURE_MATRIX.md](./UAT_UX_FAILURE_MATRIX.md) (148 criteria)
-**Captured:** 2026-09-06T11:11:21.607Z
+**Captured:** 2026-09-06T13:05:35.896Z
 
 | UAT ID | S0 | Route | State | Visual | Function | UX | Evaluated | Failures | Notes |
 |---|---|---|---|---|---|---|---:|---:|---|
-| UAT-0002 | [UAT-0002_central_admin_staff_operations-controller-default_S0-auth-settled.png](../../uat-evidence/screenshots/auth-rerun/UAT-0002_central_admin_staff_operations-controller-default_S0-auth-settled.png) | /operations-controller | default | OBSERVED | OBSERVED | PARTIAL | 4/148 | 0 | Authenticated via TEST_OPERATIONS_* (values not logged) |
+| UAT-0002 | [UAT-0002_central_admin_staff_operations-controller-default_S0-auth-settled.png](../../uat-evidence/screenshots/auth-rerun/UAT-0002_central_admin_staff_operations-controller-default_S0-auth-settled.png) | /operations-controller | default | OBSERVED | OBSERVED | PASS | 4/148 | 0 | Authenticated via TEST_OPERATIONS_* (values not logged) |
 | UAT-0003 | [ (pre-auth S0 preserved)](../../uat-evidence/screenshots/tranche-01/ (pre-auth S0 preserved)) | /security-gate | default | BLOCKED | BLOCKED | BLOCKED | 0/148 | 0 | AUTH BLOCKED — missing TEST_GATE_SECURITY_EMAIL, TEST_G |
 | UAT-0006 | [ (pre-auth S0 preserved)](../../uat-evidence/screenshots/tranche-01/ (pre-auth S0 preserved)) | /buyer/access-request | default | BLOCKED | BLOCKED | BLOCKED | 0/148 | 0 | AUTH BLOCKED — missing TEST_BUYER_EMAIL, TEST_BUYER_PAS |
 | UAT-0007 | [ (pre-auth S0 preserved)](../../uat-evidence/screenshots/tranche-01/ (pre-auth S0 preserved)) | /buyer/* | default | BLOCKED | BLOCKED | BLOCKED | 0/148 | 0 | AUTH BLOCKED — missing TEST_BUYER_EMAIL, TEST_BUYER_PAS |

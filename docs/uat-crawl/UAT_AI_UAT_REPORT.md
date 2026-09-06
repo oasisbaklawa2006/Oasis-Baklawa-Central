@@ -1,6 +1,6 @@
 # APPVERSE AI UAT — Tranche 1
 
-Generated: 2026-09-06T11:10:00.114Z  
+Generated: 2026-09-06T13:03:47.660Z  
 Target: https://oasis-baklawa-central-6zo99hosg-oasisbaklawa2006-6222s-projects.vercel.app/  
 AI planner: disabled  
 Visual model input: disabled
@@ -53,6 +53,8 @@ Visual model input: disabled
 - **Expected:** The post-login destination must be /admin/dispatch-mgmt or the Dispatch role home must provide the governed Dispatch workflow without redirecting into unrelated authority.
 - **Actual:** Dispatch landed on /admin/dispatch-mgmt with the governed carton/DPL workflow.
 - **Final URL:** https://oasis-baklawa-central-6zo99hosg-oasisbaklawa2006-6222s-projects.vercel.app/admin/dispatch-mgmt
+- **Console errors:** 1
+- **Failed requests:** 1
 
 ### UAT-005 — PASS
 
@@ -60,6 +62,8 @@ Visual model input: disabled
 - **Expected:** Dispatch must not remain on any Finance/Accounts route after direct navigation and must not be offered Finance controls in permitted navigation.
 - **Actual:** Finance navigation absent; direct probes: /admin/finance -> /admin; /admin/finance-governance -> /admin; /admin/accounts-release -> /admin
 - **Final URL:** https://oasis-baklawa-central-6zo99hosg-oasisbaklawa2006-6222s-projects.vercel.app/admin
+- **Console errors:** 1
+- **Failed requests:** 1
 
 ### UAT-006 — PASS
 
@@ -97,6 +101,4 @@ Visual model input: disabled
 - **Expected:** Every forbidden direct route must bounce Dispatch to a permitted destination; hiding links alone is not sufficient for PASS.
 - **Actual:** Every forbidden direct route failed closed: /admin/finance -> /admin; /admin/users -> /admin; /admin/cmd-war-room -> /admin; /admin/ready-goods -> /admin; /security-gate -> /admin/dispatch-mgmt
 - **Final URL:** https://oasis-baklawa-central-6zo99hosg-oasisbaklawa2006-6222s-projects.vercel.app/admin/dispatch-mgmt
-- **Console errors:** 1
-- **Failed requests:** 1
 

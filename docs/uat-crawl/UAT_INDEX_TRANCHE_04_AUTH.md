@@ -4,7 +4,7 @@
 **Crawl base URL:** https://oasis-baklawa-central-6zo99hosg-oasisbaklawa2006-6222s-projects.vercel.app
 **Central baseline SHA:** `08ccb1cfd4a3624103f0681b5515e26727e77cd2`
 **UX matrix:** [UAT_UX_FAILURE_MATRIX.md](./UAT_UX_FAILURE_MATRIX.md) (148 criteria)
-**Captured:** 2026-09-06T11:15:43.238Z
+**Captured:** 2026-09-06T13:10:14.671Z
 
 | UAT ID | S0 | Route | State | Visual | Function | UX | Evaluated | Failures | Notes |
 |---|---|---|---|---|---|---|---:|---:|---|
@@ -14,8 +14,8 @@
 | UAT-0034 | [UAT-0034_central_admin_staff_admin-moq-default_S0-auth-settled.png](../../uat-evidence/screenshots/tranche-04-auth/UAT-0034_central_admin_staff_admin-moq-default_S0-auth-settled.png) | /admin/moq | default | OBSERVED | OBSERVED | PASS | 4/148 | 0 | Authenticated via TEST_ADMIN_* (values not logged). tit |
 | UAT-0035 | [UAT-0035_central_admin_staff_admin-currency-default_S0-auth-settled.png](../../uat-evidence/screenshots/tranche-04-auth/UAT-0035_central_admin_staff_admin-currency-default_S0-auth-settled.png) | /admin/currency | default | OBSERVED | OBSERVED | PASS | 4/148 | 0 | Authenticated via TEST_ADMIN_* (values not logged). tit |
 | UAT-0036 | [UAT-0036_central_admin_staff_admin-support-default_S0-auth-settled.png](../../uat-evidence/screenshots/tranche-04-auth/UAT-0036_central_admin_staff_admin-support-default_S0-auth-settled.png) | /admin/support | default | OBSERVED | OBSERVED | PASS | 4/148 | 0 | Authenticated via TEST_ADMIN_* (values not logged). tit |
-| UAT-0037 | [UAT-0037_central_admin_staff_admin-operator-inbox-default_S0-auth-settled.png](../../uat-evidence/screenshots/tranche-04-auth/UAT-0037_central_admin_staff_admin-operator-inbox-default_S0-auth-settled.png) | /admin/operator-inbox | default | OBSERVED | OBSERVED | PARTIAL | 4/148 | 0 | Authenticated via TEST_ADMIN_* (values not logged). tit |
-| UAT-0038 | [UAT-0038_central_admin_staff_admin-whatsapp-default_S0-auth-settled.png](../../uat-evidence/screenshots/tranche-04-auth/UAT-0038_central_admin_staff_admin-whatsapp-default_S0-auth-settled.png) | /admin/whatsapp | default | OBSERVED | OBSERVED | PARTIAL | 4/148 | 0 | Authenticated via TEST_ADMIN_* (values not logged). tit |
+| UAT-0037 | [UAT-0037_central_admin_staff_admin-operator-inbox-default_S0-auth-settled.png](../../uat-evidence/screenshots/tranche-04-auth/UAT-0037_central_admin_staff_admin-operator-inbox-default_S0-auth-settled.png) | /admin/operator-inbox | default | OBSERVED | OBSERVED | PASS | 4/148 | 0 | Authenticated via TEST_ADMIN_* (values not logged). tit |
+| UAT-0038 | [UAT-0038_central_admin_staff_admin-whatsapp-default_S0-auth-settled.png](../../uat-evidence/screenshots/tranche-04-auth/UAT-0038_central_admin_staff_admin-whatsapp-default_S0-auth-settled.png) | /admin/whatsapp | default | OBSERVED | OBSERVED | PASS | 4/148 | 0 | Authenticated via TEST_ADMIN_* (values not logged). tit |
 | UAT-0039 | [UAT-0039_central_admin_staff_admin-settings-default_S0-auth-settled.png](../../uat-evidence/screenshots/tranche-04-auth/UAT-0039_central_admin_staff_admin-settings-default_S0-auth-settled.png) | /admin/settings | default | OBSERVED | OBSERVED | PASS | 4/148 | 0 | Authenticated via TEST_ADMIN_* (values not logged). tit |
 | UAT-0040 | [UAT-0040_central_admin_staff_admin-audit-default_S0-auth-settled.png](../../uat-evidence/screenshots/tranche-04-auth/UAT-0040_central_admin_staff_admin-audit-default_S0-auth-settled.png) | /admin/audit | default | OBSERVED | OBSERVED | PASS | 4/148 | 0 | Authenticated via TEST_ADMIN_* (values not logged). tit |
 | UAT-0041 | [UAT-0041_central_admin_staff_admin-department-default_S0-auth-settled.png](../../uat-evidence/screenshots/tranche-04-auth/UAT-0041_central_admin_staff_admin-department-default_S0-auth-settled.png) | /admin/department | default | OBSERVED | OBSERVED | PASS | 4/148 | 0 | Authenticated via TEST_ADMIN_* (values not logged). tit |
