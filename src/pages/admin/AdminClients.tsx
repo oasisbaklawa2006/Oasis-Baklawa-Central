@@ -151,6 +151,11 @@ const AdminClients = () => {
     setStableCounts(counts);
   };
 
+  /** Refetch the active tab list and governance KPI counters from backend truth after a successful pipeline mutation. */
+  const refreshAfterPipelineMutation = async () => {
+    await Promise.all([fetchApps(tab), refreshStableCounts()]);
+  };
+
   useEffect(() => {
     supabase
       .from("pricing_slabs")
@@ -272,7 +277,7 @@ const AdminClients = () => {
       }).catch(() => {});
 
       setSheetOpen(false);
-      await Promise.all([fetchApps(tab), refreshStableCounts()]);
+      await refreshAfterPipelineMutation();
     } catch (error) {
       console.error("[AdminClients] Approval failed:", error);
       toast.error("Failed to approve client.");
@@ -306,7 +311,7 @@ const AdminClients = () => {
 
       toast.success(`${app.business_name} rejected`);
       setSheetOpen(false);
-      await Promise.all([fetchApps(tab), refreshStableCounts()]);
+      await refreshAfterPipelineMutation();
     } catch (error) {
       console.error("[AdminClients] Rejection failed:", error);
       toast.error("Failed to reject application.");
@@ -334,7 +339,7 @@ const AdminClients = () => {
     if (!error) {
       toast.success("Information request logged. Application remains pending.");
       setSheetOpen(false);
-      await Promise.all([fetchApps(tab), refreshStableCounts()]);
+      await refreshAfterPipelineMutation();
     } else {
       toast.error("Failed to log request.");
     }
