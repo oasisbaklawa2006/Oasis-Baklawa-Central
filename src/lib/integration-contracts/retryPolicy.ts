@@ -19,13 +19,19 @@ export interface RetryDecision {
   reason?: string;
 }
 
-/** Deterministic jitter for tests when seed provided; otherwise pseudo-random. */
+function runtimeJitterMs(): number {
+  if (typeof crypto !== "undefined" && typeof crypto.getRandomValues === "function") {
+    const buf = new Uint32Array(1);
+    crypto.getRandomValues(buf);
+    return buf[0] % BASE_BACKOFF_MS;
+  }
+  return BASE_BACKOFF_MS / 2;
+}
+
+/** Deterministic jitter for tests when seed provided; otherwise crypto-backed jitter. */
 export function computeBoundedBackoffMs(attempt: number, jitterSeed?: number): number {
   const exponential = Math.min(MAX_BACKOFF_MS, BASE_BACKOFF_MS * 2 ** Math.max(0, attempt - 1));
-  const jitter =
-    jitterSeed !== undefined
-      ? jitterSeed % BASE_BACKOFF_MS
-      : Math.floor(Math.random() * BASE_BACKOFF_MS);
+  const jitter = jitterSeed !== undefined ? jitterSeed % BASE_BACKOFF_MS : runtimeJitterMs();
   return Math.min(MAX_BACKOFF_MS, exponential + jitter);
 }
 
@@ -73,13 +79,11 @@ export async function withBoundedRetry<T>(
   ctx: Omit<RetryContext, "attempt">,
 ): Promise<T> {
   let attempt = 0;
-  let lastError: unknown;
 
   while (true) {
     try {
       return await fn();
     } catch (err) {
-      lastError = err;
       attempt += 1;
       const decision = evaluateRetryDecision(err, { ...ctx, attempt });
       if (!decision.shouldRetry) {
