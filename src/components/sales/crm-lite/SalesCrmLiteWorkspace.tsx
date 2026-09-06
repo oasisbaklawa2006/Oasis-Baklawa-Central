@@ -16,6 +16,11 @@ import SalesCrmAssistPanel from "@/components/sales/crm-lite/SalesCrmAssistPanel
 import CreditRequestModal from "@/components/CreditRequestModal";
 import { resolveCreditBinding } from "@/lib/order-authority/creditWalletAuthorityClient";
 import { parseCrmLiteTickets } from "@/lib/crm-lite/parseCrmLiteTickets";
+import {
+  buildCompleteWorkItemUpdatePayload,
+  buildCreateTaskFromFollowUpPayload,
+  buildCreateWorkItemInsertPayload,
+} from "@/lib/crm-work-items/crmWorkItemsContract";
 import type { CrmLiteCompany, CrmLiteInteraction, CrmLiteTask, CrmLiteTicket, GovernedCreditOrder } from "@/lib/crm-lite/salesCrmLiteTypes";
 
 interface Props {
@@ -143,14 +148,15 @@ export default function SalesCrmLiteWorkspace({ userId, companies, assistFocusCo
       return;
     }
     setTaskSaving(true);
-    const { error } = await supabase.from("crm_tasks").insert({
-      company_id: taskForm.companyId,
-      sales_exec_id: userId,
-      task_type: taskForm.taskType,
-      status: "pending",
-      due_date: taskForm.dueDate,
-      description: taskForm.description.trim() || null,
-    });
+    const { error } = await supabase.from("crm_tasks").insert(
+      buildCreateWorkItemInsertPayload({
+        companyId: taskForm.companyId,
+        ownerExecutiveId: userId,
+        kind: taskForm.taskType as "follow_up" | "repeat_contact" | "sample" | "opportunity",
+        dueDate: taskForm.dueDate,
+        description: taskForm.description.trim() || null,
+      }),
+    );
     setTaskSaving(false);
     if (error) {
       toast({ title: "Task not saved", description: error.message, variant: "destructive" });
@@ -162,9 +168,11 @@ export default function SalesCrmLiteWorkspace({ userId, companies, assistFocusCo
   };
 
   const handleCompleteTask = async (taskId: string) => {
+    const task = tasks.find((t) => t.id === taskId);
+    if (!task) return;
     const { error } = await supabase
       .from("crm_tasks")
-      .update({ status: "completed", completed_at: new Date().toISOString() })
+      .update(buildCompleteWorkItemUpdatePayload({ task, actorExecutiveId: userId }))
       .eq("id", taskId);
     if (error) {
       toast({ title: "Could not complete task", description: error.message, variant: "destructive" });
@@ -175,14 +183,9 @@ export default function SalesCrmLiteWorkspace({ userId, companies, assistFocusCo
 
   const handleCreateTaskFromFollowUp = async (interaction: CrmLiteInteraction) => {
     if (!interaction.company_id || !interaction.follow_up_date) return;
-    const { error } = await supabase.from("crm_tasks").insert({
-      company_id: interaction.company_id,
-      sales_exec_id: userId,
-      task_type: "repeat_contact",
-      status: "pending",
-      due_date: interaction.follow_up_date,
-      description: interaction.notes ? `Repeat contact: ${interaction.notes}` : "Repeat contact from CRM follow-up",
-    });
+    const { error } = await supabase.from("crm_tasks").insert(
+      buildCreateTaskFromFollowUpPayload(interaction, userId),
+    );
     if (error) {
       toast({ title: "Task not created", description: error.message, variant: "destructive" });
       return;
