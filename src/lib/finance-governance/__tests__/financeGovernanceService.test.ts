@@ -29,10 +29,11 @@ const ready: FinanceGovernanceInput = {
   escalationCount: 0,
 };
 
-function svc() {
+function svc(controlMode: "demo" | "core" | "blocked" = "demo") {
   return createFinanceGovernanceService({
     evidence: createInMemoryFinanceEvidenceStore(),
     events: createInMemoryFinanceEventSink(),
+    controlMode,
   });
 }
 
@@ -67,6 +68,16 @@ describe("financeGovernanceService", () => {
     await expect(
       s.startReview(ready, { ...ctx, actorRole: "DISPATCH_MANAGER" }),
     ).rejects.toThrow(FinanceGovernanceError);
+  });
+
+  it("fail-closes hold/release writes when Core control authority is blocked", async () => {
+    const s = svc("blocked");
+    await expect(s.placeHold(ready.orderId, "advance_unverified", ctx)).rejects.toMatchObject({
+      code: "core_prerequisite",
+    });
+    await expect(
+      s.releaseHold(ready.orderId, "advance_unverified", ctx, { holdEventId: "hold-1" }),
+    ).rejects.toMatchObject({ code: "core_prerequisite" });
   });
 
   it("startReview persists finance_review_evidence credit_review pending", async () => {

@@ -163,6 +163,12 @@ export default function FinanceGovernanceBoard() {
         )}
       </header>
 
+      {bundle?.corePrerequisiteMessage && (
+        <Card className="border-destructive/40 bg-destructive/5">
+          <CardContent className="pt-4 text-sm text-destructive">{bundle.corePrerequisiteMessage}</CardContent>
+        </Card>
+      )}
+
       <GovernanceBoardLiveNotice
         meta={boardState.meta}
         loading={boardState.loading}

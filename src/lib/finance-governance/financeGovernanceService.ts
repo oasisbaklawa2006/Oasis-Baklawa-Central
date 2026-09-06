@@ -1,4 +1,21 @@
 import { assertFinanceAuthority, isForbiddenFinanceAction } from "@/lib/finance-authority/financeAuthorityGuard";
+import {
+  buildFinanceControlWriteContext,
+  type FinanceControlPersistenceMode,
+} from "@/lib/order-authority/financeControlBoundary";
+import {
+  FinanceControlAuthorityError,
+  placeFinanceHold,
+  releaseFinanceHold,
+  resolveFinanceControlBinding,
+} from "@/lib/order-authority/financeControlAuthorityClient";
+import {
+  buildFinanceOperationsCorrelationId,
+  buildFinanceOperationsDecisionIdentity,
+  buildFinanceOperationsIdempotencyKey,
+  decideFinanceOperationsClearance,
+  getFinanceOperationsClearanceFacts,
+} from "@/lib/order-authority/financeClearanceAuthorityClient";
 import { validateCommercialReleaseAttempt, validateRejection } from "./financeApprovalWorkflow";
 import {
   buildFinanceOperationalEvent,
@@ -39,10 +56,36 @@ export function createInMemoryFinanceEventSink(): FinanceEventSink {
 export interface FinanceGovernanceServiceDeps {
   evidence: FinanceEvidenceStore;
   events: FinanceEventSink;
+  controlMode?: FinanceControlPersistenceMode;
 }
 
 export function createFinanceGovernanceService(deps: FinanceGovernanceServiceDeps) {
-  const { evidence, events } = deps;
+  const { evidence, events, controlMode = "demo" } = deps;
+
+  function assertCoreWriteAuthority(action: string) {
+    if (controlMode === "core") return;
+    if (controlMode === "demo") return;
+    throw new FinanceGovernanceError(
+      "core_prerequisite",
+      `Core prerequisite missing for ${action}: deploy PF-6D finance control RPCs in oasis-supabase-core before Central may mutate hold/release/reversal/second-approval authority.`,
+    );
+  }
+
+  function mapCoreError(error: unknown): never {
+    if (error instanceof FinanceControlAuthorityError) {
+      if (error.code === "core_prerequisite") {
+        throw new FinanceGovernanceError("core_prerequisite", error.message);
+      }
+      if (error.code === "self_approval") {
+        throw new FinanceGovernanceError("authority_denied", error.message);
+      }
+      if (error.code === "stale_version") {
+        throw new FinanceGovernanceError("validation_failed", error.message);
+      }
+      throw new FinanceGovernanceError("validation_failed", error.message);
+    }
+    throw error;
+  }
 
   function guard(action: string, ctx: FinanceGovernanceWriteContext) {
     if (isForbiddenFinanceAction(action)) {
@@ -65,6 +108,7 @@ export function createFinanceGovernanceService(deps: FinanceGovernanceServiceDep
       ctx: FinanceGovernanceWriteContext,
     ): Promise<{ projection: ReturnType<typeof projectFinanceRelease>; eventId: string; evidenceId: string }> {
       guard("finance:review", ctx);
+      assertCoreWriteAuthority("finance:review");
       const projection = projectFinanceRelease(input);
       const record = await evidence.insertEvidence({
         orderId: input.orderId,
@@ -132,6 +176,34 @@ export function createFinanceGovernanceService(deps: FinanceGovernanceServiceDep
       ctx: FinanceGovernanceWriteContext,
     ): Promise<{ eventId: string }> {
       guard("finance:place_hold", ctx);
+      assertCoreWriteAuthority("finance:place_hold");
+      if (controlMode === "core") {
+        try {
+          const binding = await resolveFinanceControlBinding(orderId);
+          const writeCtx = await buildFinanceControlWriteContext({
+            actorId: ctx.actorUserId,
+            actorRole: ctx.actorRole,
+            reason: FINANCE_HOLD_LABELS[holdType],
+            evidenceReference: `finance-hold:${holdType}`,
+            scope: "hold",
+            identity: [binding.orderId, binding.piId, binding.commercialVersionId, holdType, ctx.correlationId],
+            sourceReference: ctx.correlationId,
+          });
+          const result = await placeFinanceHold({ binding, holdType, ctx: writeCtx });
+          const evt = await events.append(
+            buildFinanceOperationalEvent(
+              "finance_hold_created",
+              orderId,
+              ctx,
+              `Hold: ${holdType}`,
+              FINANCE_HOLD_LABELS[holdType],
+            ),
+          );
+          return { eventId: result.alreadyApplied ? result.eventId : evt.id };
+        } catch (error) {
+          mapCoreError(error);
+        }
+      }
       await evidence.insertEvidence({
         orderId,
         reviewType: "finance_hold",
@@ -164,8 +236,44 @@ export function createFinanceGovernanceService(deps: FinanceGovernanceServiceDep
       orderId: string,
       holdType: FinanceHoldType,
       ctx: FinanceGovernanceWriteContext,
+      options?: { holdEventId?: string | null },
     ): Promise<{ eventId: string }> {
       guard("finance:release_hold", ctx);
+      assertCoreWriteAuthority("finance:release_hold");
+      if (controlMode === "core") {
+        const holdEventId = options?.holdEventId?.trim();
+        if (!holdEventId) {
+          throw new FinanceGovernanceError(
+            "validation_failed",
+            "Release hold requires immutable hold_event_id from Core finance control facts.",
+          );
+        }
+        try {
+          const binding = await resolveFinanceControlBinding(orderId);
+          const writeCtx = await buildFinanceControlWriteContext({
+            actorId: ctx.actorUserId,
+            actorRole: ctx.actorRole,
+            reason: "Finance hold released",
+            evidenceReference: `finance-hold-release:${holdType}`,
+            scope: "hold-release",
+            identity: [binding.orderId, binding.piId, binding.commercialVersionId, holdEventId, holdType],
+            sourceReference: holdEventId,
+          });
+          const result = await releaseFinanceHold({ binding, holdEventId, ctx: writeCtx });
+          const evt = await events.append(
+            buildFinanceOperationalEvent(
+              "finance_hold_released",
+              orderId,
+              ctx,
+              `Hold released: ${holdType}`,
+              "Core finance hold released",
+            ),
+          );
+          return { eventId: result.alreadyApplied ? result.eventId : evt.id };
+        } catch (error) {
+          mapCoreError(error);
+        }
+      }
       await evidence.insertEvidence({
         orderId,
         reviewType: "finance_hold",
@@ -199,11 +307,67 @@ export function createFinanceGovernanceService(deps: FinanceGovernanceServiceDep
       ctx: FinanceGovernanceWriteContext,
     ): Promise<{ projection: ReturnType<typeof projectFinanceRelease>; eventId: string }> {
       guard("finance:commercial_release", ctx);
+      assertCoreWriteAuthority("finance:commercial_release");
       const check = validateCommercialReleaseAttempt(input, ctx);
       if (!check.allowed) {
         throw new FinanceGovernanceError("validation_failed", check.reason);
       }
       const projection = projectFinanceRelease(input);
+      if (controlMode === "core") {
+        try {
+          const binding = await resolveFinanceControlBinding(input.orderId);
+          const facts = await getFinanceOperationsClearanceFacts(
+            binding.orderId,
+            binding.piId,
+            binding.commercialVersionId,
+          );
+          if (facts.latestClearanceDecision === "GRANTED") {
+            const evt = await events.append(
+              buildFinanceOperationalEvent(
+                "finance_commercially_released",
+                input.orderId,
+                ctx,
+                "Commercially released",
+                commercialReleaseEventMessage(projection),
+              ),
+            );
+            return { projection, eventId: evt.id };
+          }
+          const reason = ctx.overrideReason?.trim() || "Finance governance commercial release";
+          const evidenceReference = `core-finance-control:${binding.piId}:${binding.commercialVersionId}`;
+          const identity = buildFinanceOperationsDecisionIdentity(
+            facts,
+            "GRANTED",
+            reason,
+            evidenceReference,
+          );
+          const clearance = await decideFinanceOperationsClearance({
+            orderId: binding.orderId,
+            piId: binding.piId,
+            commercialVersionId: binding.commercialVersionId,
+            decision: "GRANTED",
+            reason,
+            evidenceReference,
+            sourceChannel: "CENTRAL",
+            sourceReference: `finance-governance:${input.orderId}`,
+            correlationId: await buildFinanceOperationsCorrelationId(identity),
+            idempotencyKey: await buildFinanceOperationsIdempotencyKey(identity),
+            actorId: ctx.actorUserId,
+          });
+          const evt = await events.append(
+            buildFinanceOperationalEvent(
+              "finance_commercially_released",
+              input.orderId,
+              ctx,
+              "Commercially released",
+              commercialReleaseEventMessage(projection),
+            ),
+          );
+          return { projection, eventId: clearance.alreadyDecided ? clearance.clearanceEventId : evt.id };
+        } catch (error) {
+          mapCoreError(error);
+        }
+      }
       await evidence.insertEvidence({
         orderId: input.orderId,
         reviewType: "commercial_release",
