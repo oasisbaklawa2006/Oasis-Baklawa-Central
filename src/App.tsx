@@ -447,8 +447,10 @@ const App = () => (
                       authoritative tables instead. execution/dispatch now
                       redirects to FACT-C3 /admin/dispatch-mgmt (Lane D).
                       execution/third-party redirects to the governed 3PGS
-                      queue. execution/retail and execution/complaints remain
-                      in the dead-data situation and are NOT redirected here.
+                      queue. execution/retail redirects to reservation-board;
+                      execution/complaints redirects to support. Point86
+                      quarantined operational_queue_items for all remaining
+                      department queue reads.
                     */}
                     <Route path="execution/production" element={<Navigate to="/operations-controller" replace />} />
                     <Route path="execution/assembly" element={<Navigate to="/admin/assembly-tasks" replace />} />

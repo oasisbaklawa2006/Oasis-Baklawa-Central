@@ -186,9 +186,9 @@ export const FACTORY_SOURCE_TRUTH: FactorySourceTruthEntry[] = [
     relation: "operational_queue_items",
     subsystem: "LEGACY",
     status: "DEAD_PROJECTION",
-    readConsumers: ["DepartmentExecutionBoard", "ExecutionCommandCenter"],
+    readConsumers: ["DepartmentExecutionBoard (quarantined)", "ExecutionCommandCenter (retired Point86)"],
     writeAuthority: "No proven writer for the retired Production/Assembly/Ready-Goods execution-board workloads",
-    evidence: "PR #404 redirected those three legacy execution boards to governed surfaces instead of reviving operational_queue_items as a competing authority.",
+    evidence: "PR #404 redirected those three legacy execution boards to governed surfaces. Point86 retired ExecutionCommandCenter reads in favour of canonical Core department-queue routing contract.",
   },
 ];
 
