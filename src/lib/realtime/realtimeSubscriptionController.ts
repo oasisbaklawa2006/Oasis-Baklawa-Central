@@ -107,59 +107,83 @@ export function createRealtimeSubscriptionController(
     }
   };
 
-  const runSnapshot = async () => {
+  const runSnapshot = async (): Promise<boolean> => {
     setStatus("snapshot_loading");
-    await snapshot();
+    snapshotCompleted = false;
+    try {
+      await snapshot();
+    } catch {
+      setStatus("degraded");
+      return false;
+    }
     snapshotCompleted = true;
     setStatus(nextStatusAfterSnapshot(status));
+    return true;
   };
 
   const connectChannel = () => {
     if (stopped) return;
     setStatus("connecting");
+    if (stopped) return;
 
     channelUnsubscribe?.();
-    channelUnsubscribe = channelAdapter.subscribe(
-      channelName,
-      (channelStatus) => {
-        if (stopped) return;
+    channelUnsubscribe = null;
 
-        if (channelStatus === "SUBSCRIBED") {
-          reconnectAttempts = 0;
-          setStatus(nextStatusAfterSubscribeSuccess());
-          return;
-        }
+    let subscription: { unsubscribe: () => void } | null = null;
+    try {
+      subscription = channelAdapter.subscribe(
+        channelName,
+        (channelStatus) => {
+          if (stopped) return;
 
-        if (
-          channelStatus === "CHANNEL_ERROR" ||
-          channelStatus === "TIMED_OUT" ||
-          channelStatus === "CLOSED"
-        ) {
-          reconnectAttempts += 1;
-          channelUnsubscribe?.();
-          channelUnsubscribe = null;
-          setStatus(nextStatusAfterChannelFailure(reconnectAttempts, maxReconnectAttempts));
-
-          if (!stopped && reconnectAttempts < maxReconnectAttempts) {
-            reconnectTimer = setTimeout(() => {
-              void reconcile();
-            }, reconnectBackoffMs);
+          if (channelStatus === "SUBSCRIBED") {
+            reconnectAttempts = 0;
+            setStatus(nextStatusAfterSubscribeSuccess());
+            return;
           }
-        }
-      },
-      (payload) => {
-        handleDelta(payload);
-      },
-    ).unsubscribe;
+
+          if (
+            channelStatus === "CHANNEL_ERROR" ||
+            channelStatus === "TIMED_OUT" ||
+            channelStatus === "CLOSED"
+          ) {
+            reconnectAttempts += 1;
+            channelUnsubscribe?.();
+            channelUnsubscribe = null;
+            setStatus(nextStatusAfterChannelFailure(reconnectAttempts, maxReconnectAttempts));
+
+            if (!stopped && reconnectAttempts < maxReconnectAttempts) {
+              reconnectTimer = setTimeout(() => {
+                void reconcile();
+              }, reconnectBackoffMs);
+            }
+          }
+        },
+        (payload) => {
+          handleDelta(payload);
+        },
+      );
+    } catch (error) {
+      subscription?.unsubscribe();
+      throw error;
+    }
+
+    if (stopped || status === "degraded" || status === "unavailable") {
+      subscription.unsubscribe();
+      return;
+    }
+    channelUnsubscribe = subscription.unsubscribe;
   };
 
   const reconcile = async () => {
     if (stopped) return;
     const currentGen = ++generation;
     dedupe = createRealtimeDedupeState();
-    await runSnapshot();
+    const snapshotOk = await runSnapshot();
     if (stopped || currentGen !== generation) return;
-    connectChannel();
+    if (snapshotOk) {
+      connectChannel();
+    }
   };
 
   const handleDelta = (payload: RealtimeDeltaPayload) => {
