@@ -50,7 +50,7 @@ const AdminLayout = () => {
         { to: "/admin/heartbeat", icon: Gauge, label: "Executive Dashboard", end: false, moduleKey: "cmd_war_room" },
         { to: "/admin/execution-command-center", icon: Gauge, label: "Execution CMD", end: false, moduleKey: "cmd_war_room" },
         { to: "/admin/execution/production", icon: LayoutGrid, label: "Production board", end: false, moduleKey: "production" },
-        { to: "/admin/execution/assembly", icon: LayoutGrid, label: "Assembly board", end: false, moduleKey: "production" },
+        { to: "/admin/assembly-tasks", icon: LayoutGrid, label: "Assembly board", end: false, moduleKey: "production" },
         { to: "/admin/dispatch-mgmt", icon: LayoutGrid, label: "Dispatch board", end: false, moduleKey: "dispatch" },
         { to: "/admin/execution/ready-goods", icon: LayoutGrid, label: "Ready goods board", end: false, moduleKey: "inventory" },
         { to: "/admin/execution/retail", icon: LayoutGrid, label: "Retail board", end: false, moduleKey: "inventory" },
