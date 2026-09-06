@@ -100,13 +100,25 @@ const rpcMock = vi.fn(async (_fn: string, _args: Record<string, unknown>) => ({
 }));
 
 const uploadMock = vi.fn(async (_path: string, _file: File) => ({ error: null as { message: string } | null }));
+const removeMock = vi.fn(async (_paths: string[]) => ({ error: null as { message: string } | null }));
 
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
+    auth: {
+      getUser: vi.fn(async () => ({
+        data: { user: { id: "operator-1" } },
+        error: null,
+      })),
+    },
     storage: {
       from: () => ({
         upload: (path: string, file: File) => uploadMock(path, file),
+        remove: (paths: string[]) => removeMock(paths),
         getPublicUrl: () => ({ data: { publicUrl: "https://example.test/photo.jpg" } }),
+        createSignedUrl: async (path: string) => ({
+          data: { signedUrl: `https://example.test/signed/${path}` },
+          error: null,
+        }),
       }),
     },
     from: (table: string) => makeQuery(table),
@@ -144,6 +156,8 @@ afterEach(() => {
   rpcMock.mockImplementation(async () => ({ data: null, error: null }));
   uploadMock.mockReset();
   uploadMock.mockImplementation(async () => ({ error: null }));
+  removeMock.mockReset();
+  removeMock.mockImplementation(async () => ({ error: null }));
   resetFixtures();
 });
 
@@ -295,7 +309,7 @@ describe("DispatchManagement (FACT-C3 governed operator workflow)", () => {
           p_carton_id: "carton-1",
           p_net_weight: 1,
           p_gross_weight: 1.2,
-          p_open_photo_ref: "https://example.test/photo.jpg",
+          p_open_photo_ref: expect.stringMatching(/^storage:receipts\/dispatch-carton-evidence\/carton-1\/\d+-[0-9a-f-]+\.jpg$/),
         }),
       ),
     );

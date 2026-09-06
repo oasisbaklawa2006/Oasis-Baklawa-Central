@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { clearOrderForDispatch, releaseOrderToInProduction, releaseOrderToManufacturing, releaseOrderToPackedReady } from "@/lib/order-authority/orderAuthorityClient";
+import { executeGovernedUpload, useGovernedStorageDisplayUrl } from "@/lib/document-storage";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { ArrowRight, Loader2, X, FileText, CheckCircle2, Truck, Printer, Package, ClipboardList, LayoutList, Camera } from "lucide-react";
@@ -121,7 +122,8 @@ const AdminOrders = () => {
   const [splitting, setSplitting] = useState(false);
 
   // Packing proof state
-  const [capturedPhotoUrl, setCapturedPhotoUrl] = useState<string>("");
+  const [capturedPhotoRef, setCapturedPhotoRef] = useState<string>("");
+  const packingProofDisplay = useGovernedStorageDisplayUrl(capturedPhotoRef, "private");
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -321,7 +323,7 @@ const AdminOrders = () => {
 
   const closeDrawer = () => {
     setSelectedOrder(null);
-    setCapturedPhotoUrl("");
+    setCapturedPhotoRef("");
     setTimeout(() => setDrawerItems([]), 300);
   };
 
@@ -355,12 +357,22 @@ const AdminOrders = () => {
     if (!file || !selectedOrder) return;
     setUploadingPhoto(true);
     try {
-      const ext = file.name.split(".").pop() || "jpg";
-      const path = `packing-proof/${selectedOrder.id}/${Date.now()}.${ext}`;
-      const { error: upErr } = await supabase.storage.from("receipts").upload(path, file);
-      if (upErr) throw upErr;
-      const { data: urlData } = supabase.storage.from("receipts").getPublicUrl(path);
-      setCapturedPhotoUrl(urlData.publicUrl);
+      const { data: authData, error: authError } = await supabase.auth.getUser();
+      if (authError || !authData.user?.id) {
+        throw new Error("Authenticated operator identity is required for governed uploads.");
+      }
+      const governedRef = await executeGovernedUpload(
+        supabase,
+        {
+          documentClass: "packing_proof",
+          file,
+          binding: { orderId: selectedOrder.id },
+          actorUserId: authData.user.id,
+          provenance: "central_admin_ui",
+        },
+        file,
+      );
+      setCapturedPhotoRef(governedRef.canonicalRef);
       toast.success("Packing proof uploaded");
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Photo upload failed");
@@ -372,7 +384,7 @@ const AdminOrders = () => {
 
   // Save packing list & mark packed_ready
   const handleSavePackingList = async () => {
-    if (!selectedOrder || !capturedPhotoUrl) return;
+    if (!selectedOrder || !capturedPhotoRef) return;
 
     const gate: PackedReadyGateInput = {
       order: {
@@ -410,7 +422,7 @@ const AdminOrders = () => {
       // Save packing proof attachment
       await supabase.from("order_attachments").insert({
         order_id: selectedOrder.id,
-        file_url: capturedPhotoUrl,
+        file_url: capturedPhotoRef,
         attachment_type: "packing_proof",
       });
 
@@ -418,7 +430,7 @@ const AdminOrders = () => {
 
       toast.success("Packing list saved — Order marked Packed Ready");
       setSelectedOrder(prev => prev ? { ...prev, status: "packed_ready" } : prev);
-      setCapturedPhotoUrl("");
+      setCapturedPhotoRef("");
       await fetchOrders();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to save packing list");
@@ -813,13 +825,19 @@ const AdminOrders = () => {
                         className="hidden"
                         onChange={handlePhotoCapture}
                       />
-                      {capturedPhotoUrl ? (
+                      {capturedPhotoRef ? (
                         <div className="flex items-center gap-3">
-                          <img
-                            src={capturedPhotoUrl}
-                            alt="Packing proof"
-                            className="w-20 h-20 rounded-lg object-cover border-2 border-primary/40"
-                          />
+                          {packingProofDisplay.url ? (
+                            <img
+                              src={packingProofDisplay.url}
+                              alt="Packing proof"
+                              className="w-20 h-20 rounded-lg object-cover border-2 border-primary/40"
+                            />
+                          ) : (
+                            <div className="w-20 h-20 rounded-lg border-2 border-primary/40 bg-muted flex items-center justify-center text-[10px] text-muted-foreground">
+                              {packingProofDisplay.loading ? "Loading…" : "Preview unavailable"}
+                            </div>
+                          )}
                           <div className="flex-1">
                             <p className="text-xs font-bold text-primary flex items-center gap-1">
                               <CheckCircle2 size={12} /> Proof Captured
@@ -849,7 +867,7 @@ const AdminOrders = () => {
                       onClick={handleSavePackingList}
                       disabled={
                         packingSaving ||
-                        !capturedPhotoUrl ||
+                        !capturedPhotoRef ||
                         packedReadyBlockers.length > 0
                       }
                       className="w-full"
@@ -857,7 +875,7 @@ const AdminOrders = () => {
                       {packingSaving ? <Loader2 size={14} className="animate-spin mr-2" /> : <Package size={14} className="mr-2" />}
                       Save Packing List & Mark Ready
                     </Button>
-                    {!capturedPhotoUrl && (
+                    {!capturedPhotoRef && (
                       <p className="text-[10px] text-destructive font-bold text-center uppercase tracking-wider">
                         ⚠ Photo required to proceed
                       </p>

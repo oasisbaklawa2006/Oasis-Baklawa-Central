@@ -10,6 +10,11 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { dispatchDb, dispatchGovernedRpc } from "@/lib/dispatchGovernedRpc";
+import {
+  deleteGovernedObject,
+  executeGovernedUpload,
+  type GovernedStorageReference,
+} from "@/lib/document-storage";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -538,17 +543,26 @@ export default function DispatchManagement() {
       }
     }
     setRecordingEvidence(true);
-    let uploadedPath: string | null = null;
+    let uploadedRef: GovernedStorageReference | null = null;
     try {
       let photoRef = selectedCarton?.open_photo_ref ?? null;
       if (evidencePhoto) {
-        const ext = ALLOWED_PHOTO_TYPES[evidencePhoto.type];
-        const path = `dispatch-carton-evidence/${selectedCartonId}/${Date.now()}-${crypto.randomUUID()}.${ext}`;
-        const { error: uploadError } = await supabase.storage.from("receipts").upload(path, evidencePhoto);
-        if (uploadError) throw new Error(uploadError.message ?? "Photo upload failed.");
-        uploadedPath = path;
-        const { data: urlData } = supabase.storage.from("receipts").getPublicUrl(path);
-        photoRef = urlData.publicUrl;
+        const { data: authData, error: authError } = await supabase.auth.getUser();
+        if (authError || !authData.user?.id) {
+          throw new Error("Authenticated operator identity is required for governed uploads.");
+        }
+        uploadedRef = await executeGovernedUpload(
+          supabase,
+          {
+            documentClass: "dispatch_carton_evidence",
+            file: evidencePhoto,
+            binding: { cartonId: selectedCartonId },
+            actorUserId: authData.user.id,
+            provenance: "central_admin_ui",
+          },
+          evidencePhoto,
+        );
+        photoRef = uploadedRef.canonicalRef;
       }
       const { error: rpcError } = await dispatchGovernedRpc.rpc("record_b2b_dispatch_carton_evidence", {
         p_carton_id: selectedCartonId,
@@ -561,7 +575,7 @@ export default function DispatchManagement() {
       // The evidence RPC succeeded, so any uploaded photo is now referenced
       // by the governed record -- do not delete it even if the refresh
       // below fails.
-      uploadedPath = null;
+      uploadedRef = null;
       if (
         !(await confirmAuthoritativeRefresh(
           () => Promise.all([fetchRows(), refreshWorkingConsignment(workingConsignmentId), refreshCartonDetail(selectedCartonId)]),
@@ -576,8 +590,8 @@ export default function DispatchManagement() {
       setEvidencePhoto(null);
       setEvidenceCorrelationId(crypto.randomUUID());
     } catch (err) {
-      if (uploadedPath) {
-        await supabase.storage.from("receipts").remove([uploadedPath]);
+      if (uploadedRef) {
+        await deleteGovernedObject(supabase, uploadedRef);
       }
       toast.error(err instanceof Error ? err.message : "Failed to record evidence.");
     } finally {

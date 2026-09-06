@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import VariantManager, { type ProductVariant } from "@/components/admin/VariantManager";
 import { supabase } from "@/integrations/supabase/client";
+import { executeGovernedUpload, resolveGovernedReferenceAccessUrl } from "@/lib/document-storage";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import {
@@ -123,15 +124,6 @@ const CATEGORIES = [
 const GST_RATES = [0, 5, 12, 18, 28];
 const DIETARY_OPTIONS = ["100% Eggless", "Contains Nuts", "Vegan", "Gluten-Free", "Sugar-Free", "No Preservatives"];
 const STORAGE_OPTIONS = ["ambient", "refrigerated", "frozen"];
-
-const MAX_PRODUCT_IMAGE_BYTES = 10485760;
-const ALLOWED_PRODUCT_IMAGE_MIME_TYPES = [
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/gif",
-  "image/avif",
-];
 
 export const EMPTY_FORM = {
   name: "",
@@ -666,24 +658,24 @@ const AdminProducts = () => {
     try {
       if (!e.target.files || e.target.files.length === 0) return;
       const file = e.target.files[0];
-      // Mirrors the product-images storage bucket's server-side enforcement (Core migration
-      // 20260809211500_enforce_product_images_bucket_limits.sql) so the operator gets immediate
-      // feedback instead of a storage rejection after the upload has already started.
-      if (file.size > MAX_PRODUCT_IMAGE_BYTES) {
-        return toast.error(
-          `"${file.name}" is too large (max ${Math.floor(MAX_PRODUCT_IMAGE_BYTES / (1024 * 1024))}MB).`,
-        );
-      }
-      if (file.type && !ALLOWED_PRODUCT_IMAGE_MIME_TYPES.includes(file.type)) {
-        return toast.error(`"${file.name}" has an unsupported file type (${file.type}).`);
-      }
       setUploadingImage(true);
-      const fileExt = file.name.split(".").pop();
-      const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
-      const { error: uploadError } = await supabase.storage.from("product-images").upload(fileName, file);
-      if (uploadError) throw uploadError;
-      const { data: publicUrlData } = supabase.storage.from("product-images").getPublicUrl(fileName);
-      updateFormData((prev) => ({ ...prev, image_url: publicUrlData.publicUrl }));
+      const { data: authData, error: authError } = await supabase.auth.getUser();
+      if (authError || !authData.user?.id) {
+        throw new Error("Authenticated operator identity is required for governed uploads.");
+      }
+      const governedRef = await executeGovernedUpload(
+        supabase,
+        {
+          documentClass: "product_image",
+          file,
+          binding: { productId: editingProduct?.id ?? null },
+          actorUserId: authData.user.id,
+          provenance: "central_admin_ui",
+        },
+        file,
+      );
+      const publicUrl = await resolveGovernedReferenceAccessUrl(supabase, governedRef);
+      updateFormData((prev) => ({ ...prev, image_url: publicUrl }));
       toast.success("Image uploaded successfully!");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to upload image");
