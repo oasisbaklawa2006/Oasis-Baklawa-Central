@@ -14,6 +14,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import TopNavBar from "@/components/TopNavBar";
+import { blockLegacyPartialSplitMutation } from "@/lib/order-partial-fulfilment";
 
 const DEPARTMENTS = ["Baklawa", "Chocolate", "Laddu", "Bakery", "Hampers", "Packaging Store"];
 
@@ -64,7 +65,6 @@ const AdminOperations = () => {
   /** Orders finance has cleared but status is still submitted/approved (upstream of this queue). */
   const [financeReadyCount, setFinanceReadyCount] = useState<number | null>(null);
   const [packedReadyCount, setPackedReadyCount] = useState<number | null>(null);
-  const [splittingOrder, setSplittingOrder] = useState<string | null>(null);
 
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [adjustingProduct, setAdjustingProduct] = useState<InventoryItem | null>(null);
@@ -139,64 +139,11 @@ const AdminOperations = () => {
     void fetchOpsData();
   }, []);
 
-  const handleSmartSplit = async (order: OpsOrder) => {
-    setSplittingOrder(order.id);
-    try {
-      let itemsOptimized = 0;
-      for (const item of order.order_items || []) {
-        if (item.production_status === "completed" || !item.product_id) continue;
-
-        const invItem = inventory.find((i) => i.id === item.product_id);
-        if (!invItem || invItem.stock <= 0) continue;
-
-        const allocateQty = Math.min(invItem.stock, item.quantity);
-        const newStockLevel = invItem.stock - allocateQty;
-        const remainingQtyToBake = item.quantity - allocateQty;
-
-        await (supabase as any)
-          .from("factory_inventory")
-          .update({ quantity: newStockLevel })
-          .eq("product_id", item.product_id);
-
-        await (supabase as any).from("inventory_adjustments").insert({
-          product_id: item.product_id,
-          adjustment_type: "smart_fulfillment",
-          quantity: -allocateQty,
-          notes: `Auto-fulfilled for Order #${order.id.split("-")[0].toUpperCase()}`,
-        });
-
-        if (remainingQtyToBake === 0) {
-          await supabase
-            .from("order_items")
-            .update({ production_status: "completed", department: "Ready Goods Store" })
-            .eq("id", item.id);
-        } else {
-          await supabase.from("order_items").update({ quantity: remainingQtyToBake }).eq("id", item.id);
-
-          await supabase.from("order_items").insert({
-            order_id: order.id,
-            product_id: item.product_id,
-            quantity: allocateQty,
-            pack_size: item.pack_size,
-            carton_type: item.carton_type,
-            department: "Ready Goods Store",
-            production_status: "completed",
-            task_type: item.task_type,
-          });
-        }
-        itemsOptimized++;
-      }
-
-      if (itemsOptimized > 0) {
-        toast.success(`Smart Split complete! Pulled from Ready Goods.`, { icon: "✨" });
-        await fetchOpsData({ silent: true });
-      } else {
-        toast.info("No items could be fulfilled from current stock.");
-      }
-    } catch (error) {
-      toast.error("Error during Smart Split.");
-    }
-    setSplittingOrder(null);
+  const handleLegacyPartialSplitBlocked = (order: OpsOrder) => {
+    const block = blockLegacyPartialSplitMutation("AdminOperations.autoFillFromReadyGoods");
+    toast.error(block.message, {
+      description: `Order ${order.id.slice(0, 8).toUpperCase()} — use governed reservation and production release workflows.`,
+    });
   };
 
   const handleAssignDepartment = async (itemId: string, department: string) => {
@@ -444,16 +391,11 @@ const AdminOperations = () => {
                       <div className="flex items-center gap-3">
                         {canBeOptimized && (
                           <button
-                            onClick={() => handleSmartSplit(order)}
-                            disabled={splittingOrder === order.id}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 rounded-lg text-xs font-bold transition-all disabled:opacity-50"
+                            onClick={() => handleLegacyPartialSplitBlocked(order)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 rounded-lg text-xs font-bold transition-all"
+                            title="Partial fulfilment requires governed Core authority (Point 76)"
                           >
-                            {splittingOrder === order.id ? (
-                              <Loader2 size={14} className="animate-spin" />
-                            ) : (
-                              <Wand2 size={14} />
-                            )}{" "}
-                            Auto-Fill
+                            <Wand2 size={14} /> Auto-Fill (governed)
                           </button>
                         )}
                         {!isInternalTask && (
