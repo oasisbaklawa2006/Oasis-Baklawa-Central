@@ -6,6 +6,7 @@ import type {
   CrmCommunicationDirection,
   CrmCommunicationHistoryEntry,
 } from "./crmCommunicationHistoryTypes";
+import { stripCaptureProvenance } from "@/lib/crm-action-capture/crmActionCaptureProvenance";
 
 const AUTO_LOG_PREFIX = "[AUTO]";
 
@@ -35,15 +36,16 @@ export function buildCrmCommunicationChannelGovernance(): CrmCommunicationChanne
     },
     {
       channel: "promise",
-      availability: "partial",
+      availability: "available",
       programmeOwner: "POINT62",
-      reason: "Follow-up dates are captured on interactions; structured promise capture is Point62.",
+      reason: "Structured promise capture with mandatory follow-up date via governed action boundary.",
     },
     {
       channel: "email",
-      availability: "unavailable_not_governed",
-      programmeOwner: "POINT61",
-      reason: "No company-scoped durable email record authority is exposed in Central.",
+      availability: "partial",
+      programmeOwner: "POINT62",
+      reason:
+        "Intent-only capture via Point62 boundary; provider send authority remains unavailable until Core email certification.",
     },
     {
       channel: "system",
@@ -81,7 +83,7 @@ export function inferDirectionFromInteraction(row: ClientInteractionRow): CrmCom
   const notes = row.notes ?? "";
   if (notes.startsWith(AUTO_LOG_PREFIX)) return "outbound";
   const type = (row.interaction_type ?? "").toLowerCase();
-  if (type === "note" || type === "promise") return "internal";
+  if (type === "note" || type === "promise" || type === "email") return "internal";
   if (type === "visit") return "outbound";
   return "unknown";
 }
@@ -109,12 +111,13 @@ export function actorDisplayLabel(role: CrmCommunicationActorRole): string {
 }
 
 function stripAutoLogPrefix(notes: string | null): string | null {
-  if (!notes) return null;
-  if (notes.startsWith(AUTO_LOG_PREFIX)) {
-    const stripped = notes.slice(AUTO_LOG_PREFIX.length).trim();
+  const governed = stripCaptureProvenance(notes);
+  if (!governed) return null;
+  if (governed.startsWith(AUTO_LOG_PREFIX)) {
+    const stripped = governed.slice(AUTO_LOG_PREFIX.length).trim();
     return stripped || null;
   }
-  return notes;
+  return governed;
 }
 
 export function normalizeClientInteractionRow(

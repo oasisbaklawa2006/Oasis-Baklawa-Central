@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { captureCrmManualAction } from "@/lib/crm-action-capture";
+import { stripCaptureProvenance } from "@/lib/crm-action-capture/crmActionCaptureProvenance";
 import { Loader2, Phone, MapPin, StickyNote, MessageSquare, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -94,17 +96,19 @@ export default function ClientInteractionsTab({
       return;
     }
     setSaving(true);
-    const { error } = await supabase.from("client_interactions").insert({
-      company_id: formCompany,
-      executive_id: userId || null,
-      interaction_type: formType,
+    const result = await captureCrmManualAction({
+      companyId: formCompany,
+      executiveId: userId || "",
+      channel: formType as "call" | "whatsapp" | "visit" | "note" | "promise",
       notes: formNotes.trim(),
       outcome: formOutcome.trim() || null,
-      follow_up_date: formFollowUp || null,
+      followUpDate: formFollowUp || null,
+      authorizedCompanyIds: companyIds,
+      idempotencyKey: crypto.randomUUID(),
     });
     setSaving(false);
-    if (error) {
-      toast.error("Failed: " + error.message);
+    if (result.ok === false) {
+      toast.error(result.message);
     } else {
       toast.success("Activity logged.");
       setShowModal(false);
@@ -162,7 +166,7 @@ export default function ClientInteractionsTab({
                     {int.company_id ? companyMap[int.company_id] || "Unknown" : "—"}
                   </span>
                 </div>
-                {int.notes && <p className="text-sm text-foreground mt-1">{int.notes}</p>}
+                {int.notes && <p className="text-sm text-foreground mt-1">{stripCaptureProvenance(int.notes) ?? int.notes}</p>}
                 {int.outcome && (
                   <div className="mt-1">
                     <Badge variant="secondary" className="text-xs">Outcome: {int.outcome}</Badge>
@@ -209,6 +213,7 @@ export default function ClientInteractionsTab({
                   <SelectItem value="whatsapp">💬 WhatsApp</SelectItem>
                   <SelectItem value="visit">📍 Visit</SelectItem>
                   <SelectItem value="note">📝 Note</SelectItem>
+                  <SelectItem value="promise">🤝 Promise / Commitment</SelectItem>
                 </SelectContent>
               </Select>
             </div>
