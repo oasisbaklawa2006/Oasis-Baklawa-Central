@@ -50,20 +50,19 @@ export function useScopedRealtimeSubscription(options: ScopedRealtimeSubscriptio
   const changesKey = JSON.stringify(changes);
   const scopeRef = useRef(scope);
   const changesRef = useRef(changes);
-  scopeRef.current = scope;
-  changesRef.current = changes;
-
   const snapshotRef = useRef(snapshot);
   const onDeltaRef = useRef(onDelta);
   const onAcceptedDeltaRef = useRef(onAcceptedDelta);
   const onStatusChangeRef = useRef(onStatusChange);
 
   useEffect(() => {
+    scopeRef.current = scope;
+    changesRef.current = changes;
     snapshotRef.current = snapshot;
     onDeltaRef.current = onDelta;
     onAcceptedDeltaRef.current = onAcceptedDelta;
     onStatusChangeRef.current = onStatusChange;
-  }, [snapshot, onDelta, onAcceptedDelta, onStatusChange]);
+  }, [scope, changes, snapshot, onDelta, onAcceptedDelta, onStatusChange]);
 
   useEffect(() => {
     if (!enabled || !isRealtimeEnabled) return;
