@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { isAuthorizedForAdminPath } from "@/lib/appverse/routeAccess";
 import { getRoleDestination } from "@/lib/auth-routing";
 
+/** Resolve the governed redirect target when an admin route is denied for the current role. */
 function getUnauthorizedRedirect(role: string | null | undefined): string {
   const normalizedRole = role?.trim().toUpperCase();
   if (normalizedRole === "SALES_EXECUTIVE") return "/sales/dashboard";
@@ -13,6 +14,7 @@ function getUnauthorizedRedirect(role: string | null | undefined): string {
   return destination === "/customer-app-redirect" ? "/admin" : destination;
 }
 
+/** Enforce admin-route RBAC after profile hydration; deny with render-time redirect. */
 export default function AdminRouteGuard({ children }: { children: React.ReactNode }) {
   const { user, role, loading: authLoading, profileReady } = useAuth();
   const location = useLocation();

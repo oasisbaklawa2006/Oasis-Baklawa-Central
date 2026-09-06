@@ -24,6 +24,7 @@ vi.mock("sonner", () => ({
   toast: { error: vi.fn() },
 }));
 
+/** Mount AdminRouteGuard at a given admin path and return the memory router for location assertions. */
 function renderGuardAt(initialPath: string) {
   const router = createMemoryRouter(
     [

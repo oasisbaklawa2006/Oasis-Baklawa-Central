@@ -5,12 +5,14 @@ import { probeForbiddenRoutes } from "./ai-uat/runtime";
 
 const DISPATCH_PREFIX = "TEST_DISPATCH";
 
+/** Return true when governed Dispatch UAT credentials are present in the runner env. */
 function hasDispatchCredentials(): boolean {
   return Boolean(
     process.env[`${DISPATCH_PREFIX}_EMAIL`]?.trim() && process.env[`${DISPATCH_PREFIX}_PASSWORD`]?.trim(),
   );
 }
 
+/** Return true when TEST_PREVIEW_URL is configured without invoking getPreviewUrl(). */
 function hasPreviewUrl(): boolean {
   return Boolean(process.env.TEST_PREVIEW_URL?.trim());
 }
