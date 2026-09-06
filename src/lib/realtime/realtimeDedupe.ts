@@ -1,5 +1,8 @@
 import type { RealtimeDeltaPayload } from "./types";
 
+const MAX_SEEN_EVENT_IDS = 1_000;
+const MAX_ENTITY_VERSIONS = 1_000;
+
 export type RealtimeDedupeState = {
   seenEventIds: Set<string>;
   lastVersionByEntity: Map<string, number>;
@@ -19,6 +22,22 @@ export type RealtimeDedupeDecision =
 function entityKey(payload: RealtimeDeltaPayload): string | null {
   if (!payload.entityId) return null;
   return `${payload.table}:${payload.entityId}`;
+}
+
+function evictOldestSetEntry(values: Set<string>, limit: number): void {
+  while (values.size > limit) {
+    const oldest = values.values().next().value;
+    if (typeof oldest !== "string") break;
+    values.delete(oldest);
+  }
+}
+
+function evictOldestMapEntry(values: Map<string, number>, limit: number): void {
+  while (values.size > limit) {
+    const oldest = values.keys().next().value;
+    if (typeof oldest !== "string") break;
+    values.delete(oldest);
+  }
 }
 
 export function evaluateRealtimeDelta(
@@ -49,9 +68,13 @@ export function recordAcceptedRealtimeDelta(
   payload: RealtimeDeltaPayload,
 ): void {
   state.seenEventIds.add(payload.eventId);
+  evictOldestSetEntry(state.seenEventIds, MAX_SEEN_EVENT_IDS);
+
   const key = entityKey(payload);
   if (key) {
     const prev = state.lastVersionByEntity.get(key) ?? 0;
+    state.lastVersionByEntity.delete(key);
     state.lastVersionByEntity.set(key, Math.max(prev, payload.version));
+    evictOldestMapEntry(state.lastVersionByEntity, MAX_ENTITY_VERSIONS);
   }
 }
