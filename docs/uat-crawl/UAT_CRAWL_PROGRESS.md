@@ -1,6 +1,6 @@
 # UAT Crawl Progress Summary
 
-**Last updated:** 2026-09-06 (watchdog S2 deepening + public S1/S2 — GHA pending)  
+**Last updated:** 2026-09-06 (watchdog S2 deepening — GHA run 34029358388 committed)  
 **Branch / PR:** `cursor/physical-uat-readiness-matrix-e763` → **#462**  
 **Current main (HELD):** `64a107dfc167be76673a3d18f177a72472dcb241` (#491) — **NOT deployed on Vercel**  
 **#497 repair preview (open PR):** `fa3b87992720902efbeee3467905aa3493fff431` — **NOT current-main certification**  
