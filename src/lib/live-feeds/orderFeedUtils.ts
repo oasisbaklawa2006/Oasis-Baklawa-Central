@@ -1,5 +1,6 @@
 import type { OrderTraceInputs } from "@/utils/orderTrace";
 import { deriveFinanceReleaseState } from "@/utils/financeReleaseState";
+import { isDispatchPanicFromUrgency } from "@/lib/order-priority-owner-sla";
 import type { OperationalOrderFeedRow } from "./feedTypes";
 
 export function orderTraceInputs(row: OperationalOrderFeedRow): OrderTraceInputs {
@@ -17,7 +18,7 @@ export function isFinanceHoldOrder(row: OperationalOrderFeedRow): boolean {
 }
 
 export function isDispatchPanicOrder(row: OperationalOrderFeedRow): boolean {
-  return row.dispatch_urgency === "panic";
+  return isDispatchPanicFromUrgency(row.dispatch_urgency);
 }
 
 export function isTriageReviewOrder(row: OperationalOrderFeedRow): boolean {
