@@ -1,6 +1,6 @@
 # UAT Crawl Progress Summary
 
-**Last updated:** 2026-09-06 (watchdog S2 deepening — GHA run 34029358388 committed)  
+**Last updated:** 2026-09-06 (S2 gap deepening — GHA run 34034836575 @ `8d0d45b9`)  
 **Branch / PR:** `cursor/physical-uat-readiness-matrix-e763` → **#462**  
 **Current main (HELD):** `64a107dfc167be76673a3d18f177a72472dcb241` (#491) — **NOT deployed on Vercel**  
 **#497 repair preview (open PR):** `fa3b87992720902efbeee3467905aa3493fff431` — **NOT current-main certification**  
@@ -71,6 +71,23 @@ Full `all` tranche in **11m43s** — counts unchanged; commit job **no file delt
 **Public continuation:** login surfaces redirect before form/link selectors settle — S0 + UAT-0009 S2 only; UAT-0008 S1/S2 remains NOT captured.
 
 **GHA commit-evidence:** succeeded (artifact copy fix).
+
+### S2 gap deepening — run [34034836575](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34034836575) @ `fbcfb504`
+
+**17m17s** · ace340fe continuation · artifact `uat-crawl-evidence-34034836575-1` · commit `8d0d45b9`
+
+| Metric | Before | After |
+|---|---:|---:|
+| Authenticated S0–S3 | 80 / 131 | **80 / 131** (unchanged) |
+| Authenticated S1 | 77 / 80 | **80 / 80** |
+| Authenticated S2 | 72 / 80 | **80 / 80** |
+| S2 gap targets (8) | 0 / 8 | **8 / 8** |
+| Verified BLOCKED | 46 / 46 | **46 / 46** (unchanged) |
+| FAIL-493 evidence | preserved | **preserved** — not re-run |
+
+**Gap targets closed:** UAT-0002 (PHH tab), UAT-0037/0038 (page-button-focus on operator inbox), UAT-0052/0053 (overlay-open post-redirect), UAT-0061 (row-hover on TV column), UAT-0080 (PHH tab post-redirect), UAT-0094 (dispatch-order-focus filter-empty).
+
+**Manifest:** `UAT_S2_GAP_DEEPENING_SUMMARY.json` · `UAT_INDEX_S2_GAP_DEEPENING.md`
 
 ### Public continuation — ace340fe unblocked surfaces
 
