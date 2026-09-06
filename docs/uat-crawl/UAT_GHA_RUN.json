@@ -1,9 +1,9 @@
 {
-  "runId": "34037424554",
+  "runId": "34046709938",
   "runAttempt": "1",
-  "runTranche": "post-merge-497-main",
+  "runTranche": "watchdog-continue",
   "ref": "refs/heads/cursor/physical-uat-readiness-matrix-e763",
-  "sha": "e9333dfbe7bd8a321f024329ab870a7c8fa1ace1",
+  "sha": "fc0c67db2228ef9db559e9451fbc02119e2ac6b4",
   "currentMainHoldSha": "e2f123b0fe257b8a1f39ec40d5f544fff1ebe313",
   "resolvedDeploySha": "e2f123b0fe257b8a1f39ec40d5f544fff1ebe313",
   "continuationFallback": false,
@@ -11,6 +11,6 @@
   "deployBlocked": false,
   "deployUrl": "https://oasis-baklawa-central-8lkgmf1q2-oasisbaklawa2006-6222s-projects.vercel.app",
   "fail493EvidencePreserved": "Pre-fix FAIL @ 8f042fa (run 34015742110) + preview PASS @ 9715c20d (run 34016393457) preserved append-only; #497 merged @ e2f123b0",
-  "uat005CurrentMainPass": "true",
-  "completedAt": "2026-09-06T14:09:49Z"
+  "uat005CurrentMainPass": "",
+  "completedAt": "2026-09-06T17:06:02Z"
 }
