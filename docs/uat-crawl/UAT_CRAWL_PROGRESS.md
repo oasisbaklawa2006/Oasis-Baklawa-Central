@@ -41,7 +41,13 @@ When `64a107df` has no Vercel deploy, GHA `all` tranche resolves ace340fe contin
 
 **Totals:** authenticated S0–S3 **80 / 131** · public continuation **5 / 5** (ace340fe) · verified **BLOCKED 46 / 46** · remaining without auth function evidence **46** (credential/deploy authority)
 
-### GHA run [34024264227](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34024264227) — confirmation re-crawl (identical to 34023648441)
+### GHA confirmation — run [34026395129](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34026395129) @ `46eef121`
+
+Full `all` tranche in **11m43s** — counts unchanged; commit job **no file delta** (identical checksums). Artifact: `uat-crawl-evidence-34026395129-1`.
+
+### Watchdog S1 deepening — run [34028074023](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34028074023) @ `a8182f75`
+
+**11m51s** · sidebar selector fix did not yield S1 (desktop admin sidebar always visible on ace340fe). Commit job: no screenshot delta. **Next:** S1 fallback via mobile nav-open + sidebar-hover (`0ed85980+`). Artifact: `uat-crawl-evidence-34028074023-1`.
 
 Re-ran `all` tranche after workflow default change — **no new screenshots** (identical ace340fe evidence). Metadata-only refresh superseded by public continuation below.
 

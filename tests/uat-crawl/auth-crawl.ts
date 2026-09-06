@@ -114,6 +114,28 @@ async function captureInteractionStates(
     uxEvidence.s1 = s1.rel;
     uxEvidenceSha256.s1 = sha256File(s1.abs);
     shotNames.push(s1Name);
+  } else {
+    const mobileNav = page.locator('button[aria-label="Open navigation"]');
+    if (await mobileNav.isVisible().catch(() => false)) {
+      await mobileNav.click().catch(() => undefined);
+      await page.waitForTimeout(800);
+      const s1Name = screenshotName(target.uatId, app, target.persona, `${routeSlug}-${stateSlug}`, "S1", "auth-mobile-nav-open");
+      const s1 = await captureAuthShot(page, screenshotDir, relPrefix, s1Name);
+      uxEvidence.s1 = s1.rel;
+      uxEvidenceSha256.s1 = sha256File(s1.abs);
+      shotNames.push(s1Name);
+    } else {
+      const sidebarHover = page.locator('aside nav a, aside a[href^="/"]').first();
+      if (await sidebarHover.isVisible().catch(() => false)) {
+        await sidebarHover.hover().catch(() => undefined);
+        await page.waitForTimeout(400);
+        const s1Name = screenshotName(target.uatId, app, target.persona, `${routeSlug}-${stateSlug}`, "S1", "auth-sidebar-hover");
+        const s1 = await captureAuthShot(page, screenshotDir, relPrefix, s1Name);
+        uxEvidence.s1 = s1.rel;
+        uxEvidenceSha256.s1 = sha256File(s1.abs);
+        shotNames.push(s1Name);
+      }
+    }
   }
 
   if (target.state === "sheet-review-open") {
