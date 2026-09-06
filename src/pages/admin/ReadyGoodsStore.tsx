@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, Factory, PackageCheck, RefreshCw, ShieldCheck, Truck, Warehouse } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { productionGovernedRpc } from "@/lib/production-lifecycle";
 import { rgsGovernedRpc } from "@/lib/rgsGovernedRpc";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -242,13 +243,12 @@ export default function ReadyGoodsStore() {
         void load();
         return;
       }
-      const shortageError = await callGovernedRpc("create_production_shortage_demand", {
-        p_reservation_id: reservation.id,
-        p_department: department,
+      const shortageResult = await productionGovernedRpc.createShortageDemand({
+        p_reservation_id: String(reservation?.id ?? ""),
+        p_department: String(department),
         p_priority: row.order?.status === "approved" ? "normal" : "urgent",
-        p_correlation_id: crypto.randomUUID(),
       });
-      if (shortageError) { toast.error(shortageError.message || "Could not route shortage to production"); return; }
+      if (shortageResult.error) { toast.error(shortageResult.error.message || "Could not route shortage to production"); return; }
       toast.success(`Reserved what was available; routed ${shortage} short of ${row.sku} to Production`);
       void load();
     } finally {
