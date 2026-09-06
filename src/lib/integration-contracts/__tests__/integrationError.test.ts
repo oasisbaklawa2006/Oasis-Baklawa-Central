@@ -36,6 +36,44 @@ describe("classifyIntegrationError", () => {
     expect(result.retryable).toBe(false);
   });
 
+  it("classifies cannot cancel as authority_denied not illegal_transition", () => {
+    const result = classifyIntegrationError({
+      err: new Error("Role OPERATOR cannot cancel dispatch"),
+      operation: "write",
+    });
+    expect(result.code).toBe("authority_denied");
+    expect(result.failureClass).toBe("permanent");
+  });
+
+  it("classifies missing reason before illegal_transition vocabulary", () => {
+    const result = classifyIntegrationError({
+      err: new Error("Cannot approve without a non-empty reason"),
+      operation: "write",
+    });
+    expect(result.code).toBe("reason_required");
+    expect(result.failureClass).toBe("permanent");
+  });
+
+  it("classifies connection failures as transient network_error", () => {
+    const result = classifyIntegrationError({
+      err: new Error("Cannot connect to host"),
+      operation: "read",
+    });
+    expect(result.code).toBe("network_error");
+    expect(result.failureClass).toBe("transient");
+    expect(result.retryable).toBe(true);
+  });
+
+  it("classifies 409 as permanent and non-retryable", () => {
+    const result = classifyIntegrationError({
+      err: { message: "Conflict", status: 409 },
+      operation: "write",
+    });
+    expect(result.code).toBe("serialization_conflict");
+    expect(result.failureClass).toBe("permanent");
+    expect(result.retryable).toBe(false);
+  });
+
   it("classifies 404 as permanent not_found", () => {
     const result = classifyIntegrationError({
       err: { message: "Not found", status: 404 },

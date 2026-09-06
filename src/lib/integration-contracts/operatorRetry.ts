@@ -1,7 +1,7 @@
 import { requireExecutionAuthority } from "@/lib/execution-authority/executionAuthorityGuard";
 import type { ExecutionAuthorityContext } from "@/lib/execution-authority/executionAuthorityTypes";
 import { preserveOperatorRetryIdentity, type IdempotentCommandIdentity } from "./idempotency";
-import { classifyIntegrationError } from "./integrationError";
+import { IntegrationError, classifyIntegrationError } from "./integrationError";
 
 export interface OperatorRetryContext extends IdempotentCommandIdentity {
   actorUserId: string;
@@ -19,13 +19,19 @@ export interface SensitiveOperatorRetryOptions {
 const SENSITIVE_RETRY_ACTIONS = new Set([
   "queue:retry",
   "finance:retry",
-  "payment:retry",
   "dispatch:retry",
 ]);
 
 function resolveAuthorityAction(action: string): string {
-  if (action === "queue:retry") return "queue:create";
-  return action;
+  switch (action) {
+    case "queue:retry":
+      return "queue:create";
+    case "finance:retry":
+    case "dispatch:retry":
+      return "queue:start";
+    default:
+      return action;
+  }
 }
 
 /**
@@ -52,8 +58,11 @@ export function assertOperatorRetryAllowed(
 
   const requiresStepUp = options?.requiresStepUp ?? SENSITIVE_RETRY_ACTIONS.has(action);
   if (requiresStepUp && !ctx.stepUpVerified) {
-    throw classifyIntegrationError({
-      err: new Error("Step-up authentication (AAL2) required for operator retry"),
+    throw new IntegrationError({
+      code: "unauthorized",
+      failureClass: "permanent",
+      message: "Step-up authentication (AAL2) required for operator retry",
+      retryable: false,
       source: "operator-retry",
     });
   }

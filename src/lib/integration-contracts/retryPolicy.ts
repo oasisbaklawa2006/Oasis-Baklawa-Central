@@ -64,7 +64,7 @@ export function evaluateRetryDecision(err: unknown, ctx: RetryContext): RetryDec
   }
 
   const maxAttempts = maxAttemptsForContext(ctx);
-  if (ctx.attempt >= maxAttempts) {
+  if (ctx.attempt > maxAttempts) {
     return { shouldRetry: false, delayMs: 0, reason: "retry_budget_exhausted" };
   }
 
@@ -84,11 +84,11 @@ export async function withBoundedRetry<T>(
     try {
       return await fn();
     } catch (err) {
-      attempt += 1;
-      const decision = evaluateRetryDecision(err, { ...ctx, attempt });
+      const decision = evaluateRetryDecision(err, { ...ctx, attempt: attempt + 1 });
       if (!decision.shouldRetry) {
         throw err instanceof IntegrationError ? err : classifyIntegrationError({ err, operation: ctx.operation });
       }
+      attempt += 1;
       await new Promise((resolve) => setTimeout(resolve, decision.delayMs));
     }
   }
