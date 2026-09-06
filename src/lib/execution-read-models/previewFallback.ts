@@ -1,12 +1,11 @@
 /**
- * Production preview cards require explicit opt-in.
+ * Production preview cards require explicit opt-in (staging only).
  */
 
+import { isDemoFallbackPermitted } from "@/lib/integration-contracts";
+
 export function isPreviewFallbackEnabled(): boolean {
-  return (
-    typeof import.meta !== "undefined" &&
-    import.meta.env?.VITE_EXECUTION_PREVIEW_FALLBACK === "true"
-  );
+  return isDemoFallbackPermitted();
 }
 
 export function resolveBoardProjectionSource(

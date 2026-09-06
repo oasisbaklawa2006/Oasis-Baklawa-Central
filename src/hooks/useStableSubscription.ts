@@ -3,6 +3,10 @@ import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { isRealtimeEnabled } from "@/hooks/useRealtime";
 import { removeDuplicateRealtimeChannel } from "@/utils/realtime";
+import {
+  MAX_READ_RETRY_ATTEMPTS,
+  computeBoundedBackoffMs,
+} from "@/lib/integration-contracts";
 
 /**
  * Shared single-subscription hook per table.
@@ -30,7 +34,6 @@ export function useStableSubscription(
     let retries = 0;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
     let cancelled = false;
-    const MAX_RETRIES = 5;
     const baseChannelName = `stable-${tableName}`;
 
     const connect = () => {
@@ -56,23 +59,23 @@ export function useStableSubscription(
             } else if (
               (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") &&
               !cancelled &&
-              retries < MAX_RETRIES
+              retries < MAX_READ_RETRY_ATTEMPTS
             ) {
               retries += 1;
               if (channelRef.current) {
                 void supabase.removeChannel(channelRef.current);
                 channelRef.current = null;
               }
-              retryTimer = setTimeout(connect, 10000);
+              retryTimer = setTimeout(connect, computeBoundedBackoffMs(retries));
             }
           });
 
         channelRef.current = channel;
       } catch (err) {
         console.warn(`[useStableSubscription:${tableName}] connect failed`, err);
-        if (!cancelled && retries < MAX_RETRIES) {
+        if (!cancelled && retries < MAX_READ_RETRY_ATTEMPTS) {
           retries += 1;
-          retryTimer = setTimeout(connect, 10000);
+          retryTimer = setTimeout(connect, computeBoundedBackoffMs(retries));
         }
       }
     };
