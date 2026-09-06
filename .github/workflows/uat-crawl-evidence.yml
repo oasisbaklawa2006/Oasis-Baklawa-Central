@@ -27,6 +27,9 @@ on:
   push:
     branches:
       - cursor/physical-uat-readiness-matrix-e763
+    paths-ignore:
+      - "docs/uat-crawl/**"
+      - "uat-evidence/**"
 
 permissions:
   contents: read
