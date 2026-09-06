@@ -881,7 +881,7 @@ export function WhatsAppInbox() {
     changes: WHATSAPP_PACKETS_ALL_CHANGES,
     mode: "invalidate",
     snapshot: async () => {
-      await loadPackets();
+      await loadPackets({ silent: true });
     },
     onAcceptedDelta: () => {
       scheduleRealtimeReload();

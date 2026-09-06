@@ -61,8 +61,9 @@ export default function CentralOrderPool() {
   const [tab, setTab] = useState("pending_review");
   const [actingId, setActingId] = useState<string | null>(null);
 
-  const fetchAll = useCallback(async () => {
-    setLoading(true);
+  const fetchAll = useCallback(async (opts?: { silent?: boolean }) => {
+    const silent = Boolean(opts?.silent);
+    if (!silent) setLoading(true);
     const [ordersRes, companiesRes] = await Promise.all([
       supabase
         .from("suggested_orders")
@@ -78,15 +79,19 @@ export default function CentralOrderPool() {
     }));
     setOrders(normalized);
     setCompanies((companiesRes.data as Company[]) ?? []);
-    setLoading(false);
+    if (!silent) setLoading(false);
   }, []);
+
+  const fetchAllSnapshot = useCallback(async () => {
+    await fetchAll({ silent: true });
+  }, [fetchAll]);
 
   useScopedRealtimeSubscription({
     domain: "suggested_orders",
     scope: { type: "global_staff" },
     changes: SUGGESTED_ORDERS_ALL_CHANGES,
     mode: "refetch",
-    snapshot: fetchAll,
+    snapshot: fetchAllSnapshot,
     pollingFallbackMs: 30_000,
   });
 
@@ -145,7 +150,7 @@ export default function CentralOrderPool() {
           </p>
         </div>
         <button
-          onClick={fetchAll}
+          onClick={() => void fetchAll()}
           className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border border-border hover:bg-muted text-muted-foreground hover:text-foreground"
         >
           <RefreshCw size={12} /> Refresh

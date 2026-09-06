@@ -4,6 +4,7 @@ import { AlertCircle, RefreshCw, MessageSquare, Send, FileText, Mic, Image as Im
 import { toast } from "sonner";
 import { parseBanyanMessage } from "@/lib/banyan-parser";
 import { useScopedRealtimeSubscription } from "@/hooks/useScopedRealtimeSubscription";
+import { isRealtimeEnabled } from "@/hooks/useRealtime";
 import { DEBUG_WEBHOOKS_INSERT_UPDATE_CHANGES, type RealtimeDeltaPayload } from "@/lib/realtime";
 import AliasDrawer from "./AliasDrawer";
 
@@ -157,6 +158,7 @@ export default function RawIntelligenceTab() {
   });
 
   useEffect(() => {
+    if (isRealtimeEnabled) return;
     void fetchRaw();
     void fetchAliases();
     void fetchOrphans();

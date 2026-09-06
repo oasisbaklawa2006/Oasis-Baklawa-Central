@@ -105,8 +105,9 @@ const AdminPricing = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [showMissingOnly, setShowMissingOnly] = useState(false);
 
-  const fetchProducts = useCallback(async () => {
-    setLoading(true);
+  const fetchProducts = useCallback(async (opts?: { silent?: boolean }) => {
+    const silent = Boolean(opts?.silent);
+    if (!silent) setLoading(true);
 
     const { data, error } = await supabase
       .from("products")
@@ -131,8 +132,12 @@ const AdminPricing = () => {
       }));
     }
 
-    setLoading(false);
+    if (!silent) setLoading(false);
   }, []);
+
+  const fetchProductsSnapshot = useCallback(async () => {
+    await fetchProducts({ silent: true });
+  }, [fetchProducts]);
 
   useEffect(() => {
     void fetchProducts();
@@ -143,7 +148,7 @@ const AdminPricing = () => {
     scope: { type: "global_staff" },
     changes: PRODUCTS_UPDATE_CHANGES,
     mode: "refetch",
-    snapshot: fetchProducts,
+    snapshot: fetchProductsSnapshot,
     pollingFallbackMs: 30_000,
   });
 
