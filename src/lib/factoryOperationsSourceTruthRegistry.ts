@@ -183,6 +183,22 @@ export const FACTORY_SOURCE_TRUTH: FactorySourceTruthEntry[] = [
     evidence: "Factory modules resolve SKU/name/department metadata from products but do not treat it as execution state.",
   },
   {
+    relation: "production_issues",
+    subsystem: "PRODUCTION",
+    status: "AUTHORITATIVE",
+    readConsumers: ["JobExecutionTab", "exception-governance"],
+    writeAuthority: "report_production_issue / resolve_production_issue governed RPCs",
+    evidence: "Point 89 blocker exceptions bind to job_id + department; Central reads open issues but never inserts production_issues directly.",
+  },
+  {
+    relation: "factory_inventory",
+    subsystem: "LEGACY",
+    status: "DEAD_PROJECTION",
+    readConsumers: ["AdminOperations", "AdminDashboard"],
+    writeAuthority: "BLOCKED — Point 89 shadow-write guard; wastage/rejection must use governed Core RPCs",
+    evidence: "AdminOperations wastage/damage adjustments fail closed via exception-governance shadow-write guard.",
+  },
+  {
     relation: "operational_queue_items",
     subsystem: "LEGACY",
     status: "DEAD_PROJECTION",

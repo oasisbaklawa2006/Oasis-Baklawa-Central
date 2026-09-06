@@ -14,7 +14,11 @@ import {
   RefreshCw,
 } from "lucide-react";
 import TopNavBar from "@/components/TopNavBar";
+<<<<<<< HEAD
 import { blockLegacyPartialSplitMutation } from "@/lib/order-partial-fulfilment";
+=======
+import { assertNotShadowWrite } from "@/lib/exception-governance";
+>>>>>>> f4de25c0 (feat(point89): fail-closed exception/QH governance contract over Core RPCs)
 
 const DEPARTMENTS = ["Baklawa", "Chocolate", "Laddu", "Bakery", "Hampers", "Packaging Store"];
 
@@ -161,6 +165,18 @@ const AdminOperations = () => {
 
   const handleAdjustStock = async () => {
     if (!adjustingProduct || adjustAmount === "" || Number(adjustAmount) <= 0) return;
+    if (adjustReason === "wastage" || adjustReason === "damage") {
+      try {
+        assertNotShadowWrite("factory_inventory", `${adjustReason} adjustment blocked`);
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Wastage and damage must be recorded through governed production or inventory exception surfaces.",
+        );
+        return;
+      }
+    }
     setIsSubmitting(true);
     const amount = Number(adjustAmount);
     const isDeduction = adjustReason === "wastage" || adjustReason === "damage";
