@@ -4,7 +4,7 @@ import {
   Headphones, Users, Package, BarChart3, Scale, Globe, Settings, Shield, MessageCircle,
   Factory, PackageCheck, Landmark, AlertCircle, Languages, Bell, Sparkles, Monitor, Megaphone, Store,
   ScanLine, CalendarDays, Warehouse, Box, Boxes, ListOrdered, AlertOctagon, ScanBarcode, Network, Gauge, LayoutGrid, Search, PackageMinus,
-  Workflow, Link2, Inbox, Brain, ChevronDown, CalendarCheck2, ScrollText, PackageSearch,
+  Workflow, Link2, Inbox, Brain, ChevronDown, CalendarCheck2, ScrollText, PackageSearch, Receipt,
 } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -104,6 +104,7 @@ const AdminLayout = () => {
         { to: "/admin/catalogue-approvals", icon: Inbox, label: "Catalogue approvals", moduleKey: "products" },
         { to: "/admin/pricing", icon: BarChart3, label: t("Pricing"), moduleKey: "pricing" },
         { to: "/admin/finance-governance", icon: Landmark, label: "Finance governance (audit)", moduleKey: "finance_audit" },
+        { to: "/admin/finance-board", icon: Receipt, label: "Finance release board", moduleKey: "finance" },
         { to: "/admin/finance", icon: DollarSign, label: t("Finance"), moduleKey: "finance" },
         { to: "/admin/users", icon: Users, label: t("Users"), moduleKey: "users" },
         { to: "/sales/dashboard", icon: BarChart3, label: t("Sales Console"), moduleKey: "clients" },
