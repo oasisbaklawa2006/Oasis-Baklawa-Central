@@ -353,6 +353,8 @@ jobs:
         if: env.RUN_TRANCHE != 'post-merge-proofs' && (env.RUN_TRANCHE == 'all' || env.RUN_TRANCHE == 'public-continuation' || env.RUN_TRANCHE == 'continue')
         continue-on-error: true
         run: node scripts/uat-crawl/record-verified-blockers.mjs
+
+      - name: Write run metadata for commit job
         if: always()
         shell: bash
         run: |
