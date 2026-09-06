@@ -1,4 +1,5 @@
-import { useEffect, useState, useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { blockLegacyProductionMutation } from "@/lib/production-lifecycle";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
@@ -105,28 +106,9 @@ const AdminInventory = () => {
   }, [fetchStock]);
 
   const handleAddStock = async () => {
-    if (!addStockProduct || !addQty || Number(addQty) <= 0) {
-      toast.error("Enter a valid quantity");
-      return;
-    }
-    setIsSubmitting(true);
-    try {
-      const { error } = await supabase.from("daily_production_logs").insert({
-        product_id: addStockProduct.id,
-        department: "manual_adjustment",
-        produced_qty: Number(addQty),
-        logged_by: user?.id || null,
-      });
-      if (error) throw error;
-      toast.success(`Added ${addQty} units for ${addStockProduct.name}`);
-      setAddStockProduct(null);
-      setAddQty("");
-      fetchStock();
-    } catch (err: any) {
-      toast.error(err.message || "Failed to add stock");
-    } finally {
-      setIsSubmitting(false);
-    }
+    const block = blockLegacyProductionMutation("AdminInventory.handleAddStock");
+    toast.error(block.message);
+    return;
   };
 
   const filtered = items.filter((i) =>

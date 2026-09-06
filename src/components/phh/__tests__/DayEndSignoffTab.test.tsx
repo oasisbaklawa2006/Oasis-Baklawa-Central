@@ -10,8 +10,10 @@ const rpcMock = vi.fn(async (_fn: string, _args: Record<string, unknown>) => ({
 let currentSignoff: Record<string, unknown> | null = null;
 let loadFails = false;
 
-vi.mock("@/lib/rgsGovernedRpc", () => ({
-  rgsGovernedRpc: { rpc: (...args: unknown[]) => rpcMock(...(args as [string, Record<string, unknown>])) },
+vi.mock("@/lib/production-lifecycle", () => ({
+  productionGovernedRpc: {
+    submitDayEnd: (args: Record<string, unknown>) => rpcMock("submit_production_day_end", args),
+  },
 }));
 
 vi.mock("@/integrations/supabase/client", () => ({
@@ -82,7 +84,7 @@ describe("DayEndSignoffTab", () => {
       p_department: "ARABIC_SWEETS",
       p_exception_notes: "Late start",
       p_corrects_signoff_id: null,
-      p_correlation_id: expect.any(String),
+      p_business_date: expect.any(String),
     })));
   });
 
