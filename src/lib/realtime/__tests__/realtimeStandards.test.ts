@@ -17,6 +17,7 @@ import {
   createRealtimeSubscriptionController,
   toRealtimeDeltaPayload,
   type RealtimeChannelAdapter,
+  type RealtimeSubscriptionController,
 } from "../realtimeSubscriptionController";
 import {
   canApplyRealtimeDelta,
@@ -122,6 +123,23 @@ describe("Point23 dedupe and stale version denial", () => {
     expect(stale.accept).toBe(false);
     expect(stale.reason).toBe("stale_version");
   });
+
+  it("bounds retained event and entity identities", () => {
+    const state = createRealtimeDedupeState();
+    for (let index = 0; index < 1_001; index += 1) {
+      recordAcceptedRealtimeDelta(state, {
+        eventId: `evt-${index}`,
+        version: index + 1,
+        table: "orders",
+        entityId: `order-${index}`,
+      });
+    }
+
+    expect(state.seenEventIds.size).toBe(1_000);
+    expect(state.lastVersionByEntity.size).toBe(1_000);
+    expect(state.seenEventIds.has("evt-0")).toBe(false);
+    expect(state.lastVersionByEntity.has("orders:order-0")).toBe(false);
+  });
 });
 
 describe("Point23 transport state", () => {
@@ -179,28 +197,62 @@ describe("Point23 subscription controller", () => {
     expect(order).toEqual(["snapshot", "delta"]);
   });
 
-  it("ignores deltas before snapshot completes", async () => {
+  it("ignores deltas while the initial snapshot is in flight", async () => {
+    let releaseSnapshot: (() => void) | undefined;
+    const snapshotGate = new Promise<void>((resolve) => {
+      releaseSnapshot = resolve;
+    });
     let deltas = 0;
     const controller = createRealtimeSubscriptionController({
       domain: "orders",
       scope: { type: "global_staff" },
       changes: [{ event: "*", schema: "public", table: "orders" }],
       mode: "refetch",
-      snapshot: async () => {
-        /* slow snapshot simulated by not calling start fully */
-      },
+      snapshot: () => snapshotGate,
       onDelta: () => {
         deltas += 1;
       },
       channelAdapter: makeAdapter(["SUBSCRIBED"]),
     });
 
+    const startPromise = controller.start();
+    await Promise.resolve();
     controller.handleDelta({
       eventId: "early",
       version: 1,
       table: "orders",
     });
     expect(deltas).toBe(0);
+
+    releaseSnapshot?.();
+    await startPromise;
+    controller.handleDelta({
+      eventId: "after-snapshot",
+      version: 2,
+      table: "orders",
+    });
+    expect(deltas).toBe(1);
+  });
+
+  it("keeps degraded polling active and does not connect after snapshot failure", async () => {
+    const subscribe = vi.fn(() => ({ unsubscribe: vi.fn() }));
+    const controller = createRealtimeSubscriptionController({
+      domain: "orders",
+      scope: { type: "global_staff" },
+      changes: [{ event: "*", schema: "public", table: "orders" }],
+      mode: "refetch",
+      snapshot: async () => {
+        throw new Error("snapshot failed");
+      },
+      pollingFallbackMs: 50,
+      channelAdapter: { subscribe },
+    });
+
+    await controller.start();
+    expect(controller.getStatus()).toBe("degraded");
+    expect(controller.isPollingFallbackActive()).toBe(true);
+    expect(subscribe).not.toHaveBeenCalled();
+    controller.stop();
   });
 
   it("cleans up on stop", async () => {
@@ -222,25 +274,55 @@ describe("Point23 subscription controller", () => {
     expect(controller.getStatus()).toBe("idle");
   });
 
-  it("enters degraded then unavailable after reconnect exhaustion", async () => {
-    const controller = createRealtimeSubscriptionController({
+  it("cleans a subscription returned after a synchronous stop callback", async () => {
+    const unsubscribe = vi.fn();
+    let controller: RealtimeSubscriptionController;
+    controller = createRealtimeSubscriptionController({
       domain: "orders",
       scope: { type: "global_staff" },
       changes: [{ event: "*", schema: "public", table: "orders" }],
       mode: "refetch",
       snapshot: async () => {},
-      maxReconnectAttempts: 2,
-      reconnectBackoffMs: 1,
-      pollingFallbackMs: 50,
-      channelAdapter: makeAdapter(["CHANNEL_ERROR", "CHANNEL_ERROR"]),
+      onStatusChange: (status) => {
+        if (status === "subscribed") controller.stop();
+      },
+      channelAdapter: {
+        subscribe: (_name, onStatus) => {
+          onStatus("SUBSCRIBED");
+          return { unsubscribe };
+        },
+      },
     });
 
     await controller.start();
-    expect(controller.getStatus()).toBe("degraded");
+    expect(unsubscribe).toHaveBeenCalled();
+    expect(controller.getStatus()).toBe("idle");
+  });
 
-    await new Promise((r) => setTimeout(r, 20));
-    await controller.reconcile();
-    expect(["degraded", "unavailable"]).toContain(controller.getStatus());
+  it("enters degraded then unavailable after reconnect exhaustion", async () => {
+    vi.useFakeTimers();
+    try {
+      const controller = createRealtimeSubscriptionController({
+        domain: "orders",
+        scope: { type: "global_staff" },
+        changes: [{ event: "*", schema: "public", table: "orders" }],
+        mode: "refetch",
+        snapshot: async () => {},
+        maxReconnectAttempts: 2,
+        reconnectBackoffMs: 1,
+        pollingFallbackMs: 50,
+        channelAdapter: makeAdapter(["CHANNEL_ERROR", "CHANNEL_ERROR"]),
+      });
+
+      await controller.start();
+      expect(controller.getStatus()).toBe("degraded");
+
+      await vi.advanceTimersByTimeAsync(1);
+      expect(controller.getStatus()).toBe("unavailable");
+      controller.stop();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("throws on unauthorized channel at construction", () => {
