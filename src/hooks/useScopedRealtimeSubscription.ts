@@ -10,6 +10,7 @@ import {
   type RealtimeDeltaMode,
   type RealtimeDomain,
   type RealtimeScope,
+  type RealtimeDeltaPayload,
   type RealtimeTransportStatus,
 } from "@/lib/realtime";
 import { removeDuplicateRealtimeChannel } from "@/utils/realtime";
@@ -22,6 +23,7 @@ export type ScopedRealtimeSubscriptionOptions = {
   mode?: RealtimeDeltaMode;
   snapshot: () => Promise<void>;
   onDelta?: () => void;
+  onAcceptedDelta?: (payload: RealtimeDeltaPayload) => void;
   onStatusChange?: (status: RealtimeTransportStatus) => void;
   pollingFallbackMs?: number;
 };
@@ -39,19 +41,22 @@ export function useScopedRealtimeSubscription(options: ScopedRealtimeSubscriptio
     mode = "refetch",
     snapshot,
     onDelta,
+    onAcceptedDelta,
     onStatusChange,
     pollingFallbackMs,
   } = options;
 
   const snapshotRef = useRef(snapshot);
   const onDeltaRef = useRef(onDelta);
+  const onAcceptedDeltaRef = useRef(onAcceptedDelta);
   const onStatusChangeRef = useRef(onStatusChange);
 
   useEffect(() => {
     snapshotRef.current = snapshot;
     onDeltaRef.current = onDelta;
+    onAcceptedDeltaRef.current = onAcceptedDelta;
     onStatusChangeRef.current = onStatusChange;
-  }, [snapshot, onDelta, onStatusChange]);
+  }, [snapshot, onDelta, onAcceptedDelta, onStatusChange]);
 
   useEffect(() => {
     if (!enabled || !isRealtimeEnabled) return;
@@ -71,11 +76,12 @@ export function useScopedRealtimeSubscription(options: ScopedRealtimeSubscriptio
       changes,
       mode,
       snapshot: () => snapshotRef.current(),
-      onDelta: () => {
+      onDelta: (payload) => {
         if (mode === "refetch") {
           void snapshotRef.current();
         }
         onDeltaRef.current?.();
+        onAcceptedDeltaRef.current?.(payload);
       },
       onStatusChange: (status) => onStatusChangeRef.current?.(status),
       pollingFallbackMs,
@@ -93,7 +99,11 @@ export function useScopedRealtimeSubscription(options: ScopedRealtimeSubscriptio
               },
               (payload) => {
                 const row = (payload.new ?? payload.old ?? {}) as Record<string, unknown>;
-                onChange(toRealtimeDeltaPayload(spec.table, row));
+                onChange({
+                  ...toRealtimeDeltaPayload(spec.table, row),
+                  changeEvent: payload.eventType,
+                  raw: row,
+                });
               },
             );
           }

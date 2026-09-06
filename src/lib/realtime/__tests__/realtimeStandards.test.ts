@@ -298,6 +298,8 @@ describe("Point23 programme separation", () => {
     expect(CENTRAL_REALTIME_CENSUS.baseSha).toMatch(/^[0-9a-f]{40}$/);
     expect(CENTRAL_REALTIME_CENSUS.separation.point20).toMatch(/event truth/i);
     expect(CENTRAL_REALTIME_CENSUS.separation.point24).toMatch(/retry/i);
+    expect(CENTRAL_REALTIME_CENSUS.migratedSiteCount).toBe(11);
+    expect(CENTRAL_REALTIME_CENSUS.deferredSiteCount).toBe(1);
   });
 
   it("records TopNavBar as Point23-migrated user-scoped notifications", () => {
@@ -307,6 +309,13 @@ describe("Point23 programme separation", () => {
     expect(entry).toBeDefined();
     expect(entry?.channel).toMatch(/central:notifications:user/);
     expect(entry).toMatchObject({ migrated: "useScopedRealtimeSubscription" });
+  });
+
+  it("defers NotificationsPanel to Point21", () => {
+    const entry = CENTRAL_REALTIME_CENSUS.postgresChangesSubscriptions.find(
+      (s) => s.file === "src/components/NotificationsPanel.tsx",
+    );
+    expect(entry?.deferred).toMatch(/Point21/i);
   });
 });
 

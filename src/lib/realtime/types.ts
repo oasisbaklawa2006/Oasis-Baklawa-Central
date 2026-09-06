@@ -51,6 +51,7 @@ export type RealtimeDeltaPayload = {
   table: string;
   entityId?: string;
   occurredAt?: string;
+  changeEvent?: PostgresChangeEvent;
   raw?: unknown;
 };
 

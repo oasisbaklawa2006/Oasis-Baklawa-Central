@@ -1,7 +1,11 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useCallback, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { removeDuplicateRealtimeChannel } from "@/utils/realtime";
 import { toast } from "sonner";
+import { useScopedRealtimeSubscription } from "@/hooks/useScopedRealtimeSubscription";
+import {
+  B2B_APPLICATIONS_INSERT_UPDATE_CHANGES,
+  type RealtimeDeltaPayload,
+} from "@/lib/realtime";
 
 /**
  * Hook: Listens for new b2b_applications via Supabase Realtime.
@@ -9,7 +13,6 @@ import { toast } from "sonner";
  */
 export function useApplicationBadge(isAdmin: boolean) {
   const [pendingCount, setPendingCount] = useState(0);
-  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   const fetchCount = useCallback(async () => {
     const { count, error } = await supabase
@@ -21,47 +24,30 @@ export function useApplicationBadge(isAdmin: boolean) {
     }
   }, []);
 
-  useEffect(() => {
-    if (!isAdmin) return;
-
-    fetchCount();
-
-    const channelName = "admin-b2b-applications";
-    removeDuplicateRealtimeChannel(channelName);
-
-    const channel = supabase
-      .channel(channelName)
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "b2b_applications" },
-        (payload) => {
-          const newApp = payload.new as any;
-          const name = newApp?.business_name || "Unknown";
-          toast.info(`🆕 New B2B Application: ${name}`, {
-            description: "A new client application requires your review.",
-            duration: 8000,
-          });
-          setPendingCount((prev) => prev + 1);
-        }
-      )
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "b2b_applications" },
-        () => {
-          fetchCount();
-        }
-      )
-      .subscribe();
-
-    channelRef.current = channel;
-
-    return () => {
-      if (channelRef.current) {
-        supabase.removeChannel(channelRef.current);
-        channelRef.current = null;
+  const handleApplicationDelta = useCallback(
+    (payload: RealtimeDeltaPayload) => {
+      if (payload.changeEvent === "INSERT") {
+        const newApp = payload.raw as { business_name?: string } | undefined;
+        const name = newApp?.business_name || "Unknown";
+        toast.info(`🆕 New B2B Application: ${name}`, {
+          description: "A new client application requires your review.",
+          duration: 8000,
+        });
       }
-    };
-  }, [isAdmin, fetchCount]);
+    },
+    [],
+  );
+
+  useScopedRealtimeSubscription({
+    domain: "b2b_applications",
+    scope: { type: "global_staff" },
+    changes: B2B_APPLICATIONS_INSERT_UPDATE_CHANGES,
+    enabled: isAdmin,
+    mode: "refetch",
+    snapshot: fetchCount,
+    onAcceptedDelta: handleApplicationDelta,
+    pollingFallbackMs: 30_000,
+  });
 
   return pendingCount;
 }

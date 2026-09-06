@@ -3,7 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Loader2, Search, CheckCircle2, AlertTriangle } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { removeDuplicateRealtimeChannel } from "@/utils/realtime";
+import { useScopedRealtimeSubscription } from "@/hooks/useScopedRealtimeSubscription";
+import { PRODUCTS_UPDATE_CHANGES } from "@/lib/realtime";
 
 interface ProductPriceRow {
   id: string | null;
@@ -121,41 +122,14 @@ const AdminPricing = () => {
     void fetchProducts();
   }, [fetchProducts]);
 
-  useEffect(() => {
-    const channelName = "admin-pricing-sync";
-    removeDuplicateRealtimeChannel(channelName);
-
-    const channel = supabase
-      .channel(channelName)
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "products" },
-        (payload) => {
-          const updated = payload.new as Partial<ProductPriceRow> & { id?: string };
-
-          if (!updated.id) return;
-
-          setProducts((prev) =>
-            prev.map((product) =>
-              product.id === updated.id
-                ? {
-                    ...product,
-                    mrp: updated.mrp ?? product.mrp,
-                    price_b2b: updated.price_b2b ?? product.price_b2b,
-                    price_horeca: updated.price_horeca ?? product.price_horeca,
-                    price_special: updated.price_special ?? product.price_special,
-                  }
-                : product,
-            ),
-          );
-        },
-      )
-      .subscribe();
-
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, []);
+  useScopedRealtimeSubscription({
+    domain: "products",
+    scope: { type: "global_staff" },
+    changes: PRODUCTS_UPDATE_CHANGES,
+    mode: "refetch",
+    snapshot: fetchProducts,
+    pollingFallbackMs: 30_000,
+  });
 
   const handleCellSaved = (id: string, field: keyof ProductPriceRow, val: number | null) => {
     setProducts((prev) => prev.map((product) => (product.id === id ? { ...product, [field]: val } : product)));

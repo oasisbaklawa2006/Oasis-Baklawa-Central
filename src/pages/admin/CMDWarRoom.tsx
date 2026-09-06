@@ -2,7 +2,12 @@ import { useEffect, useState, useMemo, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Eye, EyeOff, RefreshCw, Tag } from "lucide-react";
 import { toast } from "sonner";
-import { removeDuplicateRealtimeChannel } from "@/utils/realtime";
+import { useScopedRealtimeSubscription } from "@/hooks/useScopedRealtimeSubscription";
+import {
+  COMPANIES_ALL_CHANGES,
+  ORDER_ITEMS_ALL_CHANGES,
+  ORDERS_ALL_CHANGES,
+} from "@/lib/realtime";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import ShadowClientSection from "@/components/warroom/ShadowClientSection";
@@ -282,6 +287,41 @@ const CMDWarRoom = () => {
     );
   }, []);
 
+  const refreshOrdersAndRejected = useCallback(async () => {
+    await Promise.all([fetchOrders(), fetchRejectedOrders()]);
+  }, [fetchOrders, fetchRejectedOrders]);
+
+  const refreshCompanies = useCallback(async () => {
+    await Promise.all([fetchShadowCompanies(), fetchActiveCompanies()]);
+  }, [fetchShadowCompanies, fetchActiveCompanies]);
+
+  useScopedRealtimeSubscription({
+    domain: "orders",
+    scope: { type: "global_staff" },
+    changes: ORDERS_ALL_CHANGES,
+    mode: "refetch",
+    snapshot: refreshOrdersAndRejected,
+    pollingFallbackMs: 30_000,
+  });
+
+  useScopedRealtimeSubscription({
+    domain: "companies",
+    scope: { type: "global_staff" },
+    changes: COMPANIES_ALL_CHANGES,
+    mode: "refetch",
+    snapshot: refreshCompanies,
+    pollingFallbackMs: 30_000,
+  });
+
+  useScopedRealtimeSubscription({
+    domain: "order_items",
+    scope: { type: "global_staff" },
+    changes: ORDER_ITEMS_ALL_CHANGES,
+    mode: "refetch",
+    snapshot: fetchOrders,
+    pollingFallbackMs: 30_000,
+  });
+
   useEffect(() => {
     fetchOrders();
     fetchRejectedOrders();
@@ -289,37 +329,6 @@ const CMDWarRoom = () => {
     fetchActiveCompanies();
     void fetchWaPulse();
     void fetchFactoryInventoryPulse();
-
-    const ordersChannel = "warroom-orders-live";
-    const companiesChannel = "warroom-companies-live";
-    const itemsChannel = "warroom-items-live";
-    removeDuplicateRealtimeChannel(ordersChannel);
-    removeDuplicateRealtimeChannel(companiesChannel);
-    removeDuplicateRealtimeChannel(itemsChannel);
-
-    const ch1 = supabase
-      .channel(ordersChannel)
-      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => { fetchOrders(); fetchRejectedOrders(); })
-      .subscribe();
-
-    const ch2 = supabase
-      .channel(companiesChannel)
-      .on("postgres_changes", { event: "*", schema: "public", table: "companies" }, () => {
-        fetchShadowCompanies();
-        fetchActiveCompanies();
-      })
-      .subscribe();
-
-    const ch3 = supabase
-      .channel(itemsChannel)
-      .on("postgres_changes", { event: "*", schema: "public", table: "order_items" }, () => fetchOrders())
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(ch1);
-      supabase.removeChannel(ch2);
-      supabase.removeChannel(ch3);
-    };
   }, [fetchOrders, fetchRejectedOrders, fetchShadowCompanies, fetchActiveCompanies, fetchWaPulse, fetchFactoryInventoryPulse]);
 
   const sortedOrders = useMemo(() => {

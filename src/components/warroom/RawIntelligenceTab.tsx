@@ -1,9 +1,10 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { removeDuplicateRealtimeChannel } from "@/utils/realtime";
 import { AlertCircle, RefreshCw, MessageSquare, Send, FileText, Mic, Image as ImageIcon, Package, Trash2, AlertTriangle, Tag } from "lucide-react";
 import { toast } from "sonner";
 import { parseBanyanMessage } from "@/lib/banyan-parser";
+import { useScopedRealtimeSubscription } from "@/hooks/useScopedRealtimeSubscription";
+import { DEBUG_WEBHOOKS_INSERT_UPDATE_CHANGES, type RealtimeDeltaPayload } from "@/lib/realtime";
 import AliasDrawer from "./AliasDrawer";
 
 interface RawMessage {
@@ -105,23 +106,37 @@ export default function RawIntelligenceTab() {
     setLoading(false);
   }, []);
 
+  const handleWebhookDelta = useCallback(
+    (payload: RealtimeDeltaPayload) => {
+      if (payload.changeEvent === "INSERT") {
+        void fetchRaw();
+        window.setTimeout(() => void fetchRaw(), 1000);
+        void fetchOrphans();
+        return;
+      }
+      void fetchRaw();
+    },
+    [fetchRaw, fetchOrphans],
+  );
+
+  useScopedRealtimeSubscription({
+    domain: "debug_webhooks",
+    scope: { type: "global_staff" },
+    changes: DEBUG_WEBHOOKS_INSERT_UPDATE_CHANGES,
+    mode: "invalidate",
+    snapshot: async () => {
+      await fetchRaw();
+      await fetchAliases();
+      await fetchOrphans();
+    },
+    onAcceptedDelta: handleWebhookDelta,
+    pollingFallbackMs: 30_000,
+  });
+
   useEffect(() => {
-    fetchRaw();
-    fetchAliases();
-    fetchOrphans();
-    const channelName = "warroom-raw-intel";
-    removeDuplicateRealtimeChannel(channelName);
-    const ch = supabase
-      .channel(channelName)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "debug_webhooks" }, () => {
-        // Immediate refresh, then a 1s follow-up to catch the storage upload patching `_oasis_attachment_url`.
-        fetchRaw();
-        setTimeout(() => fetchRaw(), 1000);
-        fetchOrphans();
-      })
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "debug_webhooks" }, () => fetchRaw())
-      .subscribe();
-    return () => { supabase.removeChannel(ch); };
+    void fetchRaw();
+    void fetchAliases();
+    void fetchOrphans();
   }, [fetchRaw, fetchAliases, fetchOrphans]);
 
   const handleMergeIntoOrphan = async (msg: RawMessage, orphanOrderId: string, candidateName: string) => {

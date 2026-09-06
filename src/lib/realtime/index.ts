@@ -6,3 +6,4 @@ export * from "./realtimeTransportState";
 export * from "./realtimeSubscriptionController";
 export * from "./foreignRepoPrerequisites";
 export { CENTRAL_REALTIME_CENSUS } from "./census";
+export * from "./changeSpecs";

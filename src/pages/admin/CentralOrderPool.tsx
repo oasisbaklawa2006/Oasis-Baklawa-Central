@@ -14,7 +14,8 @@ import {
   AlertTriangle,
   Loader2,
 } from "lucide-react";
-import { removeDuplicateRealtimeChannel } from "@/utils/realtime";
+import { useScopedRealtimeSubscription } from "@/hooks/useScopedRealtimeSubscription";
+import { SUGGESTED_ORDERS_ALL_CHANGES } from "@/lib/realtime";
 
 interface SuggestedItem {
   product_name: string;
@@ -80,21 +81,17 @@ export default function CentralOrderPool() {
     setLoading(false);
   }, []);
 
+  useScopedRealtimeSubscription({
+    domain: "suggested_orders",
+    scope: { type: "global_staff" },
+    changes: SUGGESTED_ORDERS_ALL_CHANGES,
+    mode: "refetch",
+    snapshot: fetchAll,
+    pollingFallbackMs: 30_000,
+  });
+
   useEffect(() => {
-    fetchAll();
-    const ch = "central-order-pool";
-    removeDuplicateRealtimeChannel(ch);
-    const channel = supabase
-      .channel(ch)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "suggested_orders" },
-        () => fetchAll(),
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    void fetchAll();
   }, [fetchAll]);
 
   const filtered = orders.filter((o) => o.status === tab);
