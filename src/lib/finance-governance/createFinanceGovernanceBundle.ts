@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { resolveFinanceControlBoundary } from "@/lib/order-authority/financeControlBoundary";
 import { createFinanceGovernanceService, createInMemoryFinanceEventSink } from "./financeGovernanceService";
 import { createInMemoryFinanceEvidenceStore } from "./inMemoryFinanceEvidenceStore";
 import {
@@ -6,12 +7,13 @@ import {
   probeFinanceEvidenceTable,
 } from "./supabaseFinanceEvidenceStore";
 
-export type FinanceGovernancePersistenceMode = "supabase" | "demo" | "unavailable";
+export type FinanceGovernancePersistenceMode = "core" | "demo" | "blocked";
 
 export interface FinanceGovernanceBundle {
   service: ReturnType<typeof createFinanceGovernanceService>;
   persistenceMode: FinanceGovernancePersistenceMode;
   canExecuteWrites: boolean;
+  corePrerequisiteMessage: string | null;
 }
 
 function isTestMode(): boolean {
@@ -26,58 +28,43 @@ export async function createFinanceGovernanceBundle(
   options?: { forceInMemory?: boolean },
 ): Promise<FinanceGovernanceBundle> {
   const events = createInMemoryFinanceEventSink();
+  const controlBoundary = await resolveFinanceControlBoundary(client, {
+    forceDemo: options?.forceInMemory,
+  });
 
-  if (options?.forceInMemory) {
+  const service = createFinanceGovernanceService({
+    evidence: createInMemoryFinanceEvidenceStore(),
+    events,
+    controlMode: controlBoundary.persistenceMode,
+  });
+
+  if (options?.forceInMemory || controlBoundary.persistenceMode === "demo") {
     return {
-      service: createFinanceGovernanceService({
-        evidence: createInMemoryFinanceEvidenceStore(),
-        events,
-      }),
+      service,
       persistenceMode: "demo",
       canExecuteWrites: isTestMode(),
+      corePrerequisiteMessage: null,
     };
   }
 
   if (!client) {
-    if (isTestMode()) {
-      return {
-        service: createFinanceGovernanceService({
-          evidence: createInMemoryFinanceEvidenceStore(),
-          events,
-        }),
-        persistenceMode: "demo",
-        canExecuteWrites: true,
-      };
-    }
     return {
-      service: createFinanceGovernanceService({
-        evidence: createInMemoryFinanceEvidenceStore(),
-        events,
-      }),
-      persistenceMode: "unavailable",
+      service,
+      persistenceMode: "blocked",
       canExecuteWrites: false,
+      corePrerequisiteMessage: controlBoundary.prerequisiteMessage,
     };
   }
 
-  const ok = await probeFinanceEvidenceTable(client).catch(() => false);
-  if (!ok) {
-    if (isTestMode()) {
-      return {
-        service: createFinanceGovernanceService({
-          evidence: createInMemoryFinanceEvidenceStore(),
-          events,
-        }),
-        persistenceMode: "demo",
-        canExecuteWrites: true,
-      };
-    }
+  const evidenceTableOk = await probeFinanceEvidenceTable(client).catch(() => false);
+  if (!evidenceTableOk || controlBoundary.persistenceMode !== "core") {
     return {
-      service: createFinanceGovernanceService({
-        evidence: createInMemoryFinanceEvidenceStore(),
-        events,
-      }),
-      persistenceMode: "unavailable",
+      service,
+      persistenceMode: "blocked",
       canExecuteWrites: false,
+      corePrerequisiteMessage:
+        controlBoundary.prerequisiteMessage ??
+        "Core finance control authority unavailable — Central must not write finance_review_evidence directly.",
     };
   }
 
@@ -85,8 +72,10 @@ export async function createFinanceGovernanceBundle(
     service: createFinanceGovernanceService({
       evidence: createSupabaseFinanceEvidenceStore(client),
       events,
+      controlMode: "core",
     }),
-    persistenceMode: "supabase",
+    persistenceMode: "core",
     canExecuteWrites: true,
+    corePrerequisiteMessage: null,
   };
 }

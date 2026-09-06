@@ -141,7 +141,8 @@ export class FinanceGovernanceError extends Error {
       | "authority_denied"
       | "forbidden_action"
       | "validation_failed"
-      | "reason_required",
+      | "reason_required"
+      | "core_prerequisite",
     message: string,
   ) {
     super(message);
