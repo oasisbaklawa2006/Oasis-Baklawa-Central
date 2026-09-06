@@ -49,21 +49,30 @@ Full `all` tranche in **11m43s** — counts unchanged; commit job **no file delt
 
 **11m34s** · **78 new S1 `auth-sidebar-hover` screenshots** on authenticated surfaces (80 auth rows; 2 without sidebar — dispatch/TV). Updated `UAT_MANIFEST_AUTH.jsonl` SHA256 rows. Artifact: `uat-crawl-evidence-34028658487-1`. FAIL-493 not re-run.
 
-### Watchdog S2 deepening — pending GHA `all` tranche
+### Watchdog S2 deepening — run [34029358388](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34029358388) @ `fe92cfb5`
 
-Harness updates @ next push:
+**13m23s** · ace340fe continuation · artifact `uat-crawl-evidence-34029358388-1` · commit `81272445`
 
-| Gap | Prior | Target |
+| Metric | Before | After |
 |---|---:|---:|
-| Authenticated S1 complete | 78 / 80 | **80 / 80** (main-nav/interactive hover for UAT-0002, UAT-0080) |
-| Authenticated S2 (opened-interactive) | 9 / 80 | **≤80 / 80** (tab/row/button/card fallbacks when no filter/combobox) |
-| Public continuation S1/S2 | 1 / 5 surfaces with S2 | login link-hover + form-focused on UAT-0008 |
+| Authenticated S0–S3 | 80 / 131 | **80 / 131** (unchanged) |
+| Authenticated S1 (opened-interactive) | 78 / 80 | **77 / 80** |
+| Authenticated S2 (overlay/tab/row/button/card) | 9 / 80 | **72 / 80** |
+| Public continuation S0 | 5 / 5 | **5 / 5** |
+| Verified BLOCKED | 46 / 46 | **46 / 46** (unchanged) |
+| FAIL-493 evidence | preserved | **preserved** — not re-run |
 
-**Policy:** FAIL-493 not re-run until #497 merged/deployed. 46 credential/deploy BLOCKED IDs unchanged.
+**New S2 screenshots:** 63 authenticated `*S2-auth-*` PNGs with SHA256 manifest rows.
 
-Re-ran `all` tranche after workflow default change — **no new screenshots** (identical ace340fe evidence). Metadata-only refresh superseded by public continuation below.
+**S1 still absent (no matching nav/sidebar/main control):** UAT-0002 `/operations-controller`, UAT-0080 `/admin/execution/production`, UAT-0094 `/admin/dispatch-mgmt`.
 
-### Public continuation — ace340fe unblocked surfaces (local + GHA pending)
+**S2 still absent (full-bleed/TV/war-room layouts):** UAT-0002, UAT-0037, UAT-0038, UAT-0052, UAT-0053, UAT-0061, UAT-0080, UAT-0094.
+
+**Public continuation:** login surfaces redirect before form/link selectors settle — S0 + UAT-0009 S2 only; UAT-0008 S1/S2 remains NOT captured.
+
+**GHA commit-evidence:** succeeded (artifact copy fix).
+
+### Public continuation — ace340fe unblocked surfaces
 
 | UAT ID | Route | Deploy SHA | Result |
 |---|---|---|---|
