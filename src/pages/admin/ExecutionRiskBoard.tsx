@@ -12,7 +12,7 @@ export default function ExecutionRiskBoard() {
       <header className="flex items-center gap-2">
         <AlertTriangle className="h-6 w-6" aria-hidden />
         <h1 className="text-lg font-bold">Execution risk board</h1>
-        <Link to="/admin/execution-command-center" className="ml-auto text-xs underline">
+        <Link to="/admin/live-work-queues" className="ml-auto text-xs underline">
           Command center
         </Link>
       </header>

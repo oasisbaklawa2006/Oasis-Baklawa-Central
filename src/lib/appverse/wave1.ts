@@ -27,7 +27,7 @@ export const APPVERSE_WAVE1_AREAS: AppVerseWave1Area[] = [
     key: "operations-production",
     label: "Operations & Production",
     description: "Execution queues, production demand, inventory blockers, ready goods and dispatch preparation.",
-    landingPath: "/admin/execution-command-center",
+    landingPath: "/admin/live-work-queues",
     moduleKeys: ["cmd_war_room", "production", "inventory", "packing", "dispatch"],
     primaryAction: "Open operations command",
   },

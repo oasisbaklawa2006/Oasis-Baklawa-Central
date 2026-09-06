@@ -61,13 +61,13 @@ export function navigationPathForEntity(entityType: SearchIndexEntityType, entit
     case "operational_event":
       return orderId
         ? `/admin/customer-timeline-preview?orderId=${orderId}`
-        : `/admin/execution-command-center`;
+        : `/admin/live-work-queues`;
     case "scan_record":
-      return `/admin/barcode-execution-preview?scanId=${entityId}`;
+      return `/admin/scan-timeline?scanId=${entityId}`;
     case "customer":
       return `/admin/clients?customerId=${entityId}`;
     case "complaint":
-      return `/admin/execution/complaints?queueItemId=${entityId}`;
+      return `/admin/support?queueItemId=${entityId}`;
     case "dispatch_reference":
       return orderId ? `/admin/dispatch-mgmt?orderId=${orderId}` : `/admin/dispatch-mgmt`;
     case "carton":
