@@ -11,9 +11,13 @@ function hasDispatchCredentials(): boolean {
   );
 }
 
+function hasPreviewUrl(): boolean {
+  return Boolean(process.env.TEST_PREVIEW_URL?.trim());
+}
+
 test.describe("Dispatch RBAC — UAT-005 forbidden direct routes (browser path)", () => {
   test.skip(!hasDispatchCredentials(), "Requires TEST_DISPATCH_EMAIL and TEST_DISPATCH_PASSWORD");
-  test.skip(!getPreviewUrl(), "Requires TEST_PREVIEW_URL or UAT_CRAWL_BASE_URL");
+  test.skip(!hasPreviewUrl(), "Requires TEST_PREVIEW_URL");
 
   test("DISPATCH_MANAGER cannot remain on Finance, governance, or accounts-release routes", async ({ page }) => {
     const email = process.env[`${DISPATCH_PREFIX}_EMAIL`]!.trim();
@@ -21,6 +25,11 @@ test.describe("Dispatch RBAC — UAT-005 forbidden direct routes (browser path)"
 
     await login(page, email, password);
     await page.goto(`${getPreviewUrl()}/admin/dispatch-mgmt`, { waitUntil: "domcontentloaded", timeout: 45_000 });
+    await expect(page, "Authenticated account must access Dispatch Management").toHaveURL(
+      /\/admin\/dispatch-mgmt\/?(?:$|\?)/,
+      { timeout: 15_000 },
+    );
+    await expect(page.getByRole("heading", { name: /^Dispatch$/i })).toBeVisible();
 
     const testCase = getAiUatCase("UAT-005");
     const probes = await probeForbiddenRoutes(page, testCase);
