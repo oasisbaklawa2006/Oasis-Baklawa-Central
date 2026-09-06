@@ -20,17 +20,17 @@ export type RoleHomeDefinition = {
 const executive: RoleHomeDefinition = { title: "Command overview", subtitle: "Business signals, exceptions and work requiring intervention.", cards: [
   { key: "orders", label: "Order pipeline", kind: "metric", route: "/admin/order-management", moduleKey: "orders", priority: 1 },
   { key: "finance", label: "Finance attention", kind: "alert", route: "/admin/finance", moduleKey: "finance", priority: 1 },
-  { key: "operations", label: "Execution command", kind: "queue", route: "/admin/execution-command-center", moduleKey: "cmd_war_room", priority: 1 },
+  { key: "operations", label: "Live work queues", kind: "queue", route: "/admin/live-work-queues", moduleKey: "cmd_war_room", priority: 1 },
   { key: "customers", label: "Customers & follow-up", kind: "shortcut", route: "/admin/clients", moduleKey: "clients", priority: 2 },
   { key: "whatsapp", label: "WhatsApp attention", kind: "queue", route: "/admin/operator-inbox", moduleKey: "support", priority: 2 },
-  { key: "inventory", label: "Inventory risk", kind: "alert", route: "/admin/inventory-risk-board", moduleKey: "inventory", priority: 2 },
+  { key: "inventory", label: "Factory stock", kind: "alert", route: "/admin/inventory", moduleKey: "inventory", priority: 2 },
 ] };
 
 const operations: RoleHomeDefinition = { title: "Operations today", subtitle: "Queues, blockers and the next physical execution actions.", cards: [
-  { key: "execution", label: "Execution queue", kind: "queue", route: "/admin/execution-command-center", moduleKey: "cmd_war_room", priority: 1 },
+  { key: "execution", label: "Live work queues", kind: "queue", route: "/admin/live-work-queues", moduleKey: "cmd_war_room", priority: 1 },
   { key: "production", label: "Production board", kind: "queue", route: "/admin/execution/production", moduleKey: "production", priority: 1 },
   { key: "packing", label: "Packing & dispatch", kind: "queue", route: "/admin/order-management?view=packing", moduleKey: "packing", priority: 1 },
-  { key: "inventory", label: "Inventory risk", kind: "alert", route: "/admin/inventory-risk-board", moduleKey: "inventory", priority: 2 },
+  { key: "inventory", label: "Factory stock", kind: "alert", route: "/admin/inventory", moduleKey: "inventory", priority: 2 },
   { key: "ready-goods", label: "Ready goods", kind: "metric", route: "/admin/ready-goods", moduleKey: "inventory", priority: 2 },
 ] };
 
@@ -62,8 +62,8 @@ const production: RoleHomeDefinition = { title: "Production today", subtitle: "O
 ] };
 
 const store: RoleHomeDefinition = { title: "Store today", subtitle: "Inventory availability, reservations and production requirements.", cards: [
-  { key: "inventory", label: "Inventory command", kind: "queue", route: "/admin/inventory-command-center", moduleKey: "inventory", priority: 1 },
-  { key: "risk", label: "Inventory risk", kind: "alert", route: "/admin/inventory-risk-board", moduleKey: "inventory", priority: 1 },
+  { key: "inventory", label: "Ready goods", kind: "queue", route: "/admin/ready-goods", moduleKey: "inventory", priority: 1 },
+  { key: "risk", label: "Factory stock", kind: "alert", route: "/admin/inventory", moduleKey: "inventory", priority: 1 },
   { key: "production", label: "Production demand", kind: "shortcut", route: "/admin/execution/production", moduleKey: "production", priority: 2 },
 ] };
 

@@ -145,16 +145,7 @@ export function useExecutionCommandCenter() {
       setProjection(buildExecutionCommandCenterProjection(input));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load execution intelligence");
-      if (feeds) {
-        const fallback: ExecutionIntelligenceInput = {
-          nowIso,
-          queueItems: [],
-          events: [],
-          scans: [],
-          liveFeedSnapshots: feeds.snapshots,
-        };
-        setProjection(buildExecutionCommandCenterProjection(fallback));
-      }
+      setProjection(null);
     } finally {
       setLoading(false);
     }

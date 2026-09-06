@@ -25,6 +25,7 @@ import { shouldHideAdvancedGovernanceNav } from "@/lib/golden-chain/operatorNavi
 import { isDispatchRole } from "@/lib/auth/securityGatePolicy";
 import { getAllowedModulesForRole, hasModuleAccess, type AppVerseModuleKey } from "@/lib/appverse/roleAccess";
 import { canAccessGoldenChainOperatorRoute } from "@/lib/appverse/routeAccess";
+import { shouldExcludeDemoRouteFromNav } from "@/lib/appverse/demoAuthorityQuarantine";
 
 interface NavItem {
   to: string; icon: React.ElementType; label: string; end?: boolean; moduleKey: AppVerseModuleKey;
@@ -48,27 +49,21 @@ const AdminLayout = () => {
       items: [
         { to: "/admin", icon: LayoutDashboard, label: "App-Verse Home", end: true, moduleKey: "dashboard" },
         { to: "/admin/heartbeat", icon: Gauge, label: "Executive Dashboard", end: false, moduleKey: "cmd_war_room" },
-        { to: "/admin/execution-command-center", icon: Gauge, label: "Execution CMD", end: false, moduleKey: "cmd_war_room" },
         { to: "/admin/execution/production", icon: LayoutGrid, label: "Production board", end: false, moduleKey: "production" },
         { to: "/admin/execution/assembly", icon: LayoutGrid, label: "Assembly board", end: false, moduleKey: "production" },
-        { to: "/admin/dispatch-mgmt", icon: LayoutGrid, label: "Dispatch board", end: false, moduleKey: "dispatch" },
+        { to: "/admin/dispatch-mgmt", icon: LayoutGrid, label: "Dispatch board", end: false, moduleKey: "packing" },
         { to: "/admin/execution/ready-goods", icon: LayoutGrid, label: "Ready goods board", end: false, moduleKey: "inventory" },
-        { to: "/admin/execution/retail", icon: LayoutGrid, label: "Retail board", end: false, moduleKey: "inventory" },
         { to: "/admin/execution/third-party", icon: LayoutGrid, label: "Third party board", end: false, moduleKey: "orders" },
-        { to: "/admin/execution/complaints", icon: LayoutGrid, label: "Complaints board", end: false, moduleKey: "support" },
         { to: "/admin/live-work-queues", icon: ListOrdered, label: "Live work queues", end: false, moduleKey: "cmd_war_room" },
         { to: "/admin/entity-graph-explorer", icon: Network, label: "Entity graph explorer", end: false, moduleKey: "cmd_war_room" },
-        { to: "/admin/product-intelligence-prototype", icon: Brain, label: "Product intelligence lab", end: false, moduleKey: "cmd_war_room" },
       ],
     },
     {
       title: t("Operations"),
       items: [
-        { to: "/admin/inventory-command-center", icon: Warehouse, label: "Inventory command center (preview)", end: false, moduleKey: "inventory" },
         { to: "/admin/carton-explorer", icon: Box, label: "Carton explorer (preview)", end: false, moduleKey: "inventory" },
         { to: "/admin/reservation-board", icon: ListOrdered, label: "Reservation board (audit)", end: false, moduleKey: "inventory_audit" },
         { to: "/admin/stock-finalization", icon: PackageMinus, label: "Stock finalization (audit)", end: false, moduleKey: "inventory_audit" },
-        { to: "/admin/inventory-risk-board", icon: AlertOctagon, label: "Inventory risk board (preview)", end: false, moduleKey: "inventory" },
         { to: "/admin/scan-timeline", icon: ScanBarcode, label: "Scan timeline", end: false, moduleKey: "inventory" },
         { to: "/admin/order-management", icon: ClipboardList, label: t("Order Pipeline"), moduleKey: "orders" },
         { to: "/admin/order-management?view=production", icon: Factory, label: t("Production"), moduleKey: "production" },
@@ -143,6 +138,7 @@ const AdminLayout = () => {
     .map((section) => ({
       ...section,
       items: section.items.filter((item) => {
+        if (shouldExcludeDemoRouteFromNav(item.to)) return false;
         if (item.to === "/admin/golden-chain-operator") {
           if (!canAccessGoldenChainOperator()) return false;
         } else if (item.to === "/security-gate" && isDispatchRole(role)) {
