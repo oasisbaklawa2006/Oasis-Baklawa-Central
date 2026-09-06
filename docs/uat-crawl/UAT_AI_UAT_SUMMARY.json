@@ -1,14 +1,13 @@
 {
-  "generatedAt": "2026-09-05T23:48:14.026Z",
-  "runId": "33999620404",
-  "targetSha": "67b3d1cc0baf7d494cb7a00ce55a74f16b6af43b",
-  "crawlBaseUrl": "",
-  "deployStatus": "BLOCKED",
-  "deployProvenance": "No successful Vercel deployment for 67b3d1cc0baf7d494cb7a00ce55a74f16b6af43b (Vercel rate limit suspected); ace340fe not used as post-#490 evidence.",
+  "generatedAt": "2026-09-06T11:10:00.147Z",
+  "runId": "34029358388",
+  "targetSha": "64a107dfc167be76673a3d18f177a72472dcb241",
+  "crawlBaseUrl": "https://oasis-baklawa-central-6zo99hosg-oasisbaklawa2006-6222s-projects.vercel.app",
+  "deployStatus": "RESOLVED",
   "counts": {
-    "PASS": 0,
+    "PASS": 10,
     "FAIL": 0,
-    "BLOCKED": 10
+    "BLOCKED": 0
   },
   "uatIds": [
     "UAT-001",

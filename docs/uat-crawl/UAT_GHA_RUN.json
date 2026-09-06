@@ -1,9 +1,9 @@
 {
-  "runId": "34028658487",
+  "runId": "34029358388",
   "runAttempt": "1",
   "runTranche": "all",
   "ref": "refs/heads/cursor/physical-uat-readiness-matrix-e763",
-  "sha": "bc699a53fe1d742741e58ace6a16b21b87f58450",
+  "sha": "bec99bbf0c19072fc5bb1ffa890d6679719636ff",
   "currentMainHoldSha": "64a107dfc167be76673a3d18f177a72472dcb241",
   "resolvedDeploySha": "ace340fe1d122a4cce5d7bb61cd237ed7ba1c894",
   "continuationFallback": true,
@@ -11,5 +11,5 @@
   "deployBlocked": false,
   "deployUrl": "https://oasis-baklawa-central-6zo99hosg-oasisbaklawa2006-6222s-projects.vercel.app",
   "fail493RepairPreserved": "9715c20d (#497 preview PASS run 34016393457) — fa3b879 is newer #497 head but NOT current-main cert while #497 open",
-  "completedAt": "2026-09-06T11:05:27Z"
+  "completedAt": "2026-09-06T11:21:20Z"
 }
