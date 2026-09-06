@@ -12,7 +12,7 @@ export default function ExecutionBottlenecks() {
       <header className="flex items-center gap-2">
         <GitBranch className="h-6 w-6" aria-hidden />
         <h1 className="text-lg font-bold">Execution bottlenecks</h1>
-        <Link to="/admin/execution-command-center" className="ml-auto text-xs underline">
+        <Link to="/admin/live-work-queues" className="ml-auto text-xs underline">
           Command center
         </Link>
       </header>

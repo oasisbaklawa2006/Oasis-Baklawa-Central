@@ -62,8 +62,8 @@ export const FACTORY_ROUTE_EXCEPTIONS: Record<string, FactoryRouteException> = {
   },
   "/admin/verification": {
     kind: "REDIRECT_ALIAS",
-    expectedTarget: "/admin/execution-command-center",
-    reason: "Legacy verification bookmark that redirects to the execution command center; classified as an alias rather than a certifiable current Factory surface.",
+    expectedTarget: "/admin/live-work-queues",
+    reason: "Legacy verification bookmark; Point 58 quarantines demo authority — redirects to live work queues.",
   },
 };
 
