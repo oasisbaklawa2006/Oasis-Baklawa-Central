@@ -39,6 +39,13 @@ export {
   assertAuthorityAvailable,
   isDemoFallbackPermitted,
   isProductionRuntime,
+  isStockFinalizationDemoPermitted,
   resolveAuthorityAvailability,
   type AuthorityAvailability,
 } from "./unavailableGuard";
+
+export {
+  classifyGovernedRpcFailure,
+  requireGovernedRpcSuccess,
+  type GovernedRpcErrorShape,
+} from "./governedRpc";

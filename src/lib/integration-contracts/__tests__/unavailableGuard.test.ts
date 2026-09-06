@@ -3,6 +3,7 @@ import {
   IntegrationError,
   assertAuthorityAvailable,
   isDemoFallbackPermitted,
+  isStockFinalizationDemoPermitted,
   resolveAuthorityAvailability,
 } from "../index";
 
@@ -27,5 +28,6 @@ describe("unavailableGuard", () => {
 
   it("never permits demo fallback in production runtime", () => {
     expect(isDemoFallbackPermitted()).toBe(false);
+    expect(isStockFinalizationDemoPermitted()).toBe(false);
   });
 });

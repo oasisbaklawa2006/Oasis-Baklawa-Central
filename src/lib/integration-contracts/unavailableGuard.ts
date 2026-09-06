@@ -38,3 +38,12 @@ export function isDemoFallbackPermitted(): boolean {
     import.meta.env?.VITE_EXECUTION_PREVIEW_FALLBACK === "true"
   );
 }
+
+/** Stock finalization in-memory demo is staging-only; never substitute in production. */
+export function isStockFinalizationDemoPermitted(): boolean {
+  if (isProductionRuntime()) return false;
+  return (
+    typeof import.meta !== "undefined" &&
+    import.meta.env?.VITE_STOCK_FINALIZATION_DEMO === "true"
+  );
+}
