@@ -30,6 +30,22 @@
 
 **No credential/deploy blocker cleared** — buyer (`TEST_BUYER_*`), sales/post-fix-483 (`TEST_SALES_*`), gate security, RGS, production, TV, AI Studio, Trace remain **BLOCKED** with exact secret names per ID.
 
+**Stop condition:** `ONLY_TEST_SECRET_BLOCKERS` — see [`UAT_PHYSICAL_READINESS_RECONCILIATION.md`](UAT_PHYSICAL_READINESS_RECONCILIATION.md).
+
+## Physical readiness reconciliation @ `e2f123b0`
+
+| Automated disposition | Count |
+|---|---:|
+| Auth S0–S3 complete (current-main crawl) | **80 / 131** |
+| Public S0 observed | **5 / 131** |
+| **BLOCKED** — credential/deploy (`TEST_*` only) | **46 / 131** |
+
+**GHA secret audit (run 34046709938):** 10 present / 17 missing — `UAT_SECRET_PRESENCE.json`. Deploy auto-resolved (no `TEST_PREVIEW_URL` required).
+
+**No further automated evidence** until Mission Control wires missing secrets. Physical iPhone/scanner/TV lanes are **not** cleared by desktop Chrome crawl alone.
+
+Preserved append-only: FAIL-493 pre-fix · preview PASS `9715c20d` · current-main UAT-005 PASS run 34037424554.
+
 ## Post-#497 merge — current-main certification (`post-merge-497-main`)
 
 | Gate | Status |
