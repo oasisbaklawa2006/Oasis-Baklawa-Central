@@ -46,16 +46,47 @@ const AUTH_RERUN_IDS: string[] = JSON.parse(
   readFileSync(path.join(ROOT, "docs/uat-crawl/UAT_AUTH_RERUN_TARGETS.json"), "utf8"),
 );
 
+/** Eight authenticated surfaces where prior S2 fallbacks did not match full-bleed / TV / war-room DOM. */
+export const S2_GAP_TARGET_IDS = [
+  "UAT-0002",
+  "UAT-0037",
+  "UAT-0038",
+  "UAT-0052",
+  "UAT-0053",
+  "UAT-0061",
+  "UAT-0080",
+  "UAT-0094",
+] as const;
+
+const FULL_BLEED_ROUTES = new Set([
+  "/operations-controller",
+  "/admin/operator-inbox",
+  "/admin/whatsapp",
+  "/admin/central-pool",
+  "/admin/cmd-war-room",
+  "/admin/assembly-tv",
+  "/admin/execution/production",
+  "/admin/dispatch-mgmt",
+]);
+
 export function loadAuthRerunTargets(): CrawlTarget[] {
+  return loadTargetsByIds(AUTH_RERUN_IDS);
+}
+
+export function loadTargetsByIds(ids: readonly string[]): CrawlTarget[] {
   const census = JSON.parse(readFileSync(path.join(ROOT, "docs/uat-crawl/UAT_ROUTE_CENSUS.json"), "utf8")) as {
     entries: CrawlTarget[];
   };
   const byId = new Map(census.entries.map((e) => [e.uatId, e]));
-  return AUTH_RERUN_IDS.map((id) => {
+  return ids.map((id) => {
     const entry = byId.get(id);
     if (!entry) throw new Error(`Missing census entry for ${id}`);
     return entry;
   });
+}
+
+export function loadS2GapTargets(): CrawlTarget[] {
+  return loadTargetsByIds(S2_GAP_TARGET_IDS);
 }
 
 const APP_DEPLOY_SECRET: Record<string, string> = {
@@ -82,6 +113,159 @@ async function captureAuthShot(
   const abs = path.join(screenshotDir, filename);
   await page.screenshot({ path: abs, fullPage: true, timeout: 30_000 });
   return { rel: `${relPrefix}/${filename}`, abs };
+}
+
+async function prepareInteractiveState(page: Page, target: CrawlTarget) {
+  if (target.state === "filter-empty") {
+    const orderInput = page.locator("#dispatch-order-id, input[id*='order' i]").first();
+    if (await orderInput.isVisible().catch(() => false)) {
+      await orderInput.focus().catch(() => undefined);
+      await page.waitForTimeout(400);
+      return;
+    }
+    const consignmentSelect = page.locator("#dispatch-working-consignment, [role='combobox']").first();
+    if (await consignmentSelect.isVisible().catch(() => false)) {
+      await consignmentSelect.click().catch(() => undefined);
+      await page.waitForTimeout(600);
+    }
+  }
+}
+
+async function tryCaptureAuthS1Fallback(
+  page: Page,
+  target: CrawlTarget,
+  app: string,
+  routeSlug: string,
+  stateSlug: string,
+  screenshotDir: string,
+  relPrefix: string,
+) {
+  const phhTab = page.locator('button:has-text("Execute"), button:has-text("Quick Log"), button:has-text("Day End")').first();
+  const inboxSearch = page.locator('input[placeholder*="Search" i], input[placeholder*="search" i]').first();
+  const topNavBtn = page.locator("header button:visible, nav button:visible").first();
+  const tvColumn = page.locator("div.rounded-xl, div.rounded-t-xl").first();
+  const dispatchInput = page.locator("#dispatch-order-id, #dispatch-working-consignment").first();
+  const candidates: Array<{ label: string; locator: ReturnType<Page["locator"]> }> = [
+    { label: "auth-phh-tab-hover", locator: phhTab },
+    { label: "auth-inbox-search-hover", locator: inboxSearch },
+    { label: "auth-topnav-hover", locator: topNavBtn },
+    { label: "auth-tv-column-hover", locator: tvColumn },
+    { label: "auth-dispatch-control-hover", locator: dispatchInput },
+  ];
+  for (const { label, locator } of candidates) {
+    if (await locator.isVisible().catch(() => false)) {
+      await locator.scrollIntoViewIfNeeded().catch(() => undefined);
+      if (label.includes("search") || label.includes("dispatch-control")) {
+        await locator.focus().catch(() => undefined);
+      } else {
+        await locator.hover().catch(() => undefined);
+      }
+      await page.waitForTimeout(400);
+      const s1Name = screenshotName(target.uatId, app, target.persona, `${routeSlug}-${stateSlug}`, "S1", label);
+      const s1 = await captureAuthShot(page, screenshotDir, relPrefix, s1Name);
+      return { rel: s1.rel, sha: sha256File(s1.abs), name: s1Name };
+    }
+  }
+  return null;
+}
+
+async function tryCaptureAuthS2(
+  page: Page,
+  target: CrawlTarget,
+  app: string,
+  routeSlug: string,
+  stateSlug: string,
+  screenshotDir: string,
+  relPrefix: string,
+) {
+  const strategies: Array<{ label: string; locator: ReturnType<Page["locator"]>; act: "click" | "focus" | "hover" | "scroll" }> = [
+    {
+      label: "auth-overlay-open",
+      locator: page.locator('[role="combobox"], button:has-text("Filter"), button:has-text("Search"), input[type="search"]').first(),
+      act: "click",
+    },
+    {
+      label: "auth-phh-tab-open",
+      locator: page.locator('button:has-text("Execute"), button:has-text("Quick Log"), button:has-text("Day End")').first(),
+      act: "click",
+    },
+    {
+      label: "auth-tab-open",
+      locator: page.locator('[role="tablist"] [role="tab"]:not([data-state="active"])').first(),
+      act: "click",
+    },
+    {
+      label: "auth-toggle-open",
+      locator: page.locator('[role="group"] button[data-state="off"], [data-state="off"][role="radio"]').first(),
+      act: "click",
+    },
+    {
+      label: "auth-inbox-filter-focus",
+      locator: page.locator('input[placeholder*="Search" i], input[placeholder*="filter" i], input[type="search"]').first(),
+      act: "focus",
+    },
+    {
+      label: "auth-dispatch-order-focus",
+      locator: page.locator("#dispatch-order-id, #dispatch-working-consignment, #dispatch-dispatch-mode").first(),
+      act: "focus",
+    },
+    {
+      label: "auth-select-open",
+      locator: page.locator("select, [role='combobox']").first(),
+      act: "click",
+    },
+    {
+      label: "auth-row-hover",
+      locator: page.locator("table tbody tr, [role='rowgroup'] [role='row'], div.rounded-xl.border").first(),
+      act: "hover",
+    },
+    {
+      label: "auth-main-button-focus",
+      locator: page.locator('main button:visible, main [role="button"]:visible').first(),
+      act: "focus",
+    },
+    {
+      label: "auth-page-button-focus",
+      locator: page.locator('button:visible:not([disabled])').first(),
+      act: "focus",
+    },
+    {
+      label: "auth-card-hover",
+      locator: page.locator('main [class*="card"]:visible, main article:visible, div.rounded-xl.p-3').first(),
+      act: "hover",
+    },
+    {
+      label: "auth-link-hover",
+      locator: page.locator("a[href]:visible").first(),
+      act: "hover",
+    },
+    {
+      label: "auth-content-scroll",
+      locator: page.locator("body"),
+      act: "scroll",
+    },
+  ];
+
+  for (const strategy of strategies) {
+    if (!(await strategy.locator.isVisible().catch(() => false))) continue;
+    await strategy.locator.scrollIntoViewIfNeeded().catch(() => undefined);
+    if (strategy.act === "click") {
+      const isInput = await strategy.locator.evaluate((el) => el.tagName === "INPUT").catch(() => false);
+      if (isInput) await strategy.locator.focus().catch(() => undefined);
+      else await strategy.locator.click().catch(() => undefined);
+    } else if (strategy.act === "focus") {
+      await strategy.locator.focus().catch(() => undefined);
+    } else if (strategy.act === "hover") {
+      await strategy.locator.hover().catch(() => undefined);
+    } else {
+      await page.evaluate(() => window.scrollBy(0, 400));
+    }
+    await page.waitForTimeout(600);
+    const s2Name = screenshotName(target.uatId, app, target.persona, `${routeSlug}-${stateSlug}`, "S2", strategy.label);
+    const s2 = await captureAuthShot(page, screenshotDir, relPrefix, s2Name);
+    return { rel: s2.rel, sha: sha256File(s2.abs), name: s2Name };
+  }
+  return null;
 }
 
 async function captureInteractionStates(
@@ -153,6 +337,13 @@ async function captureInteractionStates(
           uxEvidence.s1 = s1.rel;
           uxEvidenceSha256.s1 = sha256File(s1.abs);
           shotNames.push(s1Name);
+        } else {
+          const s1Fallback = await tryCaptureAuthS1Fallback(page, target, app, routeSlug, stateSlug, screenshotDir, relPrefix);
+          if (s1Fallback) {
+            uxEvidence.s1 = s1Fallback.rel;
+            uxEvidenceSha256.s1 = s1Fallback.sha;
+            shotNames.push(s1Fallback.name);
+          }
         }
       }
     }
@@ -181,60 +372,12 @@ async function captureInteractionStates(
     uxEvidenceSha256.s3 = sha256File(s3.abs);
     shotNames.push(s3Name);
   } else {
-    const overlayTrigger = page
-      .locator('[role="combobox"], button:has-text("Filter"), button:has-text("Search"), input[type="search"]')
-      .first();
-    let s2Captured = false;
-    if (await overlayTrigger.isVisible().catch(() => false)) {
-      if (await overlayTrigger.evaluate((el) => el.tagName === "INPUT").catch(() => false)) {
-        await overlayTrigger.focus().catch(() => undefined);
-      } else {
-        await overlayTrigger.click().catch(() => undefined);
-      }
-      await page.waitForTimeout(600);
-      const s2Name = screenshotName(target.uatId, app, target.persona, `${routeSlug}-${stateSlug}`, "S2", "auth-overlay-open");
-      const s2 = await captureAuthShot(page, screenshotDir, relPrefix, s2Name);
-      uxEvidence.s2 = s2.rel;
-      uxEvidenceSha256.s2 = sha256File(s2.abs);
-      shotNames.push(s2Name);
-      s2Captured = true;
-    }
-    if (!s2Captured) {
-      const tabTrigger = page.locator('[role="tablist"] [role="tab"]:not([data-state="active"])').first();
-      const tableRow = page.locator('table tbody tr, [role="rowgroup"] [role="row"]').first();
-      const mainButton = page.locator('main button:visible, main [role="button"]:visible').first();
-      const cardTrigger = page.locator('main [class*="card"]:visible, main article:visible').first();
-      let s2Label = "auth-tab-open";
-      let s2Action: (() => Promise<void>) | null = null;
-      if (await tabTrigger.isVisible().catch(() => false)) {
-        s2Action = async () => {
-          await tabTrigger.click().catch(() => undefined);
-        };
-      } else if (await tableRow.isVisible().catch(() => false)) {
-        s2Label = "auth-row-hover";
-        s2Action = async () => {
-          await tableRow.hover().catch(() => undefined);
-        };
-      } else if (await mainButton.isVisible().catch(() => false)) {
-        s2Label = "auth-main-button-focus";
-        s2Action = async () => {
-          await mainButton.focus().catch(() => undefined);
-        };
-      } else if (await cardTrigger.isVisible().catch(() => false)) {
-        s2Label = "auth-card-hover";
-        s2Action = async () => {
-          await cardTrigger.hover().catch(() => undefined);
-        };
-      }
-      if (s2Action) {
-        await s2Action();
-        await page.waitForTimeout(600);
-        const s2Name = screenshotName(target.uatId, app, target.persona, `${routeSlug}-${stateSlug}`, "S2", s2Label);
-        const s2 = await captureAuthShot(page, screenshotDir, relPrefix, s2Name);
-        uxEvidence.s2 = s2.rel;
-        uxEvidenceSha256.s2 = sha256File(s2.abs);
-        shotNames.push(s2Name);
-      }
+    await prepareInteractiveState(page, target);
+    const s2Capture = await tryCaptureAuthS2(page, target, app, routeSlug, stateSlug, screenshotDir, relPrefix);
+    if (s2Capture) {
+      uxEvidence.s2 = s2Capture.rel;
+      uxEvidenceSha256.s2 = s2Capture.sha;
+      shotNames.push(s2Capture.name);
     }
 
     const s3Name = screenshotName(
@@ -376,7 +519,11 @@ export async function crawlTargetAuthenticated(
     loginError = err instanceof Error ? err.message.slice(0, 300) : String(err);
   }
   await page.goto(routePath, { waitUntil: "domcontentloaded", timeout: 60_000 });
-  await page.waitForTimeout(3500);
+  if (target.classification === "LEGACY_REDIRECT") {
+    await page.waitForTimeout(2500);
+  }
+  const settleMs = FULL_BLEED_ROUTES.has(target.route) || target.device === "tv" ? 5500 : 3500;
+  await page.waitForTimeout(settleMs);
 
   const url = page.url();
   const title = await page.title();

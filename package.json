@@ -22,6 +22,7 @@
     "test:uat-tranche-continue": "playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/tranche-auth-range.spec.ts",
     "test:uat-buyer-mobile": "playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/buyer-mobile-crawl.spec.ts",
     "test:uat-public-continuation": "playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/public-continuation-crawl.spec.ts",
+    "test:uat-s2-gap-deepening": "playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/s2-gap-deepening.spec.ts",
     "uat:census": "node scripts/uat-crawl/generate-census.mjs",
     "test:ai-uat": "playwright test -c playwright.ai-uat.config.ts",
     "test:ai-uat:report": "node scripts/merge-ai-uat-report.mjs",

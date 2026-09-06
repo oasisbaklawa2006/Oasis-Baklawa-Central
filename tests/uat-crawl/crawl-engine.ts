@@ -290,6 +290,23 @@ export function appendManifestRow(manifestPath: string, row: ManifestRow) {
   appendFileSync(manifestPath, `${JSON.stringify(row)}\n`);
 }
 
+/** Replace rows by uatId — append-only merge for targeted re-crawl tranches. */
+export function mergeAuthManifestRows(manifestPath: string, updatedRows: ManifestRow[]) {
+  const existing = readFileSync(manifestPath, "utf8")
+    .trim()
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => JSON.parse(line) as ManifestRow);
+  const updates = new Map(updatedRows.map((row) => [row.uatId, row]));
+  const merged = existing.map((row) => updates.get(row.uatId) ?? row);
+  for (const row of updatedRows) {
+    if (!existing.some((existingRow) => existingRow.uatId === row.uatId)) {
+      merged.push(row);
+    }
+  }
+  writeFileSync(manifestPath, `${merged.map((row) => JSON.stringify(row)).join("\n")}\n`);
+}
+
 export function writeTrancheIndex(
   indexPath: string,
   tranche: string,

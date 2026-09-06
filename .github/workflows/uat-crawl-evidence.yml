@@ -24,6 +24,7 @@ on:
           - ai-uat
           - post-merge-proofs
           - public-continuation
+          - s2-gap-deepening
           - all
   push:
     branches:
@@ -349,6 +350,11 @@ jobs:
         continue-on-error: true
         run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/public-continuation-crawl.spec.ts
 
+      - name: Run S2 gap deepening (UAT-0002/0037/0038/0052/0053/0061/0080/0094)
+        if: env.RUN_TRANCHE != 'post-merge-proofs' && env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'all' || env.RUN_TRANCHE == 's2-gap-deepening')
+        continue-on-error: true
+        run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/s2-gap-deepening.spec.ts
+
       - name: Record verified BLOCKED registry (remaining 51 minus public continuation)
         if: env.RUN_TRANCHE != 'post-merge-proofs' && (env.RUN_TRANCHE == 'all' || env.RUN_TRANCHE == 'public-continuation' || env.RUN_TRANCHE == 'continue')
         continue-on-error: true
@@ -403,6 +409,8 @@ jobs:
             docs/uat-crawl/UAT_POST_MERGE_491_SUMMARY.json
             docs/uat-crawl/UAT_VERIFIED_BLOCKERS.jsonl
             docs/uat-crawl/UAT_VERIFIED_BLOCKERS_SUMMARY.json
+            docs/uat-crawl/UAT_S2_GAP_DEEPENING_SUMMARY.json
+            docs/uat-crawl/UAT_INDEX_S2_GAP_DEEPENING.md
             docs/uat-crawl/UAT_INDEX_PUBLIC_CONTINUATION.md
             uat-evidence/screenshots/public-continuation/
             uat-evidence/screenshots/post-merge-491-kpi/
@@ -449,6 +457,7 @@ jobs:
             docs/uat-crawl/UAT_AUTH_RERUN_SUMMARY.json docs/uat-crawl/UAT_POST_FIX_483_SUMMARY.json \
             docs/uat-crawl/UAT_MANIFEST_PUBLIC_CONTINUATION.jsonl docs/uat-crawl/UAT_INDEX_PUBLIC_CONTINUATION.md \
             docs/uat-crawl/UAT_VERIFIED_BLOCKERS.jsonl docs/uat-crawl/UAT_VERIFIED_BLOCKERS_SUMMARY.json \
+            docs/uat-crawl/UAT_S2_GAP_DEEPENING_SUMMARY.json docs/uat-crawl/UAT_INDEX_S2_GAP_DEEPENING.md \
             docs/uat-crawl/UAT_GHA_RUN.json docs/uat-crawl/UAT_FAILURE_LEDGER.md docs/uat-crawl/UAT_CRAWL_PROGRESS.md \
             docs/uat-crawl/UAT_BUYER_MOBILE_SUMMARY.json docs/uat-crawl/UAT_BUYER_MOBILE_TARGETS.json \
             docs/uat-crawl/UAT_AI_UAT_SUMMARY.json docs/uat-crawl/UAT_AI_UAT_REPORT.md docs/uat-crawl/UAT_DEPLOY_PROVENANCE.json \
