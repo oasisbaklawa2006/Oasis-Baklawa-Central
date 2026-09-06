@@ -49,9 +49,12 @@ const PriceCell = ({
 
     setSaving(true);
 
+    const updatePayload: Partial<Record<keyof Pick<ProductPriceRow, "mrp" | "price_b2b" | "price_horeca" | "price_special">, number | null>> = {
+      [field]: numVal,
+    };
     const { error } = await supabase
       .from("products")
-      .update({ [field]: numVal } as any)
+      .update(updatePayload)
       .eq("id", productId);
 
     if (error) {
@@ -83,6 +86,19 @@ const PriceCell = ({
   );
 };
 
+interface ProductPricingSourceRow {
+  id: string | null;
+  name: string | null;
+  category: string | null;
+  mrp: number | null;
+  price_b2b: number | null;
+  price_horeca: number | null;
+  price_special: number | null;
+  base_price: number | null;
+  wholesale_price: number | null;
+  price_per_kg: number | null;
+}
+
 const AdminPricing = () => {
   const [products, setProducts] = useState<ProductPriceRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -101,7 +117,7 @@ const AdminPricing = () => {
       toast.error("Failed to load products: " + error.message);
     } else {
       console.log("AdminPricing Fetched Data:", data);
-      setProducts(((data ?? []) as any[]).map((product) => {
+      setProducts(((data ?? []) as ProductPricingSourceRow[]).map((product) => {
         const existingB2B = product.price_b2b || product.base_price || product.wholesale_price || product.price_per_kg || null;
         return {
           id: product.id ?? null,
