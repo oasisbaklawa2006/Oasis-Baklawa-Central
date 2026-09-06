@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { captureCrmManualAction } from "@/lib/crm-action-capture";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -134,17 +135,18 @@ const SalesDashboard = () => {
       return;
     }
     setLogSaving(true);
-    const { error } = await supabase.from("client_interactions").insert({
-      company_id: logCompany,
-      executive_id: user?.id || null,
-      interaction_type: logType,
+    const result = await captureCrmManualAction({
+      companyId: logCompany,
+      executiveId: user?.id || "",
+      channel: logType as "call" | "whatsapp" | "visit" | "note" | "promise",
       notes: logNotes.trim(),
       outcome: logOutcome.trim() || null,
-      follow_up_date: logFollowUp || null,
+      followUpDate: logFollowUp || null,
+      authorizedCompanyIds: companies.map((c) => c.id),
     });
     setLogSaving(false);
-    if (error) {
-      toast({ title: "Failed", description: error.message, variant: "destructive" });
+    if (result.ok === false) {
+      toast({ title: "Failed", description: result.message, variant: "destructive" });
     } else {
       toast({ title: "✓ Activity Logged", description: `${logType} logged for client.` });
       setLogModalOpen(false);
