@@ -1,15 +1,24 @@
 # UAT Crawl Progress Summary
 
-**Last updated:** 2026-09-06 (S2 gap deepening — GHA run 34034836575 @ `8d0d45b9`)  
+**Last updated:** 2026-09-06 (post-#497 merge current-main cert — pending GHA `post-merge-497-main`)  
 **Branch / PR:** `cursor/physical-uat-readiness-matrix-e763` → **#462**  
-**Current main (HELD):** `64a107dfc167be76673a3d18f177a72472dcb241` (#491) — **NOT deployed on Vercel**  
-**#497 repair preview (open PR):** `fa3b87992720902efbeee3467905aa3493fff431` — **NOT current-main certification**  
-**Preserved FAIL-493 repair proof:** `9715c20d` run [34016393457](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34016393457) — **unchanged**  
+**Current main:** `e2f123b0fe257b8a1f39ec40d5f544fff1ebe313` (#497 merged) — deploy `https://oasis-baklawa-central-8lkgmf1q2-oasisbaklawa2006-6222s-projects.vercel.app`  
+**Preserved FAIL-493 evidence (append-only):** pre-fix FAIL @ `8f042fa` run [34015742110](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34015742110); preview PASS @ `9715c20d` run [34016393457](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34016393457) — **NOT substituted**  
 **Mode:** Read-only evidence — **no remediation** in this programme.
+
+## Post-#497 merge — current-main certification (`post-merge-497-main`)
+
+| Gate | Status |
+|---|---|
+| #497 merge blocker | **Removed** — merged @ `e2f123b0` |
+| UAT-005 / FAIL-493-001 same-ID retest | **Pending** GHA `post-merge-497-main` on e2f123b0 deploy |
+| Prior preview PASS `9715c20d` | **Preserved** — separate append-only row |
+| Full auth crawl on current main | **Conditional** on UAT-005 PASS |
+| 46 credential/deploy blockers | **Explicit** — unchanged until secrets/deploy authority |
 
 ## Release hold lifted — targeted post-merge proofs
 
-Full **131-surface current-main rebaseline HELD** until trusted Vercel deploy exists for `64a107df`. Chronological continuation crawl may use ace340fe fallback with explicit provenance — **NOT** current-main certification.
+Prior ace340fe continuation crawl (**80/131** authenticated) preserved with explicit provenance — **NOT** current-main certification until `post-merge-497-main` completes on e2f123b0 deploy.
 
 ### Continuation crawl (ace340fe fallback)
 

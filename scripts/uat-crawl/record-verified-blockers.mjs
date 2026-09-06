@@ -18,7 +18,7 @@ const RESOLVED_URL =
   process.env.UAT_CRAWL_BASE_URL?.trim() ||
   "https://oasis-baklawa-central-6zo99hosg-oasisbaklawa2006-6222s-projects.vercel.app";
 const CURRENT_MAIN_HOLD =
-  process.env.UAT_TARGET_SHA?.trim() || "64a107dfc167be76673a3d18f177a72472dcb241";
+  process.env.UAT_TARGET_SHA?.trim() || "e2f123b0fe257b8a1f39ec40d5f544fff1ebe313";
 
 const PERSONA_PREFIX = {
   ADMIN_STAFF: "TEST_ADMIN",

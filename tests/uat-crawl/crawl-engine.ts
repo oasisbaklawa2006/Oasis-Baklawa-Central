@@ -18,8 +18,10 @@ import {
 export const ROOT = path.resolve(import.meta.dirname, "../..");
 /** Pre-UAT programme baseline (tranche-01 pre-auth). Preserved — not reused as current deploy evidence. */
 export const BASELINE_SHA = "08ccb1cfd4a3624103f0681b5515e26727e77cd2";
-/** Current Central main after #490 merge — governed post-#490 deploy target. */
-export const CURRENT_MAIN_SHA = "64a107dfc167be76673a3d18f177a72472dcb241";
+/** Current Central main after #497 merge (FAIL-493-001 repair) — governed current-main deploy target. */
+export const CURRENT_MAIN_SHA = "e2f123b0fe257b8a1f39ec40d5f544fff1ebe313";
+/** Prior main hold (#491) — preserved for historical ace340fe continuation evidence only. */
+export const PRIOR_MAIN_HOLD_SHA = "64a107dfc167be76673a3d18f177a72472dcb241";
 /** Historical #483 merge SHA — pre-fix/post-fix tranche-02 reference only; not current deploy evidence. */
 export const LEGACY_483_DEPLOY_SHA = "ace340fe1d122a4cce5d7bb61cd237ed7ba1c894";
 /** Post-fix buyer sheet re-test binds to current main (#483+#490 lineage). */
