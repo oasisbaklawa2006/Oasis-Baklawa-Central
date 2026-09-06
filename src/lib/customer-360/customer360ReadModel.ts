@@ -1,4 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
+import { buildCrmCommunicationHistoryReadModel } from "@/lib/crm-communication-history/crmCommunicationHistoryReadModel";
+import type { ClientInteractionRow } from "@/lib/crm-communication-history/crmCommunicationHistoryTypes";
 import { parseCrmLiteTickets } from "@/lib/crm-lite/parseCrmLiteTickets";
 import { assertCustomer360CompanyAccess, normalizeCompanyId } from "./customer360Identity";
 import { Customer360IdentityError } from "./customer360Identity";
@@ -12,6 +14,7 @@ import type {
   Customer360TicketSummary,
   Customer360ViewerContext,
 } from "./customer360Types";
+import type { CrmCommunicationHistoryReadModel } from "@/lib/crm-communication-history/crmCommunicationHistoryTypes";
 
 type CompanyRow = {
   id: string;
@@ -198,6 +201,21 @@ export async function fetchCustomer360ReadModel(
         })),
       };
 
+  const communicationsLedgerSlice: Customer360Slice<CrmCommunicationHistoryReadModel> = interactionsRes.error
+    ? {
+        availability: "error",
+        programmeOwner: "POINT61",
+        errorMessage: interactionsRes.error.message,
+      }
+    : {
+        availability: "available",
+        programmeOwner: "POINT61",
+        data: buildCrmCommunicationHistoryReadModel(
+          companyId,
+          (interactionsRes.data ?? []) as ClientInteractionRow[],
+        ),
+      };
+
   return {
     identity: {
       companyId,
@@ -212,10 +230,7 @@ export async function fetchCustomer360ReadModel(
       "POINT60",
       "Company branch and contact hierarchy is not yet governed in Central.",
     ),
-    communicationsLedger: notGovernedSlice(
-      "POINT61",
-      "Unified CRM communications ledger (calls, WA, email) is not yet governed.",
-    ),
+    communicationsLedger: communicationsLedgerSlice,
     dispatchHistory: notGovernedSlice(
       "DISPATCH_P0_456",
       "Company-scoped dispatch history aggregate is not yet governed; use order-level dispatch views.",

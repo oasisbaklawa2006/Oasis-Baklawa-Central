@@ -3,6 +3,8 @@
  * Canonical customer identity is `companies.id` (company_id).
  */
 
+import type { CrmCommunicationHistoryReadModel } from "@/lib/crm-communication-history/crmCommunicationHistoryTypes";
+
 export type Customer360SliceAvailability =
   | "available"
   | "partial_crm_lite"
@@ -88,7 +90,7 @@ export type Customer360ReadModel = {
   tasks: Customer360Slice<Customer360TaskSummary[]>;
   tickets: Customer360Slice<Customer360TicketSummary[]>;
   branchesAndContacts: Customer360Slice<never>;
-  communicationsLedger: Customer360Slice<never>;
+  communicationsLedger: Customer360Slice<CrmCommunicationHistoryReadModel>;
   dispatchHistory: Customer360Slice<never>;
   financeExposure: Customer360Slice<never>;
   customerHealth: Customer360Slice<never>;

@@ -97,5 +97,8 @@ describe("fetchCustomer360ReadModel", () => {
 
     expect(model.interactions.availability).toBe("partial_crm_lite");
     expect(model.tasks.availability).toBe("partial_crm_lite");
+    expect(model.communicationsLedger.availability).toBe("available");
+    expect(model.communicationsLedger.programmeOwner).toBe("POINT61");
+    expect(model.communicationsLedger.data?.entries).toEqual([]);
   });
 });
