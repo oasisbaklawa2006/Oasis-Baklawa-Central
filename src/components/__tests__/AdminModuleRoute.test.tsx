@@ -224,7 +224,7 @@ describe("AdminModuleRoute finance surface gate (UAT-005)", () => {
       mockRole = role;
       renderFinanceAt("/admin/finance");
       expect(screen.queryByText("Finance workspace")).toBeNull();
-      expect(screen.getByText("Admin landing")).toBeTruthy();
+      expect(screen.getByText("Dispatch landing")).toBeTruthy();
     },
   );
 
@@ -234,7 +234,7 @@ describe("AdminModuleRoute finance surface gate (UAT-005)", () => {
       mockRole = role;
       renderFinanceAt("/admin/finance-governance");
       expect(screen.queryByText("Finance governance workspace")).toBeNull();
-      expect(screen.getByText("Admin landing")).toBeTruthy();
+      expect(screen.getByText("Dispatch landing")).toBeTruthy();
     },
   );
 
@@ -244,7 +244,7 @@ describe("AdminModuleRoute finance surface gate (UAT-005)", () => {
       mockRole = role;
       renderFinanceAt("/admin/accounts-release");
       expect(screen.queryByText("Accounts release workspace")).toBeNull();
-      expect(screen.getByText("Admin landing")).toBeTruthy();
+      expect(screen.getByText("Dispatch landing")).toBeTruthy();
     },
   );
 
