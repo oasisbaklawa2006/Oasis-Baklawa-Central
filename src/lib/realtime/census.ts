@@ -3,13 +3,13 @@
  * Transport audit only — does not assert runtime enablement (realtime globally disabled).
  */
 export const CENTRAL_REALTIME_CENSUS = {
-  baseSha: "e2f123b0fe257b8a1f39ec40d5f544fff1ebe313",
+  baseSha: "649e01b3aed46abddda168247207c7f4f7e0f0e4",
   globalKillSwitch: {
     file: "src/hooks/useRealtime.ts",
     enabled: false,
   },
-  migratedSiteCount: 11,
-  deferredSiteCount: 1,
+  migratedSiteCount: 10,
+  deferredSiteCount: 2,
   postgresChangesSubscriptions: [
     {
       file: "src/hooks/useAdminRealtimeToasts.ts",
@@ -27,10 +27,10 @@ export const CENTRAL_REALTIME_CENSUS = {
     },
     {
       file: "src/components/TopNavBar.tsx",
-      channel: "central:notifications:user:{userId}",
-      scope: "user",
+      channel: "realtime:notif-count-{userId}",
+      scope: "user (Point21 inboxClient)",
       tables: ["notifications"],
-      migrated: "useScopedRealtimeSubscription",
+      deferred: "Point21 notification truth — not migrated in Point23",
     },
     {
       file: "src/components/NotificationsPanel.tsx",
