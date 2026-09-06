@@ -1,6 +1,6 @@
 # UAT Crawl Progress Summary
 
-**Last updated:** 2026-09-06 (watchdog S1 deepening + GHA re-crawl pending)  
+**Last updated:** 2026-09-06 (watchdog S2 deepening + public S1/S2 — GHA pending)  
 **Branch / PR:** `cursor/physical-uat-readiness-matrix-e763` → **#462**  
 **Current main (HELD):** `64a107dfc167be76673a3d18f177a72472dcb241` (#491) — **NOT deployed on Vercel**  
 **#497 repair preview (open PR):** `fa3b87992720902efbeee3467905aa3493fff431` — **NOT current-main certification**  
@@ -48,6 +48,18 @@ Full `all` tranche in **11m43s** — counts unchanged; commit job **no file delt
 ### Watchdog S1 deepening — run [34028658487](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34028658487) @ `bc699a53`
 
 **11m34s** · **78 new S1 `auth-sidebar-hover` screenshots** on authenticated surfaces (80 auth rows; 2 without sidebar — dispatch/TV). Updated `UAT_MANIFEST_AUTH.jsonl` SHA256 rows. Artifact: `uat-crawl-evidence-34028658487-1`. FAIL-493 not re-run.
+
+### Watchdog S2 deepening — pending GHA `all` tranche
+
+Harness updates @ next push:
+
+| Gap | Prior | Target |
+|---|---:|---:|
+| Authenticated S1 complete | 78 / 80 | **80 / 80** (main-nav/interactive hover for UAT-0002, UAT-0080) |
+| Authenticated S2 (opened-interactive) | 9 / 80 | **≤80 / 80** (tab/row/button/card fallbacks when no filter/combobox) |
+| Public continuation S1/S2 | 1 / 5 surfaces with S2 | login link-hover + form-focused on UAT-0008 |
+
+**Policy:** FAIL-493 not re-run until #497 merged/deployed. 46 credential/deploy BLOCKED IDs unchanged.
 
 Re-ran `all` tranche after workflow default change — **no new screenshots** (identical ace340fe evidence). Metadata-only refresh superseded by public continuation below.
 
