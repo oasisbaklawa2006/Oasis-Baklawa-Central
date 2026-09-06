@@ -2,8 +2,8 @@
 
 **Workstation:** Central Point 55 (immutable original scope)  
 **Dependency:** Core Point 54 read contract (`published_products_v1()`) — evidence-backed complete  
-**Census head:** `ace340fe` (rebased onto `main` after #483 merge)  
-**Verdict:** Point 55 **implementation complete** at `fb22f52f`. **Runtime validation complete** at `2c0d9d79`. Evidence ledger updates are docs-only (no runtime delta). Programme clearance **NOT CLEARED** (`PR MERGED ≠ STAGE CLEARED`). No shadow publication table. No Buyer Point 56 scope absorbed.
+**Census head:** `67b3d1cc` (rebased onto `main` after #490/#489/#480 merges)  
+**Verdict:** Point 55 **implementation complete** at `4a70060f` (rebased onto `67b3d1cc`). **Exact-head validation complete** at `4c9ae096` (programme code/security gates PASS; Vercel **BLOCKED** by platform rate limit — infra, not code). Programme clearance **NOT CLEARED** (`PR MERGED ≠ STAGE CLEARED`). No shadow publication table. No Buyer Point 56 scope absorbed.
 
 ## Consumer census
 
@@ -60,9 +60,9 @@ npm run test:release-controller
 
 ## Exact-head gate ledger
 
-Rebased onto `origin/main` at `ace340fe` (#483 merge). **No runtime delta** since `fb22f52f`; evidence doc updates are docs-only.
+Rebased onto `origin/main` at `67b3d1cc` — **6 commits ahead, 0 behind**. Clean rebase, no conflicts, no functional expansion. **No runtime delta** since `4a70060f`; post-rebase evidence doc updates are docs-only.
 
-### Local validation (PASS)
+### Local validation (PASS at `4c9ae096`)
 
 | Gate | Result | Evidence |
 |---|---|---|
@@ -72,7 +72,36 @@ Rebased onto `origin/main` at `ace340fe` (#483 merge). **No runtime delta** sinc
 | Repo ownership boundaries | PASS | `npm run check:boundaries` |
 | Release controller policy | PASS | `npm run test:release-controller` |
 
-### Runtime validation — commit-scoped CI (PASS at `2c0d9d79`)
+### Exact-head validation — commit-scoped CI (PASS at `4c9ae096`; Vercel blocked)
+
+| Gate | Scope | Result | Evidence |
+|---|---|---|---|
+| Release Quality Gate | commit | PASS | [run 34007857499](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34007857499) @ `4c9ae096` |
+| Repo ownership boundaries (CI) | commit | PASS | [run 34007857509](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34007857509) @ `4c9ae096` |
+| CodeQL | commit | PASS | [run 101418305435](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/runs/101418305435) @ `4c9ae096` |
+| Codacy | commit | PASS | [PR #484](https://app.codacy.com/gh/oasisbaklawa2006/Oasis-Baklawa-Central/pull-requests/484) @ `4c9ae096` |
+| Vercel preview | commit | **BLOCKED** | Platform `api-deployments-free-per-day` rate limit (infra); last PASS archived @ `3d064e53` |
+
+### Exact-head validation — PR-scoped review gates (PASS; status bound to `4c9ae096`)
+
+| Gate | Scope | Result | Evidence |
+|---|---|---|---|
+| Snyk | PR-level URL | PASS | [PR check](https://app.snyk.io/org/oasisbaklawa2006/pr-checks/0952b78d-c61d-4dc2-9228-3b74d7a44911); commit status on `4c9ae096` |
+| CodeRabbit | PR-level | PASS | All threads resolved; commit status on `4c9ae096` |
+
+**Commit-scoped programme gates: PASS at `4c9ae096`. Vercel preview blocked by platform rate limit (non-code). PR-scoped Snyk/CodeRabbit: PASS.**
+
+### Superseded exact-head validation (archived — `3d064e53`, 14/14 green including Vercel)
+
+| Gate | Scope | Result | Evidence |
+|---|---|---|---|
+| Vercel preview | commit | PASS (archived) | [deployment](https://vercel.com/oasisbaklawa2006-6222s-projects/oasis-baklawa-central/4wveGy3p4mX1JKcXKYPyxo34FmBU) @ `3d064e53` |
+
+### Pre-rebase validation archive (superseded by rebase onto `67b3d1cc`)
+
+Prior heads `2c0d9d79` / `0af9797b` / `79d976b4` validation evidence is archived below for audit trail only.
+
+#### Runtime validation — commit-scoped CI (PASS at pre-rebase `2c0d9d79`)
 
 | Gate | Scope | Result | Evidence |
 |---|---|---|---|
@@ -108,19 +137,18 @@ Rebased onto `origin/main` at `ace340fe` (#483 merge). **No runtime delta** sinc
 
 **Commit-scoped checks: PASS at runtime head `2c0d9d79` and docs head `0af9797b`. PR-scoped Snyk/CodeRabbit: PASS with commit status on each head (excluded from commit-scoped count).**
 
-**Prior head `bdc37771` collaborator approval is invalidated by rebase.** Fresh approval required on each subsequent head change.
+**Prior head `79d976b4` collaborator approval is invalidated by rebase onto `67b3d1cc`.** Fresh approval required on each subsequent head change.
 
 ## Programme clearance handoff
 
 | Item | Status |
 |---|---|
-| Point 55 implementation (Central software delta) | **COMPLETE** at `fb22f52f` (rebased onto `ace340fe`) |
-| Point 55 runtime validation (local + CI/review) | **COMPLETE** at `2c0d9d79` |
-| Point 55 docs remediation + exact-head validation | **COMPLETE** (docs-only; commit-scoped + PR-scoped gates recorded) |
-| PR merge | **BLOCKED** — fresh collaborator approval required on current head |
+| Point 55 implementation (Central software delta) | **COMPLETE** at `4a70060f` (rebased onto `67b3d1cc`) |
+| Point 55 exact-head validation (local + CI/review) | **COMPLETE** at `4c9ae096` (Vercel blocked — infra) |
+| PR merge | **BLOCKED** — fresh collaborator approval required on `4c9ae096` |
 | Point 55 programme strike (#459) | **NOT CLEARED** — `PR MERGED ≠ STAGE CLEARED` |
 | Runtime / physical UAT (#462) | **NOT STARTED** — return to Mission Control for operator evidence |
 
 ## Stop condition
 
-Implementation complete at `fb22f52f`; runtime validation complete at `2c0d9d79`; evidence ledger current. **Do not merge** until fresh collaborator approval on current head. `PR MERGED ≠ STAGE CLEARED`.
+Rebased onto `67b3d1cc`. Programme gates PASS at `4c9ae096`; Vercel blocked by platform rate limit (infra). **Do not merge** until fresh collaborator approval on `4c9ae096`. `PR MERGED ≠ STAGE CLEARED`.
