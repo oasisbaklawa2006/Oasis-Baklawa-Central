@@ -299,9 +299,9 @@ export const FACTORY_OPERATIONS_ROUTES: FactoryRouteEntry[] = [
     subsystem: "ASSEMBLY_PACKING",
     technicallyAllowedRoles: ADMIN_STAFF_ROLES_REFERENCE,
     intendedPrimaryAudience: [],
-    status: "FACTORY_PREVIEW",
+    status: "FACTORY_CURRENT",
     deviceClass: "BOTH",
-    evidence: "auth-routing.ts comment: 'real, working live board (real Supabase queries, loading/error states) but self-labels as internal preview, not yet evidence-validated -- do not default-land any role there.' TV_ASSEMBLY/TV_DISPLAY explicitly land on /admin/cmd-war-room instead, not here.",
+    evidence: "Read-only kanban over governed b2b_assembly_jobs via assemblyJobReadBoundary (Point90). No mutation paths. TV_ASSEMBLY/TV_DISPLAY still land on /admin/cmd-war-room until physical TV UAT certifies default landing.",
   },
 
   // ── DISPATCH ─────────────────────────────────────────────────────────────
