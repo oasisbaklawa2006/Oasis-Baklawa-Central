@@ -54,7 +54,7 @@ export default function AdminModuleRoute({ moduleKey, children }: AdminModuleRou
   }
 
   if (!hasModuleAccess(allowedModules, moduleKey)) {
-    return <Navigate to="/admin" replace />;
+    return <Navigate to={getRoleDestination(role)} replace />;
   }
   return <>{children}</>;
 }

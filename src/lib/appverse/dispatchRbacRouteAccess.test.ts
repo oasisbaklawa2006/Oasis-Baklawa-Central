@@ -15,6 +15,7 @@ const FORBIDDEN_ADMIN_ROUTES = [
   "/admin/customer-timeline-preview",
   "/admin/operational-search",
   "/admin/finance",
+  "/admin/finance-board",
   "/admin/finance-governance",
   "/admin/clients",
   "/admin/pricing",
@@ -125,6 +126,23 @@ describe("Dispatch RBAC — explicitly mapped restricted routes", () => {
       EXPLICITLY_MAPPED_RESTRICTED_ROUTES.map(({ path }) => ({ role, path })),
     ),
   )("blocks $role from explicitly mapped restricted route $path", ({ role, path }) => {
+    expect(isAuthorizedForAdminPath(path, role)).toBe(false);
+  });
+});
+
+describe("Dispatch RBAC — UAT-005 finance surface regression", () => {
+  const UAT_005_FORBIDDEN_FINANCE_ROUTES = [
+    "/admin/finance",
+    "/admin/finance-board",
+    "/admin/finance-governance",
+    "/admin/accounts-release",
+  ] as const;
+
+  it.each(
+    DISPATCH_ROLES.flatMap((role) =>
+      UAT_005_FORBIDDEN_FINANCE_ROUTES.map((path) => ({ role, path })),
+    ),
+  )("UAT-005: blocks $role from direct finance route $path", ({ role, path }) => {
     expect(isAuthorizedForAdminPath(path, role)).toBe(false);
   });
 });

@@ -12,6 +12,7 @@ import {
 const MUTATION_LABEL = /\b(create|submit|approve|reject|delete|remove|upload|record|lock|open carton|reserve|issue|finalize|release|save|send|confirm|supersede|pay|refund|grant|revoke)\b/i;
 const SAFE_FILL_LABEL = /\b(search|filter|find)\b/i;
 const SAFE_NAV_BUTTON_LABEL = /\b(open navigation|all tools|menu|close|expand|collapse|back|next|previous|filter|search|refresh|view|details?|tab)\b/i;
+const FORBIDDEN_ROUTE_SETTLE_TIMEOUT_MS = 10_000;
 
 export type AiUatEvidence = {
   uat_id: string;
@@ -303,18 +304,23 @@ export async function clickLogout(page: Page) {
   await logout.click();
 }
 
-/** Probe every forbidden route and require a normalized, known safe denial destination. */
+/** Probe every forbidden route and require a normalized, known safe denial destination after auth/role hydration settles. */
 export async function probeForbiddenRoutes(page: Page, testCase: AiUatCase): Promise<string[]> {
   const results: string[] = [];
   const deniedDestinations = safeDeniedDestinations(testCase);
   for (const route of testCase.forbiddenRoutes) {
     await page.goto(`${getPreviewUrl()}${route}`, { waitUntil: "domcontentloaded", timeout: 45_000 });
-    await page.waitForTimeout(350);
-    const finalUrl = assertSamePreviewOrigin(page.url(), `${testCase.id} forbidden-route probe`);
     const requestedPath = normalizePathname(route);
+    await expect
+      .poll(() => normalizePathname(new URL(page.url()).pathname), {
+        message: `${testCase.id}: ${route} must leave the forbidden route after auth/role hydration`,
+        timeout: FORBIDDEN_ROUTE_SETTLE_TIMEOUT_MS,
+        intervals: [100, 250, 500],
+      })
+      .not.toBe(requestedPath);
+    const finalUrl = assertSamePreviewOrigin(page.url(), `${testCase.id} forbidden-route probe`);
     const finalPath = normalizePathname(finalUrl.pathname);
     results.push(`${requestedPath} -> ${finalPath}`);
-    expect(finalPath, `${testCase.id}: ${route} must not remain on the forbidden route`).not.toBe(requestedPath);
     expect(
       deniedDestinations.has(finalPath),
       `${testCase.id}: ${route} must redirect to a known permitted/auth-safe destination, got ${finalPath}`,
