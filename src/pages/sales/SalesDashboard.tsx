@@ -16,6 +16,12 @@ import { format, startOfMonth } from "date-fns";
 import type { Database } from "@/integrations/supabase/types";
 import SalesCrmLiteWorkspace from "@/components/sales/crm-lite/SalesCrmLiteWorkspace";
 import type { CrmLiteCompany } from "@/lib/crm-lite/salesCrmLiteTypes";
+import {
+  crmActionCapture,
+  formatCrmActionCaptureError,
+  newCrmActionIdempotencyKey,
+  toCrmActionCaptureActor,
+} from "@/lib/crm-action-capture";
 
 type OrderRow = Database["public"]["Tables"]["orders"]["Row"];
 type ClientInteractionRow = Database["public"]["Tables"]["client_interactions"]["Row"];
@@ -134,25 +140,35 @@ const SalesDashboard = () => {
       return;
     }
     setLogSaving(true);
-    const { error } = await supabase.from("client_interactions").insert({
-      company_id: logCompany,
-      executive_id: user?.id || null,
-      interaction_type: logType,
-      notes: logNotes.trim(),
-      outcome: logOutcome.trim() || null,
-      follow_up_date: logFollowUp || null,
-    });
-    setLogSaving(false);
-    if (error) {
-      toast({ title: "Failed", description: error.message, variant: "destructive" });
-    } else {
+    try {
+      const actor = toCrmActionCaptureActor({ userId: user?.id, role: "SALES_EXECUTIVE" });
+      const channel = logType === "whatsapp" ? "whatsapp_log" : logType;
+      if (channel === "whatsapp_log") {
+        await crmActionCapture.captureWhatsAppManualLog(actor, {
+          companyId: logCompany,
+          notes: logNotes.trim(),
+          outcome: logOutcome.trim() || null,
+          followUpDate: logFollowUp || null,
+          source: "central_sales_dashboard",
+          idempotencyKey: newCrmActionIdempotencyKey("sales-dash-wa"),
+        });
+      } else {
+        await crmActionCapture.captureManualAction(actor, {
+          companyId: logCompany,
+          channel: channel as "call" | "visit" | "note" | "promise",
+          notes: logNotes.trim(),
+          outcome: logOutcome.trim() || null,
+          followUpDate: logFollowUp || null,
+          source: "central_sales_dashboard",
+          idempotencyKey: newCrmActionIdempotencyKey("sales-dash"),
+        });
+      }
       toast({ title: "✓ Activity Logged", description: `${logType} logged for client.` });
       setLogModalOpen(false);
       setLogNotes("");
       setLogOutcome("");
       setLogFollowUp("");
       setLogCompany("");
-      // Refresh interactions count
       if (user) {
         const companyIds = companies.map((c) => c.id);
         const { data: ints } = await supabase
@@ -162,6 +178,14 @@ const SalesDashboard = () => {
           .eq("executive_id", user.id);
         setInteractions(ints || []);
       }
+    } catch (error) {
+      toast({
+        title: "Failed",
+        description: formatCrmActionCaptureError(error),
+        variant: "destructive",
+      });
+    } finally {
+      setLogSaving(false);
     }
   };
 

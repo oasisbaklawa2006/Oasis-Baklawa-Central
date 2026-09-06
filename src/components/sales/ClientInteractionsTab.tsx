@@ -9,6 +9,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import {
+  crmActionCapture,
+  formatCrmActionCaptureError,
+  newCrmActionIdempotencyKey,
+  toCrmActionCaptureActor,
+} from "@/lib/crm-action-capture";
 
 interface Company {
   id: string;
@@ -94,18 +100,29 @@ export default function ClientInteractionsTab({
       return;
     }
     setSaving(true);
-    const { error } = await supabase.from("client_interactions").insert({
-      company_id: formCompany,
-      executive_id: userId || null,
-      interaction_type: formType,
-      notes: formNotes.trim(),
-      outcome: formOutcome.trim() || null,
-      follow_up_date: formFollowUp || null,
-    });
-    setSaving(false);
-    if (error) {
-      toast.error("Failed: " + error.message);
-    } else {
+    try {
+      const actor = toCrmActionCaptureActor({ userId, role: "SALES_EXECUTIVE" });
+      const idempotencyKey = newCrmActionIdempotencyKey("sales-tab");
+      if (formType === "whatsapp") {
+        await crmActionCapture.captureWhatsAppManualLog(actor, {
+          companyId: formCompany,
+          notes: formNotes.trim(),
+          outcome: formOutcome.trim() || null,
+          followUpDate: formFollowUp || null,
+          source: "central_sales_interactions",
+          idempotencyKey,
+        });
+      } else {
+        await crmActionCapture.captureManualAction(actor, {
+          companyId: formCompany,
+          channel: formType as "call" | "visit" | "note" | "promise",
+          notes: formNotes.trim(),
+          outcome: formOutcome.trim() || null,
+          followUpDate: formFollowUp || null,
+          source: "central_sales_interactions",
+          idempotencyKey,
+        });
+      }
       toast.success("Activity logged.");
       setShowModal(false);
       setFormCompany("");
@@ -114,6 +131,10 @@ export default function ClientInteractionsTab({
       setFormOutcome("");
       setFormFollowUp("");
       fetchInteractions();
+    } catch (error) {
+      toast.error(formatCrmActionCaptureError(error));
+    } finally {
+      setSaving(false);
     }
   };
 
