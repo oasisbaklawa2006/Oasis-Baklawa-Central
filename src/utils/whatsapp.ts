@@ -4,7 +4,8 @@ const PORTAL_URL = import.meta.env.VITE_B2B_PORTAL_URL || "https://b2b.oasisbakl
 const CTA_FOOTER = `\n\nPlease login to your B2B Portal to track your 10-point artisan journey:\n${PORTAL_URL}`;
 /**
  * Send a WhatsApp message via Click2API through the send-whatsapp Edge Function.
- * Every message is auto-logged to client_interactions timeline.
+ * Provider delivery state is recorded by Core send-whatsapp authority — never invented here.
+ * When companyId is supplied, the edge auto-logs to client_interactions for Point61 history.
  */
 export const sendWhatsAppMessage = async (params: {
   to: string;

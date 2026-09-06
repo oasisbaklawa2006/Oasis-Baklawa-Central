@@ -68,10 +68,10 @@ describe("fetchCrmCommunicationHistory", () => {
     ).rejects.toThrow(/Cross-company/);
   });
 
-  it("exposes explicit unavailable email channel governance", () => {
+  it("exposes partial email intent-only channel governance after Point62", () => {
     const channels = buildCrmCommunicationChannelGovernance();
     const email = channels.find((c) => c.channel === "email");
-    expect(email?.availability).toBe("unavailable_not_governed");
+    expect(email?.availability).toBe("partial");
     const whatsapp = channels.find((c) => c.channel === "whatsapp");
     expect(whatsapp?.availability).toBe("partial");
   });
