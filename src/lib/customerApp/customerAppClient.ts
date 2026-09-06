@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Database, Json } from "@/integrations/supabase/database.types";
 import { parseGovernedHttpsPaymentLink } from "@/lib/order-authority/governedPaymentLink";
+import { classifyIntegrationError } from "@/lib/integration-contracts";
 
 type PublicFunctions = Database["public"]["Functions"];
 type RpcName = keyof PublicFunctions;
@@ -21,6 +22,15 @@ export function canonicalSupportIssueType(issueType: string): string {
   return CANONICAL_SUPPORT_ISSUE_TYPES[issueType.trim().toLowerCase()] || "Other";
 }
 
+/** Classifies Buyer RPC failures without exposing raw backend messages to UI. */
+export function classifyCustomerRpcFailure(err: unknown) {
+  return classifyIntegrationError({
+    err,
+    source: "customer-app-rpc",
+    operation: "write",
+  });
+}
+
 /**
  * Executes a generated customer RPC and preserves Core as the write authority.
  * The typed name/argument/return contract prevents callers from inventing a
@@ -29,7 +39,10 @@ export function canonicalSupportIssueType(issueType: string): string {
  */
 async function rpc<Name extends RpcName>(fn: Name, args?: PublicFunctions[Name]["Args"]): Promise<PublicFunctions[Name]["Returns"]> {
   const result = await supabase.rpc(fn, args as never);
-  if (result.error) throw new Error(CUSTOMER_SAFE_REQUEST_ERROR);
+  if (result.error) {
+    classifyCustomerRpcFailure(result.error);
+    throw new Error(CUSTOMER_SAFE_REQUEST_ERROR);
+  }
   return result.data as PublicFunctions[Name]["Returns"];
 }
 
