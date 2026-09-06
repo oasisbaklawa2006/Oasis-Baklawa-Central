@@ -22,6 +22,11 @@ import { deriveExecutionEscalations } from "@/lib/execution-engine/executionEsca
 import { deriveInventoryVarianceEscalations } from "@/lib/inventory-operating-system/inventoryRiskDerive";
 import { aggregateLiveFeeds } from "@/lib/live-feeds/aggregateLiveFeeds";
 import { mapOrdersToFeedContext } from "@/lib/live-feeds/mapOrdersToFeedContext";
+import {
+  compareOrderPoolQueueItems,
+  isDispatchPanicFromUrgency,
+  projectFromRawFacts,
+} from "@/lib/order-priority-owner-sla";
 
 interface OrderItem {
   id?: string;
@@ -41,6 +46,11 @@ interface Order {
   created_at: string | null;
   sales_order_value: number | null;
   dispatch_urgency: string | null;
+  requested_dispatch_date?: string | null;
+  admin_promised_date?: string | null;
+  estimated_despatch_date?: string | null;
+  system_estimated_date?: string | null;
+  wamid?: string | null;
   company_id: string | null;
   company_name?: string;
   company_status?: string | null;
@@ -118,7 +128,7 @@ const CMDWarRoom = () => {
     const { data } = await supabase
       .from("orders")
       .select(
-        "id, status, payment_status, advance_paid, advance_required, created_at, sales_order_value, dispatch_urgency, company_id, total_weight_kg, needs_clarification, is_waste, is_duplicate, duplicate_of_order_id",
+        "id, status, payment_status, advance_paid, advance_required, created_at, sales_order_value, dispatch_urgency, requested_dispatch_date, admin_promised_date, estimated_despatch_date, system_estimated_date, wamid, company_id, total_weight_kg, needs_clarification, is_waste, is_duplicate, duplicate_of_order_id",
       )
       .not("status", "in", '("closed","cancelled")')
       .eq("is_waste", false)
@@ -343,13 +353,49 @@ const CMDWarRoom = () => {
       });
     }
 
-    return [...filtered].sort((a, b) => {
-      if (a.has_complaint && !b.has_complaint) return -1;
-      if (!a.has_complaint && b.has_complaint) return 1;
-      if (a.dispatch_urgency === "panic" && b.dispatch_urgency !== "panic") return -1;
-      if (a.dispatch_urgency !== "panic" && b.dispatch_urgency === "panic") return 1;
-      return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
-    });
+    const nowIso = new Date().toISOString();
+    return [...filtered].sort((a, b) =>
+      compareOrderPoolQueueItems(
+        {
+          orderId: a.id,
+          createdAt: a.created_at,
+          hasComplaint: a.has_complaint,
+          facts: projectFromRawFacts(
+            {
+              orderId: a.id,
+              status: a.status,
+              createdAt: a.created_at,
+              dispatchUrgency: a.dispatch_urgency,
+              requestedDispatchDate: a.requested_dispatch_date ?? null,
+              adminPromisedDate: a.admin_promised_date ?? null,
+              estimatedDespatchDate: a.estimated_despatch_date ?? null,
+              systemEstimatedDate: a.system_estimated_date ?? null,
+              wamid: a.wamid ?? null,
+            },
+            nowIso,
+          ),
+        },
+        {
+          orderId: b.id,
+          createdAt: b.created_at,
+          hasComplaint: b.has_complaint,
+          facts: projectFromRawFacts(
+            {
+              orderId: b.id,
+              status: b.status,
+              createdAt: b.created_at,
+              dispatchUrgency: b.dispatch_urgency,
+              requestedDispatchDate: b.requested_dispatch_date ?? null,
+              adminPromisedDate: b.admin_promised_date ?? null,
+              estimatedDespatchDate: b.estimated_despatch_date ?? null,
+              systemEstimatedDate: b.system_estimated_date ?? null,
+              wamid: b.wamid ?? null,
+            },
+            nowIso,
+          ),
+        },
+      ),
+    );
   }, [orders, todayOnly, filterMode]);
 
   const visibleOrders = sortedOrders.filter((o) => showHidden || !hidden.has(o.id));
@@ -439,7 +485,7 @@ const CMDWarRoom = () => {
       };
       return deriveFinanceReleaseState(inputs).finance_hold;
     }).length;
-    const dispatchPanic = orders.filter((o) => o.dispatch_urgency === "panic").length;
+    const dispatchPanic = orders.filter((o) => isDispatchPanicFromUrgency(o.dispatch_urgency)).length;
     return { financePressure, dispatchPanic };
   }, [orders]);
 
