@@ -1,3 +1,5 @@
+import { classifyIntegrationError } from "@/lib/integration-contracts";
+
 export type OperationalExecutionErrorCode =
   | "not_found"
   | "stale_version"
@@ -16,36 +18,30 @@ export class OperationalExecutionError extends Error {
   }
 }
 
+const INTEGRATION_TO_EXECUTION_CODE: Partial<
+  Record<ReturnType<typeof classifyIntegrationError>["code"], OperationalExecutionErrorCode>
+> = {
+  not_found: "not_found",
+  stale_version: "stale_version",
+  illegal_transition: "illegal_transition",
+  authority_denied: "authority_denied",
+  forbidden: "authority_denied",
+  reason_required: "reason_required",
+};
+
 export function mapRepositoryError(err: unknown): never {
   if (err instanceof OperationalExecutionError) {
     throw err;
   }
-  const message = err instanceof Error ? err.message : String(err);
-  const lower = message.toLowerCase();
-  if (lower.includes("not found")) {
-    throw new OperationalExecutionError("not_found", message);
-  }
-  if (lower.includes("stale queue version")) {
-    throw new OperationalExecutionError("stale_version", message);
-  }
-  if (lower.includes("cannot ") || lower.includes("illegal_transition")) {
-    throw new OperationalExecutionError("illegal_transition", message);
-  }
-  if (
-    lower.includes("denied") ||
-    lower.includes("cannot cancel") ||
-    lower.includes("not scoped") ||
-    lower.includes("forbidden")
-  ) {
-    throw new OperationalExecutionError("authority_denied", message);
-  }
-  if (lower.includes("non-empty reason") || lower.includes("requires")) {
-    throw new OperationalExecutionError("reason_required", message);
+  const classified = classifyIntegrationError({ err, source: "operational-execution", operation: "write" });
+  const mapped = INTEGRATION_TO_EXECUTION_CODE[classified.code];
+  if (mapped) {
+    throw new OperationalExecutionError(mapped, classified.message);
   }
   if (err instanceof Error) {
     throw err;
   }
-  throw new OperationalExecutionError("unknown", message);
+  throw new OperationalExecutionError("unknown", classified.message);
 }
 
 export function requireExecutionReason(reason: string | null | undefined, label: string): void {

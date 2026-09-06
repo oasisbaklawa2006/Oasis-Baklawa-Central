@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ExecutionReadModelResult, ProjectionSource, ReadModelMetadata } from "./types";
 import { deriveGovernanceBoardNoticeFlags } from "./boardNoticeFlags";
-import { resolveBoardProjectionSource } from "./previewFallback";
+import { classifyIntegrationError } from "@/lib/integration-contracts";
+import { assertGovernanceBoardAuthority, resolveBoardProjectionSource } from "./previewFallback";
 
 export interface GovernanceBoardState<T> {
   liveRows: T[];
@@ -40,12 +41,36 @@ export function useGovernanceBoardState<TInput, TRow extends { input: TInput }>(
     setLoadError(null);
     void loader(client)
       .then((result) => {
-        if (!cancelled) setLiveResult(result);
+        if (cancelled) return;
+        if (result.meta.projectionSource === "unavailable") {
+          try {
+            assertGovernanceBoardAuthority(false);
+          } catch (guardErr) {
+            const classified = classifyIntegrationError({
+              err: guardErr,
+              source: "governance-board",
+              operation: "read",
+            });
+            setLoadError(classified.message);
+            setLiveResult(null);
+            return;
+          }
+        }
+        setLiveResult(result);
       })
       .catch((err: unknown) => {
         if (!cancelled) {
-          setLoadError(err instanceof Error ? err.message : "Read model load failed");
-          setLiveResult(null);
+          try {
+            assertGovernanceBoardAuthority(true, err);
+          } catch (guardErr) {
+            const classified = classifyIntegrationError({
+              err: guardErr,
+              source: "governance-board",
+              operation: "read",
+            });
+            setLoadError(classified.message);
+            setLiveResult(null);
+          }
         }
       })
       .finally(() => {
