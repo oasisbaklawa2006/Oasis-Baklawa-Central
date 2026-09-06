@@ -100,5 +100,8 @@ describe("fetchCustomer360ReadModel", () => {
     expect(model.communicationsLedger.availability).toBe("available");
     expect(model.communicationsLedger.programmeOwner).toBe("POINT61");
     expect(model.communicationsLedger.data?.entries).toEqual([]);
+    expect(model.workItemsLedger.availability).toBe("available");
+    expect(model.workItemsLedger.programmeOwner).toBe("POINT63");
+    expect(model.workItemsLedger.data?.openItems).toEqual([]);
   });
 });

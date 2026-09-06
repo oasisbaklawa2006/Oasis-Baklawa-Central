@@ -4,6 +4,7 @@
  */
 
 import type { CrmCommunicationHistoryReadModel } from "@/lib/crm-communication-history/crmCommunicationHistoryTypes";
+import type { CrmWorkItemsReadModel } from "@/lib/crm-work-items/crmWorkItemsTypes";
 
 export type Customer360SliceAvailability =
   | "available"
@@ -91,6 +92,7 @@ export type Customer360ReadModel = {
   tickets: Customer360Slice<Customer360TicketSummary[]>;
   branchesAndContacts: Customer360Slice<never>;
   communicationsLedger: Customer360Slice<CrmCommunicationHistoryReadModel>;
+  workItemsLedger: Customer360Slice<CrmWorkItemsReadModel>;
   dispatchHistory: Customer360Slice<never>;
   financeExposure: Customer360Slice<never>;
   customerHealth: Customer360Slice<never>;

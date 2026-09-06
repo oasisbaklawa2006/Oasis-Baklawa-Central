@@ -302,13 +302,92 @@ export default function Customer360Page() {
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between gap-2">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <MessageSquare className="h-5 w-5" />
-              Communication history
-            </CardTitle>
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <ClipboardList className="h-5 w-5" />
+                CRM work items
+              </CardTitle>
+              {availabilityBadge(model.workItemsLedger.availability)}
+            </div>
+            <CardDescription>
+              Company-scoped open tasks and follow-up commitments (Point 63) — canonical from Core{" "}
+              <code className="rounded bg-muted px-1 py-0.5 text-xs">crm_tasks</code> authority.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {model.workItemsLedger.availability === "available" && model.workItemsLedger.data ? (
+              <>
+                {model.workItemsLedger.data.openItems.length === 0 &&
+                model.workItemsLedger.data.followUpCommitments.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No open CRM work items for this company.</p>
+                ) : (
+                  <ul className="space-y-3">
+                    {[...model.workItemsLedger.data.openItems, ...model.workItemsLedger.data.followUpCommitments].map(
+                      (item) => (
+                        <li key={item.itemId} className="rounded-lg border p-3 text-sm">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <p className="font-medium">{item.summary}</p>
+                            {item.dueDate && (
+                              <p className="text-xs text-muted-foreground">
+                                Due {format(new Date(item.dueDate), "dd MMM yyyy")}
+                                {item.isOverdue ? " · overdue" : ""}
+                              </p>
+                            )}
+                          </div>
+                          <p className="text-muted-foreground">{item.detail ?? "—"}</p>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {item.source.table} · {item.provenance}
+                            {item.dueDateAudit.length > 0 ? ` · ${item.dueDateAudit.length} audit event(s)` : ""}
+                          </p>
+                        </li>
+                      ),
+                    )}
+                  </ul>
+                )}
+                {model.workItemsLedger.data.historyItems.length > 0 && (
+                  <div className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
+                    <p className="mb-2 font-medium text-foreground">
+                      History ({model.workItemsLedger.data.historyItems.length} completed)
+                    </p>
+                    <ul className="space-y-1">
+                      {model.workItemsLedger.data.historyItems.slice(0, 5).map((item) => (
+                        <li key={item.itemId}>
+                          {item.summary}
+                          {item.completedAt
+                            ? ` — completed ${format(new Date(item.completedAt), "dd MMM yyyy")}`
+                            : ""}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                <div className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
+                  <p className="mb-2 font-medium text-foreground">Kind governance</p>
+                  <ul className="space-y-1">
+                    {model.workItemsLedger.data.kinds.map((kind) => (
+                      <li key={kind.kind}>
+                        <span className="font-medium">{kind.kind}</span>: {kind.availability}
+                        {kind.reason ? ` — ${kind.reason}` : ""}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </>
+            ) : (
+              <SliceUnavailable slice={model.workItemsLedger} />
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <MessageSquare className="h-5 w-5" />
+                Communication history
+              </CardTitle>
             {availabilityBadge(model.communicationsLedger.availability)}
           </div>
           <CardDescription>

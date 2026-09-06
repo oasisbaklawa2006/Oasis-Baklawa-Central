@@ -1,6 +1,8 @@
 import { supabase } from "@/integrations/supabase/client";
 import { buildCrmCommunicationHistoryReadModel } from "@/lib/crm-communication-history/crmCommunicationHistoryReadModel";
 import type { ClientInteractionRow } from "@/lib/crm-communication-history/crmCommunicationHistoryTypes";
+import { buildCrmWorkItemsReadModel } from "@/lib/crm-work-items/crmWorkItemsReadModel";
+import type { ClientInteractionFollowUpRow, CrmTaskRow, CrmWorkItemsReadModel } from "@/lib/crm-work-items/crmWorkItemsTypes";
 import { parseCrmLiteTickets } from "@/lib/crm-lite/parseCrmLiteTickets";
 import { assertCustomer360CompanyAccess, normalizeCompanyId } from "./customer360Identity";
 import { Customer360IdentityError } from "./customer360Identity";
@@ -102,13 +104,13 @@ export async function fetchCustomer360ReadModel(
       .limit(25),
     supabase
       .from("client_interactions")
-      .select("id, interaction_type, notes, outcome, follow_up_date, created_at")
+      .select("id, interaction_type, notes, outcome, follow_up_date, created_at, company_id, executive_id")
       .eq("company_id", companyId)
       .order("created_at", { ascending: false })
       .limit(25),
     supabase
       .from("crm_tasks")
-      .select("id, task_type, status, due_date, description, created_at")
+      .select("id, task_type, status, due_date, description, completed_at, created_at, company_id, sales_exec_id")
       .eq("company_id", companyId)
       .order("due_date", { ascending: true })
       .limit(25),
@@ -216,6 +218,29 @@ export async function fetchCustomer360ReadModel(
         ),
       };
 
+  const workItemsLedgerSlice: Customer360Slice<CrmWorkItemsReadModel> =
+    tasksRes.error
+      ? {
+          availability: "error",
+          programmeOwner: "POINT63",
+          errorMessage: tasksRes.error.message,
+        }
+      : interactionsRes.error
+        ? {
+            availability: "error",
+            programmeOwner: "POINT63",
+            errorMessage: interactionsRes.error.message,
+          }
+        : {
+            availability: "available",
+            programmeOwner: "POINT63",
+            data: buildCrmWorkItemsReadModel(
+              companyId,
+              (tasksRes.data ?? []) as CrmTaskRow[],
+              (interactionsRes.data ?? []) as ClientInteractionFollowUpRow[],
+            ),
+          };
+
   return {
     identity: {
       companyId,
@@ -231,6 +256,7 @@ export async function fetchCustomer360ReadModel(
       "Company branch and contact hierarchy is not yet governed in Central.",
     ),
     communicationsLedger: communicationsLedgerSlice,
+    workItemsLedger: workItemsLedgerSlice,
     dispatchHistory: notGovernedSlice(
       "DISPATCH_P0_456",
       "Company-scoped dispatch history aggregate is not yet governed; use order-level dispatch views.",
