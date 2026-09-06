@@ -228,6 +228,18 @@ export async function requestAiPlannerAction(args: {
     });
 
     if (!response.ok) {
+      if (response.status === 429) {
+        // The exploratory planner is optional. Provider quota/rate exhaustion must
+        // not overwrite the authoritative deterministic Playwright result.
+        return {
+          action: "finish",
+          target: null,
+          value: null,
+          direction: null,
+          status: "BLOCKED",
+          reason: "Optional AI planner unavailable (HTTP 429); deterministic Playwright assertions remain authoritative.",
+        };
+      }
       const errorBody = sanitizeText(await response.text());
       throw new Error(`AI planner request failed (${response.status}): ${errorBody.slice(0, 500)}`);
     }
