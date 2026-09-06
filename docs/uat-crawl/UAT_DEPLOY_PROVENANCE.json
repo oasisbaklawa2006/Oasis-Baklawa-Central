@@ -1,11 +1,22 @@
 {
-  "generatedAt": "2026-09-05T23:48:14.026Z",
-  "runId": "33999620404",
-  "requiredSha": "67b3d1cc0baf7d494cb7a00ce55a74f16b6af43b",
-  "resolvedSha": null,
-  "resolvedUrl": null,
-  "status": "BLOCKED",
-  "reason": "No successful Vercel deployment for 67b3d1cc0baf7d494cb7a00ce55a74f16b6af43b (Vercel rate limit suspected); ace340fe not used as post-#490 evidence.",
-  "legacy483Sha": "ace340fe1d122a4cce5d7bb61cd237ed7ba1c894",
-  "policy": "Do not substitute ace340fe as post-#490 current evidence."
+  "generatedAt": "2026-09-06T09:05:28.311Z",
+  "runId": "34023648441",
+  "runTranche": "all",
+  "requiredSha": "64a107dfc167be76673a3d18f177a72472dcb241",
+  "requiredShaStatus": "HELD — no trusted Vercel deploy (rate limit suspected)",
+  "resolvedSha": "ace340fe1d122a4cce5d7bb61cd237ed7ba1c894",
+  "resolvedUrl": "https://oasis-baklawa-central-6zo99hosg-oasisbaklawa2006-6222s-projects.vercel.app",
+  "status": "CONTINUATION_FALLBACK",
+  "continuationFallback": true,
+  "label": "ace340fe continuation crawl — NOT current-main 64a107df certification; post-merge FAIL-493 evidence preserved separately.",
+  "policy": "ace340fe used for chronological continuation crawl only — NOT post-#490 current-main rebaseline.",
+  "fail493EvidencePreserved": {
+    "originalFailRun": "34015742110",
+    "originalFailSha": "8f042fa",
+    "repairPassRun": "34016393457",
+    "repairPassSha": "9715c20d",
+    "repairPr": "497",
+    "note": "fa3b879 is newer #497 preview head — separate from preserved 9715c20d repair proof; NOT current-main cert while #497 open"
+  },
+  "buyerMobileBlocker": "TEST_BUYER_EMAIL, TEST_BUYER_PASSWORD — no fabricated evidence"
 }

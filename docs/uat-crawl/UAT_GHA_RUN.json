@@ -1,22 +1,15 @@
 {
-  "runId": "34016393457",
+  "runId": "34023648441",
   "runAttempt": "1",
-  "runTranche": "post-merge-proofs",
+  "runTranche": "all",
   "ref": "refs/heads/cursor/physical-uat-readiness-matrix-e763",
-  "sha": "1ed8bd478bc585948d15e7b74bc61b529d527061",
+  "sha": "de47d4d0343b654d4882ae9a426731223de9e536",
   "currentMainHoldSha": "64a107dfc167be76673a3d18f177a72472dcb241",
+  "resolvedDeploySha": "ace340fe1d122a4cce5d7bb61cd237ed7ba1c894",
+  "continuationFallback": true,
+  "deployProvenanceLabel": "ace340fe continuation crawl — NOT current-main 64a107df certification; post-merge FAIL-493 evidence preserved separately.",
   "deployBlocked": false,
-  "fastPath493": {
-    "prHeadSha": "9715c20d8bc585948d15e7b74bc61b529d527061",
-    "repairPr": "497",
-    "githubDeploymentId": "7GCAJ79HNbN5oLDKtbVfefvjkg6q",
-    "crawlBaseUrl": "https://oasis-baklawa-centra-git-719166-oasisbaklawa2006-6222s-projects.vercel.app",
-    "uat005to010": "6 PASS / 0 FAIL"
-  },
-  "fastPath491": {
-    "status": "BLOCKED",
-    "blocker": "TEST_SALES_*"
-  },
-  "fullRebaseline": "HELD",
-  "completedAt": "2026-09-06T06:26:10Z"
+  "deployUrl": "https://oasis-baklawa-central-6zo99hosg-oasisbaklawa2006-6222s-projects.vercel.app",
+  "fail493RepairPreserved": "9715c20d (#497 preview PASS run 34016393457) — fa3b879 is newer #497 head but NOT current-main cert while #497 open",
+  "completedAt": "2026-09-06T09:16:42Z"
 }

@@ -1,6 +1,6 @@
 # UAT Crawl Progress Summary
 
-**Last updated:** 2026-09-06 (post-merge targeted proofs)  
+**Last updated:** 2026-09-06 (UAT watchdog continuation crawl run 34023648441)  
 **Branch / PR:** `cursor/physical-uat-readiness-matrix-e763` → **#462**  
 **Current main (HELD):** `64a107dfc167be76673a3d18f177a72472dcb241` (#491) — **NOT deployed on Vercel**  
 **#497 repair preview (open PR):** `fa3b87992720902efbeee3467905aa3493fff431` — **NOT current-main certification**  
@@ -14,6 +14,32 @@ Full **131-surface current-main rebaseline HELD** until trusted Vercel deploy ex
 ### Continuation crawl (ace340fe fallback)
 
 When `64a107df` has no Vercel deploy, GHA `all` tranche resolves ace340fe continuation URL with provenance in `UAT_DEPLOY_PROVENANCE.json`. Prior ace340fe-era **80/131** evidence preserved append-only.
+
+### GHA run [34023648441](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34023648441) — UAT watchdog `all` tranche (ace340fe continuation)
+
+| Field | Value |
+|---|---|
+| Duration | 11m28s |
+| Deploy | ace340fe `https://oasis-baklawa-central-6zo99hosg-oasisbaklawa2006-6222s-projects.vercel.app` |
+| Provenance | **NOT current-main 64a107df certification** |
+| FAIL-493 evidence | **Preserved unchanged** (FAIL @ `8f042fa` run 34015742110; PASS @ `9715c20d` run 34016393457) |
+| #497 `fa3b879` | **Not re-run** — newer open-PR head; not substituted for preserved repair proof |
+| Artifact | `uat-crawl-evidence-34023648441-1` |
+
+| Tranche | Tests run | Authenticated S0–S3 | Blocked |
+|---|---|---:|---|
+| AI-UAT UAT-001–010 | 10 pass | **10 / 10** | — |
+| post-fix-483 | 2 pass | **0 / 2** | `TEST_SALES_*` |
+| auth-rerun | 13 pass | **10 / 13** | UAT-0003 (`TEST_GATE_SECURITY_*`), UAT-0006/0007 (`TEST_BUYER_*`) |
+| tranche-03 | 10 pass | **10 / 10** | — |
+| tranche-04-auth | 20 pass | **19 / 20** | UAT-0044 (`TEST_SALES_*`) |
+| tranche-05-auth | 20 pass | **15 / 20** | RGS/production creds |
+| tranche-06-auth | 20 pass | **18 / 20** | RGS/production creds |
+| tranche-07-auth | 20 pass | **8 / 20** | TV/RGS creds |
+| tranche-08-auth | 21 pass | **0 / 21** | buyer/AI Studio/Trace creds |
+| buyer-mobile | 1 pass | **0 / 16 surfaces** | `TEST_BUYER_*` — **no fabricated evidence** |
+
+**Totals:** authenticated S0–S3 **80 / 131** · remaining without auth function evidence **51** · screenshots/manifests unchanged (identical to prior ace340fe sprint — append-only metadata refresh only)
 
 ### FAST PATH A — #493 security (`8f042fa`)
 
