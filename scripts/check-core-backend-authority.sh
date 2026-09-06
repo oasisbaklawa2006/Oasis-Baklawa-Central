@@ -44,7 +44,7 @@ while IFS= read -r -d '' status; do
       fi
       ;;
   esac
-done < <(git diff --name-status -z -M -C "$base_ref" HEAD)
+done < <(git diff --name-status -z -M -C --find-copies-harder "$base_ref" HEAD)
 
 while IFS= read -r -d '' path; do
   [[ -n "$path" ]] || continue

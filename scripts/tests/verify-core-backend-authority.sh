@@ -91,4 +91,12 @@ mkdir -p "$root/$tab_dir"
 printf '%s\n' 'export {}' > "$root/$tab_dir/index.ts"
 expect_fail_with "$root" "$base" 'CORE BACKEND AUTHORITY VIOLATION'
 
+root="$(new_fixture copy-protected-edge-function)"
+base="$(git -C "$root" rev-parse HEAD)"
+mkdir -p "$root/docs"
+cp "$root/supabase/functions/legacy/index.ts" "$root/docs/copied-index.ts"
+git -C "$root" add docs/copied-index.ts
+git -C "$root" commit -qm "copy protected edge function to non-core path"
+expect_fail_with "$root" "$base" 'CORE BACKEND AUTHORITY VIOLATION'
+
 echo 'verify-core-backend-authority.sh: all cases passed'
