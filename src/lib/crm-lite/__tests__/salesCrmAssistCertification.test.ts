@@ -5,18 +5,21 @@ import { describe, expect, it } from "vitest";
 const source = (relativePath: string) =>
   readFileSync(resolve(process.cwd(), "src", relativePath), "utf8");
 
-describe("Point 74 — CRM-lite sales assistance (Agent #8 workstation lock)", () => {
+describe("CRM-lite sales assistance certification (non-numbered)", () => {
   const dashboard = source("pages/sales/SalesDashboard.tsx");
   const assistPanel = source("components/sales/crm-lite/SalesCrmAssistPanel.tsx");
   const workspace = source("components/sales/crm-lite/SalesCrmLiteWorkspace.tsx");
   const interactions = source("components/sales/ClientInteractionsTab.tsx");
-  const evidence = readFileSync(resolve(process.cwd(), "docs/CRM_LITE_POINT_74_CLOSURE_EVIDENCE.md"), "utf8");
+  const evidence = readFileSync(
+    resolve(process.cwd(), "docs/CRM_LITE_SALES_ASSISTANCE_CERTIFICATION_EVIDENCE.md"),
+    "utf8",
+  );
 
-  it("documents Agent #8 ownership and HOLD behind #448", () => {
-    expect(evidence).toContain("Agent #8");
-    expect(evidence).toContain("HOLD");
-    expect(evidence).toContain("#448");
-    expect(evidence).toContain("Points 75–78");
+  it("documents #459 numbering correction and does not claim original Point 74", () => {
+    expect(evidence).toContain("#459");
+    expect(evidence).toContain("priority / owner / SLA");
+    expect(evidence).toContain("does not** strike, merge, or close original Point 74");
+    expect(evidence).toContain("TEST_SALES_EMAIL");
   });
 
   it("mounts a dedicated assist panel on the sales console", () => {
@@ -53,7 +56,7 @@ describe("Point 74 — CRM-lite sales assistance (Agent #8 workstation lock)", (
     expect(dashboard).toContain("setLogCompany(c.id)");
   });
 
-  it("does not expand into commission payout mutation (P78 collateral boundary)", () => {
+  it("does not expand into commission payout mutation", () => {
     expect(assistPanel).not.toContain("commission_payouts");
     expect(assistPanel).not.toContain("resolveCreditBinding");
   });
