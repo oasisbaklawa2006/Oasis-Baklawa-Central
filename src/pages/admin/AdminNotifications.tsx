@@ -9,31 +9,22 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Bell, Save, Loader2, Info, Radio, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { processOutboxQueue } from "@/utils/notificationOutbox";
+import {
+  outboxDeliveryLabel,
+  projectOutboxRows,
+} from "@/lib/notification-infrastructure/outboxDeliveryView";
+import type { OutboxDeliveryRecord } from "@/lib/notification-infrastructure/contract";
+import type { Database } from "@/integrations/supabase/database.types";
+import type { OutboxRow } from "@/lib/notification-infrastructure/deliveryState";
+
+type NotificationEventUpdate = Database["public"]["Tables"]["notification_events"]["Update"];
+type NotificationEventRow = Database["public"]["Tables"]["notification_events"]["Row"];
 
 // ── Types ──
-interface NotificationEvent {
-  id: string;
-  event_key: string;
-  event_name: string;
-  template_body: string;
-  channels: string[] | null;
-  is_enabled: boolean | null;
-  priority: string | null;
-  created_at: string | null;
-}
+type NotificationEvent = NotificationEventRow;
 
-interface OutboxMessage {
-  id: string;
-  event_type: string | null;
-  message_body: string;
-  recipient_phone: string | null;
-  recipient_email: string | null;
-  status: string | null;
-  priority: string | null;
-  created_at: string | null;
-  sent_at: string | null;
-  error_log: string | null;
-}
+const projectOutboxForAdmin = (rows: OutboxRow[]): OutboxDeliveryRecord[] =>
+  projectOutboxRows(rows);
 
 // ── Constants ──
 const PRIORITY_STYLES: Record<string, string> = {
@@ -60,7 +51,7 @@ const PLACEHOLDERS = [
 
 const AdminNotifications = () => {
   const [events, setEvents] = useState<NotificationEvent[]>([]);
-  const [outbox, setOutbox] = useState<OutboxMessage[]>([]);
+  const [outbox, setOutbox] = useState<OutboxDeliveryRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [outboxLoading, setOutboxLoading] = useState(false);
   const [editedBodies, setEditedBodies] = useState<Record<string, string>>({});
@@ -89,7 +80,7 @@ const AdminNotifications = () => {
       toast.error("Failed to load outbox");
     } else {
       console.log("[Outbox] Fetched rows:", data?.length);
-      setOutbox((data as OutboxMessage[]) || []);
+      setOutbox(projectOutboxForAdmin((data as OutboxRow[]) || []));
     }
     setOutboxLoading(false);
   };
@@ -104,7 +95,7 @@ const AdminNotifications = () => {
     setEvents((prev) => prev.map((e) => (e.id === id ? { ...e, is_enabled: newVal } : e)));
     const { error } = await supabase
       .from("notification_events")
-      .update({ is_enabled: newVal } as any)
+      .update({ is_enabled: newVal } satisfies NotificationEventUpdate)
       .eq("id", id);
     if (error) {
       toast.error("Failed to update toggle");
@@ -120,7 +111,7 @@ const AdminNotifications = () => {
     setSavingId(id);
     const { error } = await supabase
       .from("notification_events")
-      .update({ template_body: body } as any)
+      .update({ template_body: body } satisfies NotificationEventUpdate)
       .eq("id", id);
     if (error) {
       toast.error("Failed to save template");
@@ -141,9 +132,10 @@ const AdminNotifications = () => {
       } else {
         toast.success(`Processed ${count} message(s)`);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Process queue error:", err);
-      toast.error(err?.message || "Failed to process queue");
+      const message = err instanceof Error ? err.message : "Failed to process queue";
+      toast.error(message);
     }
     await fetchOutbox();
     setProcessing(false);
@@ -304,27 +296,32 @@ const AdminNotifications = () => {
                   </thead>
                   <tbody>
                     {outbox.map((msg) => {
-                      const status = (msg.status || "pending").toLowerCase();
+                      const status = outboxDeliveryLabel(msg);
                       return (
                         <tr key={msg.id} className="border-t border-border hover:bg-muted/30 transition-colors">
                           <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap font-mono">
-                            {msg.created_at
-                              ? new Date(msg.created_at).toLocaleDateString("en-IN", {
+                            {msg.createdAt
+                              ? new Date(msg.createdAt).toLocaleDateString("en-IN", {
                                   day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
                                 })
                               : "—"}
                           </td>
-                          <td className="px-4 py-3 text-xs font-medium text-foreground">{msg.event_type || "—"}</td>
+                          <td className="px-4 py-3 text-xs font-medium text-foreground">{msg.eventType || "—"}</td>
                           <td className="px-4 py-3 text-xs text-muted-foreground">
-                            {msg.recipient_phone || msg.recipient_email || "—"}
+                            {msg.recipientEmail || msg.recipientPhone || "—"}
                           </td>
                           <td className="px-4 py-3 text-xs text-muted-foreground max-w-[280px] truncate">
-                            {msg.message_body?.slice(0, 100)}
+                            {msg.messageBody?.slice(0, 100)}
                           </td>
                           <td className="px-4 py-3">
                             <Badge variant="outline" className={`text-[10px] uppercase font-bold ${STATUS_STYLES[status] || STATUS_STYLES.pending}`}>
                               {status}
                             </Badge>
+                            {msg.errorLog && status === "failed" && (
+                              <p className="text-[10px] text-red-600 mt-1 truncate max-w-[200px]" title={msg.errorLog}>
+                                {msg.errorLog}
+                              </p>
+                            )}
                           </td>
                         </tr>
                       );

@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { validateNotifyEventParams } from "@/lib/notification-infrastructure/notifyEventValidation";
 
 /**
  * Centralized notification dispatcher.
@@ -19,6 +20,12 @@ export interface NotifyEventParams {
 }
 
 export const notifyEvent = async (params: NotifyEventParams) => {
+  const validation = validateNotifyEventParams(params);
+  if (validation.ok === false) {
+    console.error("[notifyEvent] validation failed:", validation.reason);
+    return { success: false, error: validation.reason };
+  }
+
   try {
     const { data, error } = await supabase.functions.invoke("notify-event", {
       body: params,
@@ -28,9 +35,10 @@ export const notifyEvent = async (params: NotifyEventParams) => {
       return { success: false, error: error.message };
     }
     return { success: true, data };
-  } catch (e: any) {
-    console.error("[notifyEvent] exception:", e?.message);
-    return { success: false, error: e?.message };
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : "notify_event_exception";
+    console.error("[notifyEvent] exception:", message);
+    return { success: false, error: message };
   }
 };
 

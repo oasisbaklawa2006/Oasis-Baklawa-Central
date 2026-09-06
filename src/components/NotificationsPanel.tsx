@@ -4,15 +4,14 @@ import { X, Package, CreditCard, Sparkles, Bell } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { removeDuplicateRealtimeChannel } from "@/utils/realtime";
-
-interface OutboxNotification {
-  id: string;
-  event_type: string | null;
-  message_body: string;
-  status: string | null;
-  created_at: string | null;
-  recipient_email: string | null;
-}
+import type { InAppNotificationRecord } from "@/lib/notification-infrastructure/contract";
+import type { NotificationsRow } from "@/lib/notification-infrastructure/deliveryState";
+import {
+  fetchInboxNotifications,
+  markInboxNotificationsRead,
+  resolveScopeFromAuth,
+} from "@/lib/notification-infrastructure/inboxClient";
+import { inboxScopeMatchesRow } from "@/lib/notification-infrastructure/recipientScope";
 
 const getIcon = (eventType: string | null) => {
   if (!eventType) return { Icon: Bell, bg: "bg-muted", color: "text-muted-foreground" };
@@ -34,40 +33,49 @@ const timeAgo = (dateStr: string | null) => {
   return `${Math.floor(hrs / 24)}d ago`;
 };
 
+const toInAppRecord = (row: NotificationsRow): InAppNotificationRecord => ({
+  id: row.id,
+  type: row.type,
+  message: row.message,
+  createdAt: row.created_at,
+  readState: row.is_read ? "read" : "unread",
+  userId: row.user_id,
+  companyId: row.company_id,
+});
+
 const NotificationsPanel = ({ open, onClose }: { open: boolean; onClose: () => void }) => {
-  const [notifications, setNotifications] = useState<OutboxNotification[]>([]);
+  const [notifications, setNotifications] = useState<InAppNotificationRecord[]>([]);
   const [hasNew, setHasNew] = useState(false);
-  const { user } = useAuth();
+  const { user, companyId } = useAuth();
 
   useEffect(() => {
-    if (!open || !user) return;
+    if (!open || !user?.id) return;
 
-    const channelName = `outbox-live-${user.id}`;
+    let cancelled = false;
+
+    const scopeResult = resolveScopeFromAuth({ userId: user.id, companyId });
+    if (!scopeResult.ok) {
+      setNotifications([]);
+      setHasNew(false);
+      return;
+    }
+
+    const scope = scopeResult.scope;
+    const channelName = `inbox-live-${user.id}`;
 
     const load = async () => {
-      // Resolve buyer's email so we only show personal notifications (filter out
-      // admin/system-wide events like new b2b applications).
-      const personalEmail = user.email ?? null;
-      let query = supabase
-        .from("notification_outbox")
-        .select("id, event_type, message_body, status, created_at, recipient_email")
-        .order("created_at", { ascending: false })
-        .limit(10);
+      const rows = await fetchInboxNotifications(scope, 10);
+      if (cancelled) return;
 
-      if (personalEmail) {
-        query = query.eq("recipient_email", personalEmail);
-      } else {
-        // No email on auth user → show nothing rather than leaking system events.
-        setNotifications([]);
-        setHasNew(false);
-        return;
-      }
-
-      const { data } = await query;
-      setNotifications((data as OutboxNotification[]) || []);
+      setNotifications(rows);
       setHasNew(false);
+
+      const unreadIds = rows.filter((row) => row.readState === "unread").map((row) => row.id);
+      if (unreadIds.length > 0) {
+        await markInboxNotificationsRead(scope, unreadIds);
+      }
     };
-    load();
+    void load();
 
     removeDuplicateRealtimeChannel(channelName);
 
@@ -75,31 +83,36 @@ const NotificationsPanel = ({ open, onClose }: { open: boolean; onClose: () => v
       .channel(channelName)
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "notification_outbox" },
+        { event: "INSERT", schema: "public", table: "notifications" },
         (payload) => {
-          const row = payload.new as OutboxNotification;
-          if (user.email && row.recipient_email !== user.email) return; // personal-only
-          setNotifications((prev) => [row, ...prev].slice(0, 10));
+          if (cancelled) return;
+          const row = payload.new as NotificationsRow;
+          if (!inboxScopeMatchesRow(scope, row)) return;
+          setNotifications((prev) => [toInAppRecord(row), ...prev].slice(0, 10));
           setHasNew(true);
         }
       )
       .on(
         "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "notification_outbox" },
+        { event: "UPDATE", schema: "public", table: "notifications" },
         (payload) => {
-          const row = payload.new as OutboxNotification;
-          if (user.email && row.recipient_email !== user.email) return;
+          if (cancelled) return;
+          const row = payload.new as NotificationsRow;
+          if (!inboxScopeMatchesRow(scope, row)) return;
           setNotifications((prev) =>
-            prev.map((n) => (n.id === row.id ? row : n))
+            prev.map((n) => (n.id === row.id ? toInAppRecord(row) : n)),
           );
         }
       )
       .subscribe();
 
     return () => {
+      cancelled = true;
+      setNotifications([]);
+      setHasNew(false);
       void supabase.removeChannel(channel);
     };
-  }, [open, user?.id]);
+  }, [open, user?.id, companyId]);
 
   return (
     <AnimatePresence>
@@ -133,7 +146,7 @@ const NotificationsPanel = ({ open, onClose }: { open: boolean; onClose: () => v
                 <div className="py-10 text-center text-muted-foreground text-sm">No notifications yet.</div>
               ) : (
                 notifications.map((n) => {
-                  const { Icon, bg, color } = getIcon(n.event_type);
+                  const { Icon, bg, color } = getIcon(n.type);
                   return (
                     <div key={n.id} className="flex items-start gap-3 p-4 hover:bg-muted/30 transition-colors">
                       <div className={`w-9 h-9 rounded-full ${bg} flex items-center justify-center flex-shrink-0`}>
@@ -142,26 +155,19 @@ const NotificationsPanel = ({ open, onClose }: { open: boolean; onClose: () => v
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <p className="font-body font-semibold text-foreground text-sm truncate">
-                            {n.event_type?.replace(/_/g, " ") || "Notification"}
+                            {n.type?.replace(/_/g, " ") || "Notification"}
                           </p>
                           <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase ${
-                            n.status === "sent" ? "bg-green-100 text-green-700" :
-                            n.status === "failed" ? "bg-red-100 text-red-700" :
-                            "bg-yellow-100 text-yellow-700"
-                          }`}>{n.status}</span>
+                            n.readState === "read" ? "bg-slate-100 text-slate-600" : "bg-primary/10 text-primary"
+                          }`}>{n.readState}</span>
                         </div>
-                        <p className="font-body text-xs text-muted-foreground leading-relaxed mt-0.5 line-clamp-2">{n.message_body}</p>
-                        <p className="font-body text-[11px] text-muted-foreground/60 mt-1">{timeAgo(n.created_at)}</p>
+                        <p className="font-body text-xs text-muted-foreground leading-relaxed mt-0.5 line-clamp-2">{n.message}</p>
+                        <p className="font-body text-[11px] text-muted-foreground/60 mt-1">{timeAgo(n.createdAt)}</p>
                       </div>
                     </div>
                   );
                 })
               )}
-            </div>
-            <div className="p-3 border-t border-border">
-              <button className="w-full py-2 rounded-lg font-body text-xs font-medium text-primary hover:bg-primary/5 transition-colors">
-                View All Notifications
-              </button>
             </div>
           </motion.div>
         </>
