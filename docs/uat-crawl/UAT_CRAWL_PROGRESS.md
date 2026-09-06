@@ -39,7 +39,29 @@ When `64a107df` has no Vercel deploy, GHA `all` tranche resolves ace340fe contin
 | tranche-08-auth | 21 pass | **0 / 21** | buyer/AI Studio/Trace creds |
 | buyer-mobile | 1 pass | **0 / 16 surfaces** | `TEST_BUYER_*` — **no fabricated evidence** |
 
-**Totals:** authenticated S0–S3 **80 / 131** · remaining without auth function evidence **51** · screenshots/manifests unchanged (identical to prior ace340fe sprint — append-only metadata refresh only)
+**Totals:** authenticated S0–S3 **80 / 131** · public continuation **5 / 5** (ace340fe) · verified **BLOCKED 46 / 46** · remaining without auth function evidence **46** (credential/deploy authority)
+
+### GHA run [34024264227](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34024264227) — confirmation re-crawl (identical to 34023648441)
+
+Re-ran `all` tranche after workflow default change — **no new screenshots** (identical ace340fe evidence). Metadata-only refresh superseded by public continuation below.
+
+### Public continuation — ace340fe unblocked surfaces (local + GHA pending)
+
+| UAT ID | Route | Deploy SHA | Result |
+|---|---|---|---|
+| UAT-0001 | /splash | ace340fe | **OBSERVED** + UX partial (4/148) |
+| UAT-0004 | / | ace340fe | **OBSERVED** + UX partial |
+| UAT-0005 | /customer-app-redirect | ace340fe | **OBSERVED** + UX partial |
+| UAT-0008 | /login | ace340fe | **OBSERVED** + UX partial |
+| UAT-0009 | /reset-password | ace340fe | **OBSERVED** + S2 form-focused + UX partial |
+
+**Manifest:** `UAT_MANIFEST_PUBLIC_CONTINUATION.jsonl` · **Screenshots:** `uat-evidence/screenshots/public-continuation/` (SHA256 per row)  
+**Provenance:** NOT current-main 64a107df certification · pre-auth tranche-01 preserved
+
+### Verified BLOCKED registry — 46 remaining surfaces
+
+**File:** `UAT_VERIFIED_BLOCKERS.jsonl` · **Summary:** `UAT_VERIFIED_BLOCKERS_SUMMARY.json`  
+All 46 credential/deploy-blocked IDs mapped to exact secret names — no fabricated PASS. Buyer mobile (`TEST_BUYER_*`) and post-fix-483 (`TEST_SALES_*`) unchanged.
 
 ### FAST PATH A — #493 security (`8f042fa`)
 

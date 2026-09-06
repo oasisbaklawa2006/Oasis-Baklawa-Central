@@ -36,7 +36,7 @@ Original UAT-005 failure evidence preserved in prior manifests — post-merge ro
 
 **Prior ace340fe-era evidence (80/131 authenticated):** preserved unchanged in manifests/screenshots.
 
-**Deploy:** ace340fe (`https://oasis-baklawa-central-6zo99hosg-oasisbaklawa2006-6222s-projects.vercel.app`) · **Evidence SHA:** `80e1f1c2` · **Authenticated S0–S3:** **80 / 131** · **Remaining:** **51**
+**Deploy:** ace340fe (`https://oasis-baklawa-central-6zo99hosg-oasisbaklawa2006-6222s-projects.vercel.app`) · **Evidence SHA:** `80e1f1c2` · **Authenticated S0–S3:** **80 / 131** · **Public continuation:** **5 / 5** · **Verified BLOCKED:** **46 / 46**
 
 | FAIL-ID cluster | Status | Blocker | Governed re-crawl |
 |---|---|---|---|
