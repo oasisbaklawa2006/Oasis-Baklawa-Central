@@ -1,0 +1,120 @@
+/**
+ * Machine-readable census of Central realtime / live-refresh surfaces (Point23).
+ * Transport audit only — does not assert runtime enablement (realtime globally disabled).
+ */
+export const CENTRAL_REALTIME_CENSUS = {
+  baseSha: "649e01b3aed46abddda168247207c7f4f7e0f0e4",
+  globalKillSwitch: {
+    file: "src/hooks/useRealtime.ts",
+    enabled: false,
+  },
+  migratedSiteCount: 10,
+  deferredSiteCount: 2,
+  postgresChangesSubscriptions: [
+    {
+      file: "src/hooks/useAdminRealtimeToasts.ts",
+      channel: "central:orders|b2b_applications:global_staff:staff",
+      scope: "global_staff",
+      tables: ["orders", "b2b_applications"],
+      migrated: "useScopedRealtimeSubscription",
+    },
+    {
+      file: "src/hooks/useApplicationBadge.ts",
+      channel: "central:b2b_applications:global_staff:staff",
+      scope: "global_staff",
+      tables: ["b2b_applications"],
+      migrated: "useScopedRealtimeSubscription",
+    },
+    {
+      file: "src/components/TopNavBar.tsx",
+      channel: "realtime:notif-count-{userId}",
+      scope: "user (Point21 inboxClient)",
+      tables: ["notifications"],
+      deferred: "Point21 notification truth — not migrated in Point23",
+    },
+    {
+      file: "src/components/NotificationsPanel.tsx",
+      channel: "outbox-live-{userId}",
+      scope: "user (client filter)",
+      tables: ["notification_outbox"],
+      deferred: "Point21 notification truth — not migrated in Point23",
+    },
+    {
+      file: "src/pages/admin/CMDWarRoom.tsx",
+      channels: [
+        "central:orders:global_staff:staff",
+        "central:companies:global_staff:staff",
+        "central:order_items:global_staff:staff",
+      ],
+      scope: "global_staff",
+      tables: ["orders", "companies", "order_items"],
+      migrated: "useScopedRealtimeSubscription",
+    },
+    {
+      file: "src/pages/admin/AdminDashboard.tsx",
+      channel: "central:orders:global_staff:staff",
+      scope: "global_staff",
+      tables: ["orders", "b2b_applications", "audit_logs", "factory_inventory"],
+      migrated: "useScopedRealtimeSubscription",
+    },
+    {
+      file: "src/pages/admin/OrderManagement.tsx",
+      channel: "central:orders:global_staff:staff",
+      scope: "global_staff",
+      tables: ["orders"],
+      migrated: "useScopedRealtimeSubscription",
+    },
+    {
+      file: "src/pages/admin/CentralOrderPool.tsx",
+      channel: "central:suggested_orders:global_staff:staff",
+      scope: "global_staff",
+      tables: ["suggested_orders"],
+      migrated: "useScopedRealtimeSubscription",
+    },
+    {
+      file: "src/pages/admin/AdminPricing.tsx",
+      channel: "central:products:global_staff:staff",
+      scope: "global_staff",
+      tables: ["products"],
+      migrated: "useScopedRealtimeSubscription",
+    },
+    {
+      file: "src/components/warroom/RawIntelligenceTab.tsx",
+      channel: "central:debug_webhooks:global_staff:staff",
+      scope: "global_staff",
+      tables: ["debug_webhooks"],
+      migrated: "useScopedRealtimeSubscription",
+    },
+    {
+      file: "src/components/WhatsAppInbox.tsx",
+      channel: "central:whatsapp_packets:global_staff:staff",
+      scope: "global_staff",
+      tables: ["whatsapp_message_packets"],
+      migrated: "useScopedRealtimeSubscription",
+    },
+    {
+      file: "src/hooks/useStableSubscription.ts",
+      channel: "central:postgres_table:global_staff:{tableName}",
+      scope: "global_staff",
+      tables: ["parameterized"],
+      migrated: "useScopedRealtimeSubscription",
+    },
+  ],
+  pollingSurfaces: [
+    { file: "src/hooks/useDepartmentExecutionBoard.ts", intervalMs: 45_000 },
+    { file: "src/pages/admin/DispatchTV.tsx", intervalMs: 30_000 },
+    { file: "src/pages/admin/AssemblyTV.tsx", intervalMs: 30_000 },
+    { file: "src/pages/admin/ReadyGoodsTV.tsx", intervalMs: 30_000 },
+    { file: "src/pages/admin/ThreePgsTV.tsx", intervalMs: 30_000 },
+    { file: "src/components/FactoryTVModule.tsx", intervalMs: 30_000 },
+    { file: "src/pages/admin/AdminDepartment.tsx", intervalMs: 15_000 },
+    { file: "src/pages/admin/OperationsController.tsx", intervalMs: 15_000 },
+    { file: "src/components/PanicAlertBanner.tsx", intervalMs: 15_000 },
+    { file: "src/components/whatsapp/Wa3ClarificationQueueStrip.tsx", intervalMs: 30_000 },
+  ],
+  separation: {
+    point20: "operational-events/ is event truth read-model — not realtime transport",
+    point23: "src/lib/realtime/ is Central subscription standard — snapshot first, scoped delta second",
+    point24: "retry/backoff for integrations — foreign prerequisite; controller exposes degraded/unavailable + polling fallback only",
+  },
+} as const;

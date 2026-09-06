@@ -3,7 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Loader2, Search, CheckCircle2, AlertTriangle } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { removeDuplicateRealtimeChannel } from "@/utils/realtime";
+import { useScopedRealtimeSubscription } from "@/hooks/useScopedRealtimeSubscription";
+import { PRODUCTS_UPDATE_CHANGES } from "@/lib/realtime";
 
 interface ProductPriceRow {
   id: string | null;
@@ -48,9 +49,12 @@ const PriceCell = ({
 
     setSaving(true);
 
+    const updatePayload: Partial<Record<keyof Pick<ProductPriceRow, "mrp" | "price_b2b" | "price_horeca" | "price_special">, number | null>> = {
+      [field]: numVal,
+    };
     const { error } = await supabase
       .from("products")
-      .update({ [field]: numVal } as any)
+      .update(updatePayload)
       .eq("id", productId);
 
     if (error) {
@@ -82,14 +86,28 @@ const PriceCell = ({
   );
 };
 
+interface ProductPricingSourceRow {
+  id: string | null;
+  name: string | null;
+  category: string | null;
+  mrp: number | null;
+  price_b2b: number | null;
+  price_horeca: number | null;
+  price_special: number | null;
+  base_price: number | null;
+  wholesale_price: number | null;
+  price_per_kg: number | null;
+}
+
 const AdminPricing = () => {
   const [products, setProducts] = useState<ProductPriceRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [showMissingOnly, setShowMissingOnly] = useState(false);
 
-  const fetchProducts = useCallback(async () => {
-    setLoading(true);
+  const fetchProducts = useCallback(async (opts?: { silent?: boolean }) => {
+    const silent = Boolean(opts?.silent);
+    if (!silent) setLoading(true);
 
     const { data, error } = await supabase
       .from("products")
@@ -100,7 +118,7 @@ const AdminPricing = () => {
       toast.error("Failed to load products: " + error.message);
     } else {
       console.log("AdminPricing Fetched Data:", data);
-      setProducts(((data ?? []) as any[]).map((product) => {
+      setProducts(((data ?? []) as ProductPricingSourceRow[]).map((product) => {
         const existingB2B = product.price_b2b || product.base_price || product.wholesale_price || product.price_per_kg || null;
         return {
           id: product.id ?? null,
@@ -114,48 +132,25 @@ const AdminPricing = () => {
       }));
     }
 
-    setLoading(false);
+    if (!silent) setLoading(false);
   }, []);
+
+  const fetchProductsSnapshot = useCallback(async () => {
+    await fetchProducts({ silent: true });
+  }, [fetchProducts]);
 
   useEffect(() => {
     void fetchProducts();
   }, [fetchProducts]);
 
-  useEffect(() => {
-    const channelName = "admin-pricing-sync";
-    removeDuplicateRealtimeChannel(channelName);
-
-    const channel = supabase
-      .channel(channelName)
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "products" },
-        (payload) => {
-          const updated = payload.new as Partial<ProductPriceRow> & { id?: string };
-
-          if (!updated.id) return;
-
-          setProducts((prev) =>
-            prev.map((product) =>
-              product.id === updated.id
-                ? {
-                    ...product,
-                    mrp: updated.mrp ?? product.mrp,
-                    price_b2b: updated.price_b2b ?? product.price_b2b,
-                    price_horeca: updated.price_horeca ?? product.price_horeca,
-                    price_special: updated.price_special ?? product.price_special,
-                  }
-                : product,
-            ),
-          );
-        },
-      )
-      .subscribe();
-
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, []);
+  useScopedRealtimeSubscription({
+    domain: "products",
+    scope: { type: "global_staff" },
+    changes: PRODUCTS_UPDATE_CHANGES,
+    mode: "refetch",
+    snapshot: fetchProductsSnapshot,
+    pollingFallbackMs: 30_000,
+  });
 
   const handleCellSaved = (id: string, field: keyof ProductPriceRow, val: number | null) => {
     setProducts((prev) => prev.map((product) => (product.id === id ? { ...product, [field]: val } : product)));

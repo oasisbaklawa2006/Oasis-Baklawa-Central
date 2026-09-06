@@ -2,7 +2,12 @@ import { useEffect, useState, useMemo, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Eye, EyeOff, RefreshCw, Tag } from "lucide-react";
 import { toast } from "sonner";
-import { removeDuplicateRealtimeChannel } from "@/utils/realtime";
+import { useScopedRealtimeSubscription } from "@/hooks/useScopedRealtimeSubscription";
+import {
+  COMPANIES_ALL_CHANGES,
+  ORDER_ITEMS_ALL_CHANGES,
+  ORDERS_ALL_CHANGES,
+} from "@/lib/realtime";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import ShadowClientSection from "@/components/warroom/ShadowClientSection";
@@ -111,7 +116,7 @@ const CMDWarRoom = () => {
       .select("id, business_name")
       .eq("status", "active")
       .order("business_name");
-    setActiveCompanies((data as any) ?? []);
+    setActiveCompanies((data as { id: string; business_name: string }[]) ?? []);
   }, []);
 
   const fetchOrders = useCallback(async () => {
@@ -128,13 +133,13 @@ const CMDWarRoom = () => {
     if (!data) return;
 
     const companyIds = [...new Set(data.map((o) => o.company_id).filter(Boolean))] as string[];
-    let companyMap: Record<string, { name: string; status: string | null; phone: string | null; gst: string | null; address: string | null }> = {};
+    const companyMap: Record<string, { name: string; status: string | null; phone: string | null; gst: string | null; address: string | null }> = {};
     if (companyIds.length) {
       const { data: companies } = await supabase
         .from("companies")
         .select("id, business_name, status, phone, gst_number, registered_address")
         .in("id", companyIds);
-      companies?.forEach((c: any) => {
+      companies?.forEach((c) => {
         companyMap[c.id] = {
           name: c.business_name,
           status: c.status,
@@ -150,7 +155,7 @@ const CMDWarRoom = () => {
       .from("support_tickets")
       .select("order_id")
       .in("order_id", orderIds);
-    const complainedOrders = new Set(tickets?.map((t: any) => t.order_id) ?? []);
+    const complainedOrders = new Set(tickets?.map((t) => t.order_id) ?? []);
 
     const { data: items } = await supabase
       .from("order_items")
@@ -158,9 +163,11 @@ const CMDWarRoom = () => {
       .in("order_id", orderIds);
 
     const itemsByOrder: Record<string, OrderItem[]> = {};
-    items?.forEach((item: any) => {
+    items?.forEach((item) => {
       const oid = item.order_id;
       if (!itemsByOrder[oid]) itemsByOrder[oid] = [];
+
+      const product = item.products as { name?: string; aliases?: string[] } | null;
 
       let conf: number | null = null;
       let alias: string | null = null;
@@ -170,14 +177,14 @@ const CMDWarRoom = () => {
         const aMatch = item.notes.match(/alias[=:]\s*([^|;,\n]+)/i);
         if (aMatch) alias = aMatch[1].trim();
       }
-      if (!alias && item.products?.aliases?.length) {
-        alias = item.products.aliases[0];
+      if (!alias && product?.aliases?.length) {
+        alias = product.aliases[0];
       }
 
       itemsByOrder[oid].push({
         id: item.id,
         quantity: item.quantity,
-        product_name: item.products?.name,
+        product_name: product?.name,
         weight_kg: item.weight_kg,
         confidence: conf,
         matched_alias: alias,
@@ -190,11 +197,11 @@ const CMDWarRoom = () => {
       .select("order_id, file_url, attachment_type")
       .in("order_id", orderIds);
     const attByOrder: Record<string, string[]> = {};
-    attachments?.forEach((a: any) => {
+    attachments?.forEach((a) => {
       const t = (a.attachment_type || "").toLowerCase();
       const url = (a.file_url || "").toLowerCase();
       const looksImage = t.includes("image") || /\.(png|jpe?g|gif|webp)$/i.test(url);
-      if (!looksImage) return;
+      if (!looksImage || !a.order_id || !a.file_url) return;
       if (!attByOrder[a.order_id]) attByOrder[a.order_id] = [];
       attByOrder[a.order_id].push(a.file_url);
     });
@@ -262,13 +269,15 @@ const CMDWarRoom = () => {
       .limit(100);
     if (!data) { setRejectedOrders([]); return; }
     const companyIds = [...new Set(data.map((o) => o.company_id).filter(Boolean))] as string[];
-    let companyMap: Record<string, { name: string; status: string | null }> = {};
+    const companyMap: Record<string, { name: string; status: string | null }> = {};
     if (companyIds.length) {
       const { data: companies } = await supabase
         .from("companies")
         .select("id, business_name, status")
         .in("id", companyIds);
-      companies?.forEach((c: any) => { companyMap[c.id] = { name: c.business_name, status: c.status }; });
+      companies?.forEach((c) => {
+        companyMap[c.id] = { name: c.business_name, status: c.status };
+      });
     }
     setRejectedOrders(
       data.map((o) => ({
@@ -282,6 +291,41 @@ const CMDWarRoom = () => {
     );
   }, []);
 
+  const refreshOrdersAndRejected = useCallback(async () => {
+    await Promise.all([fetchOrders(), fetchRejectedOrders()]);
+  }, [fetchOrders, fetchRejectedOrders]);
+
+  const refreshCompanies = useCallback(async () => {
+    await Promise.all([fetchShadowCompanies(), fetchActiveCompanies()]);
+  }, [fetchShadowCompanies, fetchActiveCompanies]);
+
+  useScopedRealtimeSubscription({
+    domain: "orders",
+    scope: { type: "global_staff" },
+    changes: ORDERS_ALL_CHANGES,
+    mode: "refetch",
+    snapshot: refreshOrdersAndRejected,
+    pollingFallbackMs: 30_000,
+  });
+
+  useScopedRealtimeSubscription({
+    domain: "companies",
+    scope: { type: "global_staff" },
+    changes: COMPANIES_ALL_CHANGES,
+    mode: "refetch",
+    snapshot: refreshCompanies,
+    pollingFallbackMs: 30_000,
+  });
+
+  useScopedRealtimeSubscription({
+    domain: "order_items",
+    scope: { type: "global_staff" },
+    changes: ORDER_ITEMS_ALL_CHANGES,
+    mode: "refetch",
+    snapshot: fetchOrders,
+    pollingFallbackMs: 30_000,
+  });
+
   useEffect(() => {
     fetchOrders();
     fetchRejectedOrders();
@@ -289,37 +333,6 @@ const CMDWarRoom = () => {
     fetchActiveCompanies();
     void fetchWaPulse();
     void fetchFactoryInventoryPulse();
-
-    const ordersChannel = "warroom-orders-live";
-    const companiesChannel = "warroom-companies-live";
-    const itemsChannel = "warroom-items-live";
-    removeDuplicateRealtimeChannel(ordersChannel);
-    removeDuplicateRealtimeChannel(companiesChannel);
-    removeDuplicateRealtimeChannel(itemsChannel);
-
-    const ch1 = supabase
-      .channel(ordersChannel)
-      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => { fetchOrders(); fetchRejectedOrders(); })
-      .subscribe();
-
-    const ch2 = supabase
-      .channel(companiesChannel)
-      .on("postgres_changes", { event: "*", schema: "public", table: "companies" }, () => {
-        fetchShadowCompanies();
-        fetchActiveCompanies();
-      })
-      .subscribe();
-
-    const ch3 = supabase
-      .channel(itemsChannel)
-      .on("postgres_changes", { event: "*", schema: "public", table: "order_items" }, () => fetchOrders())
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(ch1);
-      supabase.removeChannel(ch2);
-      supabase.removeChannel(ch3);
-    };
   }, [fetchOrders, fetchRejectedOrders, fetchShadowCompanies, fetchActiveCompanies, fetchWaPulse, fetchFactoryInventoryPulse]);
 
   const sortedOrders = useMemo(() => {
@@ -357,7 +370,11 @@ const CMDWarRoom = () => {
   const toggleHide = (id: string) => {
     setHidden((prev) => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
       return next;
     });
   };
@@ -377,7 +394,7 @@ const CMDWarRoom = () => {
   const assignClientToOrder = useCallback(async (orderId: string, companyId: string) => {
     const { error } = await supabase
       .from("orders")
-      .update({ company_id: companyId } as any)
+      .update({ company_id: companyId })
       .eq("id", orderId);
     if (error) {
       toast.error("Failed to assign client");
@@ -390,7 +407,7 @@ const CMDWarRoom = () => {
   const buildSO = useCallback(async (orderId: string) => {
     const { error } = await supabase
       .from("orders")
-      .update({ status: "submitted" } as any)
+      .update({ status: "submitted" })
       .eq("id", orderId);
     if (error) {
       toast.error("Failed to build SO");
@@ -417,7 +434,7 @@ const CMDWarRoom = () => {
     const ids = autoPilotOrders.map((o) => o.id);
     const { error } = await supabase
       .from("orders")
-      .update({ status: "submitted" } as any)
+      .update({ status: "submitted" })
       .in("id", ids);
     setBulkProcessing(false);
     if (error) {

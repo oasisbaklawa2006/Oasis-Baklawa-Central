@@ -1,30 +1,69 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { removeDuplicateRealtimeChannel } from "@/utils/realtime";
+import type { Database } from "@/integrations/supabase/types";
 import { AlertCircle, RefreshCw, MessageSquare, Send, FileText, Mic, Image as ImageIcon, Package, Trash2, AlertTriangle, Tag } from "lucide-react";
 import { toast } from "sonner";
 import { parseBanyanMessage } from "@/lib/banyan-parser";
+import { useScopedRealtimeSubscription } from "@/hooks/useScopedRealtimeSubscription";
+import { isRealtimeEnabled } from "@/hooks/useRealtime";
+import { DEBUG_WEBHOOKS_INSERT_UPDATE_CHANGES, type RealtimeDeltaPayload } from "@/lib/realtime";
 import AliasDrawer from "./AliasDrawer";
 
-interface RawMessage {
-  id: string;
-  phone_number: string | null;
-  raw_payload: any;
-  created_at: string;
-  error_message: string | null;
-  processed: boolean | null;
-  message_intent: string | null;
-}
+/** External WhatsApp webhook envelope — not a Supabase row contract. */
+type WhatsAppWebhookPayload = {
+  _oasis_attachment_url?: string;
+  entry?: Array<{
+    changes?: Array<{
+      value?: {
+        messages?: Array<{ id?: string; text?: { body?: string }; type?: string }>;
+        contacts?: Array<{ profile?: { name?: string }; wa_id?: string }>;
+      };
+    }>;
+  }>;
+};
 
-interface AliasMatch {
-  alias_text: string;
-  canonical_name: string;
-}
+type ProductAliasLookupRow = Pick<
+  Database["public"]["Tables"]["product_aliases"]["Row"],
+  "alias_text" | "canonical_name"
+>;
+type ProductAliasSourceRow = Pick<
+  Database["public"]["Tables"]["products"]["Row"],
+  "name" | "aliases"
+>;
+type OrphanCompanySnapshot = Pick<
+  Database["public"]["Tables"]["companies"]["Row"],
+  "business_name" | "phone" | "status"
+>;
+type OrphanOrderSnapshot = Pick<
+  Database["public"]["Tables"]["orders"]["Row"],
+  "id" | "created_at" | "company_id"
+> & {
+  companies: OrphanCompanySnapshot | null;
+};
+type DebugWebhookUpdate = Database["public"]["Tables"]["debug_webhooks"]["Update"];
+type OrderCompanyUpdate = Pick<Database["public"]["Tables"]["orders"]["Update"], "company_id">;
+type DebugWebhookInboundRow = Pick<
+  Database["public"]["Tables"]["debug_webhooks"]["Row"],
+  "id" | "phone_number" | "raw_payload" | "created_at" | "error_message" | "processed"
+> & {
+  /** Runtime column until database.types.ts is regenerated. */
+  message_intent?: string | null;
+};
+
+/** Inbound debug_webhooks row with external webhook payload and optional runtime intent. */
+type RawMessage = Pick<
+  Database["public"]["Tables"]["debug_webhooks"]["Row"],
+  "id" | "phone_number" | "created_at" | "error_message" | "processed"
+> & {
+  raw_payload: WhatsAppWebhookPayload | null;
+  /** Present at runtime; generated Row omits until types are regenerated. */
+  message_intent: string | null;
+};
 
 export default function RawIntelligenceTab() {
   const [messages, setMessages] = useState<RawMessage[]>([]);
   const [loading, setLoading] = useState(true);
-  const [aliases, setAliases] = useState<AliasMatch[]>([]);
+  const [aliases, setAliases] = useState<ProductAliasLookupRow[]>([]);
   const [creatingDraft, setCreatingDraft] = useState<string | null>(null);
   const [markingWaste, setMarkingWaste] = useState<string | null>(null);
   const [merging, setMerging] = useState<string | null>(null);
@@ -43,11 +82,11 @@ export default function RawIntelligenceTab() {
       supabase.from("product_aliases").select("alias_text, canonical_name"),
       supabase.from("products").select("name, aliases").not("aliases", "is", null),
     ]);
-    const merged: AliasMatch[] = [...((lookup as AliasMatch[]) ?? [])];
-    (prodAliasRows ?? []).forEach((p: any) => {
-      (p.aliases ?? []).forEach((a: string) => {
-        if (a && typeof a === "string") {
-          merged.push({ alias_text: a, canonical_name: p.name });
+    const merged: ProductAliasLookupRow[] = [...(lookup ?? [])];
+    (prodAliasRows ?? []).forEach((product: ProductAliasSourceRow) => {
+      (product.aliases ?? []).forEach((alias) => {
+        if (alias) {
+          merged.push({ alias_text: alias, canonical_name: product.name });
         }
       });
     });
@@ -68,30 +107,47 @@ export default function RawIntelligenceTab() {
       .order("created_at", { ascending: false })
       .limit(40);
     const map: Record<string, { orderId: string; createdAt: string }> = {};
-    (data ?? []).forEach((o: any) => {
-      const phone = (o.companies?.phone || "").replace(/\D/g, "").slice(-10);
-      if (!phone) return;
-      const isShadow = !o.companies || o.companies.status === "shadow" || /unknown/i.test(o.companies.business_name || "");
-      if (!isShadow) return;
-      if (!map[phone] || map[phone].createdAt < o.created_at) {
-        map[phone] = { orderId: o.id, createdAt: o.created_at };
+    for (const order of (data ?? []) as OrphanOrderSnapshot[]) {
+      const phone = (order.companies?.phone ?? "").replace(/\D/g, "").slice(-10);
+      if (!phone) continue;
+      const isShadow =
+        !order.companies ||
+        order.companies.status === "shadow" ||
+        /unknown/i.test(order.companies.business_name);
+      if (!isShadow) continue;
+      const createdAt = order.created_at ?? "";
+      if (!map[phone] || map[phone].createdAt < createdAt) {
+        map[phone] = { orderId: order.id, createdAt };
       }
-    });
+    }
     setOrphanByPhone(map);
   }, []);
 
   const fetchRaw = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase
+    const { data: rawData } = await supabase
       .from("debug_webhooks")
-      .select("id, phone_number, raw_payload, created_at, error_message, processed, message_intent")
+      .select(
+        "id, phone_number, raw_payload, created_at, error_message, processed, message_intent" as
+          "id, phone_number, raw_payload, created_at, error_message, processed",
+      )
       .eq("direction", "inbound")
       .order("created_at", { ascending: false })
       .limit(80);
 
+    // Single boundary cast: message_intent exists at runtime but is absent from generated Row.
+    const data = rawData as DebugWebhookInboundRow[] | null;
+
     // Hard metadata filter — hide wamid-only acks, OAuthExceptions, and empty payloads.
-    // `message_intent` may exist at runtime; generated `debug_webhooks` Row omits it until types are regenerated.
-    const rows = (data ?? []) as unknown as RawMessage[];
+    const rows: RawMessage[] = (data ?? []).map((row) => ({
+      id: row.id,
+      phone_number: row.phone_number,
+      created_at: row.created_at,
+      error_message: row.error_message,
+      processed: row.processed,
+      raw_payload: row.raw_payload as WhatsAppWebhookPayload | null,
+      message_intent: row.message_intent ?? null,
+    }));
     const filtered = rows.filter((m) => {
       const str = JSON.stringify(m.raw_payload || "");
       const hasMessage = !!m.raw_payload?.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
@@ -105,23 +161,38 @@ export default function RawIntelligenceTab() {
     setLoading(false);
   }, []);
 
+  const handleWebhookDelta = useCallback(
+    (payload: RealtimeDeltaPayload) => {
+      if (payload.changeEvent === "INSERT") {
+        void fetchRaw();
+        window.setTimeout(() => void fetchRaw(), 1000);
+        void fetchOrphans();
+        return;
+      }
+      void fetchRaw();
+    },
+    [fetchRaw, fetchOrphans],
+  );
+
+  useScopedRealtimeSubscription({
+    domain: "debug_webhooks",
+    scope: { type: "global_staff" },
+    changes: DEBUG_WEBHOOKS_INSERT_UPDATE_CHANGES,
+    mode: "invalidate",
+    snapshot: async () => {
+      await fetchRaw();
+      await fetchAliases();
+      await fetchOrphans();
+    },
+    onAcceptedDelta: handleWebhookDelta,
+    pollingFallbackMs: 30_000,
+  });
+
   useEffect(() => {
-    fetchRaw();
-    fetchAliases();
-    fetchOrphans();
-    const channelName = "warroom-raw-intel";
-    removeDuplicateRealtimeChannel(channelName);
-    const ch = supabase
-      .channel(channelName)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "debug_webhooks" }, () => {
-        // Immediate refresh, then a 1s follow-up to catch the storage upload patching `_oasis_attachment_url`.
-        fetchRaw();
-        setTimeout(() => fetchRaw(), 1000);
-        fetchOrphans();
-      })
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "debug_webhooks" }, () => fetchRaw())
-      .subscribe();
-    return () => { supabase.removeChannel(ch); };
+    if (isRealtimeEnabled) return;
+    void fetchRaw();
+    void fetchAliases();
+    void fetchOrphans();
   }, [fetchRaw, fetchAliases, fetchOrphans]);
 
   const handleMergeIntoOrphan = async (msg: RawMessage, orphanOrderId: string, candidateName: string) => {
@@ -134,11 +205,11 @@ export default function RawIntelligenceTab() {
         .ilike("business_name", trimmed)
         .maybeSingle();
 
-      let companyId = (existing as any)?.id as string | undefined;
+      let companyId = existing?.id;
       if (!companyId) {
         const { data: created, error: insErr } = await supabase
           .from("companies")
-          .insert({ business_name: trimmed, status: "shadow" } as any)
+          .insert({ business_name: trimmed, status: "shadow" })
           .select("id")
           .single();
         if (insErr || !created) {
@@ -146,20 +217,22 @@ export default function RawIntelligenceTab() {
           setMerging(null);
           return;
         }
-        companyId = (created as any).id;
+        companyId = created.id;
       }
 
+      const orderUpdate: OrderCompanyUpdate = { company_id: companyId };
       const { error: updErr } = await supabase
         .from("orders")
-        .update({ company_id: companyId } as any)
+        .update(orderUpdate)
         .eq("id", orphanOrderId);
       if (updErr) {
         toast.error("Failed to merge into prior order");
       } else {
-        await supabase
-          .from("debug_webhooks")
-          .update({ processed: true, error_message: `Merged into order ${orphanOrderId.slice(0, 8)}` } as any)
-          .eq("id", msg.id);
+        const webhookUpdate: DebugWebhookUpdate = {
+          processed: true,
+          error_message: `Merged into order ${orphanOrderId.slice(0, 8)}`,
+        };
+        await supabase.from("debug_webhooks").update(webhookUpdate).eq("id", msg.id);
         toast.success(`Merged "${trimmed}" into order #${orphanOrderId.slice(0, 8).toUpperCase()}`);
         fetchRaw();
         fetchOrphans();
@@ -170,24 +243,24 @@ export default function RawIntelligenceTab() {
     setMerging(null);
   };
 
-  const extractText = (payload: any): string => {
+  const extractText = (payload: WhatsAppWebhookPayload | string | null): string => {
     if (!payload) return "";
-    const msg = payload?.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
-    if (msg?.text?.body) return msg.text.body;
     if (typeof payload === "string") return payload.slice(0, 500);
+    const msg = payload.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
+    if (msg?.text?.body) return msg.text.body;
     const str = JSON.stringify(payload);
     const textMatch = str.match(/"body"\s*:\s*"([^"]+)"/);
     if (textMatch) return textMatch[1];
     return str.slice(0, 300);
   };
 
-  const extractMessageType = (payload: any): string => {
+  const extractMessageType = (payload: WhatsAppWebhookPayload | null): string => {
     const msg = payload?.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
     if (!msg) return "text";
     return msg?.type || "text";
   };
 
-  const extractSender = (payload: any, phone: string | null): { name: string; phone: string } => {
+  const extractSender = (payload: WhatsAppWebhookPayload | null, phone: string | null): { name: string; phone: string } => {
     const contact = payload?.entry?.[0]?.changes?.[0]?.value?.contacts?.[0];
     const senderName = contact?.profile?.name || "Unknown";
     const senderPhone = phone || contact?.wa_id || "Unknown";
@@ -213,9 +286,13 @@ export default function RawIntelligenceTab() {
   const handleMarkWaste = async (msg: RawMessage) => {
     setMarkingWaste(msg.id);
     try {
+      const webhookUpdate: DebugWebhookUpdate = {
+        processed: true,
+        error_message: "Non-Order Message",
+      };
       const { error } = await supabase
         .from("debug_webhooks")
-        .update({ processed: true, error_message: "Non-Order Message" } as any)
+        .update(webhookUpdate)
         .eq("id", msg.id);
 
       if (error) {
