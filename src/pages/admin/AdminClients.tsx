@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { notifyEvent } from "@/utils/notifyEvent";
@@ -41,6 +42,7 @@ import {
   isAccountManagerEligibleUser,
 } from "@/lib/client-governance/accountManagerRoles";
 import { fetchClientGovernanceCounts } from "@/lib/client-governance/clientGovernanceCounts";
+import { customer360RouteForCompany } from "@/lib/customer-360/customer360Identity";
 
 /* ─── types ─── */
 interface Application {
@@ -109,6 +111,9 @@ const statusBadgeClass = (status: string) => {
 /* ─── Component ─── */
 const AdminClients = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const customerIdParam = searchParams.get("customerId");
   const [apps, setApps] = useState<Application[]>([]);
   const [activeCompanies, setActiveCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(false);
@@ -187,6 +192,15 @@ const AdminClients = () => {
 
     void refreshStableCounts();
   }, []);
+
+  useEffect(() => {
+    if (!customerIdParam) return;
+    try {
+      navigate(customer360RouteForCompany(customerIdParam), { replace: true });
+    } catch {
+      toast.error("Invalid customer identity in deep link.");
+    }
+  }, [customerIdParam, navigate]);
 
   const fetchApps = async (status: string) => {
     setLoading(true);
@@ -539,7 +553,7 @@ const AdminClients = () => {
                               </div>
                             </div>
                           </div>
-                          <div className="border-t border-slate-100 pt-4 mt-4 flex items-center justify-between">
+                          <div className="border-t border-slate-100 pt-4 mt-4 flex items-center justify-between gap-2">
                             <div className="flex gap-4">
                               <div>
                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
@@ -558,12 +572,17 @@ const AdminClients = () => {
                                 </p>
                               </div>
                             </div>
-                            <button
-                              onClick={() => openCompanyEditModal(client)}
-                              className="w-10 h-10 rounded-xl bg-slate-100 text-slate-600 hover:bg-[#B8860B] hover:text-white transition-colors flex items-center justify-center"
-                            >
-                              <Edit size={16} />
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <Button asChild size="sm" variant="outline" className="text-xs">
+                                <Link to={customer360RouteForCompany(client.id)}>Customer 360</Link>
+                              </Button>
+                              <button
+                                onClick={() => openCompanyEditModal(client)}
+                                className="w-10 h-10 rounded-xl bg-slate-100 text-slate-600 hover:bg-[#B8860B] hover:text-white transition-colors flex items-center justify-center"
+                              >
+                                <Edit size={16} />
+                              </button>
+                            </div>
                           </div>
                         </div>
                       ))}
