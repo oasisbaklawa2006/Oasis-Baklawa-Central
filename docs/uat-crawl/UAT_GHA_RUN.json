@@ -1,15 +1,16 @@
 {
-  "runId": "34034836575",
+  "runId": "34037424554",
   "runAttempt": "1",
-  "runTranche": "all",
+  "runTranche": "post-merge-497-main",
   "ref": "refs/heads/cursor/physical-uat-readiness-matrix-e763",
-  "sha": "fbcfb5041060eebeb8f3001915f2b5b60ed84355",
-  "currentMainHoldSha": "64a107dfc167be76673a3d18f177a72472dcb241",
-  "resolvedDeploySha": "ace340fe1d122a4cce5d7bb61cd237ed7ba1c894",
-  "continuationFallback": true,
-  "deployProvenanceLabel": "ace340fe continuation crawl — NOT current-main 64a107df certification; post-merge FAIL-493 evidence preserved separately.",
+  "sha": "e9333dfbe7bd8a321f024329ab870a7c8fa1ace1",
+  "currentMainHoldSha": "e2f123b0fe257b8a1f39ec40d5f544fff1ebe313",
+  "resolvedDeploySha": "e2f123b0fe257b8a1f39ec40d5f544fff1ebe313",
+  "continuationFallback": false,
+  "deployProvenanceLabel": "Current-main #497 merge certification @ e2f123b0 — NOT substituting 9715c20d preview PASS.",
   "deployBlocked": false,
-  "deployUrl": "https://oasis-baklawa-central-6zo99hosg-oasisbaklawa2006-6222s-projects.vercel.app",
-  "fail493RepairPreserved": "9715c20d (#497 preview PASS run 34016393457) — fa3b879 is newer #497 head but NOT current-main cert while #497 open",
-  "completedAt": "2026-09-06T13:18:08Z"
+  "deployUrl": "https://oasis-baklawa-central-8lkgmf1q2-oasisbaklawa2006-6222s-projects.vercel.app",
+  "fail493EvidencePreserved": "Pre-fix FAIL @ 8f042fa (run 34015742110) + preview PASS @ 9715c20d (run 34016393457) preserved append-only; #497 merged @ e2f123b0",
+  "uat005CurrentMainPass": "true",
+  "completedAt": "2026-09-06T14:09:49Z"
 }

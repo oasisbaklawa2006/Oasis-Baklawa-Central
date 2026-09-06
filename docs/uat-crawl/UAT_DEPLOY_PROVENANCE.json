@@ -1,22 +1,22 @@
 {
-  "generatedAt": "2026-09-06T13:01:43.874Z",
-  "runId": "34034836575",
-  "runTranche": "all",
-  "requiredSha": "64a107dfc167be76673a3d18f177a72472dcb241",
-  "requiredShaStatus": "HELD — no trusted Vercel deploy (rate limit suspected)",
-  "resolvedSha": "ace340fe1d122a4cce5d7bb61cd237ed7ba1c894",
-  "resolvedUrl": "https://oasis-baklawa-central-6zo99hosg-oasisbaklawa2006-6222s-projects.vercel.app",
-  "status": "CONTINUATION_FALLBACK",
-  "continuationFallback": true,
-  "label": "ace340fe continuation crawl — NOT current-main 64a107df certification; post-merge FAIL-493 evidence preserved separately.",
-  "policy": "ace340fe used for chronological continuation crawl only — NOT post-#490 current-main rebaseline.",
+  "generatedAt": "2026-09-06T13:52:50.270Z",
+  "runId": "34037424554",
+  "runTranche": "post-merge-497-main",
+  "requiredSha": "e2f123b0fe257b8a1f39ec40d5f544fff1ebe313",
+  "requiredShaStatus": "TRUSTED — #497 merged to main",
+  "resolvedSha": "e2f123b0fe257b8a1f39ec40d5f544fff1ebe313",
+  "resolvedUrl": "https://oasis-baklawa-central-8lkgmf1q2-oasisbaklawa2006-6222s-projects.vercel.app",
+  "githubDeploymentId": "6293534757",
+  "status": "CURRENT_MAIN_CERTIFICATION",
+  "continuationFallback": false,
+  "label": "Current-main #497 merge certification @ e2f123b0 — NOT substituting 9715c20d preview PASS",
+  "policy": "Append-only FAIL-493 evidence: pre-fix FAIL @ 8f042fa (run 34015742110) + preview PASS @ 9715c20d (run 34016393457) preserved.",
   "fail493EvidencePreserved": {
     "originalFailRun": "34015742110",
     "originalFailSha": "8f042fa",
-    "repairPassRun": "34016393457",
-    "repairPassSha": "9715c20d",
-    "repairPr": "497",
-    "note": "fa3b879 is newer #497 preview head — separate from preserved 9715c20d repair proof; NOT current-main cert while #497 open"
-  },
-  "buyerMobileBlocker": "TEST_BUYER_EMAIL, TEST_BUYER_PASSWORD — no fabricated evidence"
+    "previewPassRun": "34016393457",
+    "previewPassSha": "9715c20d",
+    "currentMainPassMergeSha": "e2f123b0fe257b8a1f39ec40d5f544fff1ebe313",
+    "note": "9715c20d preview PASS is NOT substituted by current-main cert — separate append-only rows"
+  }
 }
