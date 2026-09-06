@@ -6,6 +6,7 @@ import type {
   CrmCommunicationDirection,
   CrmCommunicationHistoryEntry,
 } from "./crmCommunicationHistoryTypes";
+import { stripPoint62Provenance } from "@/lib/crm-action-capture/crmActionCaptureProvenance";
 
 const AUTO_LOG_PREFIX = "[AUTO]";
 
@@ -35,15 +36,15 @@ export function buildCrmCommunicationChannelGovernance(): CrmCommunicationChanne
     },
     {
       channel: "promise",
-      availability: "partial",
+      availability: "available",
       programmeOwner: "POINT62",
-      reason: "Follow-up dates are captured on interactions; structured promise capture is Point62.",
+      reason: "Structured promise/commitment capture via governed Point62 action boundary.",
     },
     {
       channel: "email",
-      availability: "unavailable_not_governed",
-      programmeOwner: "POINT61",
-      reason: "No company-scoped durable email record authority is exposed in Central.",
+      availability: "partial",
+      programmeOwner: "POINT62",
+      reason: "Intent-only capture via Point62; durable provider send authority is not yet exposed.",
     },
     {
       channel: "system",
@@ -80,6 +81,12 @@ export function mapInteractionTypeToChannel(interactionType: string | null): Crm
 export function inferDirectionFromInteraction(row: ClientInteractionRow): CrmCommunicationDirection {
   const notes = row.notes ?? "";
   if (notes.startsWith(AUTO_LOG_PREFIX)) return "outbound";
+  if (notes.startsWith("[POINT62:")) {
+    const type = (row.interaction_type ?? "").toLowerCase();
+    if (type === "email") return "outbound";
+    if (type === "whatsapp" && row.outcome === "intent_recorded") return "outbound";
+    return "internal";
+  }
   const type = (row.interaction_type ?? "").toLowerCase();
   if (type === "note" || type === "promise") return "internal";
   if (type === "visit") return "outbound";
@@ -89,6 +96,7 @@ export function inferDirectionFromInteraction(row: ClientInteractionRow): CrmCom
 export function inferActorRoleFromInteraction(row: ClientInteractionRow): CrmCommunicationActorRole {
   const notes = row.notes ?? "";
   if (notes.startsWith(AUTO_LOG_PREFIX)) return "system";
+  if (notes.startsWith("[POINT62:") && row.executive_id) return "sales_executive";
   if (row.executive_id) return "sales_executive";
   return "unknown";
 }
@@ -110,11 +118,13 @@ export function actorDisplayLabel(role: CrmCommunicationActorRole): string {
 
 function stripAutoLogPrefix(notes: string | null): string | null {
   if (!notes) return null;
-  if (notes.startsWith(AUTO_LOG_PREFIX)) {
-    const stripped = notes.slice(AUTO_LOG_PREFIX.length).trim();
+  const point62Stripped = stripPoint62Provenance(notes);
+  const working = point62Stripped ?? notes;
+  if (working.startsWith(AUTO_LOG_PREFIX)) {
+    const stripped = working.slice(AUTO_LOG_PREFIX.length).trim();
     return stripped || null;
   }
-  return notes;
+  return point62Stripped ?? notes;
 }
 
 export function normalizeClientInteractionRow(
