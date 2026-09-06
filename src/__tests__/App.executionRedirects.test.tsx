@@ -89,4 +89,16 @@ describe("Execution board redirects (dead operational_queue_items surfaces)", ()
   it("redirects dispatch execution to governed Dispatch Management", async () => {
     await verifyRedirect("/admin/execution/dispatch", "/admin/dispatch-mgmt");
   });
+
+  it("redirects retail execution to governed Reservation Board", async () => {
+    await verifyRedirect("/admin/execution/retail", "/admin/reservation-board");
+  });
+
+  it("redirects complaints execution to governed Support", async () => {
+    await verifyRedirect("/admin/execution/complaints", "/admin/support");
+  });
+
+  it("redirects third-party execution to governed 3PGS procurement queue", async () => {
+    await verifyRedirect("/admin/execution/third-party", "/admin/3pgs-procurement-queue");
+  });
 });
