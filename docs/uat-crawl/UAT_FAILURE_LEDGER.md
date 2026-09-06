@@ -4,7 +4,23 @@ Phase 4 register — **no remediation in this tranche**.
 
 Functional + UX failures. UX criteria authority: [`UAT_UX_FAILURE_MATRIX.md`](./UAT_UX_FAILURE_MATRIX.md).
 
-## #490 rebaseline — current main `67b3d1cc` (2026-09-05)
+## Post-merge targeted proofs (2026-09-06) — NOT current-main certification
+
+| Proof | Deploy SHA | GitHub deploy ID | GHA run | Status |
+|---|---|---:|---:|---|
+| FAST PATH A #493 security | `8f042fa` | 6289603800 | [34015742110](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34015742110) | **UAT-005 FAIL** — UAT-006–010 NOT RUN |
+| FAST PATH B #491 KPI (FAIL-485-001) | `efd1419` | 6289622998 | 34015742110 | **BLOCKED** (`TEST_SALES_*`) |
+| Full 131-surface rebaseline | `64a107df` | — | — | **HELD** (no Vercel deploy) |
+
+**Verified preview URLs (GitHub Deployments API — not user-supplied host):**
+- #493: `https://oasis-baklawa-central-omgfjj6e3-oasisbaklawa2006-6222s-projects.vercel.app`
+- #491: `https://oasis-baklawa-central-adpz5kw86-oasisbaklawa2006-6222s-projects.vercel.app`
+
+Original UAT-005 failure evidence preserved in prior manifests — post-merge rows append only.
+
+| FAIL-ID | UAT-ID | Run | Actual | Disposition |
+|---|---|---|---|---|
+| FAIL-493-001 | UAT-005 | 34015742110 | Dispatch direct probe `/admin/finance` did not fail closed | **OPEN** — route to bounded #493 repair lane |
 
 **Policy:** ace340fe not substituted as post-#490 current evidence. If no Vercel deploy for `67b3d1cc`, all deploy-dependent tranches record **BLOCKED** with provenance in `UAT_DEPLOY_PROVENANCE.json`.
 

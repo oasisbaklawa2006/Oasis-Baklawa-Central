@@ -30,13 +30,25 @@ Full **131-surface current-main rebaseline HELD** until trusted Vercel deploy ex
 | Target | FAIL-485-001 KPI convergence on **synthetic fixture only** |
 | Blocker if absent | `TEST_SALES_*` or cert pending fixture `dc370b46` |
 
+### GHA run [34015742110](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34015742110) — post-merge-proofs
+
+| Path | UAT-005 | UAT-006–010 | FAIL-485-001 |
+|---|---|---|---|
+| FAST PATH A #493 | **FAIL** (5.3s) | **NOT RUN** | — |
+| FAST PATH B #491 | — | — | **BLOCKED** (`TEST_SALES_*`) |
+
+**UAT-005 failure:** `/admin/finance must not remain on the forbidden route` on deploy `8f042fa` — **#493 fix NOT proven PASS**.
+
+**Artifact:** `uat-crawl-evidence-34015742110-1`
+
 ### Evidence paths (append-only)
 
 - `docs/uat-crawl/UAT_POST_MERGE_493_PROOF.jsonl`
 - `docs/uat-crawl/UAT_POST_MERGE_493_SUMMARY.json`
 - `docs/uat-crawl/UAT_POST_MERGE_491_PROOF.jsonl`
 - `docs/uat-crawl/UAT_POST_MERGE_491_SUMMARY.json`
-- `uat-evidence/screenshots/post-merge-491-kpi/`
+- `docs/uat-crawl/UAT_GHA_RUN.json`
+- `uat-evidence/screenshots/post-merge-491-kpi/` *(empty — FAST PATH B blocked)*
 
 ### Prior evidence preserved
 

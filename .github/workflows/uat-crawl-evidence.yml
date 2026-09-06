@@ -200,9 +200,12 @@ jobs:
           TEST_ASSEMBLY_EMAIL: ${{ secrets.TEST_ASSEMBLY_EMAIL }}
           TEST_ASSEMBLY_PASSWORD: ${{ secrets.TEST_ASSEMBLY_PASSWORD }}
         run: |
+          set +e
           npx playwright test -c playwright.ai-uat.config.ts tests/ai-uat/tranche1.spec.ts -g "UAT-005"
-          node scripts/merge-ai-uat-report.mjs
-          node scripts/uat-crawl/archive-post-merge-493-proof.mjs
+          PW_EXIT=$?
+          node scripts/merge-ai-uat-report.mjs || true
+          node scripts/uat-crawl/archive-post-merge-493-proof.mjs || true
+          exit $PW_EXIT
 
       - name: FAST PATH A — #493 UAT-006–010 (after UAT-005 PASS)
         if: env.RUN_TRANCHE == 'post-merge-proofs' && steps.fast_path_a_005.outcome == 'success'
@@ -357,6 +360,7 @@ jobs:
             docs/uat-crawl/UAT_POST_MERGE_491_PROOF.jsonl
             docs/uat-crawl/UAT_POST_MERGE_491_SUMMARY.json
             uat-evidence/screenshots/post-merge-491-kpi/
+            test-results/ai-uat-evidence.jsonl
           if-no-files-found: warn
           retention-days: 30
 
@@ -388,14 +392,18 @@ jobs:
           done
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add uat-evidence/screenshots/ docs/uat-crawl/UAT_MANIFEST*.jsonl docs/uat-crawl/UAT_INDEX*.md \
-                  docs/uat-crawl/UAT_AUTH_RERUN_SUMMARY.json docs/uat-crawl/UAT_POST_FIX_483_SUMMARY.json \
-                  docs/uat-crawl/UAT_GHA_RUN.json docs/uat-crawl/UAT_FAILURE_LEDGER.md docs/uat-crawl/UAT_CRAWL_PROGRESS.md \
-                  docs/uat-crawl/UAT_BUYER_MOBILE_SUMMARY.json docs/uat-crawl/UAT_BUYER_MOBILE_TARGETS.json \
-                  docs/uat-crawl/UAT_AI_UAT_SUMMARY.json docs/uat-crawl/UAT_AI_UAT_REPORT.md docs/uat-crawl/UAT_DEPLOY_PROVENANCE.json \
-                  docs/uat-crawl/UAT_POST_MERGE_493_PROOF.jsonl docs/uat-crawl/UAT_POST_MERGE_493_SUMMARY.json docs/uat-crawl/UAT_POST_MERGE_493_REPORT.md \
-                  docs/uat-crawl/UAT_POST_MERGE_491_PROOF.jsonl docs/uat-crawl/UAT_POST_MERGE_491_SUMMARY.json \
-                  docs/uat-crawl/UAT_REBASE_490_SUMMARY.json uat-evidence/screenshots/post-merge-491-kpi/ || true
+          for path in \
+            uat-evidence/screenshots \
+            docs/uat-crawl/UAT_MANIFEST*.jsonl docs/uat-crawl/UAT_INDEX*.md \
+            docs/uat-crawl/UAT_AUTH_RERUN_SUMMARY.json docs/uat-crawl/UAT_POST_FIX_483_SUMMARY.json \
+            docs/uat-crawl/UAT_GHA_RUN.json docs/uat-crawl/UAT_FAILURE_LEDGER.md docs/uat-crawl/UAT_CRAWL_PROGRESS.md \
+            docs/uat-crawl/UAT_BUYER_MOBILE_SUMMARY.json docs/uat-crawl/UAT_BUYER_MOBILE_TARGETS.json \
+            docs/uat-crawl/UAT_AI_UAT_SUMMARY.json docs/uat-crawl/UAT_AI_UAT_REPORT.md docs/uat-crawl/UAT_DEPLOY_PROVENANCE.json \
+            docs/uat-crawl/UAT_POST_MERGE_493_PROOF.jsonl docs/uat-crawl/UAT_POST_MERGE_493_SUMMARY.json docs/uat-crawl/UAT_POST_MERGE_493_REPORT.md \
+            docs/uat-crawl/UAT_POST_MERGE_491_PROOF.jsonl docs/uat-crawl/UAT_POST_MERGE_491_SUMMARY.json \
+            docs/uat-crawl/UAT_REBASE_490_SUMMARY.json uat-evidence/screenshots/post-merge-491-kpi; do
+            [ -e "$path" ] && git add "$path" || true
+          done
           if git diff --staged --quiet; then
             echo "No evidence changes to commit."
             exit 0
