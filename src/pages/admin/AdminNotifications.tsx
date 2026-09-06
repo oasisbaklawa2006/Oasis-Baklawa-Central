@@ -9,6 +9,11 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Bell, Save, Loader2, Info, Radio, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { processOutboxQueue } from "@/utils/notificationOutbox";
+import {
+  outboxDeliveryLabel,
+  projectOutboxRows,
+} from "@/lib/notification-infrastructure/outboxDeliveryView";
+import type { OutboxDeliveryRecord } from "@/lib/notification-infrastructure/contract";
 
 // ── Types ──
 interface NotificationEvent {
@@ -35,6 +40,9 @@ interface OutboxMessage {
   error_log: string | null;
 }
 
+const projectOutboxForAdmin = (rows: OutboxMessage[]): OutboxDeliveryRecord[] =>
+  projectOutboxRows(rows);
+
 // ── Constants ──
 const PRIORITY_STYLES: Record<string, string> = {
   low: "bg-slate-100 text-slate-600 border-slate-200",
@@ -60,7 +68,7 @@ const PLACEHOLDERS = [
 
 const AdminNotifications = () => {
   const [events, setEvents] = useState<NotificationEvent[]>([]);
-  const [outbox, setOutbox] = useState<OutboxMessage[]>([]);
+  const [outbox, setOutbox] = useState<OutboxDeliveryRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [outboxLoading, setOutboxLoading] = useState(false);
   const [editedBodies, setEditedBodies] = useState<Record<string, string>>({});
@@ -89,7 +97,7 @@ const AdminNotifications = () => {
       toast.error("Failed to load outbox");
     } else {
       console.log("[Outbox] Fetched rows:", data?.length);
-      setOutbox((data as OutboxMessage[]) || []);
+      setOutbox(projectOutboxForAdmin((data as OutboxMessage[]) || []));
     }
     setOutboxLoading(false);
   };
@@ -304,27 +312,32 @@ const AdminNotifications = () => {
                   </thead>
                   <tbody>
                     {outbox.map((msg) => {
-                      const status = (msg.status || "pending").toLowerCase();
+                      const status = outboxDeliveryLabel(msg);
                       return (
                         <tr key={msg.id} className="border-t border-border hover:bg-muted/30 transition-colors">
                           <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap font-mono">
-                            {msg.created_at
-                              ? new Date(msg.created_at).toLocaleDateString("en-IN", {
+                            {msg.createdAt
+                              ? new Date(msg.createdAt).toLocaleDateString("en-IN", {
                                   day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
                                 })
                               : "—"}
                           </td>
-                          <td className="px-4 py-3 text-xs font-medium text-foreground">{msg.event_type || "—"}</td>
+                          <td className="px-4 py-3 text-xs font-medium text-foreground">{msg.eventType || "—"}</td>
                           <td className="px-4 py-3 text-xs text-muted-foreground">
-                            {msg.recipient_phone || msg.recipient_email || "—"}
+                            {msg.recipientPhone || msg.recipientEmail || "—"}
                           </td>
                           <td className="px-4 py-3 text-xs text-muted-foreground max-w-[280px] truncate">
-                            {msg.message_body?.slice(0, 100)}
+                            {msg.messageBody?.slice(0, 100)}
                           </td>
                           <td className="px-4 py-3">
                             <Badge variant="outline" className={`text-[10px] uppercase font-bold ${STATUS_STYLES[status] || STATUS_STYLES.pending}`}>
                               {status}
                             </Badge>
+                            {msg.errorLog && status === "failed" && (
+                              <p className="text-[10px] text-red-600 mt-1 truncate max-w-[200px]" title={msg.errorLog}>
+                                {msg.errorLog}
+                              </p>
+                            )}
                           </td>
                         </tr>
                       );
