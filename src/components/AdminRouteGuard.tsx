@@ -23,22 +23,29 @@ export default function AdminRouteGuard({ children }: { children: React.ReactNod
   const authorized = !enforce || isAuthorizedForAdminPath(location.pathname, role);
 
   useEffect(() => {
-    if (!enforce || authorized || authLoading) return;
+    if (!enforce || authLoading) return;
+    if (authorized) {
+      lastLoggedViolation.current = null;
+      return;
+    }
 
     const violationKey = `${location.pathname}|${role ?? "UNKNOWN"}`;
-    if (lastLoggedViolation.current === violationKey) return;
-    lastLoggedViolation.current = violationKey;
+    if (lastLoggedViolation.current !== violationKey) {
+      lastLoggedViolation.current = violationKey;
+      void supabase.from("audit_logs").insert({
+        action_type: "security_violation_blocked",
+        actor_id: user!.id,
+        module_name: "AdminRouteGuard",
+        entity_name: "route_access",
+        entity_id: location.pathname,
+        reason: `Role ${role ?? "UNKNOWN"} attempted to access restricted route: ${location.pathname}`,
+        risk_level: "high",
+      });
+      toast.error("Security Violation — Unauthorized admin access blocked.");
+    }
 
-    void supabase.from("audit_logs").insert({
-      action_type: "security_violation_blocked",
-      actor_id: user!.id,
-      module_name: "AdminRouteGuard",
-      entity_name: "route_access",
-      entity_id: location.pathname,
-      reason: `Role ${role ?? "UNKNOWN"} attempted to access restricted route: ${location.pathname}`,
-      risk_level: "high",
-    });
-    toast.error("Security Violation — Unauthorized admin access blocked.");
+    // Redirect on every blocked render. Audit de-duplication must never suppress
+    // enforcement if the same forbidden route is attempted again later.
     navigate(getUnauthorizedRedirect(role), { replace: true });
   }, [enforce, authorized, authLoading, user, role, location.pathname, navigate]);
 
