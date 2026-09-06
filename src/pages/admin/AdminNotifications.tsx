@@ -14,6 +14,9 @@ import {
   projectOutboxRows,
 } from "@/lib/notification-infrastructure/outboxDeliveryView";
 import type { OutboxDeliveryRecord } from "@/lib/notification-infrastructure/contract";
+import type { Database } from "@/integrations/supabase/database.types";
+
+type NotificationEventUpdate = Database["public"]["Tables"]["notification_events"]["Update"];
 
 // ── Types ──
 interface NotificationEvent {
@@ -112,7 +115,7 @@ const AdminNotifications = () => {
     setEvents((prev) => prev.map((e) => (e.id === id ? { ...e, is_enabled: newVal } : e)));
     const { error } = await supabase
       .from("notification_events")
-      .update({ is_enabled: newVal } as any)
+      .update({ is_enabled: newVal } satisfies NotificationEventUpdate)
       .eq("id", id);
     if (error) {
       toast.error("Failed to update toggle");
@@ -128,7 +131,7 @@ const AdminNotifications = () => {
     setSavingId(id);
     const { error } = await supabase
       .from("notification_events")
-      .update({ template_body: body } as any)
+      .update({ template_body: body } satisfies NotificationEventUpdate)
       .eq("id", id);
     if (error) {
       toast.error("Failed to save template");
@@ -149,9 +152,10 @@ const AdminNotifications = () => {
       } else {
         toast.success(`Processed ${count} message(s)`);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Process queue error:", err);
-      toast.error(err?.message || "Failed to process queue");
+      const message = err instanceof Error ? err.message : "Failed to process queue";
+      toast.error(message);
     }
     await fetchOutbox();
     setProcessing(false);
