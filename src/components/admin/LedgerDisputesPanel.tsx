@@ -3,6 +3,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Loader2, FileText, Send, AlertTriangle, CheckCircle2, Download, Lock, ShieldAlert } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import {
+  ledgerDisputeGuardMessage,
+  ledgerDisputeResolutionAvailability,
+  resolveLedgerDispute,
+  LedgerDisputeWriteBlockedError,
+  isGovernedWriteUnavailable,
+} from "@/lib/finance-ageing";
 
 interface CreditCompany {
   id: string;
@@ -111,37 +118,43 @@ export const LedgerDisputesPanel = () => {
     }
   };
 
+  const disputeWriteAvailability = ledgerDisputeResolutionAvailability();
+  const disputeWriteBlocked = isGovernedWriteUnavailable(disputeWriteAvailability)
+    ? disputeWriteAvailability
+    : null;
+
   const handleResolveDispute = async () => {
     if (!resolveTarget) return;
     if (!resolveNotes.trim()) {
       toast.error("Please add resolution notes.");
       return;
     }
-    setResolveSaving(true);
-    const { error } = await supabase
-      .from("ledger_disputes")
-      .update({
-        status: "resolved",
-        resolution_notes: resolveNotes.trim(),
-        resolved_by: user?.id || null,
-        resolved_at: new Date().toISOString(),
-      })
-      .eq("id", resolveTarget.id);
-
-    if (error) {
-      toast.error("Failed to resolve: " + error.message);
-    } else {
-      // Mark parent ledger as resolved
-      await supabase
-        .from("bi_monthly_ledgers")
-        .update({ status: "resolved" })
-        .eq("id", resolveTarget.ledger_id);
-      toast.success("Dispute resolved");
-      setResolveTarget(null);
-      setResolveNotes("");
-      fetchAll();
+    if (!user?.id) {
+      toast.error("Authenticated finance actor is required.");
+      return;
     }
-    setResolveSaving(false);
+    setResolveSaving(true);
+    try {
+      await resolveLedgerDispute({
+        disputeId: resolveTarget.id,
+        ledgerId: resolveTarget.ledger_id,
+        companyId: resolveTarget.company_id,
+        resolutionNotes: resolveNotes.trim(),
+        actorId: user.id,
+        correlationId: `central:ledger-dispute:${resolveTarget.id}`,
+        idempotencyKey: `central:ledger-dispute:${resolveTarget.id}:${user.id}`,
+      });
+    } catch (error) {
+      const message =
+        error instanceof LedgerDisputeWriteBlockedError
+          ? ledgerDisputeGuardMessage()
+          : error instanceof Error
+            ? error.message
+            : "Governed dispute resolution unavailable";
+      toast.error(message);
+    } finally {
+      setResolveSaving(false);
+    }
   };
 
   if (loading) {
@@ -237,6 +250,14 @@ export const LedgerDisputesPanel = () => {
         </div>
       </div>
 
+      {disputeWriteBlocked && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Dispute resolution is read-only until Core ships{" "}
+          <code className="text-xs font-mono">{disputeWriteBlocked.prerequisiteRpc}</code>.{" "}
+          {ledgerDisputeGuardMessage()}
+        </div>
+      )}
+
       {/* OPEN DISPUTES */}
       <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
         <h3 className="font-display text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
@@ -265,7 +286,9 @@ export const LedgerDisputesPanel = () => {
                   </div>
                   <button
                     onClick={() => setResolveTarget(d)}
-                    className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700"
+                    disabled={Boolean(disputeWriteBlocked)}
+                    title={disputeWriteBlocked ? ledgerDisputeGuardMessage() : "Resolve dispute"}
+                    className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Resolve
                   </button>

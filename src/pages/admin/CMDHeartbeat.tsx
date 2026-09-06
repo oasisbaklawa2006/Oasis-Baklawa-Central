@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, ShieldAlert, TrendingUp, AlertTriangle, Activity, Crown, AlertCircle } from "lucide-react";
 import StagnancyBadge from "@/components/StagnancyBadge";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
+import { composePortfolioExposureFacts } from "@/lib/finance-ageing";
 
 /* ─── Role Gate ────────────────────────────────────────────── */
 function useCMDAccess() {
@@ -92,19 +93,19 @@ const CMDHeartbeat = () => {
     const rev = (delivered ?? []).reduce((s, o) => s + Number(o.sales_order_value || 0), 0);
     setNetRevenue(rev);
 
-    // Total Exposure: unpaid orders + pending settlement returns
-    const { data: unpaid } = await supabase
-      .from("orders")
-      .select("sales_order_value")
-      .eq("payment_status", "unpaid");
-    const unpaidVal = (unpaid ?? []).reduce((s, o) => s + Number(o.sales_order_value || 0), 0);
+    // Total Exposure: Core companies.total_outstanding + pending settlement returns (operational adjunct)
+    const { data: creditCompanies } = await supabase
+      .from("companies")
+      .select("id, business_name, total_outstanding, credit_limit, is_frozen")
+      .eq("payment_terms", "credit");
+    const exposureFacts = composePortfolioExposureFacts({ companies: creditCompanies || [] });
 
     const { data: pendingReturns } = await supabase
       .from("inward_material_advice")
       .select("expected_value")
       .eq("status", "inspected");
     const retVal = (pendingReturns ?? []).reduce((s, r) => s + Number(r.expected_value || 0), 0);
-    setTotalExposure(unpaidVal + retVal);
+    setTotalExposure(exposureFacts.total_outstanding + retVal);
 
     // System-wide wastage
     const { data: prodLogs } = await supabase
