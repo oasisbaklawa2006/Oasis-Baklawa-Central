@@ -1,6 +1,6 @@
 # APPVERSE AI UAT — Tranche 1
 
-Generated: 2026-09-06T16:52:17.601Z  
+Generated: 2026-09-06T20:04:25.239Z  
 Target: https://oasis-baklawa-central-8lkgmf1q2-oasisbaklawa2006-6222s-projects.vercel.app/  
 AI planner: disabled  
 Visual model input: disabled
@@ -62,8 +62,6 @@ Visual model input: disabled
 - **Expected:** Dispatch must not remain on any Finance/Accounts route after direct navigation and must not be offered Finance controls in permitted navigation.
 - **Actual:** Finance navigation absent; direct probes: /admin/finance -> /admin/dispatch-mgmt; /admin/finance-governance -> /admin/dispatch-mgmt; /admin/accounts-release -> /admin/dispatch-mgmt
 - **Final URL:** https://oasis-baklawa-central-8lkgmf1q2-oasisbaklawa2006-6222s-projects.vercel.app/admin/dispatch-mgmt
-- **Console errors:** 1
-- **Failed requests:** 1
 
 ### UAT-006 — PASS
 
@@ -71,8 +69,6 @@ Visual model input: disabled
 - **Expected:** The Dispatch role navigation must not render broad Admin/Governance/Store/Gate tools and direct protected routes must fail closed.
 - **Actual:** All-tools least privilege verified; direct probes: /admin/users -> /admin/dispatch-mgmt; /admin/settings -> /admin/dispatch-mgmt; /admin/audit -> /admin/dispatch-mgmt; /admin/ready-goods -> /admin/dispatch-mgmt; /admin/3pgs-packing-material -> /admin/dispatch-mgmt; /security-gate -> /admin/dispatch-mgmt
 - **Final URL:** https://oasis-baklawa-central-8lkgmf1q2-oasisbaklawa2006-6222s-projects.vercel.app/admin/dispatch-mgmt
-- **Console errors:** 4
-- **Failed requests:** 4
 
 ### UAT-007 — PASS
 
@@ -80,8 +76,6 @@ Visual model input: disabled
 - **Expected:** Dispatch must have no cmd_war_room authority through cards, navigation, or direct URL access.
 - **Actual:** CMD/Legacy War Room absent; direct probes: /admin/cmd-war-room -> /admin/dispatch-mgmt; /admin/execution-command-center -> /admin/dispatch-mgmt; /admin/live-work-queues -> /admin/dispatch-mgmt; /admin/entity-graph-explorer -> /admin/dispatch-mgmt
 - **Final URL:** https://oasis-baklawa-central-8lkgmf1q2-oasisbaklawa2006-6222s-projects.vercel.app/admin/dispatch-mgmt
-- **Console errors:** 2
-- **Failed requests:** 2
 
 ### UAT-008 — PASS
 
@@ -98,8 +92,6 @@ Visual model input: disabled
 - **Expected:** Assembly role home/navigation must be production-oriented and direct unrelated authority routes must fail closed.
 - **Actual:** Assembly remained production-oriented; unrelated route probes: /admin/finance -> /admin/assembly-tasks; /security-gate -> /admin/assembly-tasks; /admin/cmd-war-room -> /admin/assembly-tasks
 - **Final URL:** https://oasis-baklawa-central-8lkgmf1q2-oasisbaklawa2006-6222s-projects.vercel.app/admin/assembly-tasks
-- **Console errors:** 1
-- **Failed requests:** 1
 
 ### UAT-010 — PASS
 
@@ -107,6 +99,4 @@ Visual model input: disabled
 - **Expected:** Every forbidden direct route must bounce Dispatch to a permitted destination; hiding links alone is not sufficient for PASS.
 - **Actual:** Every forbidden direct route failed closed: /admin/finance -> /admin/dispatch-mgmt; /admin/users -> /admin/dispatch-mgmt; /admin/cmd-war-room -> /admin/dispatch-mgmt; /admin/ready-goods -> /admin/dispatch-mgmt; /security-gate -> /admin/dispatch-mgmt
 - **Final URL:** https://oasis-baklawa-central-8lkgmf1q2-oasisbaklawa2006-6222s-projects.vercel.app/admin/dispatch-mgmt
-- **Console errors:** 2
-- **Failed requests:** 2
 
