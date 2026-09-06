@@ -1,6 +1,6 @@
 # UAT Crawl Progress Summary
 
-**Last updated:** 2026-09-06 (post-#497 merge current-main cert — pending GHA `post-merge-497-main`)  
+**Last updated:** 2026-09-06 (post-#497 merge current-main cert — GHA run [34037424554](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34037424554) @ `9df732fa`)  
 **Branch / PR:** `cursor/physical-uat-readiness-matrix-e763` → **#462**  
 **Current main:** `e2f123b0fe257b8a1f39ec40d5f544fff1ebe313` (#497 merged) — deploy `https://oasis-baklawa-central-8lkgmf1q2-oasisbaklawa2006-6222s-projects.vercel.app`  
 **Preserved FAIL-493 evidence (append-only):** pre-fix FAIL @ `8f042fa` run [34015742110](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34015742110); preview PASS @ `9715c20d` run [34016393457](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34016393457) — **NOT substituted**  
@@ -11,14 +11,29 @@
 | Gate | Status |
 |---|---|
 | #497 merge blocker | **Removed** — merged @ `e2f123b0` |
-| UAT-005 / FAIL-493-001 same-ID retest | **Pending** GHA `post-merge-497-main` on e2f123b0 deploy |
-| Prior preview PASS `9715c20d` | **Preserved** — separate append-only row |
-| Full auth crawl on current main | **Conditional** on UAT-005 PASS |
-| 46 credential/deploy blockers | **Explicit** — unchanged until secrets/deploy authority |
+| UAT-005 / FAIL-493-001 same-ID retest | **PASS** on current-main deploy (run 34037424554) |
+| Prior preview PASS `9715c20d` | **Preserved** — separate append-only row in `UAT_POST_MERGE_493_PROOF.jsonl` |
+| Full auth crawl on current main | **Completed** after UAT-005 PASS (~17m) |
+| Authenticated S0–S3 (current-main) | **80 / 131** |
+| Verified BLOCKED (credential/deploy) | **46 / 46** — explicit, unchanged |
+
+### GHA run [34037424554](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34037424554) — `post-merge-497-main` @ `e2f123b0`
+
+| Field | Value |
+|---|---|
+| Duration | ~17m |
+| Deploy | `e2f123b0` @ `https://oasis-baklawa-central-8lkgmf1q2-oasisbaklawa2006-6222s-projects.vercel.app` |
+| Provenance | **Current-main #497 merge certification** — NOT substituting `9715c20d` preview |
+| UAT-005 visual | S0 dispatch default · S1 all-tools no Finance · S2 forbidden `/admin/finance` probe · S3 settled redirect |
+| Forbidden probes | `/admin/finance`, `/admin/finance-governance`, `/admin/accounts-release` → `/admin/dispatch-mgmt` |
+| Artifact | `uat-crawl-evidence-34037424554-1` |
+| Evidence commit | `9df732fa` |
+
+**Append-only proof row:** `proof: post-merge-497-main-cert` in `UAT_POST_MERGE_493_PROOF.jsonl` — original FAIL @ `8f042fa` **unchanged**.
 
 ## Release hold lifted — targeted post-merge proofs
 
-Prior ace340fe continuation crawl (**80/131** authenticated) preserved with explicit provenance — **NOT** current-main certification until `post-merge-497-main` completes on e2f123b0 deploy.
+Prior ace340fe continuation crawl (**80/131** authenticated) preserved with explicit provenance. Current-main rebaseline on `e2f123b0` now has UAT-005 same-ID PASS + full executable auth crawl evidence.
 
 ### Continuation crawl (ace340fe fallback)
 
