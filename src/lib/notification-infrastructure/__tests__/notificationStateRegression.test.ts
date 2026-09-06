@@ -74,6 +74,31 @@ describe("Point21 synthetic regression — in-app read state", () => {
     expect(before.readState).toBe("unread");
     expect(after.readState).toBe("read");
   });
+
+  it("regression: mark-read targets only displayed unread rows", () => {
+    const displayed = [
+      projectInAppNotification({
+        id: "visible-unread",
+        type: "alert",
+        message: "shown",
+        created_at: "2026-09-06T10:00:00Z",
+        is_read: false,
+        user_id: "user-a",
+        company_id: null,
+      }),
+      projectInAppNotification({
+        id: "visible-read",
+        type: "alert",
+        message: "already read",
+        created_at: "2026-09-06T09:00:00Z",
+        is_read: true,
+        user_id: "user-a",
+        company_id: null,
+      }),
+    ];
+    const unreadIds = displayed.filter((row) => row.readState === "unread").map((row) => row.id);
+    expect(unreadIds).toEqual(["visible-unread"]);
+  });
 });
 
 describe("Point21 synthetic regression — outbox delivery state", () => {

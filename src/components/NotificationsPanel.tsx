@@ -4,10 +4,11 @@ import { X, Package, CreditCard, Sparkles, Bell } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { removeDuplicateRealtimeChannel } from "@/utils/realtime";
-import type { InAppNotificationRecord, InAppReadState } from "@/lib/notification-infrastructure/contract";
+import type { InAppNotificationRecord } from "@/lib/notification-infrastructure/contract";
+import type { NotificationsRow } from "@/lib/notification-infrastructure/deliveryState";
 import {
   fetchInboxNotifications,
-  markAllInboxUnreadRead,
+  markInboxNotificationsRead,
   resolveScopeFromAuth,
 } from "@/lib/notification-infrastructure/inboxClient";
 import { inboxScopeMatchesRow } from "@/lib/notification-infrastructure/recipientScope";
@@ -32,6 +33,16 @@ const timeAgo = (dateStr: string | null) => {
   return `${Math.floor(hrs / 24)}d ago`;
 };
 
+const toInAppRecord = (row: NotificationsRow): InAppNotificationRecord => ({
+  id: row.id,
+  type: row.type,
+  message: row.message,
+  createdAt: row.created_at,
+  readState: row.is_read ? "read" : "unread",
+  userId: row.user_id,
+  companyId: row.company_id,
+});
+
 const NotificationsPanel = ({ open, onClose }: { open: boolean; onClose: () => void }) => {
   const [notifications, setNotifications] = useState<InAppNotificationRecord[]>([]);
   const [hasNew, setHasNew] = useState(false);
@@ -39,6 +50,8 @@ const NotificationsPanel = ({ open, onClose }: { open: boolean; onClose: () => v
 
   useEffect(() => {
     if (!open || !user?.id) return;
+
+    let cancelled = false;
 
     const scopeResult = resolveScopeFromAuth({ userId: user.id, companyId });
     if (!scopeResult.ok) {
@@ -52,9 +65,15 @@ const NotificationsPanel = ({ open, onClose }: { open: boolean; onClose: () => v
 
     const load = async () => {
       const rows = await fetchInboxNotifications(scope, 10);
+      if (cancelled) return;
+
       setNotifications(rows);
       setHasNew(false);
-      await markAllInboxUnreadRead(scope);
+
+      const unreadIds = rows.filter((row) => row.readState === "unread").map((row) => row.id);
+      if (unreadIds.length > 0) {
+        await markInboxNotificationsRead(scope, unreadIds);
+      }
     };
     void load();
 
@@ -66,29 +85,10 @@ const NotificationsPanel = ({ open, onClose }: { open: boolean; onClose: () => v
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "notifications" },
         (payload) => {
-          const row = payload.new as {
-            id: string;
-            type: string | null;
-            message: string | null;
-            created_at: string | null;
-            is_read: boolean | null;
-            user_id: string | null;
-            company_id: string | null;
-          };
+          if (cancelled) return;
+          const row = payload.new as NotificationsRow;
           if (!inboxScopeMatchesRow(scope, row)) return;
-          const readState: InAppReadState = row.is_read ? "read" : "unread";
-          setNotifications((prev) => [
-            {
-              id: row.id,
-              type: row.type,
-              message: row.message,
-              createdAt: row.created_at,
-              readState,
-              userId: row.user_id,
-              companyId: row.company_id,
-            },
-            ...prev,
-          ].slice(0, 10));
+          setNotifications((prev) => [toInAppRecord(row), ...prev].slice(0, 10));
           setHasNew(true);
         }
       )
@@ -96,37 +96,20 @@ const NotificationsPanel = ({ open, onClose }: { open: boolean; onClose: () => v
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "notifications" },
         (payload) => {
-          const row = payload.new as {
-            id: string;
-            type: string | null;
-            message: string | null;
-            created_at: string | null;
-            is_read: boolean | null;
-            user_id: string | null;
-            company_id: string | null;
-          };
+          if (cancelled) return;
+          const row = payload.new as NotificationsRow;
           if (!inboxScopeMatchesRow(scope, row)) return;
-          const readState: InAppReadState = row.is_read ? "read" : "unread";
           setNotifications((prev) =>
-            prev.map((n) =>
-              n.id === row.id
-                ? {
-                    id: row.id,
-                    type: row.type,
-                    message: row.message,
-                    createdAt: row.created_at,
-                    readState,
-                    userId: row.user_id,
-                    companyId: row.company_id,
-                  }
-                : n,
-            ),
+            prev.map((n) => (n.id === row.id ? toInAppRecord(row) : n)),
           );
         }
       )
       .subscribe();
 
     return () => {
+      cancelled = true;
+      setNotifications([]);
+      setHasNew(false);
       void supabase.removeChannel(channel);
     };
   }, [open, user?.id, companyId]);

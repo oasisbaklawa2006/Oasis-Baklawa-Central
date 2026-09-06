@@ -1,3 +1,4 @@
+import type { Database } from "@/integrations/supabase/database.types";
 import type {
   InAppNotificationRecord,
   InAppReadState,
@@ -5,28 +6,8 @@ import type {
   OutboxDeliveryState,
 } from "./contract";
 
-type NotificationsRow = {
-  id: string;
-  type: string | null;
-  message: string | null;
-  created_at: string | null;
-  is_read: boolean | null;
-  user_id: string | null;
-  company_id: string | null;
-};
-
-type OutboxRow = {
-  id: string;
-  event_type: string | null;
-  message_body: string;
-  recipient_email: string | null;
-  recipient_phone: string | null;
-  priority: string | null;
-  status: string | null;
-  sent_at: string | null;
-  error_log: string | null;
-  created_at: string | null;
-};
+export type NotificationsRow = Database["public"]["Tables"]["notifications"]["Row"];
+export type OutboxRow = Database["public"]["Tables"]["notification_outbox"]["Row"];
 
 export function normalizeInAppReadState(isRead: boolean | null | undefined): InAppReadState {
   return isRead ? "read" : "unread";

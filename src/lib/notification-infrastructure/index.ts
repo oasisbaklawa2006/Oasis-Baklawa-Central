@@ -6,3 +6,4 @@ export * from "./retryDelegation";
 export * from "./inboxClient";
 export * from "./outboxDeliveryView";
 export * from "./notifyEventValidation";
+export * from "./outboxQueueValidation";

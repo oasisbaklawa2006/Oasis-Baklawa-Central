@@ -15,35 +15,15 @@ import {
 } from "@/lib/notification-infrastructure/outboxDeliveryView";
 import type { OutboxDeliveryRecord } from "@/lib/notification-infrastructure/contract";
 import type { Database } from "@/integrations/supabase/database.types";
+import type { OutboxRow } from "@/lib/notification-infrastructure/deliveryState";
 
 type NotificationEventUpdate = Database["public"]["Tables"]["notification_events"]["Update"];
+type NotificationEventRow = Database["public"]["Tables"]["notification_events"]["Row"];
 
 // ── Types ──
-interface NotificationEvent {
-  id: string;
-  event_key: string;
-  event_name: string;
-  template_body: string;
-  channels: string[] | null;
-  is_enabled: boolean | null;
-  priority: string | null;
-  created_at: string | null;
-}
+type NotificationEvent = NotificationEventRow;
 
-interface OutboxMessage {
-  id: string;
-  event_type: string | null;
-  message_body: string;
-  recipient_phone: string | null;
-  recipient_email: string | null;
-  status: string | null;
-  priority: string | null;
-  created_at: string | null;
-  sent_at: string | null;
-  error_log: string | null;
-}
-
-const projectOutboxForAdmin = (rows: OutboxMessage[]): OutboxDeliveryRecord[] =>
+const projectOutboxForAdmin = (rows: OutboxRow[]): OutboxDeliveryRecord[] =>
   projectOutboxRows(rows);
 
 // ── Constants ──
@@ -100,7 +80,7 @@ const AdminNotifications = () => {
       toast.error("Failed to load outbox");
     } else {
       console.log("[Outbox] Fetched rows:", data?.length);
-      setOutbox(projectOutboxForAdmin((data as OutboxMessage[]) || []));
+      setOutbox(projectOutboxForAdmin((data as OutboxRow[]) || []));
     }
     setOutboxLoading(false);
   };

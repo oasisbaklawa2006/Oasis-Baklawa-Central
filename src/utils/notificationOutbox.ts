@@ -1,6 +1,13 @@
 import { supabase } from "@/integrations/supabase/client";
-import { normalizeDedupeRecipientKey } from "@/lib/notification-infrastructure/dedupeIdentity";
 import { hasProviderDeliveryEvidence } from "@/lib/notification-infrastructure/deliveryState";
+import {
+  shouldSkipCentralEmailProcessing,
+  validateOutboxRecipientForCentralQueue,
+} from "@/lib/notification-infrastructure/outboxQueueValidation";
+import type { Database } from "@/integrations/supabase/database.types";
+
+type OutboxInsert = Database["public"]["Tables"]["notification_outbox"]["Insert"];
+type OutboxUpdate = Database["public"]["Tables"]["notification_outbox"]["Update"];
 
 // ═══════════════════════════════════════════════════════════
 // NOTIFICATION GATEWAY — LIVE CONFIGURATION
@@ -19,30 +26,25 @@ export const queueNotification = async (params: {
   recipientEmail?: string | null;
   priority?: string;
 }) => {
-  const recipientKey = normalizeDedupeRecipientKey({
-    email: params.recipientEmail,
-    phone: params.recipientPhone,
+  const validation = validateOutboxRecipientForCentralQueue({
+    recipientEmail: params.recipientEmail,
+    recipientPhone: params.recipientPhone,
   });
-  if (!recipientKey) {
-    console.error("[Outbox] Failed to queue notification: unresolved recipient");
-    return { queued: false, reason: "unresolved_recipient" as const };
+  if (validation.ok === false) {
+    console.error("[Outbox] Failed to queue notification:", validation.reason);
+    return { queued: false, reason: validation.reason };
   }
 
-  const { error } = await supabase.from("notification_outbox").insert({
+  const payload: OutboxInsert = {
     event_type: params.eventType,
     message_body: params.messageBody,
     recipient_phone: params.recipientPhone || null,
     recipient_email: params.recipientEmail || null,
     priority: params.priority || "normal",
     status: "pending",
-  } as {
-    event_type: string;
-    message_body: string;
-    recipient_phone: string | null;
-    recipient_email: string | null;
-    priority: string;
-    status: string;
-  });
+  };
+
+  const { error } = await supabase.from("notification_outbox").insert(payload);
 
   if (error) {
     console.error("[Outbox] Failed to queue notification:", error.message);
@@ -78,14 +80,11 @@ export const processOutboxQueue = async (): Promise<number> => {
 
   for (const msg of pending) {
     try {
+      if (shouldSkipCentralEmailProcessing(msg)) {
+        continue;
+      }
+
       if (!msg.recipient_email) {
-        await supabase
-          .from("notification_outbox")
-          .update({
-            status: "failed",
-            error_log: "no_email_channel_configured",
-          } as { status: string; error_log: string })
-          .eq("id", msg.id);
         continue;
       }
 
@@ -120,10 +119,8 @@ export const processOutboxQueue = async (): Promise<number> => {
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Unknown error";
-      await supabase
-        .from("notification_outbox")
-        .update({ status: "failed", error_log: message } as { status: string; error_log: string })
-        .eq("id", msg.id);
+      const failureUpdate: OutboxUpdate = { status: "failed", error_log: message };
+      await supabase.from("notification_outbox").update(failureUpdate).eq("id", msg.id);
     }
   }
 

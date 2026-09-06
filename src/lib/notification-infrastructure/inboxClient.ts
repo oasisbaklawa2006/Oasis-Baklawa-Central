@@ -1,20 +1,10 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { InAppNotificationRecord, NotificationRecipientScope } from "./contract";
-import { projectInAppNotification } from "./deliveryState";
+import { projectInAppNotification, type NotificationsRow } from "./deliveryState";
 import { assertRecipientIsolation, resolveInboxRecipientScope } from "./recipientScope";
 
 const INBOX_SELECT =
   "id, type, message, created_at, is_read, user_id, company_id";
-
-type NotificationsRow = {
-  id: string;
-  type: string | null;
-  message: string | null;
-  created_at: string | null;
-  is_read: boolean | null;
-  user_id: string | null;
-  company_id: string | null;
-};
 
 export async function fetchInboxUnreadCount(scope: NotificationRecipientScope): Promise<number> {
   let query = supabase
