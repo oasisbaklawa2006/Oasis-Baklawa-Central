@@ -1,0 +1,46 @@
+{
+  "generatedAt": "2026-09-06T20:18:19.391Z",
+  "tranche": "s2-gap-deepening",
+  "targetIds": [
+    "UAT-0002",
+    "UAT-0037",
+    "UAT-0038",
+    "UAT-0052",
+    "UAT-0053",
+    "UAT-0061",
+    "UAT-0080",
+    "UAT-0094"
+  ],
+  "authenticatedComplete": [
+    "UAT-0002",
+    "UAT-0037",
+    "UAT-0038",
+    "UAT-0052",
+    "UAT-0053",
+    "UAT-0061",
+    "UAT-0080",
+    "UAT-0094"
+  ],
+  "s1Captured": [
+    "UAT-0002",
+    "UAT-0037",
+    "UAT-0038",
+    "UAT-0052",
+    "UAT-0053",
+    "UAT-0061",
+    "UAT-0080",
+    "UAT-0094"
+  ],
+  "s2Captured": [
+    "UAT-0002",
+    "UAT-0037",
+    "UAT-0038",
+    "UAT-0052",
+    "UAT-0053",
+    "UAT-0061",
+    "UAT-0080",
+    "UAT-0094"
+  ],
+  "s2StillMissing": [],
+  "blockedTargets": []
+}

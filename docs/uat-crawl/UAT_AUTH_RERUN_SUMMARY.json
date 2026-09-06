@@ -1,0 +1,55 @@
+{
+  "generatedAt": "2026-09-06T20:06:06.477Z",
+  "crawlBaseUrl": "https://oasis-baklawa-central-8lkgmf1q2-oasisbaklawa2006-6222s-projects.vercel.app",
+  "totalTargets": 13,
+  "authenticatedComplete": [
+    "UAT-0002",
+    "UAT-0010",
+    "UAT-0011",
+    "UAT-0012",
+    "UAT-0013",
+    "UAT-0014",
+    "UAT-0015",
+    "UAT-0016",
+    "UAT-0017",
+    "UAT-0019"
+  ],
+  "blockedTargets": [
+    {
+      "uatId": "UAT-0003",
+      "missingSecretNames": [
+        "TEST_GATE_SECURITY_EMAIL",
+        "TEST_GATE_SECURITY_PASSWORD"
+      ],
+      "credentialPrefix": "TEST_GATE_SECURITY"
+    },
+    {
+      "uatId": "UAT-0006",
+      "missingSecretNames": [
+        "TEST_BUYER_EMAIL",
+        "TEST_BUYER_PASSWORD"
+      ],
+      "credentialPrefix": "TEST_BUYER"
+    },
+    {
+      "uatId": "UAT-0007",
+      "missingSecretNames": [
+        "TEST_BUYER_EMAIL",
+        "TEST_BUYER_PASSWORD"
+      ],
+      "credentialPrefix": "TEST_BUYER"
+    }
+  ],
+  "blockedSecretNames": [
+    "TEST_BUYER_EMAIL",
+    "TEST_BUYER_PASSWORD",
+    "TEST_GATE_SECURITY_EMAIL",
+    "TEST_GATE_SECURITY_PASSWORD"
+  ],
+  "newFailIds": [
+    "FAIL-AUTH-CRED-0003",
+    "FAIL-AUTH-CRED-0006",
+    "FAIL-AUTH-CRED-0007"
+  ],
+  "remainingUntested": 111
+}

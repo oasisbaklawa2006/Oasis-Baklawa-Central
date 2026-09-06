@@ -28,6 +28,7 @@ function assertSafePreviewHost(hostname: string): void {
   const h = hostname.toLowerCase();
   if (h === "localhost" || h === "127.0.0.1") return;
   if (h.endsWith(".vercel.app")) return;
+  if (process.env.UAT_CRAWL_PRODUCTION === "true" && h === "b2b.oasisbaklawa.com") return;
   throw new Error(
     `E2E: TEST_PREVIEW_URL hostname "${hostname}" is not allowed (use localhost, 127.0.0.1, or *.vercel.app). ${E2E_ENV_HELP}`,
   );

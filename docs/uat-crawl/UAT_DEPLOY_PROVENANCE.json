@@ -1,0 +1,22 @@
+{
+  "generatedAt": "2026-09-06T20:02:03.526Z",
+  "runId": "34056691981",
+  "runTranche": "watchdog-continue",
+  "requiredSha": "e2f123b0fe257b8a1f39ec40d5f544fff1ebe313",
+  "requiredShaStatus": "TRUSTED — #497 merged to main",
+  "resolvedSha": "e2f123b0fe257b8a1f39ec40d5f544fff1ebe313",
+  "resolvedUrl": "https://oasis-baklawa-central-8lkgmf1q2-oasisbaklawa2006-6222s-projects.vercel.app",
+  "githubDeploymentId": "6293534757",
+  "status": "CURRENT_MAIN_CERTIFICATION",
+  "continuationFallback": false,
+  "label": "Current-main #497 merge certification @ e2f123b0 — NOT substituting 9715c20d preview PASS",
+  "policy": "Append-only FAIL-493 evidence: pre-fix FAIL @ 8f042fa (run 34015742110) + preview PASS @ 9715c20d (run 34016393457) preserved.",
+  "fail493EvidencePreserved": {
+    "originalFailRun": "34015742110",
+    "originalFailSha": "8f042fa",
+    "previewPassRun": "34016393457",
+    "previewPassSha": "9715c20d",
+    "currentMainPassMergeSha": "e2f123b0fe257b8a1f39ec40d5f544fff1ebe313",
+    "note": "9715c20d preview PASS is NOT substituted by current-main cert — separate append-only rows"
+  }
+}
