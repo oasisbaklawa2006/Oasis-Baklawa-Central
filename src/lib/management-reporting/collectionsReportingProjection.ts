@@ -6,7 +6,6 @@ import type {
   RankedEntity,
 } from "./managementReportingTypes";
 import {
-  resolveFinanceMetric,
   wrapObservedMetric,
   wrapUnavailableMetric,
   coreFinance255Source,
@@ -123,28 +122,24 @@ export function buildCollectionsReportingSnapshot(input: {
 
   return {
     asOfIso: ref.toISOString(),
-    recoverableOutstanding: resolveFinanceMetric(
-      "recoverable_vs_recovered_macro",
-      recoverableValue,
-      recoverableSource,
-    ),
+    recoverableOutstanding: wrapObservedMetric(recoverableValue, recoverableSource),
     recoveredInPeriod: wrapObservedMetric(recoveredValue, recoveredSource),
     disputedOrHeld: wrapObservedMetric(
       input.disputedOrHeldAmount,
       "ledger_disputes + finance holds (Central observed)",
     ),
-    walletExposure: resolveFinanceMetric(
-      "credit_exposure_macro",
+    walletExposure: wrapObservedMetric(
       walletExposure,
       "companies.wallet_balance negative aggregate (Central table)",
     ),
-    creditExposure: resolveFinanceMetric(
-      "credit_exposure_macro",
+    creditExposure: wrapObservedMetric(
       creditExposure,
-      "companies.credit_limit where allow_credit (Central table)",
+      "companies.credit_limit where allow_credit (Central table; per-order Core via get_credit_exposure_facts_v1)",
     ),
     profitability: buildProfitabilityMetric(),
     ageingBuckets: AGEING_BUCKETS.map((b) => ageingMap.get(b)!),
+    ageingSource:
+      "Central order.created_at aggregate — portfolio-level ageing macro RPC unavailable on Core #255",
     topExposureClients,
     creditRisk,
   };

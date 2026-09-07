@@ -4,6 +4,8 @@ import {
   buildBestSellerRankings,
   buildComparisonWindows,
   buildOperationalPositionSnapshot,
+  buildPeriodRankingsWithTrends,
+  priorPeriodBounds,
   type OrderFactRow,
   type OrderItemFactRow,
 } from "../operationalMetricsProjection";
@@ -82,5 +84,46 @@ describe("operationalMetricsProjection", () => {
     );
     expect(ranked[0]?.label).toBe("Beta");
     expect(ranked[0]?.metric).toBe(5000);
+  });
+
+  it("computes prior period bounds of equal length", () => {
+    const prior = priorPeriodBounds("2026-09-01T00:00:00.000Z", "2026-09-30T23:59:59.999Z");
+    expect(new Date(prior.endIso).getTime()).toBeLessThan(new Date("2026-09-01T00:00:00.000Z").getTime());
+  });
+
+  it("builds period rankings with trend vs prior window", () => {
+    const orders: OrderFactRow[] = [
+      order({
+        id: "o-current",
+        company_id: "c1",
+        sales_order_value: 5000,
+        created_at: "2026-09-15T10:00:00.000Z",
+      }),
+      order({
+        id: "o-prior",
+        company_id: "c2",
+        sales_order_value: 2000,
+        created_at: "2026-08-15T10:00:00.000Z",
+      }),
+    ];
+    const items: OrderItemFactRow[] = [
+      { order_id: "o-current", product_id: "p1", quantity: 10, product_name: "Baklava" },
+      { order_id: "o-prior", product_id: "p1", quantity: 2, product_name: "Baklava" },
+    ];
+    const ranked = buildPeriodRankingsWithTrends({
+      orders,
+      orderItems: items,
+      companies: [
+        { id: "c1", business_name: "Alpha" },
+        { id: "c2", business_name: "Beta" },
+      ],
+      users: [],
+      periodStartIso: "2026-09-01T00:00:00.000Z",
+      periodEndIso: "2026-09-30T23:59:59.999Z",
+    });
+    expect(ranked.bestSellers[0]?.metric).toBe(10);
+    expect(ranked.bestSellers[0]?.priorMetric).toBe(2);
+    expect(ranked.bestSellers[0]?.trendDelta).toBe(8);
+    expect(ranked.bestClients[0]?.label).toBe("Alpha");
   });
 });

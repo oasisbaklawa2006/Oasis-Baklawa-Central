@@ -58,6 +58,7 @@ describe("managementCommandCenterProjection", () => {
 
     expect(projection.operational.dispatchedCount.value).toBe(1);
     expect(projection.rankings.bestSellers[0]?.label).toBe("Baklava");
+    expect(projection.rankingPeriodLabel).toContain("2026-09-01");
     expect(projection.collections?.recoverableOutstanding.semantics).toBe("observed");
     expect(projection.finance255AvailableContracts.length).toBeGreaterThan(0);
     expect(projection.finance255ProductionAnchor).toContain("cd078c5");

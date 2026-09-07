@@ -39,6 +39,13 @@ export interface RankedEntity {
   drillRoute?: string;
 }
 
+/** Period-over-period trend vs prior window of equal length. */
+export interface RankedEntityWithTrend extends RankedEntity {
+  priorMetric: number;
+  trendDelta: number;
+  trendPercent: number | null;
+}
+
 export interface DelayRiskSnapshot {
   financeHoldCount: number;
   awaitingFinalPaymentCount: number;
@@ -69,6 +76,7 @@ export interface CollectionsReportingSnapshot {
   creditExposure: GovernedMetric;
   profitability: GovernedMetric;
   ageingBuckets: CollectionsAgeingBucket[];
+  ageingSource: string;
   topExposureClients: RankedEntity[];
   creditRisk: CreditRiskSnapshot;
 }
@@ -112,10 +120,11 @@ export interface ManagementCommandCenterProjection {
   asOfIso: string;
   operational: OperationalPositionSnapshot;
   rankings: {
-    bestSellers: RankedEntity[];
-    bestClients: RankedEntity[];
-    bestSalespeople: RankedEntity[];
+    bestSellers: RankedEntityWithTrend[];
+    bestClients: RankedEntityWithTrend[];
+    bestSalespeople: RankedEntityWithTrend[];
   };
+  rankingPeriodLabel: string;
   delayRisk: DelayRiskSnapshot;
   collections: CollectionsReportingSnapshot | null;
   finance255Blockers: string[];

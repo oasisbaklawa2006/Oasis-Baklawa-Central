@@ -60,5 +60,8 @@ describe("collectionsReportingProjection", () => {
     expect(snap.topExposureClients[0]?.metric).toBe(8000);
     expect(snap.creditRisk.frozenAccountCount).toBe(0);
     expect(snap.creditRisk.highExposureCount).toBeGreaterThan(0);
+    expect(snap.ageingSource).toContain("Central order.created_at");
+    expect(snap.walletExposure.source).toContain("Central table");
+    expect(snap.walletExposure.source).not.toContain("core:#255");
   });
 });

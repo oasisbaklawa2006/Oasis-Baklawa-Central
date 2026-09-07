@@ -6,12 +6,15 @@ import {
   endOfDay,
   isWithinInterval,
   parseISO,
+  differenceInMilliseconds,
+  subMilliseconds,
 } from "date-fns";
 import type {
   ComparisonWindow,
   DelayRiskSnapshot,
   OperationalPositionSnapshot,
   RankedEntity,
+  RankedEntityWithTrend,
 } from "./managementReportingTypes";
 import { wrapObservedMetric } from "./coreFinance255Adapter";
 
@@ -239,4 +242,82 @@ export function buildBestSalespersonRankings(
       secondaryLabel: "managed order value",
       drillRoute: `/admin/sales-hub?manager=${encodeURIComponent(id)}`,
     }));
+}
+
+export function priorPeriodBounds(
+  periodStartIso: string,
+  periodEndIso: string,
+): { startIso: string; endIso: string } {
+  const start = parseISO(periodStartIso);
+  const end = parseISO(periodEndIso);
+  const durationMs = Math.max(0, differenceInMilliseconds(end, start));
+  const priorEnd = subMilliseconds(start, 1);
+  const priorStart = subMilliseconds(priorEnd, durationMs);
+  return { startIso: priorStart.toISOString(), endIso: priorEnd.toISOString() };
+}
+
+function orderIdsInWindow(
+  orders: OrderFactRow[],
+  startIso: string,
+  endIso: string,
+): Set<string> {
+  return new Set(ordersInWindow(filterActionableOrders(orders), startIso, endIso).map((o) => o.id));
+}
+
+function filterOrderItemsByOrderIds(
+  orderItems: OrderItemFactRow[],
+  orderIds: Set<string>,
+): OrderItemFactRow[] {
+  return orderItems.filter((item) => orderIds.has(item.order_id));
+}
+
+export function buildRankedEntityTrends(
+  current: RankedEntity[],
+  prior: RankedEntity[],
+): RankedEntityWithTrend[] {
+  const priorMap = new Map(prior.map((p) => [p.id, p.metric]));
+  return current.map((c) => {
+    const priorMetric = priorMap.get(c.id) ?? 0;
+    const trendDelta = c.metric - priorMetric;
+    const trendPercent = priorMetric > 0 ? (trendDelta / priorMetric) * 100 : null;
+    return { ...c, priorMetric, trendDelta, trendPercent };
+  });
+}
+
+export function buildPeriodRankingsWithTrends(input: {
+  orders: OrderFactRow[];
+  orderItems: OrderItemFactRow[];
+  companies: CompanyFactRow[];
+  users: UserFactRow[];
+  periodStartIso: string;
+  periodEndIso: string;
+  limit?: number;
+}): {
+  bestSellers: RankedEntityWithTrend[];
+  bestClients: RankedEntityWithTrend[];
+  bestSalespeople: RankedEntityWithTrend[];
+} {
+  const limit = input.limit ?? 5;
+  const prior = priorPeriodBounds(input.periodStartIso, input.periodEndIso);
+  const currentOrderIds = orderIdsInWindow(input.orders, input.periodStartIso, input.periodEndIso);
+  const priorOrderIds = orderIdsInWindow(input.orders, prior.startIso, prior.endIso);
+  const currentOrders = input.orders.filter((o) => currentOrderIds.has(o.id));
+  const priorOrders = input.orders.filter((o) => priorOrderIds.has(o.id));
+  const currentItems = filterOrderItemsByOrderIds(input.orderItems, currentOrderIds);
+  const priorItems = filterOrderItemsByOrderIds(input.orderItems, priorOrderIds);
+
+  return {
+    bestSellers: buildRankedEntityTrends(
+      buildBestSellerRankings(currentItems, limit),
+      buildBestSellerRankings(priorItems, limit),
+    ),
+    bestClients: buildRankedEntityTrends(
+      buildBestClientRankings(currentOrders, input.companies, limit),
+      buildBestClientRankings(priorOrders, input.companies, limit),
+    ),
+    bestSalespeople: buildRankedEntityTrends(
+      buildBestSalespersonRankings(currentOrders, input.companies, input.users, limit),
+      buildBestSalespersonRankings(priorOrders, input.companies, input.users, limit),
+    ),
+  };
 }

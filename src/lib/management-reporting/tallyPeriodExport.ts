@@ -191,6 +191,26 @@ export function verifyExportDeterminism(
   return firstHash === secondHash;
 }
 
+export type TallyExportReproducibilityResult =
+  | { ok: true; contentHash: string }
+  | { ok: false; expected: string; actual: string; error?: string };
+
+/** Re-run export and compare body content hash for reproducibility evidence. */
+export async function verifyTallyExportReproducibility(
+  client: SupabaseClient<Database>,
+  filter: TallyPeriodExportFilter,
+  expectedContentHash: string,
+): Promise<TallyExportReproducibilityResult> {
+  const result = await exportTallyPeriodBatch(client, filter);
+  if (result.ok === false) {
+    return { ok: false, expected: expectedContentHash, actual: "", error: result.error };
+  }
+  if (result.audit.contentHash === expectedContentHash) {
+    return { ok: true, contentHash: result.audit.contentHash };
+  }
+  return { ok: false, expected: expectedContentHash, actual: result.audit.contentHash };
+}
+
 export function buildExportSummaryRow(audit: TallyExportAuditMetadata): string {
   return [
     audit.exportId,

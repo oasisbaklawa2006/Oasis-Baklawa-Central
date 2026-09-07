@@ -38,8 +38,11 @@ import {
   appendExportHistory,
   exportTallyPeriodBatch,
   listExportHistory,
+  verifyTallyExportReproducibility,
+  type ComplianceException,
   type GovernedMetric,
   type MetricSemantics,
+  type RankedEntityWithTrend,
 } from "@/lib/management-reporting";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -50,6 +53,28 @@ function SemanticsBadge({ semantics }: { semantics: MetricSemantics }) {
   return (
     <Badge variant={variant} className="text-[10px] uppercase">
       {semantics}
+    </Badge>
+  );
+}
+
+function TrendBadge({
+  item,
+  formatValue,
+}: {
+  item: RankedEntityWithTrend;
+  formatValue?: (n: number) => string;
+}) {
+  if (item.priorMetric === 0 && item.metric === 0) return null;
+  const sign = item.trendDelta >= 0 ? "+" : "";
+  const label =
+    item.trendPercent !== null
+      ? `${sign}${item.trendPercent.toFixed(0)}% vs prior`
+      : item.priorMetric === 0
+        ? "new vs prior"
+        : `${sign}${formatValue ? formatValue(item.trendDelta) : item.trendDelta} vs prior`;
+  return (
+    <Badge variant={item.trendDelta >= 0 ? "secondary" : "destructive"} className="text-[9px]">
+      {label}
     </Badge>
   );
 }
@@ -99,7 +124,10 @@ export default function ManagementCommandCenter() {
     companyOptions,
   } = useManagementCommandCenter();
   const [exporting, setExporting] = useState(false);
+  const [verifyingExport, setVerifyingExport] = useState(false);
   const [exportHistory, setExportHistory] = useState(() => listExportHistory());
+  const [exceptionCategory, setExceptionCategory] = useState<ComplianceException["category"] | "all">("all");
+  const [exceptionSeverity, setExceptionSeverity] = useState<ComplianceException["severity"] | "all">("all");
 
   useEffect(() => {
     document.title = "Management Command Center";
@@ -109,6 +137,15 @@ export default function ManagementCommandCenter() {
     () => projection?.complianceExceptions.filter((e) => e.severity === "critical").length ?? 0,
     [projection],
   );
+
+  const filteredExceptions = useMemo(() => {
+    if (!projection) return [];
+    return projection.complianceExceptions.filter((ex) => {
+      if (exceptionCategory !== "all" && ex.category !== exceptionCategory) return false;
+      if (exceptionSeverity !== "all" && ex.severity !== exceptionSeverity) return false;
+      return true;
+    });
+  }, [projection, exceptionCategory, exceptionSeverity]);
 
   const handleTallyExport = async () => {
     setExporting(true);
@@ -141,6 +178,38 @@ export default function ManagementCommandCenter() {
       toast.error(e instanceof Error ? e.message : "Export failed");
     } finally {
       setExporting(false);
+    }
+  };
+
+  const handleVerifyLastExport = async () => {
+    const last = exportHistory[0];
+    if (!last) {
+      toast.message("No export history to verify on this device");
+      return;
+    }
+    setVerifyingExport(true);
+    try {
+      const result = await verifyTallyExportReproducibility(
+        supabase,
+        {
+          periodStart: last.periodStart,
+          periodEnd: last.periodEnd,
+          companyId: last.companyId,
+        },
+        last.contentHash,
+      );
+      if (result.ok === false) {
+        toast.error(
+          result.error ??
+            `Hash mismatch — expected ${result.expected}, got ${result.actual || "empty export"}`,
+        );
+      } else {
+        toast.success(`Export hash verified — reproducible (${result.contentHash})`);
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Verification failed");
+    } finally {
+      setVerifyingExport(false);
     }
   };
 
@@ -259,6 +328,9 @@ export default function ManagementCommandCenter() {
               </Card>
 
               <div className="grid gap-4 lg:grid-cols-3">
+                <p className="col-span-full text-xs text-muted-foreground">
+                  Rankings for {p.rankingPeriodLabel} — trend vs prior window of equal length
+                </p>
                 {(
                   [
                     ["Best sellers", p.rankings.bestSellers, "units"],
@@ -272,19 +344,25 @@ export default function ManagementCommandCenter() {
                     </CardHeader>
                     <CardContent className="space-y-2 text-xs">
                       {items.length === 0 ? (
-                        <p className="text-muted-foreground">No ranked data in current scope</p>
+                        <p className="text-muted-foreground">No ranked data in selected period</p>
                       ) : (
                         items.map((item, idx) => (
                           <Link
                             key={item.id}
                             to={item.drillRoute ?? "#"}
-                            className="flex items-center justify-between rounded-md border border-border/60 px-2 py-1.5 hover:bg-muted/50"
+                            className="flex items-center justify-between gap-2 rounded-md border border-border/60 px-2 py-1.5 hover:bg-muted/50"
                           >
-                            <span className="truncate">
+                            <span className="min-w-0 truncate">
                               {idx + 1}. {item.label}
                             </span>
-                            <span className="font-semibold tabular-nums">
-                              {kind === "value" ? format(item.metric) : item.metric}
+                            <span className="flex shrink-0 flex-col items-end gap-0.5">
+                              <span className="font-semibold tabular-nums">
+                                {kind === "value" ? format(item.metric) : item.metric}
+                              </span>
+                              <TrendBadge
+                                item={item}
+                                formatValue={kind === "value" ? format : undefined}
+                              />
                             </span>
                           </Link>
                         ))
@@ -359,6 +437,7 @@ export default function ManagementCommandCenter() {
                         <BarChart3 className="h-4 w-4" aria-hidden />
                         Ageing buckets
                       </CardTitle>
+                      <CardDescription className="text-xs">{p.collections.ageingSource}</CardDescription>
                     </CardHeader>
                     <CardContent>
                       <Table>
@@ -477,6 +556,15 @@ export default function ManagementCommandCenter() {
                   <Button onClick={() => void handleTallyExport()} disabled={exporting}>
                     {exporting ? "Exporting…" : "Generate & download CSV"}
                   </Button>
+                  {exportHistory.length > 0 ? (
+                    <Button
+                      variant="outline"
+                      onClick={() => void handleVerifyLastExport()}
+                      disabled={verifyingExport || exporting}
+                    >
+                      {verifyingExport ? "Verifying…" : "Verify last export hash"}
+                    </Button>
+                  ) : null}
                 </div>
                 {exportHistory.length > 0 ? (
                   <div>
@@ -518,8 +606,42 @@ export default function ManagementCommandCenter() {
               onChange={(e) => setFilters((f) => ({ ...f, eanSearch: e.target.value, eanPage: 0 }))}
               className="max-w-sm"
             />
+            <Select
+              value={exceptionCategory}
+              onValueChange={(value) =>
+                setExceptionCategory(value as ComplianceException["category"] | "all")
+              }
+            >
+              <SelectTrigger className="h-9 w-[140px]">
+                <SelectValue placeholder="Category" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All categories</SelectItem>
+                <SelectItem value="ean">EAN</SelectItem>
+                <SelectItem value="fssai">FSSAI</SelectItem>
+                <SelectItem value="label">Label</SelectItem>
+                <SelectItem value="hsn_gst">HSN/GST</SelectItem>
+                <SelectItem value="nutrition">Nutrition</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select
+              value={exceptionSeverity}
+              onValueChange={(value) =>
+                setExceptionSeverity(value as ComplianceException["severity"] | "all")
+              }
+            >
+              <SelectTrigger className="h-9 w-[130px]">
+                <SelectValue placeholder="Severity" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All severity</SelectItem>
+                <SelectItem value="critical">Critical</SelectItem>
+                <SelectItem value="high">High</SelectItem>
+                <SelectItem value="medium">Medium</SelectItem>
+              </SelectContent>
+            </Select>
             <Badge variant="outline" className="text-[10px]">
-              {p?.complianceExceptions.length ?? 0} exceptions
+              {filteredExceptions.length} shown / {p?.complianceExceptions.length ?? 0} total
             </Badge>
             <Badge variant="secondary" className="text-[10px]">
               {eanTotal} registry rows
@@ -601,7 +723,10 @@ export default function ManagementCommandCenter() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="max-h-80 space-y-2 overflow-y-auto text-xs">
-                {(p?.complianceExceptions ?? []).slice(0, 40).map((ex) => (
+                {filteredExceptions.length === 0 ? (
+                  <p className="text-muted-foreground">No exceptions match the current filters</p>
+                ) : (
+                  filteredExceptions.slice(0, 40).map((ex) => (
                   <Link
                     key={ex.id}
                     to={ex.drillRoute}
@@ -618,7 +743,8 @@ export default function ManagementCommandCenter() {
                       {ex.category}
                     </Badge>
                   </Link>
-                ))}
+                  ))
+                )}
               </CardContent>
             </Card>
           </div>

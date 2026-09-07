@@ -12,11 +12,9 @@ import {
   type ProductComplianceRow,
 } from "./eanComplianceRegistry";
 import {
-  buildBestClientRankings,
-  buildBestSalespersonRankings,
-  buildBestSellerRankings,
   buildDelayRiskSnapshot,
   buildOperationalPositionSnapshot,
+  buildPeriodRankingsWithTrends,
   type CompanyFactRow,
   type OrderFactRow,
   type OrderItemFactRow,
@@ -57,11 +55,16 @@ export function buildManagementCommandCenterProjection(
     disputedLedgerCount: input.disputedLedgerCount,
   });
 
-  const rankings = {
-    bestSellers: buildBestSellerRankings(input.orderItems),
-    bestClients: buildBestClientRankings(input.orders, input.companies),
-    bestSalespeople: buildBestSalespersonRankings(input.orders, input.companies, input.users),
-  };
+  const rankings = buildPeriodRankingsWithTrends({
+    orders: input.orders,
+    orderItems: input.orderItems,
+    companies: input.companies,
+    users: input.users,
+    periodStartIso: input.periodStartIso,
+    periodEndIso: input.periodEndIso,
+  });
+
+  const rankingPeriodLabel = `${input.periodStartIso.slice(0, 10)} → ${input.periodEndIso.slice(0, 10)} vs prior window`;
 
   const collections = input.includeFinance
     ? buildCollectionsReportingSnapshot({
@@ -91,6 +94,7 @@ export function buildManagementCommandCenterProjection(
     asOfIso: ref.toISOString(),
     operational,
     rankings,
+    rankingPeriodLabel,
     delayRisk,
     collections,
     finance255Blockers: listCoreFinance255Blockers(),
