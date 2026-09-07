@@ -18,8 +18,10 @@ import {
 export const ROOT = path.resolve(import.meta.dirname, "../..");
 /** Pre-UAT programme baseline (tranche-01 pre-auth). Preserved — not reused as current deploy evidence. */
 export const BASELINE_SHA = "08ccb1cfd4a3624103f0681b5515e26727e77cd2";
-/** Current Central main (#507 POINT61) — governed current-main deploy target for rebaseline. */
-export const CURRENT_MAIN_SHA = "15c59a3f54c92f2b289bd150005bcd7114b51a93";
+/** Current Central main (#556) — governed current-main deploy target for rebaseline. */
+export const CURRENT_MAIN_SHA = "6c7de2a69cec960f709a66fb85d25049dfcc2ae0";
+/** Superseded current-main hold (#507 POINT61 @ 15c59a3f) — preserved append-only, not substituted. */
+export const PRIOR_CURRENT_MAIN_HOLD_SHA = "15c59a3f54c92f2b289bd150005bcd7114b51a93";
 /** Prior current-main evidence baseline (#497 @ e2f123b0) — preserved append-only, not substituted. */
 export const PRIOR_EVIDENCE_MAIN_SHA = "e2f123b0fe257b8a1f39ec40d5f544fff1ebe313";
 /** Prior main hold (#491) — preserved for historical ace340fe continuation evidence only. */

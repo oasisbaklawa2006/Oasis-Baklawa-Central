@@ -1,18 +1,21 @@
 {
-  "generatedAt": "2026-09-07T21:52:01.208Z",
-  "runId": "34164614997",
+  "generatedAt": "2026-09-07T23:51:19.514Z",
+  "runId": "watchdog-2026-09-07T2351Z",
   "runTranche": "credential-prefix-unblock",
   "lane": "seventh — credential-prefix-unblock @ exact current main",
-  "requiredSha": "15c59a3f54c92f2b289bd150005bcd7114b51a93",
+  "requiredSha": "6c7de2a69cec960f709a66fb85d25049dfcc2ae0",
+  "priorCurrentMainHoldSha": "15c59a3f54c92f2b289bd150005bcd7114b51a93",
   "priorEvidenceSha": "e2f123b0fe257b8a1f39ec40d5f544fff1ebe313",
-  "latestProductionDeploySha": "d55306b353359ff1cc746dd9c166a72e4a5eb320",
+  "latestProductionDeploySha": "c7f4ddf2",
+  "latestProductionDeployNote": "Not substitutable — does not match requiredSha 6c7de2a",
   "deployStatus": "BLOCKED",
-  "reason": "No successful Vercel deployment for 15c59a3f54c92f2b289bd150005bcd7114b51a93; credential-prefix-unblock requires current-main cert — no ace340fe substitution.",
+  "reason": "No successful Vercel deployment for current main 6c7de2a69cec960f709a66fb85d25049dfcc2ae0; lane-7 requires exact SHA — no 15c59a3f/d55306b3/c7f4ddf2/ace340fe substitution.",
   "vercelCommitStatus": "failure — Deployment rate limited (api-deployments-free-per-day)",
   "vercelRateLimitSuspected": true,
   "censusTotal": 131,
   "verifiedCredentialBlocked": 28,
   "credentialsAvailableAwaitingDeploy": 18,
+  "deployNotTestedCount": 103,
   "credentialPrefixUnblockTargets": [
     "UAT-0003",
     "UAT-0062",
@@ -29,6 +32,7 @@
     "UAT-0101"
   ],
   "credentialPrefixUnblockCount": 13,
+  "credentialPrefixUnblockDisposition": "NOT-TESTED / DEPLOY_BLOCKED",
   "recertifiedAtRequiredSha": 0,
   "publicRunnableIds": [
     "UAT-0001",
@@ -37,7 +41,7 @@
     "UAT-0008",
     "UAT-0009"
   ],
-  "policy": "Prior e2f123b0 + BLOCKED archive preserved append-only — NOT recertified as 15c59a3f without trusted deploy.",
-  "stopCondition": "DEPLOY_BLOCKED @ 15c59a3f — execute credential-prefix-unblock then chronological crawl when exact SHA deploy lands.",
-  "nextAction": "Vercel deploy for 15c59a3f (or TEST_PREVIEW_URL at exact SHA) → re-run credential-prefix-unblock then watchdog-continue."
+  "policy": "Prior 15c59a3f + e2f123b0 + BLOCKED/NOT-TESTED archives preserved append-only — NOT recertified as 6c7de2a without trusted deploy.",
+  "stopCondition": "DEPLOY_BLOCKED @ 6c7de2a — execute credential-prefix-unblock then chronological crawl when exact SHA deploy lands.",
+  "nextAction": "Vercel deploy for 6c7de2a (or TEST_PREVIEW_URL at exact SHA) → re-run credential-prefix-unblock then watchdog-continue."
 }

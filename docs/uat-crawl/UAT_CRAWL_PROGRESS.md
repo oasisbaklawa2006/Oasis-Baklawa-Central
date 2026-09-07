@@ -1,13 +1,31 @@
 # UAT Crawl Progress Summary
 
-**Last updated:** 2026-09-07T21:52Z (lane-7 deploy watchdog re-check — verified BLOCKED @ `15c59a3f`, no exact-SHA deploy)  
+**Last updated:** 2026-09-07T23:51Z (lane-7 authority retarget → `6c7de2a` #556 — verified DEPLOY_BLOCKED)  
 **Branch / PR:** `cursor/physical-uat-readiness-matrix-e763` → **#462**  
-**Current main:** `15c59a3f54c92f2b289bd150005bcd7114b51a93` (#507 POINT61)  
-**Deploy gate:** **BLOCKED** — zero GitHub deployments for exact SHA; Vercel rate limit on commit status  
-**Latest production deploy:** `d55306b353359ff1cc746dd9c166a72e4a5eb320` — **not substitutable** (2 commits behind main)  
+**Current main:** `6c7de2a69cec960f709a66fb85d25049dfcc2ae0` (#556)  
+**Prior hold (superseded):** `15c59a3f54c92f2b289bd150005bcd7114b51a93` (#507 POINT61) — preserved append-only  
+**Deploy gate:** **BLOCKED** — zero GitHub deployments for exact `6c7de2a`; Vercel rate limit on commit status  
+**Latest production deploy:** `c7f4ddf2` — **not substitutable** (does not match requiredSha)  
 **Mode:** Read-only lane 7 — no remediation.
 
-## Lane 7 deploy watchdog — verified BLOCKED @ `15c59a3f` (2026-09-07T21:52Z re-check)
+## Lane 7 authority retarget — verified DEPLOY_BLOCKED @ `6c7de2a` (2026-09-07T23:51Z)
+
+| Field | Value |
+|---|---|
+| Required SHA | `6c7de2a69cec960f709a66fb85d25049dfcc2ae0` (#556) |
+| Prior hold SHA | `15c59a3f` — historical evidence preserved, not rewritten |
+| Trusted deploy @ exact SHA | **ABSENT** — crawl withheld |
+| Vercel status | `failure` — rate limited (100/day free tier) |
+| **NOT-TESTED / DEPLOY_BLOCKED** | **103** surfaces (incl. 13 credential-cleared Gate/RGS/3PGS) |
+| Verified credential-blocked | **28** |
+| Creds available, awaiting deploy | **18** |
+| **Recertified @ 6c7de2a** | **0** |
+| Watchdog | `watchdog-2026-09-07T2351Z` |
+| Artifacts | [`UAT_REBASELINE_DEPLOY_BLOCKED.json`](UAT_REBASELINE_DEPLOY_BLOCKED.json) · [`UAT_CURRENT_MAIN_NOT_TESTED.jsonl`](UAT_CURRENT_MAIN_NOT_TESTED.jsonl) · append archives |
+
+**Stop:** `DEPLOY_BLOCKED @ 6c7de2a` only. No `15c59a3f`, `d55306b3`, `c7f4ddf2`, or other stale preview substitution. When exact deploy lands → `credential-prefix-unblock` (13 IDs) → `watchdog-continue` (chronological remainder).
+
+## Lane 7 deploy watchdog — verified BLOCKED @ `15c59a3f` (2026-09-07T21:52Z re-check) — superseded
 
 | Field | Value |
 |---|---|
