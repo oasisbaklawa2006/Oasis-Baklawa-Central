@@ -21,6 +21,8 @@ import {
   applyCentralOrderPoolSnapshotLoadResult,
   loadCentralOrderPoolSnapshot,
 } from "@/lib/centralOrderPool/centralOrderPoolSnapshotLoader";
+import { fetchOrderPriorityOwnerSlaFactsBatch } from "@/lib/order-priority-owner-sla";
+import type { OrderPriorityOwnerSlaFacts } from "@/lib/order-priority-owner-sla";
 import { useAuth } from "@/hooks/useAuth";
 import { formatSalesOrderLabel } from "@/utils/orderSoLabel";
 
@@ -46,6 +48,7 @@ export default function CentralOrderPoolCommandCentre() {
   const { role } = useAuth();
   const lenses = useMemo(() => visibleCentralOrderPoolLenses(role), [role]);
   const [snapshot, setSnapshot] = useState(EMPTY_CENTRAL_ORDER_POOL_SNAPSHOT);
+  const [priorityFacts, setPriorityFacts] = useState<Map<string, OrderPriorityOwnerSlaFacts>>(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -54,6 +57,17 @@ export default function CentralOrderPoolCommandCentre() {
     const result = await loadCentralOrderPoolSnapshot();
     setSnapshot((previous) => applyCentralOrderPoolSnapshotLoadResult(previous, result));
     setError(result.error);
+    const orderIds = result.snapshot.recentOrders.map((order) => order.id);
+    if (orderIds.length > 0) {
+      try {
+        const facts = await fetchOrderPriorityOwnerSlaFactsBatch(orderIds);
+        setPriorityFacts(facts);
+      } catch {
+        setPriorityFacts(new Map());
+      }
+    } else {
+      setPriorityFacts(new Map());
+    }
     setLoading(false);
   }, []);
 
@@ -137,7 +151,7 @@ export default function CentralOrderPoolCommandCentre() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm">Recent orders</CardTitle>
             <CardDescription className="text-xs">
-              Read-only projection from governed `orders` rows. Status changes belong on Order Management.
+              Read-only projection with Point74 priority, owner and SLA facts. Status changes belong on Order Management.
             </CardDescription>
           </CardHeader>
           <CardContent className="overflow-x-auto">
@@ -154,23 +168,40 @@ export default function CentralOrderPoolCommandCentre() {
                   <TableRow>
                     <TableHead>Reference</TableHead>
                     <TableHead>Customer</TableHead>
+                    <TableHead>Priority</TableHead>
+                    <TableHead>Owner</TableHead>
+                    <TableHead>SLA</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Action</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {snapshot.recentOrders.map((order) => (
+                  {snapshot.recentOrders.map((order) => {
+                    const facts = priorityFacts.get(order.id);
+                    const slaLabel = facts?.sla.daysUntilDue != null
+                      ? `${facts.sla.daysUntilDue}d`
+                      : "—";
+                    const slaTone = facts?.sla.overdue
+                      ? "text-destructive"
+                      : facts?.sla.daysUntilDue != null && facts.sla.daysUntilDue <= 2
+                        ? "text-amber-600"
+                        : "text-muted-foreground";
+                    return (
                     <TableRow key={order.id}>
                       <TableCell>{formatSalesOrderLabel(order)}</TableCell>
                       <TableCell>{order.company_name ?? "—"}</TableCell>
+                      <TableCell className="uppercase text-xs">{facts?.priority.band ?? "—"}</TableCell>
+                      <TableCell className="text-xs">{facts?.owner.displayName ?? "—"}</TableCell>
+                      <TableCell className={`text-xs tabular-nums ${slaTone}`}>{slaLabel}</TableCell>
                       <TableCell className="uppercase text-xs">{order.status}</TableCell>
                       <TableCell className="text-right">
                         <Button asChild size="sm" variant="ghost">
-                          <Link to="/admin/order-management">Open pipeline</Link>
+                          <Link to={`/admin/order-management?orderId=${encodeURIComponent(order.id)}`}>Open pipeline</Link>
                         </Button>
                       </TableCell>
                     </TableRow>
-                  ))}
+                    );
+                  })}
                 </TableBody>
               </Table>
             )}
