@@ -1,10 +1,26 @@
 # UAT Crawl Progress Summary
 
-**Last updated:** 2026-09-07 (credential-prefix-unblock — GHA run [34155840050](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34155840050) @ `1d923f10`)  
+**Last updated:** 2026-09-07T21:52Z (lane-7 deploy watchdog re-check — verified BLOCKED @ `15c59a3f`, no exact-SHA deploy)  
 **Branch / PR:** `cursor/physical-uat-readiness-matrix-e763` → **#462**  
-**Current main:** `15c59a3f54c92f2b289bd150005bcd7114b51a93` (#507 POINT61) — **deploy BLOCKED** (no exact-SHA Vercel URL)  
-**Prior evidence baseline:** `e2f123b0` — preserved append-only  
-**Mode:** Read-only evidence — **no remediation** in this programme.
+**Current main:** `15c59a3f54c92f2b289bd150005bcd7114b51a93` (#507 POINT61)  
+**Deploy gate:** **BLOCKED** — zero GitHub deployments for exact SHA; Vercel rate limit on commit status  
+**Latest production deploy:** `d55306b353359ff1cc746dd9c166a72e4a5eb320` — **not substitutable** (2 commits behind main)  
+**Mode:** Read-only lane 7 — no remediation.
+
+## Lane 7 deploy watchdog — verified BLOCKED @ `15c59a3f` (2026-09-07T21:52Z re-check)
+
+| Field | Value |
+|---|---|
+| Required SHA | `15c59a3f54c92f2b289bd150005bcd7114b51a93` |
+| Trusted deploy | **ABSENT** — crawl withheld |
+| Vercel status | `failure` — rate limited (100/day free tier) |
+| Credential-cleared, awaiting deploy | **13** IDs: UAT-0003 · 0062–0065 · 0067 · 0082 · 0087 · 0097–0101 |
+| Plus cred-available (Sales etc.) | **18** total awaiting deploy |
+| Verified credential-blocked | **28** |
+| **Recertified @ 15c59a3f** | **0** |
+| Artifact | [`UAT_REBASELINE_DEPLOY_BLOCKED.json`](UAT_REBASELINE_DEPLOY_BLOCKED.json) · append [`UAT_REBASELINE_DEPLOY_BLOCKED_ARCHIVE.jsonl`](UAT_REBASELINE_DEPLOY_BLOCKED_ARCHIVE.jsonl) |
+
+**Stop:** `DEPLOY_BLOCKED @ 15c59a3f` only — credentials materially unblocked for Gate/RGS/3PGS. When exact deploy lands → `credential-prefix-unblock` (13 IDs) → `watchdog-continue` (chronological remainder). No stale preview.
 
 ## Credential-prefix-unblock — GHA run [34155840050](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34155840050)
 
