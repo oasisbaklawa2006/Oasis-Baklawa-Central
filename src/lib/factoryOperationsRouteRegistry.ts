@@ -492,6 +492,18 @@ export const FACTORY_OPERATIONS_ROUTES: FactoryRouteEntry[] = [
     evidence: "Gated only by shared /admin ADMIN_STAFF_ROLES.",
   },
 
+  // ── CUSTOMER SUPPORT (canonical redirect target for execution/complaints) ─
+  {
+    route: "/admin/support",
+    label: "Support Queue",
+    subsystem: "3PGS_THIRD_PARTY",
+    technicallyAllowedRoles: ADMIN_STAFF_ROLES_REFERENCE,
+    intendedPrimaryAudience: ["SUPPORT_EXECUTIVE"],
+    status: "FACTORY_CURRENT",
+    deviceClass: "DESKTOP",
+    evidence: "App.tsx: AdminSupport (support_tickets). auth-routing.ts lands SUPPORT_EXECUTIVE here. LEGACY_REDIRECT target for /admin/execution/complaints (ComplaintsExecutionBoard).",
+  },
+
   // ── LEGACY REDIRECTS (proven dead-data source, redirected in App.tsx) ────
   {
     route: "/admin/execution/production",
