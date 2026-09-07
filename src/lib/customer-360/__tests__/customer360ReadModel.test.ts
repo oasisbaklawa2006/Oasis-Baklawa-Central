@@ -32,13 +32,20 @@ type QueryCalls = {
   limit?: number;
 };
 
-function createQuery(result: { data: unknown; error: unknown }, calls?: QueryCalls) {
+function createQuery(
+  result: { data: unknown; error: unknown },
+  calls?: QueryCalls,
+  eqCalls?: Array<{ column: string; value: unknown }>,
+) {
   const builder: Record<string, unknown> = {
     select: vi.fn((columns: string) => {
       if (calls) calls.select = columns;
       return builder;
     }),
-    eq: vi.fn(() => builder),
+    eq: vi.fn((column: string, value: unknown) => {
+      eqCalls?.push({ column, value });
+      return builder;
+    }),
     not: vi.fn(() => builder),
     in: vi.fn((column: string, values: readonly unknown[]) => {
       calls?.in?.push({ column, values });
@@ -59,6 +66,10 @@ vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     from: vi.fn(),
   },
+}));
+
+vi.mock("@/lib/order-authority/creditWalletAuthorityClient", () => ({
+  getWalletBalance: vi.fn(async () => 7500),
 }));
 
 describe("fetchCustomer360ReadModel", () => {
@@ -244,5 +255,52 @@ describe("fetchCustomer360ReadModel", () => {
     });
 
     expect(model.tickets.data).toEqual([]);
+  });
+
+  it("uses PF-6B wallet balance when available", async () => {
+    const { getWalletBalance } = await import("@/lib/order-authority/creditWalletAuthorityClient");
+    const model = await fetchCustomer360ReadModel(VALID_UUID, {
+      viewerCompanyId: null,
+      isStorefrontViewer: false,
+    });
+    expect(getWalletBalance).toHaveBeenCalledWith(VALID_UUID.toLowerCase());
+    expect(model.profile.data?.walletBalance).toBe(7500);
+  });
+
+  it("scopes interactions and tasks to the signed-in sales executive", async () => {
+    const interactionEqCalls: Array<{ column: string; value: unknown }> = [];
+    const taskEqCalls: Array<{ column: string; value: unknown }> = [];
+    const { supabase } = await import("@/integrations/supabase/client");
+    vi.mocked(supabase.from).mockImplementation((table: string) => {
+      if (table === "companies") {
+        return createQuery({
+          data: { ...companyRow, account_manager_id: "sales-exec-1" },
+          error: null,
+        }) as never;
+      }
+      if (table === "orders") {
+        return createQuery({ data: [], error: null }) as never;
+      }
+      if (table === "client_interactions") {
+        return createQuery({ data: [], error: null }, interactionsQueryCalls, interactionEqCalls) as never;
+      }
+      if (table === "crm_tasks") {
+        return createQuery({ data: [], error: null }, undefined, taskEqCalls) as never;
+      }
+      if (table === "delivery_addresses" || table === "sales_order_drafts") {
+        return createQuery({ data: [], error: null }) as never;
+      }
+      throw new Error(`Unexpected table ${table}`);
+    });
+
+    await fetchCustomer360ReadModel(VALID_UUID, {
+      viewerCompanyId: null,
+      isStorefrontViewer: false,
+      isSalesExecutiveViewer: true,
+      viewerUserId: "sales-exec-1",
+    });
+
+    expect(interactionEqCalls).toContainEqual({ column: "executive_id", value: "sales-exec-1" });
+    expect(taskEqCalls).toContainEqual({ column: "sales_exec_id", value: "sales-exec-1" });
   });
 });

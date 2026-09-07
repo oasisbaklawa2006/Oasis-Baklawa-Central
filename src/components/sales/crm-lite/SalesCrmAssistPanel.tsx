@@ -19,9 +19,8 @@ export default function SalesCrmAssistPanel({ companies, userId, focusCompanyId 
       <div className="rounded-lg border border-primary/20 bg-primary/5 p-4">
         <p className="text-sm font-semibold text-foreground">CRM-lite sales assistance</p>
         <p className="mt-1 text-xs text-muted-foreground">
-          Log calls, WhatsApp, visits and notes against your assigned roster. Interactions write to the governed
-          <code className="mx-1 rounded bg-muted px-1">client_interactions</code> timeline scoped by
-          <code className="mx-1 rounded bg-muted px-1">companies.account_manager_id</code>.
+          Log calls, WhatsApp, visits, notes and promises against your assigned roster. Interactions write to the governed
+          <code className="mx-1 rounded bg-muted px-1">client_interactions</code> timeline scoped to your executive identity.
         </p>
         {focusCompany && (
           <div className="mt-2 flex flex-wrap items-center gap-2">

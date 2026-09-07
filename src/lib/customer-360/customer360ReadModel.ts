@@ -5,6 +5,7 @@ import {
   CUSTOMER360_COMMUNICATION_HISTORY_LIMIT,
   mapClientInteractionLedgerRows,
 } from "@/lib/crm-communication-history/crmCommunicationHistoryTypes";
+import { getWalletBalance } from "@/lib/order-authority/creditWalletAuthorityClient";
 import { parseCrmLiteTickets } from "@/lib/crm-lite/parseCrmLiteTickets";
 import {
   buildCustomerHealthReadModel,
@@ -104,11 +105,46 @@ export async function fetchCustomer360ReadModel(
     (companyRow as unknown as CompanyRow).account_manager_id,
   );
 
+  const mappedCompany = companyRow as unknown as CompanyRow;
+  let governedWalletBalance: number | null = mappedCompany.wallet_balance;
+  try {
+    governedWalletBalance = await getWalletBalance(companyId);
+  } catch {
+    governedWalletBalance = null;
+  }
+
   const profileSlice: Customer360Slice<Customer360CompanyProfile> = {
-    availability: "available",
+    availability: governedWalletBalance == null ? "partial_crm_lite" : "available",
     programmeOwner: "POINT59",
-    data: mapCompanyProfile(companyRow as unknown as CompanyRow),
+    reason:
+      governedWalletBalance == null
+        ? "Wallet balance uses PF-6B RPC when available; column fallback is not shown as authoritative."
+        : undefined,
+    data: mapCompanyProfile({
+      ...mappedCompany,
+      wallet_balance: governedWalletBalance,
+    }),
   };
+
+  let interactionsQuery = supabase
+    .from("client_interactions")
+    .select(CLIENT_INTERACTION_LEDGER_SELECT)
+    .eq("company_id", companyId)
+    .order("created_at", { ascending: false })
+    .limit(CUSTOMER360_COMMUNICATION_HISTORY_LIMIT);
+  if (viewer.isSalesExecutiveViewer && viewer.viewerUserId) {
+    interactionsQuery = interactionsQuery.eq("executive_id", viewer.viewerUserId);
+  }
+
+  let tasksQuery = supabase
+    .from("crm_tasks")
+    .select("id, task_type, status, due_date, description, created_at")
+    .eq("company_id", companyId)
+    .order("due_date", { ascending: true })
+    .limit(25);
+  if (viewer.isSalesExecutiveViewer && viewer.viewerUserId) {
+    tasksQuery = tasksQuery.eq("sales_exec_id", viewer.viewerUserId);
+  }
 
   const [ordersRes, interactionsRes, tasksRes, deliverySitesRes, waDraftsRes] = await Promise.all([
     supabase
@@ -118,18 +154,8 @@ export async function fetchCustomer360ReadModel(
       .not("status", "in", '("draft","cart","cancelled")')
       .order("created_at", { ascending: false })
       .limit(25),
-    supabase
-      .from("client_interactions")
-      .select(CLIENT_INTERACTION_LEDGER_SELECT)
-      .eq("company_id", companyId)
-      .order("created_at", { ascending: false })
-      .limit(CUSTOMER360_COMMUNICATION_HISTORY_LIMIT),
-    supabase
-      .from("crm_tasks")
-      .select("id, task_type, status, due_date, description, created_at")
-      .eq("company_id", companyId)
-      .order("due_date", { ascending: true })
-      .limit(25),
+    interactionsQuery,
+    tasksQuery,
     supabase
       .from("delivery_addresses")
       .select("id, label, street_address, city, state, pincode, contact_person, contact_phone, is_default")
@@ -186,7 +212,9 @@ export async function fetchCustomer360ReadModel(
         availability: "partial_crm_lite",
         programmeOwner: "POINT61",
         reason:
-          "CRM-lite interaction summary (bounded preview). Governed multi-channel history is on the communicationsLedger slice (Point 61).",
+          viewer.isSalesExecutiveViewer
+            ? "CRM-lite interactions scoped to the signed-in sales executive. Governed multi-channel history is on the communicationsLedger slice (Point 61)."
+            : "CRM-lite interaction summary (bounded preview). Governed multi-channel history is on the communicationsLedger slice (Point 61).",
         data: (interactionsRes.data ?? []).map((row) => ({
           id: row.id,
           interactionType: row.interaction_type,
@@ -206,7 +234,9 @@ export async function fetchCustomer360ReadModel(
     : {
         availability: "partial_crm_lite",
         programmeOwner: "POINT63",
-        reason: "CRM-lite tasks only; opportunities/samples health lane is not yet governed.",
+        reason: viewer.isSalesExecutiveViewer
+          ? "CRM-lite tasks scoped to the signed-in sales executive."
+          : "CRM-lite tasks only; opportunities/samples health lane is not yet governed.",
         data: (tasksRes.data ?? []).map((row) => ({
           id: row.id,
           taskType: row.task_type,

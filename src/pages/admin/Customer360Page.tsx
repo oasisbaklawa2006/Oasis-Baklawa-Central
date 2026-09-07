@@ -1,4 +1,5 @@
 import { Link, useLocation, useParams } from "react-router-dom";
+import { useState } from "react";
 import { operatorInboxPathForPacket } from "@/lib/crm-communication-history/crmCommunicationDeepLink";
 import { format } from "date-fns";
 import {
@@ -22,7 +23,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useCustomer360 } from "@/hooks/useCustomer360";
 import { CUSTOMER360_COMMUNICATION_HISTORY_LIMIT } from "@/lib/crm-communication-history/crmCommunicationHistoryTypes";
-import type { Customer360Slice, Customer360SliceAvailability } from "@/lib/customer-360/customer360Types";
+import type { Customer360NextBestAction, Customer360Slice, Customer360SliceAvailability } from "@/lib/customer-360/customer360Types";
+import SalesSupportEscalationDialog from "@/components/sales/crm-lite/SalesSupportEscalationDialog";
 
 function availabilityBadge(availability: Customer360SliceAvailability) {
   switch (availability) {
@@ -40,18 +42,38 @@ function availabilityBadge(availability: Customer360SliceAvailability) {
 }
 
 function SliceUnavailable({ slice }: { slice: Customer360Slice<unknown> }) {
+  const isError = slice.availability === "error";
   return (
-    <div className="rounded-lg border border-dashed border-muted-foreground/30 bg-muted/20 p-4 text-sm text-muted-foreground">
-      <p className="font-medium text-foreground">Unavailable — {slice.programmeOwner}</p>
-      <p className="mt-1">{slice.reason ?? slice.errorMessage ?? "This slice is not yet governed."}</p>
+    <div
+      className={
+        isError
+          ? "rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm"
+          : "rounded-lg border border-dashed border-muted-foreground/30 bg-muted/20 p-4 text-sm text-muted-foreground"
+      }
+    >
+      <p className={isError ? "font-medium text-destructive" : "font-medium text-foreground"}>
+        {isError ? "Read error" : "Unavailable"} — {slice.programmeOwner}
+      </p>
+      <p className={isError ? "mt-1 text-muted-foreground" : "mt-1"}>
+        {slice.errorMessage ?? slice.reason ?? "This slice is not yet governed."}
+      </p>
     </div>
   );
+}
+
+function nextBestActionTarget(action: Customer360NextBestAction, variant: "admin" | "sales"): string | null {
+  if (action.action.includes("overdue CRM tasks")) return "#customer360-tasks";
+  if (action.action.includes("follow-up")) return "#customer360-interactions";
+  if (variant === "sales" && action.action.includes("Log a call")) return "/sales/dashboard?crmTab=assist";
+  if (variant === "sales" && action.action.includes("credit exposure")) return "/sales/dashboard?crmTab=credit";
+  return null;
 }
 
 export default function Customer360Page({ variant }: { variant?: "admin" | "sales" }) {
   const { companyId } = useParams<{ companyId: string }>();
   const location = useLocation();
   const resolvedVariant = variant ?? (location.pathname.startsWith("/sales/clients/") ? "sales" : "admin");
+  const [supportDialogOpen, setSupportDialogOpen] = useState(false);
   const { state, refresh } = useCustomer360(companyId, {
     salesExecutiveViewer: resolvedVariant === "sales",
   });
@@ -84,6 +106,13 @@ export default function Customer360Page({ variant }: { variant?: "admin" | "sale
 
   const { model } = state;
   const profile = model.profile.data;
+  const supportOrderOptions =
+    model.orders.availability === "available" && model.orders.data
+      ? model.orders.data.map((order) => ({
+          orderId: order.orderId,
+          orderNumber: order.orderNumber,
+        }))
+      : [];
 
   return (
     <div className="space-y-6">
@@ -213,12 +242,19 @@ export default function Customer360Page({ variant }: { variant?: "admin" | "sale
 
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between gap-2">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <AlertCircle className="h-5 w-5" />
-                Support tickets
-              </CardTitle>
-              {availabilityBadge(model.tickets.availability)}
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center justify-between gap-2">
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <AlertCircle className="h-5 w-5" />
+                  Support tickets
+                </CardTitle>
+                {availabilityBadge(model.tickets.availability)}
+              </div>
+              {resolvedVariant === "sales" && supportOrderOptions.length > 0 && (
+                <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setSupportDialogOpen(true)}>
+                  Escalate to support
+                </Button>
+              )}
             </div>
           </CardHeader>
           <CardContent>
@@ -251,7 +287,7 @@ export default function Customer360Page({ variant }: { variant?: "admin" | "sale
           </CardContent>
         </Card>
 
-        <Card>
+        <Card id="customer360-interactions">
           <CardHeader>
             <div className="flex items-center justify-between gap-2">
               <CardTitle className="flex items-center gap-2 text-lg">
@@ -284,7 +320,7 @@ export default function Customer360Page({ variant }: { variant?: "admin" | "sale
           </CardContent>
         </Card>
 
-        <Card>
+        <Card id="customer360-tasks">
           <CardHeader>
             <div className="flex items-center justify-between gap-2">
               <CardTitle className="flex items-center gap-2 text-lg">
@@ -357,12 +393,20 @@ export default function Customer360Page({ variant }: { variant?: "admin" | "sale
                       <p className="mt-1 text-xs text-muted-foreground">
                         {entry.actor.displayLabel} · {entry.channel} · {entry.source.table}
                       </p>
-                      {entry.deepLink && resolvedVariant === "admin" ? (
-                        <p className="mt-2">
-                          <Button asChild size="sm" variant="outline" className="h-7 text-xs">
-                            <Link to={entry.deepLink.operatorInboxPath}>Open operator inbox packet</Link>
-                          </Button>
-                        </p>
+                      {entry.deepLink ? (
+                        resolvedVariant === "admin" ? (
+                          <p className="mt-2">
+                            <Button asChild size="sm" variant="outline" className="h-7 text-xs">
+                              <Link to={entry.deepLink.operatorInboxPath}>Open operator inbox packet</Link>
+                            </Button>
+                          </p>
+                        ) : (
+                          <p className="mt-2 text-xs text-muted-foreground">
+                            Linked WhatsApp packet{" "}
+                            <code className="rounded bg-muted px-1">{entry.deepLink.packetId.slice(0, 8)}</code>
+                            — operator review handles clarification and promotion.
+                          </p>
+                        )
                       ) : null}
                     </li>
                   ))}
@@ -568,12 +612,28 @@ export default function Customer360Page({ variant }: { variant?: "admin" | "sale
                     <p className="text-sm text-muted-foreground">No prioritized actions from current facts.</p>
                   ) : (
                     <ol className="space-y-2">
-                      {model.customerHealth.data.nextBestActions.map((action, index) => (
-                        <li key={`${action.action}-${index}`} className="rounded-lg border p-3 text-sm">
-                          <p className="font-medium">{action.action}</p>
-                          <p className="mt-1 text-muted-foreground">{action.reason}</p>
-                        </li>
-                      ))}
+                      {model.customerHealth.data.nextBestActions.map((action, index) => {
+                        const target = nextBestActionTarget(action, resolvedVariant);
+                        return (
+                          <li key={`${action.action}-${index}`} className="rounded-lg border p-3 text-sm">
+                            <div className="flex flex-wrap items-start justify-between gap-2">
+                              <p className="font-medium">{action.action}</p>
+                              {target ? (
+                                target.startsWith("/") ? (
+                                  <Button asChild size="sm" variant="ghost" className="h-7 text-xs">
+                                    <Link to={target}>Open</Link>
+                                  </Button>
+                                ) : (
+                                  <Button asChild size="sm" variant="ghost" className="h-7 text-xs">
+                                    <a href={target}>View</a>
+                                  </Button>
+                                )
+                              ) : null}
+                            </div>
+                            <p className="mt-1 text-muted-foreground">{action.reason}</p>
+                          </li>
+                        );
+                      })}
                     </ol>
                   )}
                 </div>
@@ -599,6 +659,13 @@ export default function Customer360Page({ variant }: { variant?: "admin" | "sale
           <SliceUnavailable slice={model.dispatchHistory} />
         </CardContent>
       </Card>
+
+      <SalesSupportEscalationDialog
+        open={supportDialogOpen}
+        onOpenChange={setSupportDialogOpen}
+        orders={supportOrderOptions}
+        onSubmitted={() => void refresh()}
+      />
     </div>
   );
 }
