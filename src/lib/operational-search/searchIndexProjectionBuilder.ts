@@ -65,7 +65,7 @@ export function navigationPathForEntity(entityType: SearchIndexEntityType, entit
     case "scan_record":
       return `/admin/barcode-execution-preview?scanId=${entityId}`;
     case "customer":
-      return `/admin/clients?customerId=${entityId}`;
+      return `/admin/clients/${entityId}`;
     case "complaint":
       return `/admin/execution/complaints?queueItemId=${entityId}`;
     case "dispatch_reference":
