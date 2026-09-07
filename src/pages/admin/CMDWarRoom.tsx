@@ -232,8 +232,7 @@ const CMDWarRoom = () => {
     try {
       setWaPulseError(null);
       const { data, error } = await supabase
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .from("whatsapp_message_packets" as any)
+        .from("whatsapp_message_packets")
         .select("id, last_message_at")
         .eq("status", "open")
         // Match operator inbox (`WhatsAppInbox.tsx`): descending `last_message_at` with default null ordering only.

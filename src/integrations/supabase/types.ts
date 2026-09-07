@@ -200,6 +200,58 @@ type WhatsappMessagePacketsTable = {
   ];
 };
 
+/** Operator inbox message projection — Core `whatsapp_messages` (schema introspection §2). */
+type WhatsappMessagesTable = {
+  Row: {
+    id: string;
+    content: string | null;
+    message_type: string | null;
+    direction: string;
+    created_at: string | null;
+    packet_sequence: number | null;
+    status: string | null;
+    provider: string | null;
+    provider_message_id: string | null;
+    media_url: string | null;
+    packet_id: string | null;
+  };
+  Insert: {
+    id?: string;
+    content?: string | null;
+    message_type?: string | null;
+    direction: string;
+    created_at?: string | null;
+    packet_sequence?: number | null;
+    status?: string | null;
+    provider?: string | null;
+    provider_message_id?: string | null;
+    media_url?: string | null;
+    packet_id?: string | null;
+  };
+  Update: {
+    id?: string;
+    content?: string | null;
+    message_type?: string | null;
+    direction?: string;
+    created_at?: string | null;
+    packet_sequence?: number | null;
+    status?: string | null;
+    provider?: string | null;
+    provider_message_id?: string | null;
+    media_url?: string | null;
+    packet_id?: string | null;
+  };
+  Relationships: [
+    {
+      foreignKeyName: "fk_whatsapp_messages_packet_id";
+      columns: ["packet_id"];
+      isOneToOne: false;
+      referencedRelation: "whatsapp_message_packets";
+      referencedColumns: ["id"];
+    },
+  ];
+};
+
 /**
  * Backwards-compatible Supabase contract.
  *
@@ -368,6 +420,7 @@ export type Database = Omit<GeneratedDatabase, "public"> & {
       inventory_reservations: InventoryReservationsTable;
       whatsapp_contacts: WhatsappContactsTable;
       whatsapp_message_packets: WhatsappMessagePacketsTable;
+      whatsapp_messages: WhatsappMessagesTable;
     };
     Functions: GeneratedDatabase["public"]["Functions"] & FinanceExitFunctions;
   };
