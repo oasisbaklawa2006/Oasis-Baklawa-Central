@@ -71,6 +71,12 @@ describe("Point 77 — Finance route/module authority", () => {
     }
   });
 
+  it("preserves Point57 delegate pattern — adminModuleAccess does not shadow roleAccess", () => {
+    const legacy = source("src/lib/auth/adminModuleAccess.ts");
+    expect(legacy).toContain("getAllowedModulesForRole");
+    expect(legacy).not.toMatch(/export const ROLE_MODULE_ACCESS:\s*Record</);
+  });
+
   it("aligns adminModuleAccess finance_audit with appverse roleAccess", () => {
     for (const role of ["FINANCE_HEAD", "FINANCE_EXEC"] as const) {
       expect(hasAdminModuleAccess(role, "finance_audit")).toBe(true);
