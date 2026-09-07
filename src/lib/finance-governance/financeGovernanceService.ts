@@ -44,10 +44,12 @@ function isTestMode(): boolean {
   );
 }
 
+export type FinanceGovernanceControlMode = Point80ControlPersistenceMode | "shadow";
+
 export interface FinanceGovernanceServiceDeps {
   evidence: FinanceEvidenceStore;
   events: FinanceEventSink;
-  controlMode?: Point80ControlPersistenceMode;
+  controlMode?: FinanceGovernanceControlMode;
 }
 
 export function createFinanceGovernanceService(deps: FinanceGovernanceServiceDeps) {
@@ -55,6 +57,7 @@ export function createFinanceGovernanceService(deps: FinanceGovernanceServiceDep
 
   function assertCoreWriteAuthority(action: string) {
     if (controlMode === "core") return;
+    if (controlMode === "shadow" && action === "commercial release") return;
     if (controlMode === "demo" && isTestMode()) return;
     throw new FinanceGovernanceError(
       "core_prerequisite",

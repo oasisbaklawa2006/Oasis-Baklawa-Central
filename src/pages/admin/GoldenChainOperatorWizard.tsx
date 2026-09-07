@@ -182,7 +182,7 @@ export default function GoldenChainOperatorWizard() {
     ) {
       return true;
     }
-    if (viewState.stage === "finance_release" && !financeBundle?.canExecuteWrites) return true;
+    if (viewState.stage === "finance_release" && !financeBundle?.canExecuteCommercialRelease) return true;
     if (viewState.stage === "completion_attestation" && !completionBundle?.canExecuteWrites) return true;
     if (viewState.stage === "dispatch_finalization" && !finalizationBundle?.canExecuteWrites) return true;
     if (viewState.stage === "stock_finalization" && !stockBundle?.canExecuteWrites) return true;

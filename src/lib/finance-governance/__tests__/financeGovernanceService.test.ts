@@ -85,4 +85,15 @@ describe("financeGovernanceService", () => {
       rows.some((r) => r.reviewType === "credit_review" && r.reviewStatus === "pending"),
     ).toBe(true);
   });
+
+  it("shadow mode allows commercial release but blocks typed review writes", async () => {
+    const evidence = createInMemoryFinanceEvidenceStore();
+    const s = createFinanceGovernanceService({
+      evidence,
+      events: createInMemoryFinanceEventSink(),
+      controlMode: "shadow",
+    });
+    await expect(s.commercialRelease(ready, ctx)).resolves.toBeTruthy();
+    await expect(s.startReview(ready, ctx)).rejects.toThrow(FinanceGovernanceError);
+  });
 });

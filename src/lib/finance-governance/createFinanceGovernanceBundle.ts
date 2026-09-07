@@ -13,6 +13,8 @@ export interface FinanceGovernanceBundle {
   service: ReturnType<typeof createFinanceGovernanceService>;
   persistenceMode: FinanceGovernancePersistenceMode;
   canExecuteWrites: boolean;
+  /** Golden Chain commercial_release shadow writes to finance_review_evidence. */
+  canExecuteCommercialRelease: boolean;
   corePrerequisiteMessage: string | null;
   point80ControlMode: "core" | "demo" | "blocked";
 }
@@ -44,6 +46,7 @@ export async function createFinanceGovernanceBundle(
       service,
       persistenceMode: "demo",
       canExecuteWrites: isTestMode(),
+      canExecuteCommercialRelease: isTestMode(),
       corePrerequisiteMessage: null,
       point80ControlMode: controlBoundary.persistenceMode,
     };
@@ -54,33 +57,39 @@ export async function createFinanceGovernanceBundle(
       service,
       persistenceMode: "unavailable",
       canExecuteWrites: false,
+      canExecuteCommercialRelease: false,
       corePrerequisiteMessage: controlBoundary.prerequisiteMessage,
       point80ControlMode: controlBoundary.persistenceMode,
     };
   }
 
   const evidenceTableOk = await probeFinanceEvidenceTable(client).catch(() => false);
-  if (!evidenceTableOk || controlBoundary.persistenceMode !== "core") {
+  if (!evidenceTableOk) {
     return {
       service,
       persistenceMode: "unavailable",
       canExecuteWrites: false,
+      canExecuteCommercialRelease: false,
       corePrerequisiteMessage:
         controlBoundary.prerequisiteMessage ??
         "Core finance control authority unavailable — Central must not write finance_review_evidence directly.",
-      point80ControlMode: controlBoundary.persistenceMode,
+      point80ControlMode: controlBoundary.persistenceMode === "core" ? "core" : "blocked",
     };
   }
+
+  const typedControlOk = controlBoundary.persistenceMode === "core";
+  const serviceControlMode = typedControlOk ? "core" : "shadow";
 
   return {
     service: createFinanceGovernanceService({
       evidence: createSupabaseFinanceEvidenceStore(client),
       events,
-      controlMode: "core",
+      controlMode: serviceControlMode,
     }),
     persistenceMode: "supabase",
-    canExecuteWrites: true,
-    corePrerequisiteMessage: null,
-    point80ControlMode: "core",
+    canExecuteWrites: typedControlOk,
+    canExecuteCommercialRelease: true,
+    corePrerequisiteMessage: typedControlOk ? null : controlBoundary.prerequisiteMessage,
+    point80ControlMode: typedControlOk ? "core" : "blocked",
   };
 }
