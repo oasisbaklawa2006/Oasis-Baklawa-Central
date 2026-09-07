@@ -27,9 +27,13 @@ describe("Point 74 — CRM-lite sales assistance (Agent #8 workstation lock)", (
     expect(workspace).toContain('TabsContent value="assist"');
   });
 
-  it("writes interactions through governed client_interactions contract", () => {
-    expect(interactions).toContain('from("client_interactions").insert');
-    expect(dashboard).toContain('from("client_interactions").insert');
+  it("routes interaction writes through governed Point62 capture boundary", () => {
+    expect(interactions).toContain("captureCrmManualAction");
+    expect(interactions).toContain("captureCrmWhatsAppManualLog");
+    expect(interactions).not.toContain('from("client_interactions").insert');
+    expect(dashboard).toContain("captureCrmManualAction");
+    expect(dashboard).toContain("captureCrmWhatsAppManualLog");
+    expect(dashboard).not.toContain('from("client_interactions").insert');
     expect(dashboard).toContain("account_manager_id");
   });
 

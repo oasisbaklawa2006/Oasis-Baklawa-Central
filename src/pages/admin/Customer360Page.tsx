@@ -18,6 +18,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useCustomer360 } from "@/hooks/useCustomer360";
 import { CUSTOMER360_COMMUNICATION_HISTORY_LIMIT } from "@/lib/crm-communication-history/crmCommunicationHistoryTypes";
+import { useAuth } from "@/hooks/useAuth";
+import { CrmActionCaptureForm } from "@/components/crm/CrmActionCaptureForm";
 import type { Customer360Slice, Customer360SliceAvailability } from "@/lib/customer-360/customer360Types";
 
 function availabilityBadge(availability: Customer360SliceAvailability) {
@@ -47,6 +49,7 @@ function SliceUnavailable({ slice }: { slice: Customer360Slice<unknown> }) {
 export default function Customer360Page() {
   const { companyId } = useParams<{ companyId: string }>();
   const { state, refresh } = useCustomer360(companyId);
+  const { user, role } = useAuth();
 
   if (state.status === "loading" || state.status === "idle") {
     return (
@@ -356,6 +359,15 @@ export default function Customer360Page() {
                   ))}
                 </ul>
               </div>
+              {user?.id && companyId && (
+                <CrmActionCaptureForm
+                  companyId={companyId}
+                  actorUserId={user.id}
+                  actorRole={role}
+                  captureSource="central_customer360"
+                  onCaptured={() => void refresh()}
+                />
+              )}
             </>
           ) : (
             <SliceUnavailable slice={model.communicationsLedger} />

@@ -109,11 +109,10 @@ describe("crmCommunicationHistoryNormalizer", () => {
     expect(history[0]?.detail).toBe("Hello");
   });
 
-  it("marks email channel as unavailable in governance metadata", () => {
+  it("marks email channel as partial intent-only in governance metadata", () => {
     const channels = buildCrmCommunicationChannelGovernance();
-    expect(channels.find((c) => c.channel === "email")?.availability).toBe(
-      "unavailable_not_governed",
-    );
+    expect(channels.find((c) => c.channel === "email")?.availability).toBe("partial");
+    expect(channels.find((c) => c.channel === "promise")?.availability).toBe("available");
     expect(channels.find((c) => c.channel === "whatsapp")?.availability).toBe("partial");
   });
 });
