@@ -86,11 +86,17 @@ async function loadCompanyContact(orderId: string): Promise<{ companyId: string;
   return { companyId: order.company_id, companyName, phone };
 }
 
-async function hasExistingDispatchCommunication(orderId: string): Promise<boolean> {
+function orderReferenceToken(orderId: string): string {
+  return orderId.slice(0, 8).toUpperCase();
+}
+
+async function hasExistingDispatchCommunication(companyId: string, orderId: string): Promise<boolean> {
+  const token = orderReferenceToken(orderId);
   const { data, error } = await supabase
     .from("client_interactions")
     .select("id")
-    .eq("order_id", orderId)
+    .eq("company_id", companyId)
+    .ilike("notes", `%${token}%`)
     .ilike("notes", "%dispatched your order%")
     .limit(1);
   if (error) return false;
@@ -109,7 +115,7 @@ export async function recordGovernedCustomerDispatchCommunication(input: {
     throw new DispatchCustomerCommunicationError(eligibility.reason ?? "Dispatch communication is not eligible");
   }
 
-  const alreadyRecorded = await hasExistingDispatchCommunication(orderId);
+  const alreadyRecorded = await hasExistingDispatchCommunication(facts.companyId, orderId);
   if (alreadyRecorded) {
     return {
       success: true,

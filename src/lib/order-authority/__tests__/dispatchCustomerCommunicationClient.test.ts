@@ -83,7 +83,9 @@ describe("dispatchCustomerCommunicationClient", () => {
           select: () => ({
             eq: () => ({
               ilike: () => ({
-                limit: async () => ({ data: [], error: null }),
+                ilike: () => ({
+                  limit: async () => ({ data: [], error: null }),
+                }),
               }),
             }),
           }),
@@ -106,7 +108,7 @@ describe("dispatchCustomerCommunicationClient", () => {
       }
       return { select: () => ({ eq: () => ({ single: async () => ({ data: null, error: null }) }) }) };
     });
-    vi.mocked(supabase.from).mockImplementation(fromMock as typeof supabase.from);
+    vi.mocked(supabase.from).mockImplementation(fromMock as unknown as typeof supabase.from);
     vi.mocked(sendDispatchAlert).mockResolvedValue({ success: true, data: { ok: true } });
 
     const result = await recordGovernedCustomerDispatchCommunication({ orderId: "order-1" });

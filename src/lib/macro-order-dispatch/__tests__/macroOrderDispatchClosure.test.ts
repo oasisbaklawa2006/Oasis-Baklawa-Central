@@ -37,6 +37,8 @@ describe("Central #554 Leap 7 macro order-to-gate closure", () => {
     const app = source("src/App.tsx");
     expect(app).not.toContain('<Route path="central-pool" element={<Navigate to="/admin/operator-inbox"');
     expect(source("src/lib/order-priority-owner-sla/index.ts")).toContain("orderPriorityOwnerSlaClient");
+    expect(source("src/lib/point74OrderControl.ts")).toContain("requireOrderControlId");
+    expect(source("src/lib/point79WalletAuthority.ts")).toContain("normalizePaymentType");
     expect(source("src/lib/order-authority/orderAmendmentAuthorityClient.ts")).toContain("requestOrderAmendment");
     expect(source("src/lib/order-partial-fulfilment/index.ts")).toContain("partialFulfilmentAuthorityClient");
     expect(source("src/lib/exception-governance/exceptionShadowWriteGuard.ts")).toContain("assertNotShadowWrite");

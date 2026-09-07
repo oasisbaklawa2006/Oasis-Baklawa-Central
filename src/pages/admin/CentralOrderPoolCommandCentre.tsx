@@ -21,7 +21,7 @@ import {
   applyCentralOrderPoolSnapshotLoadResult,
   loadCentralOrderPoolSnapshot,
 } from "@/lib/centralOrderPool/centralOrderPoolSnapshotLoader";
-import { fetchOrderPriorityOwnerSlaFactsBatch } from "@/lib/order-priority-owner-sla";
+import { loadPoint74OrderControlFactsBatch } from "@/lib/point74OrderControl";
 import type { OrderPriorityOwnerSlaFacts } from "@/lib/order-priority-owner-sla";
 import { useAuth } from "@/hooks/useAuth";
 import { formatSalesOrderLabel } from "@/utils/orderSoLabel";
@@ -60,7 +60,7 @@ export default function CentralOrderPoolCommandCentre() {
     const orderIds = result.snapshot.recentOrders.map((order) => order.id);
     if (orderIds.length > 0) {
       try {
-        const facts = await fetchOrderPriorityOwnerSlaFactsBatch(orderIds);
+        const facts = await loadPoint74OrderControlFactsBatch(orderIds);
         setPriorityFacts(facts);
       } catch {
         setPriorityFacts(new Map());
