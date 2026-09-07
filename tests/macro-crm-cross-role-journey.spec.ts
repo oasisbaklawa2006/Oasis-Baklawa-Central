@@ -72,11 +72,12 @@ test.describe("Macro CRM cross-role journey", () => {
     const packetRow = operatorPage.locator("li").filter({ hasText: packetId.slice(0, 8) }).first();
     await expect(packetRow).toBeVisible({ timeout: 30_000 });
     const inboxLink = packetRow.getByRole("link", { name: /Review in operator inbox/i });
+    const expectedInboxHref = `/admin/operator-inbox?packet=${packetId}`;
     await expect(inboxLink).toBeVisible();
-    await expect(inboxLink).toHaveAttribute("href", new RegExp(`/admin/operator-inbox\\?packet=${packetId}$`, "i"));
+    await expect(inboxLink).toHaveAttribute("href", expectedInboxHref);
     await inboxLink.click();
 
-    await expect(operatorPage).toHaveURL(new RegExp(`/admin/operator-inbox\\?packet=${packetId}$`, "i"));
+    expect(new URL(operatorPage.url()).pathname + new URL(operatorPage.url()).search).toBe(expectedInboxHref);
     await expect(operatorPage.getByRole("region", { name: /Governance notice/i })).toBeVisible({
       timeout: 30_000,
     });
