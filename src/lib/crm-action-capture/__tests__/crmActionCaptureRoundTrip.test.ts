@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildCommunicationHistoryFromClientInteractions } from "@/lib/crm-communication-history/crmCommunicationHistoryNormalizer";
-import type { ClientInteractionRow } from "@/lib/crm-communication-history/crmCommunicationHistoryTypes";
+import type { ClientInteractionLedgerRow } from "@/lib/crm-communication-history/crmCommunicationHistoryTypes";
 import { buildCaptureRow } from "../crmActionCaptureClient";
 
 const COMPANY_ID = "a1b2c3d4-e5f6-4789-a012-3456789abcde";
@@ -22,7 +22,7 @@ describe("Point62 → Point61 communication history round-trip", () => {
       idempotencyKey: "round-trip-1",
     });
 
-    const row: ClientInteractionRow = {
+    const row: ClientInteractionLedgerRow = {
       id: "ci-p62-1",
       company_id: captured.company_id,
       executive_id: captured.executive_id,
