@@ -9,14 +9,42 @@ import {
   FINANCE_LEGACY_REDIRECTS,
   FINANCE_MODULE_ROUTES,
   FINANCE_UNAVAILABLE_CAPABILITIES,
+  buildCanonicalFinanceEgressPath,
   getCanonicalFinanceEgressRoute,
   getCanonicalFinanceIngressRoute,
   getFinanceSurfaceByRoute,
   isFinanceCapabilityAvailable,
 } from "../financeAuthorityMap";
+import {
+  hasDirectOrdersTableMutation,
+  hasForbiddenOrdersShadowMutation,
+  normalizeSourceForAuthorityGuard,
+} from "../financeSurfaceSourceGuard";
 
 const source = (relativePath: string) =>
   readFileSync(resolve(process.cwd(), relativePath), "utf8");
+
+describe("Point 77 — finance surface source guard", () => {
+  it("detects shadow writes through formatting and intermediate variables", () => {
+    const source = `
+      const ordersTable = supabase.from('orders');
+      const mutation = ordersTable.update({
+        status: 'awaiting_final_payment',
+        sales_order_value: parsedTally,
+      });
+      await mutation;
+    `;
+    expect(hasDirectOrdersTableMutation(source)).toBe(true);
+    expect(hasForbiddenOrdersShadowMutation(source)).toBe(true);
+    expect(normalizeSourceForAuthorityGuard(source)).not.toContain("//");
+  });
+
+  it("allows read-only orders queries", () => {
+    const source = `await supabase.from("orders").select("id, status").eq("id", orderId).single();`;
+    expect(hasDirectOrdersTableMutation(source)).toBe(false);
+    expect(hasForbiddenOrdersShadowMutation(source)).toBe(false);
+  });
+});
 
 describe("Point 77 — Finance canonical authority map", () => {
   it("declares exactly one canonical ingress and one canonical egress surface", () => {
@@ -52,6 +80,12 @@ describe("Point 77 — Finance canonical authority map", () => {
   it("documents legacy bookmark redirects without independent authority", () => {
     expect(FINANCE_LEGACY_REDIRECTS["/admin/finance/payments"]).toBe("/admin/finance");
     expect(FINANCE_LEGACY_REDIRECTS["/admin/finance/invoices"]).toBe("/admin/finance");
+  });
+  it("builds deterministic egress handoff paths with order identity", () => {
+    const orderId = "order-123";
+    expect(buildCanonicalFinanceEgressPath(orderId)).toBe(
+      `${getCanonicalFinanceEgressRoute()}?orderId=${encodeURIComponent(orderId)}`,
+    );
   });
 });
 
@@ -93,12 +127,19 @@ describe("Point 77 — Finance route/module authority", () => {
 });
 
 describe("Point 77 — Core-only writes on canonical surfaces", () => {
-  it("AdminFinance removes direct orders.payment_status and awaiting_final_payment shadow writes", () => {
+  it("AdminFinance removes direct orders table mutations (normalized structural guard)", () => {
     const page = source("src/pages/admin/AdminFinance.tsx");
-    expect(page).not.toMatch(/from\(["']orders["']\)[\s\S]{0,120}\.update\([\s\S]{0,120}payment_status:\s*["']awaiting_advance["']/);
-    expect(page).not.toMatch(/from\(["']orders["']\)[\s\S]{0,120}\.update\([\s\S]{0,120}status:\s*["']awaiting_final_payment["']/);
-    expect(page).toContain("confirmPrepaidOrderAwaitingAdvance");
-    expect(page).toContain("getCanonicalFinanceEgressRoute");
+    expect(hasDirectOrdersTableMutation(page)).toBe(false);
+    expect(hasForbiddenOrdersShadowMutation(page)).toBe(false);
+    expect(page).toContain("executeGovernedAdvanceRequest");
+    expect(page).toContain("buildCanonicalFinanceEgressPath");
+  });
+
+  it("AdminAccountsRelease resolves handoff orderId from query params", () => {
+    const page = source("src/pages/admin/AdminAccountsRelease.tsx");
+    expect(page).toContain('searchParams.get("orderId")');
+    expect(page).toContain("focusOrderId");
+    expect(page).toContain("void choose(target)");
   });
 
   it("FinanceReleaseBoard uses only governed payment and release RPC clients", () => {
@@ -134,6 +175,12 @@ describe("Point 77 — legacy route disposition", () => {
     const layout = source("src/components/AdminLayout.tsx");
     expect(layout).toContain('to: "/admin/finance-board"');
     expect(layout).toContain("Finance release board");
+  });
+
+  it("removes obsolete shadow invoicing modal from legacy Finance ops", () => {
+    const page = source("src/pages/admin/AdminFinance.tsx");
+    expect(page).not.toContain("FINANCE INVOICING MODAL");
+    expect(page).not.toContain("handleRequestBalance");
   });
 
   it("App.tsx retains legacy bookmark redirects for finance subpaths", () => {

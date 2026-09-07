@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { FileText, Loader2, LockKeyhole, ReceiptText, RefreshCw, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -64,6 +65,8 @@ function stage(facts: FinanceExitFacts | null, finalPaymentPi: FinalPaymentPiFac
 
 const AdminAccountsRelease = () => {
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
+  const focusOrderId = searchParams.get("orderId")?.trim() || null;
   const [orders, setOrders] = useState<FinanceOrder[]>([]);
   const [selected, setSelected] = useState<FinanceOrder | null>(null);
   const selectedIdRef = useRef<string | null>(null);
@@ -122,9 +125,30 @@ const AdminAccountsRelease = () => {
     }
   }, []);
 
+  const choose = useCallback(async (order: FinanceOrder) => {
+    selectedIdRef.current = order.id;
+    setSelected(order);
+    setFacts(null);
+    setFinalPaymentPi(null);
+    await refreshFacts(order);
+  }, [refreshFacts]);
+
   useEffect(() => {
-    void loadOrders();
-  }, [loadOrders]);
+    void loadOrders(focusOrderId ?? undefined);
+  }, [loadOrders, focusOrderId]);
+
+  useEffect(() => {
+    if (!focusOrderId || loading) return;
+    const target = orders.find((order) => order.id === focusOrderId);
+    if (!target) {
+      if (orders.length > 0) {
+        toast.error("Handoff order not found in Finance Exit queue.");
+      }
+      return;
+    }
+    if (selectedIdRef.current === focusOrderId) return;
+    void choose(target);
+  }, [focusOrderId, loading, orders, choose]);
 
   const run = async (name: string, action: () => Promise<unknown>) => {
     const actionOrder = selected;
@@ -144,14 +168,6 @@ const AdminAccountsRelease = () => {
     } finally {
       setActing(null);
     }
-  };
-
-  const choose = async (order: FinanceOrder) => {
-    selectedIdRef.current = order.id;
-    setSelected(order);
-    setFacts(null);
-    setFinalPaymentPi(null);
-    await refreshFacts(order);
   };
 
   const actorId = user?.id ?? "";

@@ -173,5 +173,12 @@ export function getCanonicalFinanceEgressRoute(): string {
   return "/admin/accounts-release";
 }
 
+/** Deterministic handoff from legacy Finance ops to canonical egress with order identity. */
+export function buildCanonicalFinanceEgressPath(orderId: string): string {
+  const trimmed = orderId.trim();
+  if (!trimmed) return getCanonicalFinanceEgressRoute();
+  return `${getCanonicalFinanceEgressRoute()}?orderId=${encodeURIComponent(trimmed)}`;
+}
+
 /** All finance module routes for RBAC/isolation tests. */
 export const FINANCE_MODULE_ROUTES = FINANCE_CANONICAL_SURFACES.map((s) => s.route);

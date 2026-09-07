@@ -1,11 +1,10 @@
 import { useEffect, useState, useMemo } from "react";
-import { Link as RouterLink, useNavigate } from "react-router-dom";
+import { Link as RouterLink } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { releaseOrderToManufacturing } from "@/lib/order-authority/orderAuthorityClient";
+import { executeGovernedAdvanceRequest } from "@/lib/finance-authority/financeAdvanceNotificationBridge";
 import {
-  confirmPrepaidOrderAwaitingAdvance,
-  releaseOrderToManufacturing,
-} from "@/lib/order-authority/orderAuthorityClient";
-import {
+  buildCanonicalFinanceEgressPath,
   getCanonicalFinanceEgressRoute,
   getCanonicalFinanceIngressRoute,
   isFinanceCapabilityAvailable,
@@ -31,11 +30,9 @@ import {
   ShieldAlert,
   Receipt,
   UploadCloud,
-  FileUp,
   X,
   Banknote,
   Calculator,
-  Link,
   Package,
   XCircle,
   RotateCcw,
@@ -126,12 +123,6 @@ interface ScrutinyRecord {
   item_count: number;
 }
 
-interface DplLineItem {
-  quantity: number;
-  actual_packed_qty?: number | null;
-  product?: { price_per_kg?: number | null } | null;
-}
-
 interface InwardAdviceRow {
   id: string;
   company_id: string | null;
@@ -195,7 +186,6 @@ interface FinancialEntryState {
 const PAYMENT_MODES = ["NEFT/RTGS", "UPI", "Cheque", "Cash", "Wire Transfer", "Credit Note"];
 
 const AdminFinance = () => {
-  const navigate = useNavigate();
   const { user } = useAuth();
   const [orders, setOrders] = useState<FinanceOrder[]>([]);
   const [creditRequests, setCreditRequests] = useState<CreditRequest[]>([]);
@@ -212,16 +202,6 @@ const AdminFinance = () => {
   const [shortTermTarget, setShortTermTarget] = useState<FinanceOrder | null>(null);
   const [shortTermDays, setShortTermDays] = useState("");
   const [savingShortTerm, setSavingShortTerm] = useState(false);
-
-  // Invoicing Modal State
-  const [docOrder, setDocOrder] = useState<FinanceOrder | null>(null);
-  const [tallyAmount, setTallyAmount] = useState("");
-  const [tallyInvoiceNo, setTallyInvoiceNo] = useState("");
-  const [soNumber, setSoNumber] = useState("");
-  const [invoiceUploaded, setInvoiceUploaded] = useState(false);
-
-  // DPL Reconciliation state
-  const [dplData, setDplData] = useState<{ soValue: number; dplValue: number; items: DplLineItem[] } | null>(null);
 
   // Returns Settlement State
   const [returnCreditValues, setReturnCreditValues] = useState<Record<string, string>>({});
@@ -767,19 +747,6 @@ const AdminFinance = () => {
   };
 
   // Fetch DPL data for invoicing modal
-  const fetchDplForOrder = async (orderId: string) => {
-    const { data: items } = await supabase
-      .from("order_items")
-      .select("product_id, quantity, actual_packed_qty, product:products(name, price_per_kg)")
-      .eq("order_id", orderId);
-    if (!items) return;
-    const lineItems = (items ?? []) as DplLineItem[];
-    const soVal = lineItems.reduce((s, i) => s + (i.quantity * (i.product?.price_per_kg || 0)), 0);
-    const dplVal = lineItems.reduce((s, i) => s + ((i.actual_packed_qty ?? i.quantity) * (i.product?.price_per_kg || 0)), 0);
-    setDplData({ soValue: soVal, dplValue: dplVal, items: lineItems });
-  };
-
-  // Generate barcode ZPL label
   const generateBarcodeLabel = (orderId: string, companyName: string, boxNum: number, totalBoxes: number, tallyInv: string) => {
     const consignor = "TCF Chocolates & Gifts Pvt. Ltd.\nWZ-117, Kirti Nagar Industrial Area\nNew Delhi - 110015";
     const barcodeData = `${orderId.slice(0, 8).toUpperCase()}-${tallyInv || "DRAFT"}`;
@@ -917,13 +884,6 @@ const AdminFinance = () => {
     setActing(null);
   };
 
-
-  const handleRequestBalance = () => {
-    if (!docOrder) return;
-    toast.info("Final invoice issuance is governed by Accounts & Release (Core RPC only).");
-    setDocOrder(null);
-    navigate(getCanonicalFinanceEgressRoute());
-  };
 
   // Queues — FILTER OUT ₹0 orders so Finance only sees actionable, valued orders
   const valuedOrders = orders.filter((o) => (o.sales_order_value || 0) > 0);
@@ -1161,20 +1121,20 @@ const AdminFinance = () => {
                       <button
                         onClick={async () => {
                           setActing(order.id);
+                          const notifMsg = `Action Required: Please upload advance for Order #${order.id.slice(0, 8).toUpperCase()}.`;
                           try {
-                            const notifMsg = `Action Required: Please upload advance for Order #${order.id.slice(0, 8).toUpperCase()}.`;
-                            await confirmPrepaidOrderAwaitingAdvance(order.id);
-                            await supabase.from("notifications").insert({
-                              company_id: order.company_id,
-                              type: "payment_request",
+                            const result = await executeGovernedAdvanceRequest({
+                              orderId: order.id,
+                              companyId: order.company_id,
                               message: notifMsg,
                             });
-                            await queueNotification({
-                              eventType: "advance_requested",
-                              messageBody: notifMsg,
-                              priority: "high",
-                            });
-                            toast.success(`Payment request sent to ${order.company?.business_name || "Client"}`);
+                            if (result.notifications.failures.length === 0) {
+                              toast.success(`Payment request sent to ${order.company?.business_name || "Client"}`);
+                            } else {
+                              toast.warning(
+                                `Advance confirmed. Notification delivery pending — ${result.notifications.failures.join("; ")}`,
+                              );
+                            }
                             fetchOrders();
                           } catch (err) {
                             toast.error(err instanceof Error ? err.message : "Governed advance request failed.");
@@ -1293,7 +1253,7 @@ const AdminFinance = () => {
                     </div>
                     <div className="space-y-2">
                       <RouterLink
-                        to={getCanonicalFinanceEgressRoute()}
+                        to={buildCanonicalFinanceEgressPath(order.id)}
                         className="w-full py-2.5 bg-slate-900 text-white rounded-lg text-xs font-bold hover:bg-black flex justify-center items-center gap-1.5"
                       >
                         <Calculator size={14} /> Open Accounts & Release
@@ -1687,225 +1647,6 @@ const AdminFinance = () => {
                       <Wallet size={18} /> Execute Settlement
                     </>
                   )}
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* FINANCE INVOICING MODAL */}
-      <AnimatePresence>
-        {docOrder && (
-          <div className="fixed inset-0 z-[180] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="z-[190] flex max-h-[min(92dvh,100%)] w-full max-w-[min(100%,42rem)] flex-col overflow-hidden rounded-3xl bg-white shadow-2xl"
-            >
-              <div className="flex shrink-0 items-center justify-between border-b border-slate-100 p-6">
-                <div>
-                  <h3 className="font-display text-2xl font-bold text-slate-900">DPL Reference (read-only)</h3>
-                  <p className="mt-1 text-sm text-slate-500">{docOrder.company?.business_name} — final invoice via Accounts & Release</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setDocOrder(null)}
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B8860B] focus-visible:ring-offset-2"
-                  aria-label="Close invoice modal"
-                >
-                  <X size={20} />
-                </button>
-              </div>
-
-              <div className="min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-y-contain p-6">
-                {/* DPL Reconciliation */}
-                {dplData && (
-                  <div className={`rounded-2xl border-2 p-4 ${dplData.dplValue < dplData.soValue ? "border-emerald-400 bg-emerald-50" : dplData.dplValue > dplData.soValue ? "border-red-400 bg-red-50" : "border-slate-200 bg-slate-50"}`}>
-                    <h4 className="text-xs font-bold uppercase tracking-widest mb-3 flex items-center gap-2 text-slate-600">
-                      <Package size={14} /> DPL vs SO Reconciliation
-                    </h4>
-                    <div className="grid grid-cols-3 gap-3 text-center text-sm">
-                      <div>
-                        <p className="text-[10px] font-bold text-slate-500 uppercase">SO Value</p>
-                        <p className="font-black text-slate-900">{formatPrice(dplData.soValue * 1.18)}</p>
-                      </div>
-                      <div>
-                        <p className="text-[10px] font-bold text-slate-500 uppercase">DPL Value</p>
-                        <p className="font-black text-blue-700">{formatPrice(dplData.dplValue * 1.18)}</p>
-                      </div>
-                      <div>
-                        <p className="text-[10px] font-bold text-slate-500 uppercase">Variance</p>
-                        <p className={`font-black ${dplData.dplValue < dplData.soValue ? "text-emerald-600" : dplData.dplValue > dplData.soValue ? "text-red-600" : "text-slate-600"}`}>
-                          {dplData.dplValue < dplData.soValue ? `Credit ₹${((dplData.soValue - dplData.dplValue) * 1.18).toLocaleString("en-IN")}` :
-                           dplData.dplValue > dplData.soValue ? `Debit ₹${((dplData.dplValue - dplData.soValue) * 1.18).toLocaleString("en-IN")}` : "Exact Match"}
-                        </p>
-                      </div>
-                    </div>
-                    {dplData.dplValue < dplData.soValue && (
-                      <div className="mt-3 space-y-2">
-                        <p className="text-xs text-emerald-700 font-bold text-center">💰 Wallet credit of {formatPrice((dplData.soValue - dplData.dplValue) * 1.18)} will be applied</p>
-                        <button
-                          onClick={async () => {
-                            const creditAmt = (dplData.soValue - dplData.dplValue) * 1.18;
-                            if (!docOrder?.company_id || !user?.id) { toast.error("Authenticated actor and company are required"); return; }
-                            try {
-                              const binding = await resolveCreditBinding(docOrder.id);
-                              const identity = buildWalletIdentity({
-                                companyId: docOrder.company_id, direction: "credit", amount: creditAmt, currency: "INR",
-                                orderId: docOrder.id, proformaInvoiceId: binding.piId, commercialVersionId: binding.commercialVersionId,
-                                sourceChannel: "CENTRAL_FINANCE", sourceReference: `dpl-variance:${docOrder.id}`,
-                                reason: "DPL variance wallet credit",
-                              });
-                              const wallet = await recordWalletEntry({
-                                companyId: docOrder.company_id, direction: "credit", amount: creditAmt, currency: "INR",
-                                orderId: docOrder.id, proformaInvoiceId: binding.piId, commercialVersionId: binding.commercialVersionId,
-                                sourceChannel: "CENTRAL_FINANCE", sourceReference: `dpl-variance:${docOrder.id}`,
-                                reason: "DPL variance wallet credit",
-                                correlationId: await buildCreditWalletCorrelationId("wallet", identity),
-                                idempotencyKey: await buildCreditWalletIdempotencyKey("wallet", identity), actorId: user.id,
-                              });
-                              await supabase.from("audit_logs").insert([{
-                                action_type: "DPL_WALLET_CREDIT",
-                                module_name: "Finance",
-                                entity_name: "companies",
-                                entity_id: docOrder.company_id,
-                                actor_id: user.id,
-                                new_value: { credit_amount: creditAmt, new_balance: wallet.balance, order_id: docOrder.id, so_value: dplData.soValue, dpl_value: dplData.dplValue },
-                                risk_level: "high",
-                              }]);
-                              toast.success(`✅ ₹${creditAmt.toLocaleString("en-IN")} credited to client wallet`);
-                            } catch (error) {
-                              toast.error(error instanceof Error ? error.message : "Governed wallet credit failed.");
-                            }
-                          }}
-                          className="w-full py-2.5 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-700 flex items-center justify-center gap-2"
-                        >
-                          <Wallet size={14} /> Credit ₹{((dplData.soValue - dplData.dplValue) * 1.18).toLocaleString("en-IN")} to Wallet
-                        </button>
-                      </div>
-                    )}
-                    {dplData.dplValue > dplData.soValue && (
-                      <div className="mt-3 space-y-2">
-                        <p className="text-xs text-red-700 font-bold text-center">⚠️ Balance due of {formatPrice((dplData.dplValue - dplData.soValue) * 1.18)} flagged</p>
-                        <div className="bg-red-100 border border-red-300 rounded-xl p-2 text-center">
-                          <p className="text-[11px] text-red-800 font-bold">Outstanding updated: ₹{((dplData.dplValue - dplData.soValue) * 1.18).toLocaleString("en-IN")} balance payment requested</p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                <div className="bg-slate-50 rounded-2xl border border-slate-200 p-5">
-                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                    <Calculator size={14} /> Internal Reconciliation Sheet
-                  </h4>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between text-slate-600">
-                      <span>Packed Items Value (As per Slab)</span>
-                      <span className="font-bold">{formatPrice((docOrder.sales_order_value || 0) * 0.82)}</span>
-                    </div>
-                    <div className="flex justify-between text-slate-600 border-b border-slate-200 pb-3">
-                      <span>Estimated GST (18%)</span>
-                      <span className="font-bold">{formatPrice((docOrder.sales_order_value || 0) * 0.18)}</span>
-                    </div>
-                    <div className="flex justify-between text-slate-900 font-bold pt-1">
-                      <span>Gross Invoice Value</span>
-                      <span>{formatPrice(docOrder.sales_order_value || 0)}</span>
-                    </div>
-                    <div className="flex justify-between text-emerald-600 font-bold">
-                      <span>Less: Advance Paid</span>
-                      <span>- {formatPrice(docOrder.advance_paid || 0)}</span>
-                    </div>
-                    <div className="flex justify-between text-blue-600 font-bold border-b border-slate-200 pb-3">
-                      <span>Less: Wallet / Previous Credit</span>
-                      <span>- ₹0</span>
-                    </div>
-                    <div className="flex justify-between items-center pt-2">
-                      <span className="text-xs uppercase tracking-widest text-slate-500 font-bold">
-                        Calculated Due Balance
-                      </span>
-                      <span className="font-black text-xl text-[#B8860B]">
-                        {formatPrice((docOrder.sales_order_value || 0) - (docOrder.advance_paid || 0))}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                    <Receipt size={14} /> Enter Official Tally Details
-                  </h4>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">
-                        Generated Against SO #
-                      </label>
-                      <input
-                        type="text"
-                        value={soNumber}
-                        onChange={(e) => setSoNumber(e.target.value)}
-                        className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm font-bold outline-none focus:border-[#B8860B]"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">
-                        Official Tally Inv #
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="e.g. INV/25-26/042"
-                        value={tallyInvoiceNo}
-                        onChange={(e) => setTallyInvoiceNo(e.target.value)}
-                        className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm font-bold outline-none focus:border-[#B8860B]"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">
-                      Exact Tally Amount (₹)
-                    </label>
-                    <input
-                      type="number"
-                      placeholder="Enter final amount to adjust round-offs"
-                      value={tallyAmount}
-                      onChange={(e) => setTallyAmount(e.target.value)}
-                      className="w-full bg-white border border-slate-200 rounded-xl p-3 text-lg font-black text-[#B8860B] outline-none focus:border-[#B8860B]"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <button
-                    onClick={() => {
-                      setInvoiceUploaded(true);
-                      toast.success("Tally PDF Attached");
-                    }}
-                    className={`w-full flex items-center justify-center gap-3 p-4 border-2 border-dashed rounded-xl transition-all ${invoiceUploaded ? "border-emerald-500 bg-emerald-50 text-emerald-700" : "border-slate-300 hover:border-[#B8860B] bg-slate-50 text-slate-500"}`}
-                  >
-                    {invoiceUploaded ? <CheckCircle2 size={20} /> : <FileUp size={20} />}
-                    <span className="text-sm font-bold">
-                      {invoiceUploaded ? "Tax Invoice Attached" : "Upload Tally Tax Invoice (PDF)"}
-                    </span>
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex shrink-0 flex-col gap-3 border-t border-slate-100 bg-slate-50 p-4 sm:flex-row sm:rounded-b-3xl">
-                <button
-                  type="button"
-                  onClick={() => setDocOrder(null)}
-                  className="min-h-[3rem] rounded-xl border border-slate-200 bg-white px-6 py-4 font-bold text-slate-600 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 sm:px-8"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleRequestBalance}
-                  className="flex min-h-[3rem] flex-1 items-center justify-center gap-2 rounded-xl bg-slate-900 py-4 font-bold text-white shadow-xl shadow-slate-900/20 transition-all hover:bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 focus-visible:ring-offset-2 active:scale-[0.99]"
-                >
-                  <Link size={18} /> Continue in Accounts & Release
                 </button>
               </div>
             </motion.div>
