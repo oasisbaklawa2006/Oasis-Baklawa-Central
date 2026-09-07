@@ -6,6 +6,8 @@ import {
   fetchCoreFinance255CollectionsSnapshot,
   type ManagementCommandCenterProjection,
 } from "@/lib/management-reporting";
+import type { UserFactRow } from "@/lib/management-reporting/operationalMetricsProjection";
+import type { ProductComplianceRow } from "@/lib/management-reporting/eanComplianceRegistry";
 import { hasModuleAccess, getAllowedModulesForRole } from "@/lib/appverse/roleAccess";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -21,6 +23,10 @@ export interface ManagementCommandCenterFilters {
 const DEFAULT_PAGE_SIZE = 50;
 const MAX_ORDERS = 5000;
 const MAX_ORDER_ITEMS = 10000;
+const MAX_COMPANIES = 2000;
+const MAX_USERS = 500;
+const MAX_PRODUCTS = 2000;
+const MAX_LEDGER_DISPUTES = 500;
 
 function defaultPeriod(): { start: string; end: string } {
   const now = new Date();
@@ -81,18 +87,20 @@ export function useManagementCommandCenter() {
           .from("companies")
           .select(
             "id, business_name, wallet_balance, credit_limit, allow_credit, is_frozen, fssai_number, gst_number, account_manager_id",
+            { count: "exact" },
           )
-          .limit(2000),
+          .limit(MAX_COMPANIES),
         supabase
           .from("users")
-          .select("id, full_name, name")
-          .limit(500),
+          .select("id, full_name, name", { count: "exact" })
+          .limit(MAX_USERS),
         supabase
           .from("products")
           .select(
             "id, name, sku, barcode_sku, hsn_code, gst_percentage, allergen_warnings, ingredients, nutrition_facts, is_active",
+            { count: "exact" },
           )
-          .limit(2000),
+          .limit(MAX_PRODUCTS),
         supabase
           .from("support_tickets")
           .select("id", { count: "exact", head: true })
@@ -100,8 +108,8 @@ export function useManagementCommandCenter() {
           .lt("sla_resolution_due", new Date().toISOString()),
         supabase
           .from("ledger_disputes")
-          .select("id, status, ledger:bi_monthly_ledgers(total_amount)")
-          .limit(500),
+          .select("id, status, ledger:bi_monthly_ledgers(total_amount)", { count: "exact" })
+          .limit(MAX_LEDGER_DISPUTES),
       ]);
 
       if (ordersRes.error) throw new Error(ordersRes.error.message);
@@ -129,8 +137,39 @@ export function useManagementCommandCenter() {
           `order_items read truncated at ${MAX_ORDER_ITEMS} of ${orderItemsRes.count} rows — rankings may understate`,
         );
       }
+      if (companiesRes.count != null && companiesRes.count > MAX_COMPANIES) {
+        sourceReadWarnings.push(
+          `companies read truncated at ${MAX_COMPANIES} of ${companiesRes.count} rows — credit metrics may understate`,
+        );
+      }
+      if (usersRes.count != null && usersRes.count > MAX_USERS) {
+        sourceReadWarnings.push(
+          `users read truncated at ${MAX_USERS} of ${usersRes.count} rows — salesperson names may be incomplete`,
+        );
+      }
+      if (productsRes.count != null && productsRes.count > MAX_PRODUCTS) {
+        sourceReadWarnings.push(
+          `products read truncated at ${MAX_PRODUCTS} of ${productsRes.count} rows — EAN/compliance may understate`,
+        );
+      }
+      if (disputesRes.count != null && disputesRes.count > MAX_LEDGER_DISPUTES) {
+        sourceReadWarnings.push(
+          `ledger_disputes read truncated at ${MAX_LEDGER_DISPUTES} of ${disputesRes.count} rows — disputed totals may understate`,
+        );
+      }
+
+      const ordersTruncated = ordersRes.count != null && ordersRes.count > MAX_ORDERS;
+      const orderItemsTruncated =
+        orderItemsRes.count != null && orderItemsRes.count > MAX_ORDER_ITEMS;
+      const companiesTruncated =
+        companiesRes.count != null && companiesRes.count > MAX_COMPANIES;
+      const usersTruncated = usersRes.count != null && usersRes.count > MAX_USERS;
+      const productsTruncated = productsRes.count != null && productsRes.count > MAX_PRODUCTS;
+      const disputesTruncated =
+        disputesRes.count != null && disputesRes.count > MAX_LEDGER_DISPUTES;
 
       const orderItemsFailed = Boolean(orderItemsRes.error);
+      const usersFailed = Boolean(usersRes.error);
       const productsFailed = Boolean(productsRes.error);
       const slaFailed = Boolean(slaRes.error);
       const disputesFailed = Boolean(disputesRes.error);
@@ -212,18 +251,18 @@ export function useManagementCommandCenter() {
           account_manager_id: c.account_manager_id,
         })),
         companyCredit: companies,
-        users: usersRes.error
+        users: usersFailed
           ? []
-          : ((usersRes.data ?? []) as Array<{
-              id: string;
-              full_name: string | null;
-              name: string | null;
-            }>),
+          : (usersRes.data ?? []).map(
+              (user): UserFactRow => ({
+                id: user.id,
+                full_name: user.full_name,
+                name: user.name,
+              }),
+            ),
         products: productsFailed
           ? []
-          : ((productsRes.data ?? []) as Parameters<
-              typeof buildManagementCommandCenterProjection
-            >[0]["products"]),
+          : ((productsRes.data ?? []) as ProductComplianceRow[]),
         companyCompliance: companies.map((c) => ({
           id: c.id,
           business_name: c.business_name,
@@ -233,10 +272,12 @@ export function useManagementCommandCenter() {
         slaBreachedSupportCount: slaFailed ? null : (slaRes.count ?? 0),
         disputedLedgerCount: disputesFailed ? null : openDisputes.length,
         disputedOrHeldAmount,
-        disputedOrHeldUnavailable: disputesFailed,
+        disputedOrHeldUnavailable: disputesFailed || disputesTruncated,
         disputedOrHeldBlocker: disputesFailed
           ? (disputesRes.error?.message ?? "ledger_disputes read failed")
-          : undefined,
+          : disputesTruncated
+            ? "ledger_disputes read truncated — partial dataset"
+            : undefined,
         periodStartIso: filters.periodStart,
         periodEndIso: filters.periodEnd,
         eanSearchQuery: filters.eanSearch,
@@ -247,7 +288,16 @@ export function useManagementCommandCenter() {
         coreFinanceWarnings,
         sourceReadWarnings,
         rankingsUnavailable: orderItemsFailed,
+        bestSellersUnavailable: orderItemsFailed || orderItemsTruncated || ordersTruncated,
+        bestClientsUnavailable: ordersTruncated,
+        salespeopleRankingsUnavailable:
+          usersFailed || usersTruncated || ordersTruncated,
+        operationalDataUnavailable: ordersTruncated,
         complianceDataUnavailable: productsFailed,
+        ordersTruncated,
+        companiesTruncated,
+        productsTruncated,
+        disputesTruncated,
       });
 
       setProjection(built);

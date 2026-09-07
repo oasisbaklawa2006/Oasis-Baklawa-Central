@@ -82,11 +82,62 @@ describe("collectionsReportingProjection", () => {
         ordersAttempted: 0,
         recoveryOrdersWithFacts: 3,
         recoveryOrdersAttempted: 5,
+        unpaidLookupBounded: false,
+        recoveryLookupBounded: false,
         source: "core:#255/get_order_payment_facts_v1@cd078c5",
         warnings: [],
       },
     });
     expect(snap.recoveredInPeriod.semantics).toBe("observed");
     expect(snap.recoveredInPeriod.value).toBe(4200);
+  });
+
+  it("marks recoverable unavailable when Core unpaid lookup is bounded", () => {
+    const snap = buildCollectionsReportingSnapshot({
+      orders: [],
+      companies: [],
+      disputedOrHeldAmount: 0,
+      periodStartIso: "2026-09-01T00:00:00.000Z",
+      periodEndIso: "2026-09-30T23:59:59.999Z",
+      coreFinance255: {
+        recoverableOutstanding: 9000,
+        recoveredInPeriod: 0,
+        recoveredInPeriodAvailable: false,
+        recoveredInPeriodBlocker: "bounded",
+        ordersWithCoreFacts: 3,
+        ordersAttempted: 25,
+        recoveryOrdersWithFacts: 0,
+        recoveryOrdersAttempted: 0,
+        unpaidLookupBounded: true,
+        recoveryLookupBounded: false,
+        source: "core:#255/get_order_payment_facts_v1@cd078c5",
+        warnings: [],
+      },
+    });
+    expect(snap.recoverableOutstanding.semantics).toBe("unavailable");
+  });
+
+  it("marks recoverable unavailable when orders source is truncated", () => {
+    const snap = buildCollectionsReportingSnapshot({
+      orders: [
+        {
+          id: "o1",
+          status: "confirmed",
+          payment_status: "unpaid",
+          sales_order_value: 1000,
+          advance_paid: 0,
+          advance_required: 0,
+          company_id: "c1",
+          created_at: "2026-09-01T10:00:00.000Z",
+        },
+      ],
+      companies: [],
+      disputedOrHeldAmount: 0,
+      ordersTruncated: true,
+      periodStartIso: "2026-09-01T00:00:00.000Z",
+      periodEndIso: "2026-09-30T23:59:59.999Z",
+    });
+    expect(snap.recoverableOutstanding.semantics).toBe("unavailable");
+    expect(snap.ageingBuckets).toEqual([]);
   });
 });

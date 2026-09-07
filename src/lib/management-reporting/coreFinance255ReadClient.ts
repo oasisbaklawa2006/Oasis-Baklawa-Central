@@ -35,6 +35,8 @@ export interface CoreFinance255CollectionsSnapshot {
   ordersAttempted: number;
   recoveryOrdersWithFacts: number;
   recoveryOrdersAttempted: number;
+  unpaidLookupBounded: boolean;
+  recoveryLookupBounded: boolean;
   source: string;
   warnings: string[];
 }
@@ -150,24 +152,28 @@ export async function fetchCoreFinance255CollectionsSnapshot(input: {
     recoveredInPeriod += periodSum.amount;
   }
 
-  if (boundedUnpaidIds.length < input.unpaidOrderIds.length) {
+  const unpaidLookupBounded = boundedUnpaidIds.length < input.unpaidOrderIds.length;
+  const recoveryLookupBounded = boundedRecoveryIds.length < input.recoveryOrderIds.length;
+  if (unpaidLookupBounded) {
     warnings.push(
       `Core payment facts bounded to ${MAX_PAYMENT_FACT_ORDERS} of ${input.unpaidOrderIds.length} unpaid orders`,
     );
   }
-  if (boundedRecoveryIds.length < input.recoveryOrderIds.length) {
+  if (recoveryLookupBounded) {
     warnings.push(
       `Period recovery lookup bounded to ${MAX_PAYMENT_FACT_ORDERS} of ${input.recoveryOrderIds.length} orders`,
     );
   }
 
   const recoveredInPeriodAvailable =
-    recoveryOrdersWithFacts > 0 && recoveryHasTimestampContract;
+    !recoveryLookupBounded && recoveryOrdersWithFacts > 0 && recoveryHasTimestampContract;
   const recoveredInPeriodBlocker = recoveredInPeriodAvailable
     ? null
-    : recoveryOrdersWithFacts === 0
-      ? "No governed PI bindings returned timestamped payment facts for period recovery"
-      : "get_order_payment_facts_v1 payments lack verified_at timestamps for period filtering";
+    : recoveryLookupBounded
+      ? `Period recovery lookup bounded to ${MAX_PAYMENT_FACT_ORDERS} orders — incomplete Core scan`
+      : recoveryOrdersWithFacts === 0
+        ? "No governed PI bindings returned timestamped payment facts for period recovery"
+        : "get_order_payment_facts_v1 payments lack verified_at timestamps for period filtering";
 
   return {
     recoverableOutstanding,
@@ -178,6 +184,8 @@ export async function fetchCoreFinance255CollectionsSnapshot(input: {
     ordersAttempted: boundedUnpaidIds.length,
     recoveryOrdersWithFacts,
     recoveryOrdersAttempted: boundedRecoveryIds.length,
+    unpaidLookupBounded,
+    recoveryLookupBounded,
     source: coreFinance255Source("get_order_payment_facts_v1"),
     warnings,
   };

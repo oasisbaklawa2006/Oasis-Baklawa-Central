@@ -169,4 +169,13 @@ describe("operationalMetricsProjection", () => {
     expect(ranked.bestClients[0]?.priorMetric).toBe(1500);
     expect(ranked.bestClients[0]?.trendDelta).toBe(7500);
   });
+
+  it("marks operational metrics unavailable when source is truncated", () => {
+    const snap = buildOperationalPositionSnapshot([], REF, {
+      unavailable: true,
+      unavailableReason: "orders read truncated",
+    });
+    expect(snap.salesOrderCount.semantics).toBe("unavailable");
+    expect(snap.comparisons).toEqual([]);
+  });
 });

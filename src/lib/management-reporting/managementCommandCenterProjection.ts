@@ -44,7 +44,15 @@ export interface ManagementReportingInput {
   coreFinanceWarnings?: string[];
   sourceReadWarnings?: string[];
   rankingsUnavailable?: boolean;
+  bestSellersUnavailable?: boolean;
+  bestClientsUnavailable?: boolean;
+  salespeopleRankingsUnavailable?: boolean;
+  operationalDataUnavailable?: boolean;
   complianceDataUnavailable?: boolean;
+  ordersTruncated?: boolean;
+  companiesTruncated?: boolean;
+  productsTruncated?: boolean;
+  disputesTruncated?: boolean;
   includeFinance?: boolean;
 }
 
@@ -53,14 +61,17 @@ export function buildManagementCommandCenterProjection(
 ): ManagementCommandCenterProjection {
   const ref = input.referenceDate ?? new Date();
 
-  const operational = buildOperationalPositionSnapshot(input.orders, ref);
+  const operational = buildOperationalPositionSnapshot(input.orders, ref, {
+    unavailable: input.operationalDataUnavailable,
+    unavailableReason: "orders read truncated — partial dataset",
+  });
   const delayRisk = buildDelayRiskSnapshot({
     orders: input.orders,
     slaBreachedSupportCount: input.slaBreachedSupportCount,
     disputedLedgerCount: input.disputedLedgerCount,
   });
 
-  const rankings = input.rankingsUnavailable
+  const builtRankings = input.rankingsUnavailable
     ? { bestSellers: [], bestClients: [], bestSalespeople: [] }
     : buildPeriodRankingsWithTrends({
         orders: input.orders,
@@ -70,6 +81,11 @@ export function buildManagementCommandCenterProjection(
         periodStartIso: input.periodStartIso,
         periodEndIso: input.periodEndIso,
       });
+  const rankings = {
+    bestSellers: input.bestSellersUnavailable ? [] : builtRankings.bestSellers,
+    bestClients: input.bestClientsUnavailable ? [] : builtRankings.bestClients,
+    bestSalespeople: input.salespeopleRankingsUnavailable ? [] : builtRankings.bestSalespeople,
+  };
 
   const rankingPeriodLabel = `${input.periodStartIso.slice(0, 10)} → ${input.periodEndIso.slice(0, 10)} vs prior window`;
 
@@ -80,6 +96,9 @@ export function buildManagementCommandCenterProjection(
         disputedOrHeldAmount: input.disputedOrHeldAmount,
         disputedOrHeldUnavailable: input.disputedOrHeldUnavailable,
         disputedOrHeldBlocker: input.disputedOrHeldBlocker,
+        ordersTruncated: input.ordersTruncated,
+        companiesTruncated: input.companiesTruncated,
+        disputesTruncated: input.disputesTruncated,
         periodStartIso: input.periodStartIso,
         periodEndIso: input.periodEndIso,
         referenceDate: ref,
@@ -87,8 +106,10 @@ export function buildManagementCommandCenterProjection(
       })
     : null;
 
-  const productsForCompliance = input.complianceDataUnavailable ? [] : input.products;
-  const companiesForCompliance = input.complianceDataUnavailable ? [] : input.companyCompliance;
+  const productsForCompliance =
+    input.complianceDataUnavailable || input.productsTruncated ? [] : input.products;
+  const companiesForCompliance =
+    input.complianceDataUnavailable || input.productsTruncated ? [] : input.companyCompliance;
 
   const { entries: eanRegistry, total: eanRegistryTotal } = buildEanRegistryEntries(
     productsForCompliance,
@@ -115,7 +136,12 @@ export function buildManagementCommandCenterProjection(
     coreFinanceWarnings: input.coreFinanceWarnings ?? [],
     sourceReadWarnings: input.sourceReadWarnings ?? [],
     rankingsUnavailable: input.rankingsUnavailable ?? false,
-    complianceDataUnavailable: input.complianceDataUnavailable ?? false,
+    bestSellersUnavailable: input.bestSellersUnavailable ?? false,
+    bestClientsUnavailable: input.bestClientsUnavailable ?? false,
+    salespeopleRankingsUnavailable: input.salespeopleRankingsUnavailable ?? false,
+    operationalDataUnavailable: input.operationalDataUnavailable ?? false,
+    complianceDataUnavailable:
+      (input.complianceDataUnavailable ?? false) || (input.productsTruncated ?? false),
     eanRegistry,
     eanRegistryTotal,
     complianceExceptions,

@@ -66,4 +66,48 @@ describe("managementCommandCenterProjection", () => {
     expect(projection.collections?.profitability.semantics).toBe("unavailable");
     expect(projection.complianceExceptions.length).toBeGreaterThanOrEqual(0);
   });
+
+  it("keeps seller/client rankings when only salesperson enrichment is unavailable", () => {
+    const projection = buildManagementCommandCenterProjection({
+      orders: [
+        {
+          id: "o1",
+          status: "confirmed",
+          payment_status: "paid",
+          sales_order_value: 5000,
+          advance_paid: 5000,
+          advance_required: 0,
+          company_id: "c1",
+          created_at: "2026-09-15T10:00:00.000Z",
+        },
+      ],
+      orderItems: [
+        { order_id: "o1", product_id: "p1", quantity: 10, product_name: "Baklava" },
+      ],
+      companies: [{ id: "c1", business_name: "Alpha Traders", account_manager_id: "u1" }],
+      companyCredit: [
+        {
+          id: "c1",
+          business_name: "Alpha Traders",
+          wallet_balance: 0,
+          credit_limit: 0,
+          allow_credit: false,
+          is_frozen: false,
+        },
+      ],
+      users: [],
+      products: [],
+      companyCompliance: [],
+      slaBreachedSupportCount: 0,
+      disputedLedgerCount: 0,
+      disputedOrHeldAmount: 0,
+      periodStartIso: "2026-09-01T00:00:00.000Z",
+      periodEndIso: "2026-09-30T23:59:59.999Z",
+      salespeopleRankingsUnavailable: true,
+    });
+
+    expect(projection.rankings.bestSellers.length).toBeGreaterThan(0);
+    expect(projection.rankings.bestClients.length).toBeGreaterThan(0);
+    expect(projection.rankings.bestSalespeople).toEqual([]);
+  });
 });

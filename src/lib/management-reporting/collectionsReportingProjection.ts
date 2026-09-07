@@ -39,6 +39,9 @@ export function buildCollectionsReportingSnapshot(input: {
   disputedOrHeldAmount: number;
   disputedOrHeldUnavailable?: boolean;
   disputedOrHeldBlocker?: string;
+  ordersTruncated?: boolean;
+  companiesTruncated?: boolean;
+  disputesTruncated?: boolean;
   periodStartIso: string;
   periodEndIso: string;
   referenceDate?: Date;
@@ -51,13 +54,11 @@ export function buildCollectionsReportingSnapshot(input: {
 
   const tableRecoverable = unpaidOrders.reduce((s, o) => s + outstandingAmount(o), 0);
   const core = input.coreFinance255;
-  const recoverableValue =
-    core && core.ordersWithCoreFacts > 0 ? core.recoverableOutstanding : tableRecoverable;
-  const recoverableSource =
-    core && core.ordersWithCoreFacts > 0
-      ? `${core.source} (${core.ordersWithCoreFacts}/${core.ordersAttempted} orders with governed PI)`
-      : "orders.payment_status!=paid outstanding gap (Central table aggregate)";
-
+  const recoverableOutstanding = buildRecoverableOutstandingMetric({
+    core,
+    tableRecoverable,
+    ordersTruncated: input.ordersTruncated ?? false,
+  });
   const recoveredInPeriod = buildRecoveredInPeriodMetric(core);
 
   const walletExposure = input.companies.reduce(
@@ -110,30 +111,47 @@ export function buildCollectionsReportingSnapshot(input: {
 
   return {
     asOfIso: ref.toISOString(),
-    recoverableOutstanding: wrapObservedMetric(recoverableValue, recoverableSource),
+    recoverableOutstanding,
     recoveredInPeriod,
-    disputedOrHeld: input.disputedOrHeldUnavailable
+    disputedOrHeld:
+      input.disputedOrHeldUnavailable || input.disputesTruncated
+        ? wrapUnavailableMetric(
+            0,
+            "ledger_disputes + finance holds (Central observed)",
+            input.disputedOrHeldBlocker ??
+              (input.disputesTruncated
+                ? "ledger_disputes read truncated — partial dataset"
+                : "ledger_disputes read failed"),
+          )
+        : wrapObservedMetric(
+            input.disputedOrHeldAmount,
+            "ledger_disputes + finance holds (Central observed)",
+          ),
+    walletExposure: input.companiesTruncated
       ? wrapUnavailableMetric(
           0,
-          "ledger_disputes + finance holds (Central observed)",
-          input.disputedOrHeldBlocker ?? "ledger_disputes read failed",
+          "companies.wallet_balance negative aggregate (Central table)",
+          "companies read truncated — partial dataset",
         )
       : wrapObservedMetric(
-          input.disputedOrHeldAmount,
-          "ledger_disputes + finance holds (Central observed)",
+          walletExposure,
+          "companies.wallet_balance negative aggregate (Central table)",
         ),
-    walletExposure: wrapObservedMetric(
-      walletExposure,
-      "companies.wallet_balance negative aggregate (Central table)",
-    ),
-    creditExposure: wrapObservedMetric(
-      creditExposure,
-      "companies.credit_limit where allow_credit (Central table; per-order Core via get_credit_exposure_facts_v1)",
-    ),
+    creditExposure: input.companiesTruncated
+      ? wrapUnavailableMetric(
+          0,
+          "companies.credit_limit where allow_credit (Central table; per-order Core via get_credit_exposure_facts_v1)",
+          "companies read truncated — partial dataset",
+        )
+      : wrapObservedMetric(
+          creditExposure,
+          "companies.credit_limit where allow_credit (Central table; per-order Core via get_credit_exposure_facts_v1)",
+        ),
     profitability: buildProfitabilityMetric(),
-    ageingBuckets: AGEING_BUCKETS.map((b) => ageingMap.get(b)!),
-    ageingSource:
-      "Central order.created_at aggregate — portfolio-level ageing macro RPC unavailable on Core #255",
+    ageingBuckets: input.ordersTruncated ? [] : AGEING_BUCKETS.map((b) => ageingMap.get(b)!),
+    ageingSource: input.ordersTruncated
+      ? "Unavailable — orders read truncated; ageing requires complete unpaid order set"
+      : "Central order.created_at aggregate — portfolio-level ageing macro RPC unavailable on Core #255",
     topExposureClients,
     creditRisk,
   };
@@ -144,6 +162,38 @@ export function buildProfitabilityMetric() {
     0,
     coreFinance255Source("get_finance_profitability_facts_v1"),
     "No profitability macro RPC deployed on Core #255",
+  );
+}
+
+function buildRecoverableOutstandingMetric(input: {
+  core: CoreFinance255CollectionsSnapshot | null | undefined;
+  tableRecoverable: number;
+  ordersTruncated: boolean;
+}) {
+  const { core, tableRecoverable, ordersTruncated } = input;
+  if (core?.unpaidLookupBounded) {
+    return wrapUnavailableMetric(
+      0,
+      coreFinance255Source("get_order_payment_facts_v1"),
+      `Core payment facts bounded to ${core.ordersAttempted} of unpaid orders — incomplete scan`,
+    );
+  }
+  if (ordersTruncated) {
+    return wrapUnavailableMetric(
+      0,
+      "orders.payment_status!=paid outstanding gap (Central table aggregate)",
+      "orders read truncated — partial dataset",
+    );
+  }
+  if (core && core.ordersWithCoreFacts > 0) {
+    return wrapObservedMetric(
+      core.recoverableOutstanding,
+      `${core.source} (${core.ordersWithCoreFacts}/${core.ordersAttempted} orders with governed PI)`,
+    );
+  }
+  return wrapObservedMetric(
+    tableRecoverable,
+    "orders.payment_status!=paid outstanding gap (Central table aggregate)",
   );
 }
 

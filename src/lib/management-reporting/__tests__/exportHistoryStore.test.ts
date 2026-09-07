@@ -28,12 +28,14 @@ describe("exportHistoryStore", () => {
       },
     });
 
-    expect(() => appendExportHistory(audit, "tally.csv")).not.toThrow();
-    expect(listExportHistory()).toEqual([]);
-
-    Object.defineProperty(globalThis, "localStorage", {
-      configurable: true,
-      value: original,
-    });
+    try {
+      expect(() => appendExportHistory(audit, "tally.csv")).not.toThrow();
+      expect(listExportHistory()).toEqual([]);
+    } finally {
+      Object.defineProperty(globalThis, "localStorage", {
+        configurable: true,
+        value: original,
+      });
+    }
   });
 });

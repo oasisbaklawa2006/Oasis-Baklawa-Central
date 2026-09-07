@@ -88,7 +88,12 @@ function MetricCard({
   metric: GovernedMetric<number>;
   formatValue?: (n: number) => string;
 }) {
-  const display = formatValue ? formatValue(metric.value) : metric.value.toLocaleString("en-IN");
+  const display =
+    metric.semantics === "unavailable"
+      ? "unavailable"
+      : formatValue
+        ? formatValue(metric.value)
+        : metric.value.toLocaleString("en-IN");
   return (
     <Card>
       <CardHeader className="pb-1">
@@ -370,25 +375,45 @@ export default function ManagementCommandCenter() {
                 <p className="col-span-full text-xs text-muted-foreground">
                   Rankings for {p.rankingPeriodLabel} — trend vs prior window of equal length
                 </p>
-                {p.rankingsUnavailable ? (
-                  <p className="col-span-full rounded-md border border-amber-200 bg-amber-50/50 px-3 py-2 text-xs text-amber-900">
-                    Rankings unavailable — order_items read failed. Refresh after source access is restored.
-                  </p>
-                ) : null}
                 {(
                   [
-                    ["Best sellers", p.rankings.bestSellers, "units"],
-                    ["Best clients", p.rankings.bestClients, "value"],
-                    ["Best salespeople", p.rankings.bestSalespeople, "value"],
+                    {
+                      title: "Best sellers",
+                      items: p.rankings.bestSellers,
+                      kind: "units" as const,
+                      unavailable: p.rankingsUnavailable || p.bestSellersUnavailable,
+                      reason: p.rankingsUnavailable
+                        ? "order_items read failed"
+                        : "order_items or orders read truncated",
+                    },
+                    {
+                      title: "Best clients",
+                      items: p.rankings.bestClients,
+                      kind: "value" as const,
+                      unavailable: p.rankingsUnavailable || p.bestClientsUnavailable,
+                      reason: p.rankingsUnavailable
+                        ? "order_items read failed"
+                        : "orders read truncated",
+                    },
+                    {
+                      title: "Best salespeople",
+                      items: p.rankings.bestSalespeople,
+                      kind: "value" as const,
+                      unavailable:
+                        p.rankingsUnavailable || p.salespeopleRankingsUnavailable,
+                      reason: p.rankingsUnavailable
+                        ? "order_items read failed"
+                        : "users read failed/truncated or orders truncated",
+                    },
                   ] as const
-                ).map(([title, items, kind]) => (
+                ).map(({ title, items, kind, unavailable, reason }) => (
                   <Card key={title}>
                     <CardHeader>
                       <CardTitle className="text-sm">{title}</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-2 text-xs">
-                      {p.rankingsUnavailable ? (
-                        <p className="text-amber-800">Unavailable — source read failed</p>
+                      {unavailable ? (
+                        <p className="text-amber-800">Unavailable — {reason}</p>
                       ) : items.length === 0 ? (
                         <p className="text-muted-foreground">No ranked data in selected period</p>
                       ) : (
@@ -696,10 +721,12 @@ export default function ManagementCommandCenter() {
               </SelectContent>
             </Select>
             <Badge variant="outline" className="text-[10px]">
-              {filteredExceptions.length} shown / {p?.complianceExceptions.length ?? 0} total
+              {p?.complianceDataUnavailable
+                ? "exceptions unavailable"
+                : `${filteredExceptions.length} shown / ${p?.complianceExceptions.length ?? 0} total`}
             </Badge>
             <Badge variant="secondary" className="text-[10px]">
-              {eanTotal} registry rows
+              {p?.complianceDataUnavailable ? "registry unavailable" : `${eanTotal} registry rows`}
             </Badge>
             <div className="ml-auto flex gap-2">
               <Button

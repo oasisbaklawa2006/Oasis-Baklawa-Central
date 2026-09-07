@@ -133,6 +133,10 @@ export interface ManagementCommandCenterProjection {
   coreFinanceWarnings: string[];
   sourceReadWarnings: string[];
   rankingsUnavailable: boolean;
+  bestSellersUnavailable: boolean;
+  bestClientsUnavailable: boolean;
+  salespeopleRankingsUnavailable: boolean;
+  operationalDataUnavailable: boolean;
   complianceDataUnavailable: boolean;
   eanRegistry: EanRegistryEntry[];
   eanRegistryTotal: number;

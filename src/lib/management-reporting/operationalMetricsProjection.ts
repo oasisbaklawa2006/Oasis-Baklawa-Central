@@ -16,7 +16,7 @@ import type {
   RankedEntity,
   RankedEntityWithTrend,
 } from "./managementReportingTypes";
-import { wrapObservedMetric } from "./coreFinance255Adapter";
+import { wrapObservedMetric, wrapUnavailableMetric } from "./coreFinance255Adapter";
 
 export interface OrderFactRow {
   id: string;
@@ -106,9 +106,25 @@ function ordersInWindow(orders: OrderFactRow[], startIso: string, endIso: string
 export function buildOperationalPositionSnapshot(
   orders: OrderFactRow[],
   referenceDate: Date = new Date(),
+  options?: { unavailable?: boolean; unavailableReason?: string },
 ): OperationalPositionSnapshot {
-  const actionable = filterActionableOrders(orders);
   const asOfIso = referenceDate.toISOString();
+  if (options?.unavailable) {
+    const blocker = options.unavailableReason ?? "Order source read truncated or incomplete";
+    const source = "orders (Central table aggregate)";
+    return {
+      asOfIso,
+      salesOrderCount: wrapUnavailableMetric(0, source, blocker),
+      salesOrderValue: wrapUnavailableMetric(0, source, blocker),
+      productionInFlight: wrapUnavailableMetric(0, source, blocker),
+      packedAwaitingDispatch: wrapUnavailableMetric(0, source, blocker),
+      dispatchedCount: wrapUnavailableMetric(0, source, blocker),
+      collectionsPending: wrapUnavailableMetric(0, source, blocker),
+      comparisons: [],
+    };
+  }
+
+  const actionable = filterActionableOrders(orders);
 
   const salesOrderCount = actionable.length;
   const salesOrderValue = actionable.reduce((s, o) => s + (o.sales_order_value ?? 0), 0);
