@@ -2,7 +2,7 @@
 
 **ASM:** POINT57 — Central canonical module audit closure  
 **Repository:** `oasisbaklawa2006/Oasis-Baklawa-Central`  
-**Base:** `main` @ `64a107df` (2026-09-06)  
+**Base:** `main` @ `d8401931` (2026-09-07) — includes Point21 notifications, Point23 realtime census, Point24 integration-error contracts  
 **Machine-readable authority:** `src/lib/appverse/centralAdminModuleAuthorityMatrix.ts`  
 **Enforcement tests:** `src/lib/appverse/__tests__/centralAdminModuleAuthorityMatrix.test.ts`
 

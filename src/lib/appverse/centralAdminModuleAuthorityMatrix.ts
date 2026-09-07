@@ -109,7 +109,7 @@ export const CENTRAL_NAV_MODULE_OVERRIDES: Record<string, AppVerseModuleKey> = {
 
 /**
  * Authoritative Central module authority matrix.
- * Last reconciled against main @ 64a107df (2026-09-06).
+ * Last reconciled against main @ d8401931 (2026-09-07).
  */
 export const CENTRAL_ADMIN_MODULE_AUTHORITY_MATRIX: CentralModuleAuthorityEntry[] = [
   // ── Auth / gates ───────────────────────────────────────────────────────
