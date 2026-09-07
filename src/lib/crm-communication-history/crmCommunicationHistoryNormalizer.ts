@@ -6,6 +6,7 @@ import type {
   CrmCommunicationDirection,
   CrmCommunicationHistoryEntry,
 } from "./crmCommunicationHistoryTypes";
+import { parseCrmCommunicationDeepLink } from "./crmCommunicationDeepLink";
 
 const AUTO_LOG_PREFIX = "[AUTO]";
 
@@ -154,6 +155,7 @@ export function normalizeClientInteractionRow(
       recordId: row.id,
     },
     companyId: companyId.toLowerCase(),
+    deepLink: parseCrmCommunicationDeepLink(row.notes, row.outcome) ?? undefined,
   };
 }
 

@@ -309,6 +309,7 @@ export default function SalesCrmLiteWorkspace({ userId, companies, assistFocusCo
                       <SelectItem value="follow_up">Follow-up</SelectItem>
                       <SelectItem value="repeat_contact">Repeat contact</SelectItem>
                       <SelectItem value="sample">Sample</SelectItem>
+                      <SelectItem value="sample_request">Sample request</SelectItem>
                       <SelectItem value="opportunity">Opportunity</SelectItem>
                     </SelectContent>
                   </Select>

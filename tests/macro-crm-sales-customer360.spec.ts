@@ -28,6 +28,7 @@ test.describe("Macro CRM sales Customer 360 journey", () => {
     await expect(page.getByText(/Branches & contacts/i)).toBeVisible();
     await expect(page.getByText(/Finance exposure/i)).toBeVisible();
     await expect(page.getByText(/Account health & next best action/i)).toBeVisible();
+    await expect(page.getByText(/WhatsApp order linkage/i)).toBeVisible();
     await expect(page.getByRole("link", { name: /Sales console/i })).toBeVisible();
   });
 

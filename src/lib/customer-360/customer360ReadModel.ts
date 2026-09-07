@@ -25,6 +25,7 @@ import type {
   Customer360TaskSummary,
   Customer360TicketSummary,
   Customer360ViewerContext,
+  Customer360WhatsappOrderLink,
 } from "./customer360Types";
 import type { CrmCommunicationHistoryReadModel } from "@/lib/crm-communication-history/crmCommunicationHistoryTypes";
 
@@ -109,7 +110,7 @@ export async function fetchCustomer360ReadModel(
     data: mapCompanyProfile(companyRow as unknown as CompanyRow),
   };
 
-  const [ordersRes, interactionsRes, tasksRes, deliverySitesRes] = await Promise.all([
+  const [ordersRes, interactionsRes, tasksRes, deliverySitesRes, waDraftsRes] = await Promise.all([
     supabase
       .from("orders")
       .select("id, order_number, status, sales_order_value, created_at")
@@ -136,6 +137,12 @@ export async function fetchCustomer360ReadModel(
       .order("is_default", { ascending: false })
       .order("label", { ascending: true })
       .limit(25),
+    supabase
+      .from("sales_order_drafts")
+      .select("id, packet_id, status, promoted_order_id, readiness_overall_score, updated_at")
+      .eq("company_id", companyId)
+      .order("updated_at", { ascending: false })
+      .limit(10),
   ]);
 
   const orderIds = (ordersRes.data ?? []).map((row) => row.id);
@@ -304,6 +311,26 @@ export async function fetchCustomer360ReadModel(
           errorMessage: "Company profile unavailable for health signal projection.",
         };
 
+  const whatsappOrderLinkageSlice: Customer360Slice<Customer360WhatsappOrderLink[]> = waDraftsRes.error
+    ? {
+        availability: "error",
+        programmeOwner: "WA",
+        errorMessage: waDraftsRes.error.message,
+      }
+    : {
+        availability: "available",
+        programmeOwner: "WA",
+        reason: "Read-only governed sales_order_drafts linkage for WhatsApp → order promotion lineage.",
+        data: (waDraftsRes.data ?? []).map((row) => ({
+          draftId: row.id,
+          packetId: row.packet_id,
+          status: row.status,
+          promotedOrderId: row.promoted_order_id,
+          readinessOverallScore: row.readiness_overall_score,
+          updatedAt: row.updated_at,
+        })),
+      };
+
   return {
     identity: {
       companyId,
@@ -322,5 +349,6 @@ export async function fetchCustomer360ReadModel(
     ),
     financeExposure: financeExposureSlice,
     customerHealth: customerHealthSlice,
+    whatsappOrderLinkage: whatsappOrderLinkageSlice,
   };
 }

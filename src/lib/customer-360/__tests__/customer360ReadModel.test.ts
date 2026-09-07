@@ -95,6 +95,9 @@ describe("fetchCustomer360ReadModel", () => {
       if (table === "delivery_addresses") {
         return createQuery({ data: [], error: null }) as never;
       }
+      if (table === "sales_order_drafts") {
+        return createQuery({ data: [], error: null }) as never;
+      }
       if (table === "support_tickets") {
         return createQuery({
           data: [{
@@ -126,6 +129,7 @@ describe("fetchCustomer360ReadModel", () => {
     expect(model.branchesAndContacts.availability).toBe("available");
     expect(model.financeExposure.availability).toBe("available");
     expect(model.customerHealth.availability).toBe("available");
+    expect(model.whatsappOrderLinkage.availability).toBe("available");
     expect(model.financeExposure.programmeOwner).toBe("POINT77");
   });
 
@@ -186,6 +190,9 @@ describe("fetchCustomer360ReadModel", () => {
       if (table === "delivery_addresses") {
         return createQuery({ data: [], error: null }) as never;
       }
+      if (table === "sales_order_drafts") {
+        return createQuery({ data: [], error: null }) as never;
+      }
       if (table === "support_tickets") {
         return createQuery({ data: [], error: null }) as never;
       }
@@ -222,7 +229,7 @@ describe("fetchCustomer360ReadModel", () => {
       if (table === "orders") {
         return createQuery({ data: [], error: null }) as never;
       }
-      if (table === "client_interactions" || table === "crm_tasks" || table === "delivery_addresses") {
+      if (table === "client_interactions" || table === "crm_tasks" || table === "delivery_addresses" || table === "sales_order_drafts") {
         return createQuery({ data: [], error: null }) as never;
       }
       if (table === "support_tickets") {

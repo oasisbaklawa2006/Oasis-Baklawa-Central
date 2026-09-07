@@ -30,6 +30,7 @@ type SendPayload = {
   message?: unknown;
   company_id?: unknown;
   order_id?: unknown;
+  packet_id?: unknown;
 };
 
 function json(body: Record<string, unknown>, status: number): Response {
@@ -184,6 +185,7 @@ serve(async (req) => {
 
     const companyId = typeof payload.company_id === "string" ? payload.company_id : null;
     const orderId = typeof payload.order_id === "string" ? payload.order_id : null;
+    const packetId = typeof payload.packet_id === "string" ? payload.packet_id.trim().toLowerCase() : null;
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
       auth: { persistSession: false },
     });
@@ -229,7 +231,11 @@ serve(async (req) => {
         executive_id: authorization.caller.userId,
         interaction_type: "whatsapp",
         notes: `[AUTO] ${message.substring(0, 500)}`,
-        outcome: result.success ? "delivered" : "failed",
+        outcome: packetId
+          ? `wa_packet:${packetId}`
+          : result.success
+            ? "delivered"
+            : "failed",
       });
     }
 

@@ -1,4 +1,5 @@
 import { Link, useLocation, useParams } from "react-router-dom";
+import { operatorInboxPathForPacket } from "@/lib/crm-communication-history/crmCommunicationDeepLink";
 import { format } from "date-fns";
 import {
   AlertCircle,
@@ -13,6 +14,7 @@ import {
   Users,
   MapPin,
   Activity,
+  MessageCircle,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -355,6 +357,13 @@ export default function Customer360Page({ variant }: { variant?: "admin" | "sale
                       <p className="mt-1 text-xs text-muted-foreground">
                         {entry.actor.displayLabel} · {entry.channel} · {entry.source.table}
                       </p>
+                      {entry.deepLink && resolvedVariant === "admin" ? (
+                        <p className="mt-2">
+                          <Button asChild size="sm" variant="outline" className="h-7 text-xs">
+                            <Link to={entry.deepLink.operatorInboxPath}>Open operator inbox packet</Link>
+                          </Button>
+                        </p>
+                      ) : null}
                     </li>
                   ))}
                 </ul>
@@ -458,6 +467,63 @@ export default function Customer360Page({ variant }: { variant?: "admin" | "sale
               </div>
             ) : (
               <SliceUnavailable slice={model.financeExposure} />
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <MessageCircle className="h-5 w-5" />
+                WhatsApp order linkage
+              </CardTitle>
+              {availabilityBadge(model.whatsappOrderLinkage.availability)}
+            </div>
+            {model.whatsappOrderLinkage.reason && (
+              <CardDescription>{model.whatsappOrderLinkage.reason}</CardDescription>
+            )}
+          </CardHeader>
+          <CardContent>
+            {model.whatsappOrderLinkage.availability === "available" && model.whatsappOrderLinkage.data ? (
+              model.whatsappOrderLinkage.data.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No governed WhatsApp sales-order drafts for this company.</p>
+              ) : (
+                <ul className="space-y-3">
+                  {model.whatsappOrderLinkage.data.map((link) => (
+                    <li key={link.draftId} className="rounded-lg border p-3 text-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="font-medium">{link.status.replace(/_/g, " ")}</p>
+                        <Badge variant="outline">{link.readinessOverallScore ?? "—"}% ready</Badge>
+                      </div>
+                      <p className="mt-1 text-muted-foreground">
+                        Packet <code className="rounded bg-muted px-1 text-xs">{link.packetId.slice(0, 8)}</code>
+                        {link.promotedOrderId ? (
+                          <>
+                            {" · "}Promoted order{" "}
+                            <code className="rounded bg-muted px-1 text-xs">{link.promotedOrderId.slice(0, 8)}</code>
+                          </>
+                        ) : null}
+                      </p>
+                      {resolvedVariant === "admin" ? (
+                        <Button asChild size="sm" variant="outline" className="mt-2 h-7 text-xs">
+                          <Link to={operatorInboxPathForPacket(link.packetId)}>Review in operator inbox</Link>
+                        </Button>
+                      ) : link.promotedOrderId ? (
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          Order promoted — contact operations for fulfilment status.
+                        </p>
+                      ) : (
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          Draft in progress — operator inbox handles clarification and promotion.
+                        </p>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )
+            ) : (
+              <SliceUnavailable slice={model.whatsappOrderLinkage} />
             )}
           </CardContent>
         </Card>

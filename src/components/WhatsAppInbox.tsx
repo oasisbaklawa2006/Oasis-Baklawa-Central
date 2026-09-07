@@ -2,6 +2,7 @@
 // TOOL 1: Raw WhatsApp Inbox — Display stitched packets as conversations
 
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
+import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { ArrowLeft, Download, MessageCircle, Paperclip } from "lucide-react";
@@ -162,6 +163,8 @@ interface RouteSuggestion {
 
 export function WhatsAppInbox() {
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
+  const deepLinkPacketId = searchParams.get("packet")?.trim().toLowerCase() || null;
   const whatsappAuthority = useWhatsAppPermissions();
   const [packets, setPackets] = useState<OperatorInboxPacket[]>([]);
   const [selectedPacket, setSelectedPacket] = useState<OperatorInboxPacket | null>(null);
@@ -521,7 +524,10 @@ export function WhatsAppInbox() {
 
       const prevId = selectedPacketIdRef.current;
       let nextSelected: OperatorInboxPacket | null = null;
-      if (prevId) {
+      if (deepLinkPacketId) {
+        nextSelected = enrichedPackets.find((p) => p.id.toLowerCase() === deepLinkPacketId) ?? null;
+      }
+      if (!nextSelected && prevId) {
         nextSelected = enrichedPackets.find((p) => p.id === prevId) ?? null;
         if (!nextSelected && enrichedPackets.length > 0) {
           nextSelected = enrichedPackets[0] ?? null;
@@ -548,7 +554,7 @@ export function WhatsAppInbox() {
         setLoading(false);
       }
     }
-  }, []);
+  }, [deepLinkPacketId]);
 
   /**
    * Explicit, controlled pagination for older open conversations beyond the

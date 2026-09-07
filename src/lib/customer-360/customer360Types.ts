@@ -113,6 +113,15 @@ export type Customer360HealthReadModel = {
   creditUtilizationPercent: number | null;
 };
 
+export type Customer360WhatsappOrderLink = {
+  draftId: string;
+  packetId: string;
+  status: string;
+  promotedOrderId: string | null;
+  readinessOverallScore: number | null;
+  updatedAt: string;
+};
+
 export type Customer360Slice<T> = {
   availability: Customer360SliceAvailability;
   programmeOwner: string;
@@ -136,6 +145,7 @@ export type Customer360ReadModel = {
   dispatchHistory: Customer360Slice<never>;
   financeExposure: Customer360Slice<Customer360FinanceExposure>;
   customerHealth: Customer360Slice<Customer360HealthReadModel>;
+  whatsappOrderLinkage: Customer360Slice<Customer360WhatsappOrderLink[]>;
 };
 
 export type Customer360ViewerContext = {

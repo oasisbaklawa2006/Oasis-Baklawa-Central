@@ -30,6 +30,7 @@ const TYPE_ICONS: Record<string, React.ReactNode> = {
   whatsapp: <MessageSquare size={14} className="text-green-500" />,
   visit: <MapPin size={14} className="text-emerald-500" />,
   note: <StickyNote size={14} className="text-amber-500" />,
+  promise: <StickyNote size={14} className="text-violet-500" />,
 };
 
 export default function ClientInteractionsTab({
@@ -209,6 +210,7 @@ export default function ClientInteractionsTab({
                   <SelectItem value="whatsapp">💬 WhatsApp</SelectItem>
                   <SelectItem value="visit">📍 Visit</SelectItem>
                   <SelectItem value="note">📝 Note</SelectItem>
+                  <SelectItem value="promise">🤝 Promise / follow-up commitment</SelectItem>
                 </SelectContent>
               </Select>
             </div>
