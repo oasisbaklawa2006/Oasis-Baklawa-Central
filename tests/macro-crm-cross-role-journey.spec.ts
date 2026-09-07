@@ -31,9 +31,8 @@ test.describe("Macro CRM cross-role journey", () => {
 
     const onLogin = /\/login(\/|$|\?)/i.test(page.url());
     const restricted = await page.getByText(/Access Restricted|Access Denied|Unauthorized/i).first().isVisible().catch(() => false);
-    const governance = await page.getByRole("region", { name: /Governance notice/i }).isVisible().catch(() => false);
 
-    expect(onLogin || restricted || !governance).toBeTruthy();
+    expect(onLogin || restricted).toBeTruthy();
   });
 
   test("sales Customer 360 communication deep link is operator-routable for admins only", async ({ browser }) => {
@@ -54,21 +53,38 @@ test.describe("Macro CRM cross-role journey", () => {
 
     const view360 = salesPage.getByRole("link", { name: /View 360/i }).first();
     await expect(view360).toBeVisible({ timeout: 30_000 });
+    const salesCustomer360Href = await view360.getAttribute("href");
+    expect(salesCustomer360Href).toMatch(/^\/sales\/clients\/[0-9a-f-]+$/i);
     await view360.click();
     await expect(salesPage.getByRole("heading", { name: /Customer 360/i })).toBeVisible({ timeout: 30_000 });
     await expect(salesPage.getByText(/WhatsApp order linkage/i)).toBeVisible();
 
+    const companyId = salesCustomer360Href!.split("/").pop()!;
     const operatorContext = await browser.newContext();
     const operatorPage = await operatorContext.newPage();
     await login(operatorPage, requireEnv("TEST_OPERATOR_EMAIL"), requireEnv("TEST_OPERATOR_PASSWORD"));
-    await operatorPage.goto(`${getPreviewUrl()}/admin/operator-inbox?packet=${packetId}`, {
+    await operatorPage.goto(`${getPreviewUrl()}/admin/clients/${companyId}`, {
       waitUntil: "domcontentloaded",
       timeout: 60_000,
     });
+    await expect(operatorPage.getByRole("heading", { name: /Customer 360/i })).toBeVisible({ timeout: 30_000 });
 
+    const packetRow = operatorPage.locator("li").filter({ hasText: packetId.slice(0, 8) }).first();
+    await expect(packetRow).toBeVisible({ timeout: 30_000 });
+    const inboxLink = packetRow.getByRole("link", { name: /Review in operator inbox/i });
+    await expect(inboxLink).toBeVisible();
+    await expect(inboxLink).toHaveAttribute("href", new RegExp(`/admin/operator-inbox\\?packet=${packetId}$`, "i"));
+    await inboxLink.click();
+
+    await expect(operatorPage).toHaveURL(new RegExp(`/admin/operator-inbox\\?packet=${packetId}$`, "i"));
     await expect(operatorPage.getByRole("region", { name: /Governance notice/i })).toBeVisible({
       timeout: 30_000,
     });
+    await expect(operatorPage.getByRole("listbox", { name: /Open WhatsApp packets/i })).toHaveAttribute(
+      "aria-activedescendant",
+      `packet-row-${packetId}`,
+      { timeout: 30_000 },
+    );
 
     await salesContext.close();
     await operatorContext.close();
