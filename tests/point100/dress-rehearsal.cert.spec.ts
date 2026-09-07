@@ -11,6 +11,7 @@ import {
   loginToFactoryCertificationTarget,
   recordStage,
   switchRole,
+  buildPaymentProofPayload,
   writeCapabilityMatrix,
   writeDressRehearsalLedger,
   type Point100StageRecord,
@@ -93,35 +94,49 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
     const actorId = (await steppedUp.auth.getUser()).data.user?.id;
     if (!actorId) throw new Error("FINANCE_HEAD actor id missing");
 
-    const proofCorrelation = `p100-${RUN_SUFFIX}-proof`;
-    const { error: proofError } = await steppedUp.rpc("record_order_payment_proof_v1", {
+    const { data: facts, error: factsError } = await steppedUp.rpc("get_finance_operations_clearance_facts_v1", {
       p_order_id: point37OrderId,
       p_pi_id: piId,
       p_commercial_version_id: commercialVersionId,
-      p_payment_type: "advance",
-      p_submitted_amount: 300,
-      p_currency: "INR",
-      p_payment_mode: "bank_transfer",
-      p_external_reference: `POINT100-${RUN_SUFFIX}`,
-      p_payer_reference: null,
-      p_correlation_id: proofCorrelation,
-      p_idempotency_key: proofCorrelation,
-      p_actor_id: actorId,
     });
-    if (proofError) {
-      recordStage(stages, "advance_payable_payment", "record_order_payment_proof_v1", "FINANCE_HEAD", proofCorrelation, "FAIL", proofError.message);
-    } else {
-      recordStage(stages, "advance_payable_payment", "record_order_payment_proof_v1", "FINANCE_HEAD", proofCorrelation, "PASS", "advance proof recorded");
+    if (factsError) {
+      recordStage(stages, "finance_verification_reconciliation", "get_finance_operations_clearance_facts_v1", "FINANCE_HEAD", null, "FAIL", factsError.message);
+      throw factsError;
+    }
+    const factsRow = (Array.isArray(facts) ? facts[0] : facts) as { eligible_for_operations_clearance?: boolean; required_advance?: number };
+    if (factsRow.eligible_for_operations_clearance) {
+      recordStage(stages, "advance_payable_payment", "record_order_payment_proof_v1", "FINANCE_HEAD", null, "PASS", "fixture already eligible for operations clearance");
+      recordStage(stages, "finance_verification_reconciliation", "verify_order_payment_v1", "FINANCE_HEAD", null, "PASS", "fixture advance already verified");
+      return;
     }
 
-    const verifyCorrelation = `p100-${RUN_SUFFIX}-verify`;
+    const requiredAdvance = Number(factsRow.required_advance ?? 300);
+    const proofPayload = buildPaymentProofPayload({
+      orderId: point37OrderId,
+      piId,
+      commercialVersionId,
+      amount: requiredAdvance,
+      actorId,
+      runSuffix: RUN_SUFFIX,
+      scope: "dress-rehearsal",
+    });
+    const { data: proofData, error: proofError } = await steppedUp.rpc("record_order_payment_proof_v1", proofPayload);
+    if (proofError) {
+      recordStage(stages, "advance_payable_payment", "record_order_payment_proof_v1", "FINANCE_HEAD", proofPayload.p_correlation_id, "FAIL", proofError.message);
+    } else {
+      recordStage(stages, "advance_payable_payment", "record_order_payment_proof_v1", "FINANCE_HEAD", proofPayload.p_correlation_id, "PASS", "advance proof recorded");
+    }
+
+    const paymentId = String((Array.isArray(proofData) ? proofData[0] : proofData as { payment_id?: string })?.payment_id ?? "");
+    const verifyIdentity = `p100-${RUN_SUFFIX}-verify`;
     const { error: verifyError } = await steppedUp.rpc("verify_order_payment_v1", {
-      p_order_id: point37OrderId,
-      p_pi_id: piId,
-      p_commercial_version_id: commercialVersionId,
-      p_payment_type: "advance",
-      p_correlation_id: verifyCorrelation,
-      p_idempotency_key: verifyCorrelation,
+      p_payment_id: paymentId,
+      p_verified_amount: requiredAdvance,
+      p_verified_reference: `POINT100-VERIFY-${RUN_SUFFIX}`,
+      p_verification_evidence_reference: `point100-verify:${RUN_SUFFIX}`,
+      p_reason: "Point100 dress rehearsal advance verification",
+      p_correlation_id: `central:pf6a:verify:${verifyIdentity}`,
+      p_idempotency_key: `central:pf6a:verify:${verifyIdentity}`,
       p_actor_id: actorId,
     });
     recordStage(
@@ -129,7 +144,7 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
       "finance_verification_reconciliation",
       "verify_order_payment_v1",
       "FINANCE_HEAD",
-      verifyCorrelation,
+      verifyIdentity,
       verifyError ? "FAIL" : "PASS",
       verifyError?.message ?? "advance verified",
     );

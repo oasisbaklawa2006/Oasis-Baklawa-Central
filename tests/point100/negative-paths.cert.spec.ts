@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { writeFileSync } from "node:fs";
 import { test, expect } from "@playwright/test";
 import {
+  buildPaymentProofPayload,
   createAuthenticatedCertificationClient,
   credentialsForRoleOrSkip,
   hasPoint100HarnessEnv,
@@ -68,20 +69,18 @@ test("POINT100 :: negative-path failure injection suite", async ({ page }) => {
     }
     const actorId = (await client.auth.getUser()).data.user?.id;
     const correlationId = `p100-neg-${RUN_SUFFIX}-zero-payment`;
-    const { error } = await client.rpc("record_order_payment_proof_v1", {
-      p_order_id: point37OrderId,
-      p_pi_id: bindings[0].id,
-      p_commercial_version_id: bindings[0].commercial_version_id,
-      p_payment_type: "advance",
-      p_submitted_amount: 0,
-      p_currency: "INR",
-      p_payment_mode: "bank_transfer",
-      p_external_reference: `POINT100-ZERO-${RUN_SUFFIX}`,
-      p_payer_reference: null,
-      p_correlation_id: correlationId,
-      p_idempotency_key: correlationId,
-      p_actor_id: actorId,
-    });
+    const { error } = await client.rpc(
+      "record_order_payment_proof_v1",
+      buildPaymentProofPayload({
+        orderId: point37OrderId,
+        piId: String(bindings[0].id),
+        commercialVersionId: String(bindings[0].commercial_version_id),
+        amount: 0,
+        actorId: actorId!,
+        runSuffix: `${RUN_SUFFIX}-zero`,
+        scope: "neg-insufficient",
+      }),
+    );
     const rejected = Boolean(error);
     expect(rejected, "zero-amount payment proof must be rejected").toBe(true);
     recordStage(negativePaths, "insufficient_payment", "record_order_payment_proof_v1", "FINANCE_HEAD", correlationId, "PASS", error?.message ?? "rejected");
@@ -102,26 +101,20 @@ test("POINT100 :: negative-path failure injection suite", async ({ page }) => {
       return;
     }
     const actorId = (await client.auth.getUser()).data.user?.id;
-    const idempotencyKey = `p100-neg-${RUN_SUFFIX}-replay`;
-    const payload = {
-      p_order_id: point37OrderId,
-      p_pi_id: bindings[0].id,
-      p_commercial_version_id: bindings[0].commercial_version_id,
-      p_payment_type: "advance" as const,
-      p_submitted_amount: 1,
-      p_currency: "INR",
-      p_payment_mode: "bank_transfer" as const,
-      p_external_reference: `POINT100-REPLAY-${RUN_SUFFIX}`,
-      p_payer_reference: null,
-      p_correlation_id: idempotencyKey,
-      p_idempotency_key: idempotencyKey,
-      p_actor_id: actorId,
-    };
+    const payload = buildPaymentProofPayload({
+      orderId: point37OrderId,
+      piId: String(bindings[0].id),
+      commercialVersionId: String(bindings[0].commercial_version_id),
+      amount: 1,
+      actorId: actorId!,
+      runSuffix: `${RUN_SUFFIX}-replay`,
+      scope: "neg-replay",
+    });
     const first = await client.rpc("record_order_payment_proof_v1", payload);
     const second = await client.rpc("record_order_payment_proof_v1", payload);
     const replaySafe = !second.error || second.error.message.toLowerCase().includes("duplicate") || second.error.message.toLowerCase().includes("idempot");
     expect(replaySafe || !first.error, "replay must not create duplicate authority").toBe(true);
-    recordStage(negativePaths, "provider_replay", "record_order_payment_proof_v1", "FINANCE_HEAD", idempotencyKey, "PASS", second.error?.message ?? "idempotent");
+    recordStage(negativePaths, "provider_replay", "record_order_payment_proof_v1", "FINANCE_HEAD", payload.p_correlation_id, "PASS", second.error?.message ?? "idempotent");
   });
 
   // ---- stock shortage: reserve beyond available ----
@@ -161,18 +154,34 @@ test("POINT100 :: negative-path failure injection suite", async ({ page }) => {
     await switchRole(page, admin);
     const { client } = await createAuthenticatedCertificationClient(page);
     const point37OrderId = fixtureOrderId("FACTORY_CERT_POINT37_ORDER_ID");
-    const correlationId = `p100-neg-${RUN_SUFFIX}-release-replay`;
-    const first = await client.rpc("release_order_to_in_production_v1", {
+    const { data: historyBefore } = await client
+      .from("order_status_history")
+      .select("id")
+      .eq("order_id", point37OrderId)
+      .eq("old_status", "confirmed")
+      .eq("new_status", "in_production");
+    const countBefore = historyBefore?.length ?? 0;
+
+    const { data: retryData, error: retryError } = await client.rpc("release_order_to_in_production_v1", {
       p_order_id: point37OrderId,
-      p_correlation_id: correlationId,
     });
-    const second = await client.rpc("release_order_to_in_production_v1", {
-      p_order_id: point37OrderId,
-      p_correlation_id: correlationId,
-    });
-    const replaySafe = !second.error || first.error === second.error;
-    expect(replaySafe || !first.error, "idempotent production release must not duplicate authority").toBe(true);
-    recordStage(negativePaths, "duplicate_replay", "release_order_to_in_production_v1", "ADMIN", correlationId, "PASS", second.error?.message ?? "idempotent");
+    expect(retryError, retryError?.message).toBeNull();
+    const retryResult = Array.isArray(retryData) ? retryData[0] : retryData;
+    expect((retryResult as { ok?: boolean })?.ok, JSON.stringify(retryResult)).toBe(true);
+    expect(
+      (retryResult as { already_applied?: boolean })?.already_applied === true
+      || (retryResult as { new_status?: string })?.new_status === "in_production",
+      "retry must be idempotent",
+    ).toBe(true);
+
+    const { data: historyAfter } = await client
+      .from("order_status_history")
+      .select("id")
+      .eq("order_id", point37OrderId)
+      .eq("old_status", "confirmed")
+      .eq("new_status", "in_production");
+    expect(historyAfter?.length ?? 0, "no duplicate confirmed→in_production history on retry").toBe(countBefore);
+    recordStage(negativePaths, "duplicate_replay", "release_order_to_in_production_v1", "ADMIN", null, "PASS", `history_rows=${countBefore}`);
   });
 
   // ---- dispatch least privilege: finance cannot open dispatch consignment ----

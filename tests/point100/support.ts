@@ -67,6 +67,36 @@ export function fixtureOrderId(envKey: string): string {
   return id;
 }
 
+/** Canonical PF-6A payment proof payload aligned with Core main contract. */
+export function buildPaymentProofPayload(input: {
+  orderId: string;
+  piId: string;
+  commercialVersionId: string;
+  amount: number;
+  actorId: string;
+  runSuffix: string;
+  scope: string;
+}) {
+  const identity = `${input.scope}-${input.runSuffix}`;
+  return {
+    p_order_id: input.orderId,
+    p_pi_id: input.piId,
+    p_commercial_version_id: input.commercialVersionId,
+    p_payment_type: "advance" as const,
+    p_submitted_amount: input.amount,
+    p_currency: "INR",
+    p_payment_mode: "bank_transfer" as const,
+    p_external_reference: `POINT100-${input.runSuffix}`,
+    p_payer_reference: null,
+    p_proof_evidence_reference: `point100:${input.scope}:${input.runSuffix}`,
+    p_source_channel: "CENTRAL",
+    p_source_reference: `point100:${input.orderId}`,
+    p_correlation_id: `central:pf6a:proof:${identity}`,
+    p_idempotency_key: `central:pf6a:proof:${identity}`,
+    p_actor_id: input.actorId,
+  };
+}
+
 export async function switchRole(page: Page, credentials: FactoryCertificationCredentials): Promise<void> {
   await page.context().clearCookies();
   await page.evaluate(() => {

@@ -64,7 +64,9 @@ test("POINT100 :: generate capability/blocker matrix from executable probes", as
   const physicalOnly = probes.filter((p) => p.status === "physical_uat_only").length;
   expect(implemented + physicalOnly).toBeGreaterThan(0);
 
-  // Fail closed only when zero stages are executable — matrix must still be written.
+  // Fail closed only when zero stages are technically probeable — matrix must still be written.
   const executable = probes.filter((p) => p.executable).length;
+  const probeable = probes.filter((p) => p.status !== "preview_secret_missing").length;
+  expect(probeable, "capability matrix must probe all stages without silent omission").toBe(16);
   expect(executable, "at least one lifecycle stage must be executable in disposable env").toBeGreaterThan(0);
 });

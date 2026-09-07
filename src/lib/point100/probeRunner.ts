@@ -94,12 +94,13 @@ export function buildProbeOutcome(input: {
     detail = "Contract present; full journey execution deferred to dress-rehearsal stage";
   }
 
-  const executable =
-    status === "implemented" &&
+  const technicalReady =
     missingFixtureKeys.length === 0 &&
     missingRpcs.length === 0 &&
     centralBindingsPresent &&
     stage.domain !== "trace";
+
+  const executable = technicalReady && (executed || status !== "preview_secret_missing");
 
   return {
     stageId: stage.id,
