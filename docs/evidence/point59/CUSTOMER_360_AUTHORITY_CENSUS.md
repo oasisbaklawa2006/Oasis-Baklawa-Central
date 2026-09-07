@@ -98,6 +98,12 @@
 - `src/lib/customer-360/__tests__/customer360Identity.test.ts`
 - `src/lib/customer-360/__tests__/customer360ReadModel.test.ts`
 - `src/lib/customer-360/__tests__/customer360RouteAccess.test.ts`
+- `src/hooks/__tests__/useCustomer360.test.ts` (stale-request navigation guard)
+
+### Gate-4 review repairs (Sourcery)
+
+- Support tickets are queried with `.in("order_id", companyOrderIds)` before `.limit(25)` — no global top-N then client filter.
+- `useCustomer360` uses effect cleanup + monotonic request sequence guarding to prevent cross-company stale renders on rapid route changes.
 
 ---
 
@@ -111,7 +117,7 @@
 | Point57 #499 merged | **YES** @ `de16cdef` |
 | Gate-4 semantic rebase onto `main` | **YES** @ `b124c464` |
 | Exact-head typecheck | **YES** |
-| Full unit tests | **YES** — 2437 tests, 333 files |
+| Full unit tests | **YES** — 2440 tests, 334 files |
 | Build | **YES** |
 | Repo boundaries | **YES** |
 | Release controller | **YES** |
