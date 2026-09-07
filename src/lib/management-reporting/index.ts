@@ -5,4 +5,5 @@ export * from "./collectionsReportingProjection";
 export * from "./eanComplianceRegistry";
 export * from "./tallyPeriodExport";
 export * from "./exportHistoryStore";
+export * from "./coreFinance255ReadClient";
 export * from "./managementCommandCenterProjection";

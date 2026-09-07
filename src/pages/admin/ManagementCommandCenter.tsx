@@ -176,10 +176,11 @@ export default function ManagementCommandCenter() {
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-sm text-amber-900">
               <Shield className="h-4 w-4" aria-hidden />
-              Core Finance #255 — fail-closed blockers
+              Core Finance #255 — remaining unavailable macro metrics
             </CardTitle>
             <CardDescription className="text-xs text-amber-800">
-              Monetary macro metrics use Central observed facts until Core #255 contracts are production-certified.
+              Production anchor {p.finance255ProductionAnchor.slice(0, 7)}… — read-only bindings active for{" "}
+              {p.finance255AvailableContracts.join(", ")}. Metrics below remain fail-closed.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -188,6 +189,11 @@ export default function ManagementCommandCenter() {
                 <li key={b}>{b}</li>
               ))}
             </ul>
+            {p.coreFinanceWarnings.length > 0 ? (
+              <p className="mt-3 text-[10px] text-amber-800">
+                Core read warnings: {p.coreFinanceWarnings.slice(0, 3).join(" · ")}
+              </p>
+            ) : null}
           </CardContent>
         </Card>
       ) : null}
@@ -333,6 +339,7 @@ export default function ManagementCommandCenter() {
                   <MetricCard label="Disputed / held" metric={p.collections.disputedOrHeld} formatValue={format} />
                   <MetricCard label="Wallet exposure" metric={p.collections.walletExposure} formatValue={format} />
                   <MetricCard label="Credit limit exposure" metric={p.collections.creditExposure} formatValue={format} />
+                  <MetricCard label="Profitability" metric={p.collections.profitability} formatValue={format} />
                 </section>
 
                 <div className="grid gap-4 lg:grid-cols-2">

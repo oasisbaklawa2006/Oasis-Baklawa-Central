@@ -1,5 +1,9 @@
 import type { ManagementCommandCenterProjection } from "./managementReportingTypes";
-import { listCoreFinance255Blockers } from "./coreFinance255Adapter";
+import {
+  listCoreFinance255Blockers,
+  listCoreFinance255AvailableContracts,
+  CORE_FINANCE_255_PRODUCTION_ANCHOR,
+} from "./coreFinance255Adapter";
 import { buildCollectionsReportingSnapshot } from "./collectionsReportingProjection";
 import {
   buildComplianceExceptions,
@@ -36,6 +40,8 @@ export interface ManagementReportingInput {
   eanSearchQuery?: string;
   eanOffset?: number;
   eanLimit?: number;
+  coreFinance255?: import("./coreFinance255ReadClient").CoreFinance255CollectionsSnapshot | null;
+  coreFinanceWarnings?: string[];
   includeFinance?: boolean;
 }
 
@@ -65,6 +71,7 @@ export function buildManagementCommandCenterProjection(
         periodStartIso: input.periodStartIso,
         periodEndIso: input.periodEndIso,
         referenceDate: ref,
+        coreFinance255: input.coreFinance255,
       })
     : null;
 
@@ -87,6 +94,9 @@ export function buildManagementCommandCenterProjection(
     delayRisk,
     collections,
     finance255Blockers: listCoreFinance255Blockers(),
+    finance255AvailableContracts: listCoreFinance255AvailableContracts(),
+    finance255ProductionAnchor: CORE_FINANCE_255_PRODUCTION_ANCHOR,
+    coreFinanceWarnings: input.coreFinanceWarnings ?? [],
     eanRegistry,
     complianceExceptions,
   };

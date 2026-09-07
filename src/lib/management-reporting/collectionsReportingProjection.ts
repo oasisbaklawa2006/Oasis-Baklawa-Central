@@ -8,7 +8,9 @@ import {
   resolveFinanceMetric,
   wrapObservedMetric,
   wrapUnavailableMetric,
+  coreFinance255Source,
 } from "./coreFinance255Adapter";
+import type { CoreFinance255CollectionsSnapshot } from "./coreFinance255ReadClient";
 import type { CompanyFactRow, OrderFactRow } from "./operationalMetricsProjection";
 
 export interface CompanyCreditFactRow extends CompanyFactRow {
@@ -38,23 +40,37 @@ export function buildCollectionsReportingSnapshot(input: {
   periodStartIso: string;
   periodEndIso: string;
   referenceDate?: Date;
+  coreFinance255?: CoreFinance255CollectionsSnapshot | null;
 }): CollectionsReportingSnapshot {
   const ref = input.referenceDate ?? new Date();
   const unpaidOrders = input.orders.filter(
     (o) => o.payment_status !== "paid" && !["draft", "cart", "cancelled"].includes(o.status),
   );
 
-  const recoverableOutstanding = unpaidOrders.reduce((s, o) => s + outstandingAmount(o), 0);
+  const tableRecoverable = unpaidOrders.reduce((s, o) => s + outstandingAmount(o), 0);
+  const core = input.coreFinance255;
+  const recoverableValue =
+    core && core.ordersWithCoreFacts > 0 ? core.recoverableOutstanding : tableRecoverable;
+  const recoverableSource =
+    core && core.ordersWithCoreFacts > 0
+      ? `${core.source} (${core.ordersWithCoreFacts}/${core.ordersAttempted} orders with governed PI)`
+      : "orders.payment_status!=paid outstanding gap (Central table aggregate)";
 
   const periodStart = parseISO(input.periodStartIso);
   const periodEnd = parseISO(input.periodEndIso);
-  const recoveredInPeriod = input.orders
+  const tableRecoveredInPeriod = input.orders
     .filter((o) => {
       if (o.payment_status !== "paid" || !o.created_at) return false;
       const created = parseISO(o.created_at);
       return created >= periodStart && created <= periodEnd;
     })
     .reduce((s, o) => s + (o.sales_order_value ?? 0), 0);
+  const recoveredValue =
+    core && core.ordersWithCoreFacts > 0 ? core.recoveredInPeriod : tableRecoveredInPeriod;
+  const recoveredSource =
+    core && core.ordersWithCoreFacts > 0
+      ? core.source
+      : "orders.payment_status=paid in selected period (Central table aggregate)";
 
   const walletExposure = input.companies.reduce(
     (s, c) => s + Math.max(0, -(c.wallet_balance ?? 0)),
@@ -101,13 +117,10 @@ export function buildCollectionsReportingSnapshot(input: {
     asOfIso: ref.toISOString(),
     recoverableOutstanding: resolveFinanceMetric(
       "recoverable_vs_recovered_macro",
-      recoverableOutstanding,
-      "orders.payment_status!=paid outstanding gap",
+      recoverableValue,
+      recoverableSource,
     ),
-    recoveredInPeriod: wrapObservedMetric(
-      recoveredInPeriod,
-      "orders.payment_status=paid in selected period",
-    ),
+    recoveredInPeriod: wrapObservedMetric(recoveredValue, recoveredSource),
     disputedOrHeld: wrapObservedMetric(
       input.disputedOrHeldAmount,
       "ledger_disputes + finance holds (Central observed)",
@@ -115,25 +128,23 @@ export function buildCollectionsReportingSnapshot(input: {
     walletExposure: resolveFinanceMetric(
       "credit_exposure_macro",
       walletExposure,
-      "companies.wallet_balance negative aggregate",
+      "companies.wallet_balance negative aggregate (Central table)",
     ),
     creditExposure: resolveFinanceMetric(
       "credit_exposure_macro",
       creditExposure,
-      "companies.credit_limit where allow_credit",
+      "companies.credit_limit where allow_credit (Central table)",
     ),
+    profitability: buildProfitabilityMetric(),
     ageingBuckets: AGEING_BUCKETS.map((b) => ageingMap.get(b)!),
     topExposureClients,
   };
 }
 
-export function buildProfitabilityMetric(unavailable = true) {
-  if (unavailable) {
-    return wrapUnavailableMetric(
-      0,
-      "core:#255/get_finance_profitability_facts_v1",
-      "Core #255 profitability contract not production-certified",
-    );
-  }
-  return wrapObservedMetric(0, "core:#255/get_finance_profitability_facts_v1");
+export function buildProfitabilityMetric() {
+  return wrapUnavailableMetric(
+    0,
+    coreFinance255Source("get_finance_profitability_facts_v1"),
+    "No profitability macro RPC deployed on Core #255",
+  );
 }

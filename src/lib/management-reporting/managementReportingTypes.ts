@@ -60,6 +60,7 @@ export interface CollectionsReportingSnapshot {
   disputedOrHeld: GovernedMetric;
   walletExposure: GovernedMetric;
   creditExposure: GovernedMetric;
+  profitability: GovernedMetric;
   ageingBuckets: CollectionsAgeingBucket[];
   topExposureClients: RankedEntity[];
 }
@@ -110,6 +111,9 @@ export interface ManagementCommandCenterProjection {
   delayRisk: DelayRiskSnapshot;
   collections: CollectionsReportingSnapshot | null;
   finance255Blockers: string[];
+  finance255AvailableContracts: string[];
+  finance255ProductionAnchor: string;
+  coreFinanceWarnings: string[];
   eanRegistry: EanRegistryEntry[];
   complianceExceptions: ComplianceException[];
 }

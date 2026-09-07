@@ -3,6 +3,7 @@ import { endOfMonth, format, startOfMonth, subMonths } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import {
   buildManagementCommandCenterProjection,
+  fetchCoreFinance255CollectionsSnapshot,
   type ManagementCommandCenterProjection,
 } from "@/lib/management-reporting";
 import { hasModuleAccess, getAllowedModulesForRole } from "@/lib/appverse/roleAccess";
@@ -144,6 +145,24 @@ export function useManagementCommandCenter() {
         0,
       );
 
+      let coreFinance255 = null;
+      let coreFinanceWarnings: string[] = [];
+      if (canViewFinance) {
+        const unpaidOrderIds = orders
+          .filter(
+            (o) =>
+              o.payment_status !== "paid" &&
+              !["draft", "cart", "cancelled"].includes(o.status),
+          )
+          .map((o) => o.id);
+        coreFinance255 = await fetchCoreFinance255CollectionsSnapshot({
+          unpaidOrderIds,
+          periodStartIso: filters.periodStart,
+          periodEndIso: filters.periodEnd,
+        });
+        coreFinanceWarnings = coreFinance255.warnings;
+      }
+
       const built = buildManagementCommandCenterProjection({
         orders,
         orderItems,
@@ -176,6 +195,8 @@ export function useManagementCommandCenter() {
         eanOffset: filters.eanPage * filters.eanPageSize,
         eanLimit: filters.eanPageSize,
         includeFinance: canViewFinance,
+        coreFinance255,
+        coreFinanceWarnings,
       });
 
       setProjection(built);
