@@ -14,6 +14,7 @@ import {
   OPERATOR_INBOX_INITIAL_PACKET_LIMIT,
   OPERATOR_INBOX_PACKET_PAGE_SIZE,
   fetchOpenPacketsPage,
+  fetchPacketById,
   mergeAppendUniqueById,
   mergeAppendUniqueByKey,
   withTimeout,
@@ -96,6 +97,26 @@ describe("fetchOpenPacketsPage", () => {
     await expect(fetchOpenPacketsPage(0, OPERATOR_INBOX_INITIAL_PACKET_LIMIT)).rejects.toMatchObject({
       message: "connection reset",
     });
+  });
+});
+
+describe("fetchPacketById", () => {
+  beforeEach(() => {
+    fromMock.mockReset();
+  });
+
+  it("fetches a single packet by governed UUID", async () => {
+    const row = makePacketRow("packet-1", "2026-08-15T10:00:00Z");
+    const maybeSingle = vi.fn().mockResolvedValue({ data: row, error: null });
+    const eq = vi.fn().mockReturnValue({ maybeSingle });
+    const select = vi.fn().mockReturnValue({ eq });
+    fromMock.mockReturnValue({ select, eq, maybeSingle });
+
+    const result = await fetchPacketById("packet-1");
+
+    expect(fromMock).toHaveBeenCalledWith("whatsapp_message_packets");
+    expect(eq).toHaveBeenCalledWith("id", "packet-1");
+    expect(result?.id).toBe("packet-1");
   });
 });
 

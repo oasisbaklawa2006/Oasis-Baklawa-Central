@@ -71,28 +71,38 @@ const SalesDashboard = () => {
     const companyIds = companyList.map((c) => c.id);
     if (companyIds.length > 0) {
       const monthStart = startOfMonth(new Date()).toISOString();
-      const { data: orders } = await supabase
+      const { data: orders, error: ordersError } = await supabase
         .from("orders")
         .select("id, company_id, sales_order_value, status, created_at")
         .in("company_id", companyIds)
         .gte("created_at", monthStart)
         .not("status", "in", '("draft","cart","cancelled")');
-      setMonthOrders(orders || []);
 
-      const { data: ints } = await supabase
+      const { data: ints, error: intsError } = await supabase
         .from("client_interactions")
         .select("id, company_id")
         .in("company_id", companyIds)
         .eq("executive_id", user.id);
-      setInteractions(ints || []);
 
       const today = format(new Date(), "yyyy-MM-dd");
-      const { count } = await supabase
+      const { count, error: tasksError } = await supabase
         .from("crm_tasks")
         .select("id", { count: "exact", head: true })
         .eq("sales_exec_id", user.id)
         .eq("status", "pending")
         .lt("due_date", today);
+
+      if (ordersError || intsError || tasksError) {
+        setRosterLoadFailed(true);
+        setMonthOrders([]);
+        setInteractions([]);
+        setOverdueTasks(0);
+        setDataLoading(false);
+        return;
+      }
+
+      setMonthOrders(orders || []);
+      setInteractions(ints || []);
       setOverdueTasks(count || 0);
     } else {
       setMonthOrders([]);

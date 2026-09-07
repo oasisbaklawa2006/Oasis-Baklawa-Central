@@ -30,7 +30,7 @@ describe("Point 74 — CRM-lite sales assistance (Agent #8 workstation lock)", (
   it("writes interactions through governed client_interactions contract", () => {
     expect(interactions).toContain('from("client_interactions").insert');
     expect(dashboard).toContain("account_manager_id");
-    expect(dashboard).not.toContain('from("client_interactions").insert');
+    expect(dashboard).not.toMatch(/from\(\s*["']client_interactions["']\s*\)\s*\.\s*insert/);
   });
 
   it("links roster clients into the assist workspace", () => {

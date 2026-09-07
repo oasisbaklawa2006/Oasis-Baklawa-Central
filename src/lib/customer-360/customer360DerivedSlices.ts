@@ -158,6 +158,7 @@ export function buildCustomerHealthReadModel(
 
   if (overdueTaskCount > 0) {
     nextBestActions.push({
+      key: "overdue_tasks",
       action: "Complete or reschedule overdue CRM tasks",
       reason: `${overdueTaskCount} task(s) are past due.`,
       priority: 1,
@@ -166,6 +167,7 @@ export function buildCustomerHealthReadModel(
 
   if (daysSinceLastInteraction == null || daysSinceLastInteraction >= 14) {
     nextBestActions.push({
+      key: "log_interaction",
       action: "Log a call, visit, or WhatsApp interaction",
       reason:
         daysSinceLastInteraction == null
@@ -180,6 +182,7 @@ export function buildCustomerHealthReadModel(
   );
   if (pendingFollowUps.length > 0) {
     nextBestActions.push({
+      key: "due_follow_ups",
       action: "Execute due interaction follow-ups",
       reason: `${pendingFollowUps.length} interaction follow-up date(s) are due or overdue.`,
       priority: 2,
@@ -188,6 +191,7 @@ export function buildCustomerHealthReadModel(
 
   if (creditUtilizationPercent != null && creditUtilizationPercent >= 80) {
     nextBestActions.push({
+      key: "credit_review",
       action: "Review credit exposure with finance before promising additional credit",
       reason: `Credit utilization is ${creditUtilizationPercent}% of limit.`,
       priority: 3,

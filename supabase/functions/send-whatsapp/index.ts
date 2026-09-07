@@ -185,10 +185,25 @@ serve(async (req) => {
 
     const companyId = typeof payload.company_id === "string" ? payload.company_id : null;
     const orderId = typeof payload.order_id === "string" ? payload.order_id : null;
-    const packetId = typeof payload.packet_id === "string" ? payload.packet_id.trim().toLowerCase() : null;
+    const rawPacketId = typeof payload.packet_id === "string" ? payload.packet_id.trim().toLowerCase() : null;
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
       auth: { persistSession: false },
     });
+
+    const UUID_PATTERN =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+    async function resolveGovernedPacketId(packetId: string | null): Promise<string | null> {
+      if (!packetId || !UUID_PATTERN.test(packetId)) return null;
+      const { data } = await supabaseAdmin
+        .from("whatsapp_message_packets")
+        .select("id")
+        .eq("id", packetId)
+        .maybeSingle();
+      return data?.id ? packetId : null;
+    }
+
+    const governedPacketId = rawPacketId ? await resolveGovernedPacketId(rawPacketId) : null;
 
     const result = await sendWithFallback(apiPhone, fullMessage);
     await supabaseAdmin.from("debug_webhooks").insert({
@@ -226,16 +241,16 @@ serve(async (req) => {
     }
 
     if (companyId) {
+      const autoNotes = `[AUTO] ${message.substring(0, 500)}`;
+      const notes = governedPacketId
+        ? `${autoNotes}\n[WA_PACKET:${governedPacketId}]`
+        : autoNotes;
       await supabaseAdmin.from("client_interactions").insert({
         company_id: companyId,
         executive_id: authorization.caller.userId,
         interaction_type: "whatsapp",
-        notes: `[AUTO] ${message.substring(0, 500)}`,
-        outcome: packetId
-          ? `wa_packet:${packetId}`
-          : result.success
-            ? "delivered"
-            : "failed",
+        notes,
+        outcome: result.success ? "delivered" : "failed",
       });
     }
 

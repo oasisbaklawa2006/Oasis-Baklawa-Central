@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useCustomer360 } from "@/hooks/useCustomer360";
+import { useAuth } from "@/hooks/useAuth";
 import { CUSTOMER360_COMMUNICATION_HISTORY_LIMIT } from "@/lib/crm-communication-history/crmCommunicationHistoryTypes";
 import type { Customer360NextBestAction, Customer360Slice, Customer360SliceAvailability } from "@/lib/customer-360/customer360Types";
 import SalesSupportEscalationDialog from "@/components/sales/crm-lite/SalesSupportEscalationDialog";
@@ -62,11 +63,18 @@ function SliceUnavailable({ slice }: { slice: Customer360Slice<unknown> }) {
 }
 
 function nextBestActionTarget(action: Customer360NextBestAction, variant: "admin" | "sales"): string | null {
-  if (action.action.includes("overdue CRM tasks")) return "#customer360-tasks";
-  if (action.action.includes("follow-up")) return "#customer360-interactions";
-  if (variant === "sales" && action.action.includes("Log a call")) return "/sales/dashboard?crmTab=assist";
-  if (variant === "sales" && action.action.includes("credit exposure")) return "/sales/dashboard?crmTab=credit";
-  return null;
+  switch (action.key) {
+    case "overdue_tasks":
+      return "#customer360-tasks";
+    case "due_follow_ups":
+      return "#customer360-interactions";
+    case "log_interaction":
+      return variant === "sales" ? "/sales/dashboard?crmTab=assist" : null;
+    case "credit_review":
+      return variant === "sales" ? "/sales/dashboard?crmTab=credit" : null;
+    default:
+      return null;
+  }
 }
 
 export default function Customer360Page({ variant }: { variant?: "admin" | "sales" }) {
@@ -74,8 +82,9 @@ export default function Customer360Page({ variant }: { variant?: "admin" | "sale
   const location = useLocation();
   const resolvedVariant = variant ?? (location.pathname.startsWith("/sales/clients/") ? "sales" : "admin");
   const [supportDialogOpen, setSupportDialogOpen] = useState(false);
+  const { role } = useAuth();
   const { state, refresh } = useCustomer360(companyId, {
-    salesExecutiveViewer: resolvedVariant === "sales",
+    salesExecutiveViewer: role === "SALES_EXECUTIVE",
   });
   const backHref = resolvedVariant === "sales" ? "/sales/dashboard" : "/admin/clients";
   const backLabel = resolvedVariant === "sales" ? "Sales console" : "Client governance";
@@ -538,7 +547,11 @@ export default function Customer360Page({ variant }: { variant?: "admin" | "sale
                     <li key={link.draftId} className="rounded-lg border p-3 text-sm">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <p className="font-medium">{link.status.replace(/_/g, " ")}</p>
-                        <Badge variant="outline">{link.readinessOverallScore ?? "—"}% ready</Badge>
+                        <Badge variant="outline">
+                          {link.readinessOverallScore == null
+                            ? "—"
+                            : `${link.readinessOverallScore}% ready`}
+                        </Badge>
                       </div>
                       <p className="mt-1 text-muted-foreground">
                         Packet <code className="rounded bg-muted px-1 text-xs">{link.packetId.slice(0, 8)}</code>

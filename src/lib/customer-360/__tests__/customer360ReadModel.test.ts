@@ -303,4 +303,31 @@ describe("fetchCustomer360ReadModel", () => {
     expect(interactionEqCalls).toContainEqual({ column: "executive_id", value: "sales-exec-1" });
     expect(taskEqCalls).toContainEqual({ column: "sales_exec_id", value: "sales-exec-1" });
   });
+
+  it("withholds customer health when CRM-lite source slices fail", async () => {
+    const { supabase } = await import("@/integrations/supabase/client");
+    vi.mocked(supabase.from).mockImplementation((table: string) => {
+      if (table === "companies") {
+        return createQuery({ data: companyRow, error: null }) as never;
+      }
+      if (table === "orders") {
+        return createQuery({ data: [], error: null }) as never;
+      }
+      if (table === "client_interactions") {
+        return createQuery({ data: null, error: { message: "rls denied" } }) as never;
+      }
+      if (table === "crm_tasks" || table === "delivery_addresses" || table === "sales_order_drafts") {
+        return createQuery({ data: [], error: null }) as never;
+      }
+      throw new Error(`Unexpected table ${table}`);
+    });
+
+    const model = await fetchCustomer360ReadModel(VALID_UUID, {
+      viewerCompanyId: null,
+      isStorefrontViewer: false,
+    });
+
+    expect(model.customerHealth.availability).toBe("error");
+    expect(model.customerHealth.errorMessage).toContain("health signals are withheld");
+  });
 });

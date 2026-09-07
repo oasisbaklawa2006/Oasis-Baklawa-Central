@@ -99,7 +99,14 @@ export type Customer360HealthSignal = {
   factualBasis: string;
 };
 
+export type Customer360NextBestActionKey =
+  | "overdue_tasks"
+  | "log_interaction"
+  | "due_follow_ups"
+  | "credit_review";
+
 export type Customer360NextBestAction = {
+  key: Customer360NextBestActionKey;
   action: string;
   reason: string;
   priority: number;

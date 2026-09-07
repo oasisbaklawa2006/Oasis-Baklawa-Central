@@ -67,17 +67,7 @@ export function withTimeout<T>(promise: Promise<T>, ms: number, message: string)
   });
 }
 
-/**
- * Fetch one bounded, newest-first page of open packets. Always uses `.range` with an
- * explicit upper bound — callers must never request an unbounded window.
- */
-export async function fetchOpenPacketsPage(offset: number, limit: number): Promise<OperatorInboxPacket[]> {
-  const { data, error } = await supabase
-    // whatsapp_* tables not in generated Database types yet
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .from("whatsapp_message_packets" as any)
-    .select(
-      `
+const PACKET_SELECT = `
       id,
       contact_id,
       fragment_count,
@@ -90,8 +80,32 @@ export async function fetchOpenPacketsPage(offset: number, limit: number): Promi
         customer_name,
         wa_contact_id
       )
-    `,
-    )
+    `;
+
+/** Fetch a single packet by governed UUID for deep-link selection. */
+export async function fetchPacketById(packetId: string): Promise<OperatorInboxPacket | null> {
+  const { data, error } = await supabase
+    // whatsapp_* tables not in generated Database types yet
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .from("whatsapp_message_packets" as any)
+    .select(PACKET_SELECT)
+    .eq("id", packetId.toLowerCase())
+    .maybeSingle();
+
+  if (error) throw error;
+  return data ? (data as unknown as OperatorInboxPacket) : null;
+}
+
+/**
+ * Fetch one bounded, newest-first page of open packets. Always uses `.range` with an
+ * explicit upper bound — callers must never request an unbounded window.
+ */
+export async function fetchOpenPacketsPage(offset: number, limit: number): Promise<OperatorInboxPacket[]> {
+  const { data, error } = await supabase
+    // whatsapp_* tables not in generated Database types yet
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .from("whatsapp_message_packets" as any)
+    .select(PACKET_SELECT)
     .eq("status", "open")
     // Secondary tiebreaker: `last_message_at` alone isn't unique, and offset-based
     // pagination over a non-unique sort key can skip or duplicate rows across pages.

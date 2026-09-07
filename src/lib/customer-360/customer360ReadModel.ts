@@ -287,6 +287,8 @@ export async function fetchCustomer360ReadModel(
     interactionsSlice.availability === "partial_crm_lite" ? interactionsSlice.data ?? [] : [];
   const mappedTasks = tasksSlice.availability === "partial_crm_lite" ? tasksSlice.data ?? [] : [];
   const mappedProfile = profileSlice.data;
+  const healthInputsDegraded =
+    interactionsSlice.availability === "error" || tasksSlice.availability === "error";
 
   const branchesAndContactsSlice: Customer360Slice<Customer360DeliverySite[]> =
     deliverySitesRes.error
@@ -328,7 +330,7 @@ export async function fetchCustomer360ReadModel(
         };
 
   const customerHealthSlice: Customer360Slice<Customer360HealthReadModel> =
-    mappedProfile
+    mappedProfile && !healthInputsDegraded
       ? {
           availability: "available",
           programmeOwner: "POINT64",
@@ -338,7 +340,9 @@ export async function fetchCustomer360ReadModel(
       : {
           availability: "error",
           programmeOwner: "POINT64",
-          errorMessage: "Company profile unavailable for health signal projection.",
+          errorMessage: mappedProfile
+            ? "CRM-lite interaction or task reads failed; health signals are withheld."
+            : "Company profile unavailable for health signal projection.",
         };
 
   const whatsappOrderLinkageSlice: Customer360Slice<Customer360WhatsappOrderLink[]> = waDraftsRes.error

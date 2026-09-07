@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { format } from "date-fns";
+import { format, addDays, parseISO } from "date-fns";
 
 interface Company {
   id: string;
@@ -208,9 +208,8 @@ export default function ClientInteractionsTab({
                       variant="ghost"
                       className="h-7 text-xs"
                       onClick={() => {
-                        const next = new Date(int.follow_up_date!);
-                        next.setDate(next.getDate() + 7);
-                        void handleFollowUpUpdate(int.id, format(next, "yyyy-MM-dd"));
+                        const next = format(addDays(parseISO(int.follow_up_date!), 7), "yyyy-MM-dd");
+                        void handleFollowUpUpdate(int.id, next);
                       }}
                     >
                       Snooze 7d

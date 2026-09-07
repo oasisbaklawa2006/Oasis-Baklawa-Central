@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { format } from "date-fns";
+import { format, addDays, parseISO } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -226,11 +226,10 @@ export default function SalesCrmLiteWorkspace({ userId, companies, assistFocusCo
 
   const handleSnoozeFollowUp = async (interaction: CrmLiteInteraction, days = 7) => {
     if (!interaction.follow_up_date) return;
-    const next = new Date(interaction.follow_up_date);
-    next.setDate(next.getDate() + days);
+    const nextDate = format(addDays(parseISO(interaction.follow_up_date), days), "yyyy-MM-dd");
     const { error } = await supabase
       .from("client_interactions")
-      .update({ follow_up_date: format(next, "yyyy-MM-dd") })
+      .update({ follow_up_date: nextDate })
       .eq("id", interaction.id);
     if (error) {
       toast({ title: "Snooze failed", description: error.message, variant: "destructive" });

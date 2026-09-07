@@ -39,3 +39,27 @@ export function parseCrmCommunicationDeepLink(
 export function formatWaPacketOutcome(packetId: string): string {
   return `${WA_PACKET_OUTCOME_PREFIX}${packetId.toLowerCase()}`;
 }
+
+export function isGovernedPacketUuid(value: string): boolean {
+  return UUID_PATTERN.test(value);
+}
+
+export function formatWaPacketNotesLineage(packetId: string): string {
+  return `[WA_PACKET:${packetId.toLowerCase()}]`;
+}
+
+/** Build governed client_interactions log fields for outbound WhatsApp sends. */
+export function buildWhatsappClientInteractionLog(params: {
+  message: string;
+  success: boolean;
+  packetId: string | null;
+}): { notes: string; outcome: string } {
+  const autoNotes = `[AUTO] ${params.message.substring(0, 500)}`;
+  const notes = params.packetId
+    ? `${autoNotes}\n${formatWaPacketNotesLineage(params.packetId)}`
+    : autoNotes;
+  return {
+    notes,
+    outcome: params.success ? "delivered" : "failed",
+  };
+}
