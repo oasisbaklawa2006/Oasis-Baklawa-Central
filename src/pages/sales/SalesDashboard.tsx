@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, useMemo } from "react";
+import { useCallback, useEffect, useState, useMemo, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -39,9 +39,11 @@ const SalesDashboard = () => {
   const [assistFocusCompanyId, setAssistFocusCompanyId] = useState<string | null>(null);
   const [searchParams] = useSearchParams();
   const initialCrmTab = searchParams.get("crmTab") ?? undefined;
+  const rosterFetchGenerationRef = useRef(0);
 
   const fetchRoster = useCallback(async () => {
     if (!user) return;
+    const gen = ++rosterFetchGenerationRef.current;
     setDataLoading(true);
     setRosterLoadFailed(false);
     const { data: comps, error } = await supabase
@@ -51,6 +53,7 @@ const SalesDashboard = () => {
       .eq("account_manager_id", user.id)
       .order("business_name");
     if (error) {
+      if (gen !== rosterFetchGenerationRef.current) return;
       setRosterLoadFailed(true);
       setCompanies([]);
       setMonthOrders([]);
@@ -66,6 +69,7 @@ const SalesDashboard = () => {
         return { ...company, wallet_balance: null } as SalesCompany;
       }
     }));
+    if (gen !== rosterFetchGenerationRef.current) return;
     setCompanies(companyList);
 
     const companyIds = companyList.map((c) => c.id);
@@ -93,6 +97,7 @@ const SalesDashboard = () => {
         .lt("due_date", today);
 
       if (ordersError || intsError || tasksError) {
+        if (gen !== rosterFetchGenerationRef.current) return;
         setRosterLoadFailed(true);
         setMonthOrders([]);
         setInteractions([]);
@@ -101,14 +106,17 @@ const SalesDashboard = () => {
         return;
       }
 
+      if (gen !== rosterFetchGenerationRef.current) return;
       setMonthOrders(orders || []);
       setInteractions(ints || []);
       setOverdueTasks(count || 0);
     } else {
+      if (gen !== rosterFetchGenerationRef.current) return;
       setMonthOrders([]);
       setInteractions([]);
       setOverdueTasks(0);
     }
+    if (gen !== rosterFetchGenerationRef.current) return;
     setDataLoading(false);
   }, [user]);
 

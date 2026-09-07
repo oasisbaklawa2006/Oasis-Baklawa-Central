@@ -82,18 +82,48 @@ const PACKET_SELECT = `
       )
     `;
 
+type PacketSelectRow = {
+  id: string;
+  contact_id: string;
+  fragment_count: number;
+  status: string;
+  first_message_at: string;
+  last_message_at: string;
+  stitched_content: unknown;
+  whatsapp_contacts: {
+    phone_number: string | null;
+    customer_name: string | null;
+    wa_contact_id: string | null;
+  } | null;
+};
+
+function mapPacketRow(row: PacketSelectRow): OperatorInboxPacket {
+  const contact = row.whatsapp_contacts;
+  return {
+    id: row.id,
+    contact_id: row.contact_id,
+    fragment_count: row.fragment_count,
+    status: row.status,
+    first_message_at: row.first_message_at,
+    last_message_at: row.last_message_at,
+    stitched_content: row.stitched_content,
+    whatsapp_contacts: contact,
+    customer_name: contact?.customer_name ?? "Unknown",
+    phone_number: contact?.phone_number ?? "---",
+    wa_contact_id: contact?.wa_contact_id ?? null,
+  };
+}
+
 /** Fetch a single packet by governed UUID for deep-link selection. */
 export async function fetchPacketById(packetId: string): Promise<OperatorInboxPacket | null> {
   const { data, error } = await supabase
-    // whatsapp_* tables not in generated Database types yet
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .from("whatsapp_message_packets" as any)
+    .from("whatsapp_message_packets")
     .select(PACKET_SELECT)
     .eq("id", packetId.toLowerCase())
     .maybeSingle();
 
   if (error) throw error;
-  return data ? (data as unknown as OperatorInboxPacket) : null;
+  return data ? mapPacketRow(data as PacketSelectRow) : null;
 }
 
 /**
@@ -102,9 +132,7 @@ export async function fetchPacketById(packetId: string): Promise<OperatorInboxPa
  */
 export async function fetchOpenPacketsPage(offset: number, limit: number): Promise<OperatorInboxPacket[]> {
   const { data, error } = await supabase
-    // whatsapp_* tables not in generated Database types yet
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .from("whatsapp_message_packets" as any)
+    .from("whatsapp_message_packets")
     .select(PACKET_SELECT)
     .eq("status", "open")
     // Secondary tiebreaker: `last_message_at` alone isn't unique, and offset-based
@@ -114,7 +142,7 @@ export async function fetchOpenPacketsPage(offset: number, limit: number): Promi
     .range(offset, offset + limit - 1);
 
   if (error) throw error;
-  return (data ?? []) as unknown as OperatorInboxPacket[];
+  return (data ?? []).map((row) => mapPacketRow(row as PacketSelectRow));
 }
 
 /** Append-only merge that keeps prior order and drops duplicates already present (by id). */
