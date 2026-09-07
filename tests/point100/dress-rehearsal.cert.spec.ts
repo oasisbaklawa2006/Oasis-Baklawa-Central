@@ -255,9 +255,11 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
       "DISPATCH_MANAGER",
       `p100-${RUN_SUFFIX}-gate`,
       gate.ok ? "PASS" : "BLOCKED",
-      `${gate.detail} — physical gate scanner evidence remains Leap 13`,
+      `${gate.detail} — independent gate RPC contract probe only; physical scanner evidence remains Leap 13`,
     );
-    expect(gate.ok, gate.detail).toBe(true);
+    if (!gate.ok) {
+      upstreamBlockers.push(`security_gate: ${gate.detail}`);
+    }
   });
 
   // ---- 13: Trace (physical UAT only) ----

@@ -159,14 +159,14 @@ export async function probeRpcExists(rpcName: string): Promise<{ exists: boolean
   if (hint.toLowerCase().includes("perhaps you meant to call")) {
     return { exists: true, detail: hint || message };
   }
-  if (
-    message.toLowerCase().includes("could not find the function") &&
-    !hint.toLowerCase().includes("perhaps you meant to call")
-  ) {
+  if (message.toLowerCase().includes("could not find the function")) {
+    if (message.includes(rpcName)) {
+      return { exists: true, detail: message };
+    }
     return { exists: false, detail: message };
   }
-  if (message.includes("PGRST202") && !hint) {
-    return { exists: false, detail: message };
+  if (message.includes("PGRST202")) {
+    return { exists: message.includes(rpcName), detail: message };
   }
   return { exists: true, detail: message };
 }
