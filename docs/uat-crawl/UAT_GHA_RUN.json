@@ -1,9 +1,9 @@
 {
-  "runId": "34155931360",
+  "runId": "34164614997",
   "runAttempt": "1",
   "runTranche": "credential-prefix-unblock",
   "ref": "refs/heads/cursor/physical-uat-readiness-matrix-e763",
-  "sha": "38a9c997b7902e8c9cfe31ba987a58223a650f2f",
+  "sha": "89c064587043380bc8f0b5e125f3255fcf38d5ef",
   "currentMainHoldSha": "15c59a3f54c92f2b289bd150005bcd7114b51a93",
   "resolvedDeploySha": "",
   "continuationFallback": false,
@@ -13,5 +13,5 @@
   "fail493EvidencePreserved": "Pre-fix FAIL @ 8f042fa (run 34015742110) + preview PASS @ 9715c20d (run 34016393457) + e2f123b0 evidence preserved append-only; rebaseline target 15c59a3f (#507 POINT61)",
   "priorEvidenceSha": "e2f123b0fe257b8a1f39ec40d5f544fff1ebe313",
   "uat005CurrentMainPass": "",
-  "completedAt": "2026-09-07T19:32:03Z"
+  "completedAt": "2026-09-07T21:52:02Z"
 }
