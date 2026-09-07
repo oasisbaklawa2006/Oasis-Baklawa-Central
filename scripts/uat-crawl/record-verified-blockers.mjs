@@ -12,16 +12,16 @@ const VERIFICATION_NOTE =
   process.env.UAT_WATCHDOG_VERIFICATION?.trim() ||
   "Watchdog re-verification — no fabricated PASS; blocked IDs retain exact secret names only.";
 const RESOLVED_SHA =
-  process.env.UAT_RESOLVED_DEPLOY_SHA?.trim() || "e2f123b0fe257b8a1f39ec40d5f544fff1ebe313";
+  process.env.UAT_RESOLVED_DEPLOY_SHA?.trim() || "15c59a3f54c92f2b289bd150005bcd7114b51a93";
 const RESOLVED_URL =
   process.env.TEST_PREVIEW_URL?.trim() ||
   process.env.UAT_CRAWL_BASE_URL?.trim() ||
-  "https://oasis-baklawa-central-8lkgmf1q2-oasisbaklawa2006-6222s-projects.vercel.app";
+  "";
 const CURRENT_MAIN_HOLD =
-  process.env.UAT_TARGET_SHA?.trim() || "e2f123b0fe257b8a1f39ec40d5f544fff1ebe313";
+  process.env.UAT_TARGET_SHA?.trim() || "15c59a3f54c92f2b289bd150005bcd7114b51a93";
 const DEPLOY_PROVENANCE =
   process.env.UAT_DEPLOY_PROVENANCE_LABEL?.trim() ||
-  "Current-main certification @ e2f123b0 — append-only evidence preserved.";
+  "Current-main rebaseline @ 15c59a3f (#507 POINT61) — prior e2f123b0 evidence preserved append-only.";
 
 const PERSONA_PREFIX = {
   ADMIN_STAFF: "TEST_ADMIN",

@@ -1,15 +1,15 @@
 #!/usr/bin/env node
-/** Reconcile 131-surface census vs current-main automated UAT evidence @ e2f123b0. */
+/** Reconcile 131-surface census vs current-main automated UAT evidence @ 15c59a3f. */
 import fs from "node:fs";
 import path from "node:path";
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
-const CURRENT_MAIN_SHA = "e2f123b0fe257b8a1f39ec40d5f544fff1ebe313";
-const DEPLOY_URL =
-  process.env.UAT_CRAWL_BASE_URL?.trim() ||
-  "https://oasis-baklawa-central-8lkgmf1q2-oasisbaklawa2006-6222s-projects.vercel.app";
+const CURRENT_MAIN_SHA =
+  process.env.UAT_TARGET_SHA?.trim() || "15c59a3f54c92f2b289bd150005bcd7114b51a93";
+const PRIOR_EVIDENCE_SHA = "e2f123b0fe257b8a1f39ec40d5f544fff1ebe313";
+const DEPLOY_URL = process.env.UAT_CRAWL_BASE_URL?.trim() || "";
 const RUN_ID = process.env.GITHUB_RUN_ID || "reconcile-local";
-const LAST_GHA_RUN = process.env.UAT_LAST_GHA_RUN?.trim() || "34046709938";
+const LAST_GHA_RUN = process.env.UAT_LAST_GHA_RUN?.trim() || "34056691981";
 
 const PUBLIC_RUNNABLE = new Set(["UAT-0001", "UAT-0004", "UAT-0005", "UAT-0008", "UAT-0009"]);
 
@@ -129,7 +129,7 @@ const payload = {
   lastGhaRun: LAST_GHA_RUN,
   currentMainSha: CURRENT_MAIN_SHA,
   deployUrl: DEPLOY_URL,
-  deployProvenance: "Current-main #497 merge @ e2f123b0 — automated crawl target",
+  deployProvenance: "Current-main rebaseline @ 15c59a3f (#507 POINT61) — prior e2f123b0 evidence preserved append-only",
   policy:
     "Evidence-only PR #462 — no remediation. Physical device PASS requires human artifacts; automated S0–S3 ≠ physical PASS.",
   counts: {
