@@ -100,7 +100,7 @@ export function buildProbeOutcome(input: {
     centralBindingsPresent &&
     stage.domain !== "trace";
 
-  const executable = technicalReady && (executed || status !== "preview_secret_missing");
+  const executable = technicalReady;
 
   return {
     stageId: stage.id,

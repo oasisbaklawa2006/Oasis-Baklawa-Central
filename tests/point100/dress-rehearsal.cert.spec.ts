@@ -150,6 +150,34 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
     );
     expect(proofError, proofError?.message).toBeNull();
     expect(verifyError, verifyError?.message).toBeNull();
+
+    const { data: refreshedFacts, error: refreshedFactsError } = await steppedUp.rpc("get_finance_operations_clearance_facts_v1", {
+      p_order_id: point37OrderId,
+      p_pi_id: piId,
+      p_commercial_version_id: commercialVersionId,
+    });
+    if (refreshedFactsError) throw refreshedFactsError;
+    const refreshedRow = (Array.isArray(refreshedFacts) ? refreshedFacts[0] : refreshedFacts) as {
+      latest_clearance_decision?: string | null;
+      eligible_for_operations_clearance?: boolean;
+    };
+    if (refreshedRow.latest_clearance_decision !== "GRANTED") {
+      const clearanceIdentity = `p100-${RUN_SUFFIX}-clearance`;
+      const { error: decideError } = await steppedUp.rpc("decide_finance_operations_clearance_v1", {
+        p_order_id: point37OrderId,
+        p_pi_id: piId,
+        p_commercial_version_id: commercialVersionId,
+        p_decision: "GRANTED",
+        p_reason: "Point100 dress rehearsal operations clearance",
+        p_evidence_reference: `point100-clearance:${RUN_SUFFIX}`,
+        p_source_channel: "CENTRAL",
+        p_source_reference: `point100:${point37OrderId}`,
+        p_correlation_id: `central:pf6c:point100:${clearanceIdentity}`,
+        p_idempotency_key: `central:pf6c:point100:${clearanceIdentity}`,
+        p_actor_id: actorId,
+      });
+      expect(decideError, decideError?.message).toBeNull();
+    }
   });
 
   // ---- 5: Production release ----
@@ -159,7 +187,6 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
     const releaseCorrelation = `p100-${RUN_SUFFIX}-release`;
     const { data, error } = await client.rpc("release_order_to_in_production_v1", {
       p_order_id: point37OrderId,
-      p_correlation_id: releaseCorrelation,
     });
     const ok = !error && (data as { ok?: boolean } | null)?.ok !== false;
     recordStage(
@@ -276,7 +303,6 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
     const correlationId = `p100-${RUN_SUFFIX}-unauth-release`;
     const { data, error } = await client.rpc("release_order_to_in_production_v1", {
       p_order_id: goldenOrderId,
-      p_correlation_id: correlationId,
     });
     const rejected = Boolean(error) || (data as { ok?: boolean } | null)?.ok === false;
     expect(rejected).toBe(true);

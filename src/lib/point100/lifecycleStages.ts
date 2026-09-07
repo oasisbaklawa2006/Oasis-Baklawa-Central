@@ -52,7 +52,7 @@ export const POINT100_LIFECYCLE_STAGES: readonly Point100LifecycleStage[] = [
     domain: "finance",
     coreRpcs: ["verify_order_payment_v1", "get_finance_operations_clearance_facts_v1"],
     centralBindings: ["FinanceGovernanceBoard", "financeClearanceAuthorityClient"],
-    fixtureEnvKeys: ["FACTORY_CERT_FINANCE_HEAD_EMAIL"],
+    fixtureEnvKeys: ["FACTORY_CERT_POINT37_ORDER_ID"],
     negativePathIds: ["active_finance_hold", "wrong_tenant_role"],
   },
   {

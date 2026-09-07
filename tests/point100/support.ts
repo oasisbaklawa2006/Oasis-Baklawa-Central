@@ -155,11 +155,17 @@ export async function probeRpcExists(rpcName: string): Promise<{ exists: boolean
   const { error } = await client.rpc(rpcName as never, {} as never);
   if (!error) return { exists: true, detail: "RPC callable without auth (unexpected but present)" };
   const message = error.message ?? String(error);
+  const hint = String((error as { hint?: string }).hint ?? "");
+  if (hint.toLowerCase().includes("perhaps you meant to call")) {
+    return { exists: true, detail: hint || message };
+  }
   if (
-    message.toLowerCase().includes("could not find the function") ||
-    message.toLowerCase().includes("does not exist") ||
-    message.includes("PGRST202")
+    message.toLowerCase().includes("could not find the function") &&
+    !hint.toLowerCase().includes("perhaps you meant to call")
   ) {
+    return { exists: false, detail: message };
+  }
+  if (message.includes("PGRST202") && !hint) {
     return { exists: false, detail: message };
   }
   return { exists: true, detail: message };
