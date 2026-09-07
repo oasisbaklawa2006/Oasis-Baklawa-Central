@@ -97,20 +97,20 @@ test.describe("Macro journey — Dispatch Manager least privilege", () => {
     });
     await expect(page).not.toHaveURL(/\/admin\/finance-board\/?(?:$|\?)/, { timeout: 15_000 });
 
-    for (const blockedRoute of [
-      "/operations-controller",
-      "/admin/cmd-war-room",
-      "/admin/heartbeat",
-      "/admin/execution-command-center",
-      "/admin/central-pool",
-    ]) {
-      await page.goto(`${getPreviewUrl()}${blockedRoute}`, {
+    const blockedRoutes: { path: string; urlPattern: RegExp }[] = [
+      { path: "/operations-controller", urlPattern: /\/operations-controller\/?(?:$|\?)/ },
+      { path: "/admin/cmd-war-room", urlPattern: /\/admin\/cmd-war-room\/?(?:$|\?)/ },
+      { path: "/admin/heartbeat", urlPattern: /\/admin\/heartbeat\/?(?:$|\?)/ },
+      { path: "/admin/execution-command-center", urlPattern: /\/admin\/execution-command-center\/?(?:$|\?)/ },
+      { path: "/admin/central-pool", urlPattern: /\/admin\/central-pool\/?(?:$|\?)/ },
+    ];
+
+    for (const blockedRoute of blockedRoutes) {
+      await page.goto(`${getPreviewUrl()}${blockedRoute.path}`, {
         waitUntil: "domcontentloaded",
         timeout: 45_000,
       });
-      await expect(page).not.toHaveURL(new RegExp(`${blockedRoute.replace(/\//g, "\\/")}\\/?(?:$|\\?)`), {
-        timeout: 15_000,
-      });
+      await expect(page).not.toHaveURL(blockedRoute.urlPattern, { timeout: 15_000 });
     }
   });
 });
