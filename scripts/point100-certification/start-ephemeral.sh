@@ -23,6 +23,7 @@ Load disposable credentials:
   set +a
 
 Run the full dress rehearsal (fail-closed, no silent skips):
+  export POINT100_ALLOW_DISPOSABLE_BOOTSTRAP=true
   npm run test:point100
 
 Capability matrix only:

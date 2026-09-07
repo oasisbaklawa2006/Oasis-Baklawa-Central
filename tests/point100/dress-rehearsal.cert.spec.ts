@@ -229,7 +229,7 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
       "BLOCKED",
       "physical_uat_only: Trace scanner handover requires Leap 13 device evidence",
     );
-    upstreamBlockers.push("trace_handover: physical_uat_only");
+    upstreamBlockers.push("trace_handover: oasis-trace#37 open — physical_uat_only");
   });
 
   // ---- 14–16: Completion + complaint window ----
