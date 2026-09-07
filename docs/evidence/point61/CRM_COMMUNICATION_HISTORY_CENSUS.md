@@ -12,7 +12,7 @@
 |------|--------|
 | **Base (current main)** | `cb15abcb1d856ed674a1b17dd48a47083457dc16` |
 | **Point59 #503** | **Merged** (squash onto main) |
-| **Point61 PR** | `#507` — Point61-only rebuild (**5 commits** above base; 3 substantive: feature + Gate-4 remedial + Gate-4 final review repair; 2 docs alignment); head `48e8d8b0` |
+| **Point61 PR** | `#507` — Point61-only rebuild (**7 commits** above base; 3 substantive: feature + Gate-4 remedial + Gate-4 final review repair; 4 docs alignment); substantive repair `cfab4a14`; head `e1b94af5` |
 | **Bounded ledger window (Customer 360)** | **25** most recent `client_interactions` rows (`CUSTOMER360_COMMUNICATION_HISTORY_LIMIT`) |
 | **Bounded ledger window (standalone adaptor)** | **100** rows hard ceiling (`STANDALONE_COMMUNICATION_HISTORY_LIMIT`; `resolveStandaloneCommunicationHistoryLimit`) |
 | **Ledger row typing** | `ClientInteractionLedgerRow` derived from generated `Database` `Pick`; `mapClientInteractionLedgerRows()` typed read boundary |
