@@ -12,8 +12,8 @@ export type Customer360LoadState =
   | { status: "identity_error"; failure: Customer360IdentityFailure; message: string }
   | { status: "error"; message: string };
 
-export function useCustomer360(companyId: string | undefined) {
-  const { companyId: viewerCompanyId, role } = useAuth();
+export function useCustomer360(companyId: string | undefined, options?: { salesExecutiveViewer?: boolean }) {
+  const { companyId: viewerCompanyId, role, user } = useAuth();
   const [state, setState] = useState<Customer360LoadState>({ status: "idle" });
   const [refreshToken, setRefreshToken] = useState(0);
   const requestSeqRef = useRef(0);
@@ -42,6 +42,8 @@ export function useCustomer360(companyId: string | undefined) {
         const model = await fetchCustomer360ReadModel(companyId, {
           viewerCompanyId,
           isStorefrontViewer: isStorefrontRole(role),
+          viewerUserId: user?.id ?? null,
+          isSalesExecutiveViewer: options?.salesExecutiveViewer ?? false,
         });
         if (cancelled || requestSeq !== requestSeqRef.current) return;
         setState({ status: "ready", model });
@@ -66,7 +68,7 @@ export function useCustomer360(companyId: string | undefined) {
     return () => {
       cancelled = true;
     };
-  }, [companyId, role, viewerCompanyId, refreshToken]);
+  }, [companyId, role, viewerCompanyId, refreshToken, options?.salesExecutiveViewer, user?.id]);
 
   const refresh = useCallback(() => setRefreshToken((token) => token + 1), []);
 

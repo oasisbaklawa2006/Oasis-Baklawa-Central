@@ -6,10 +6,18 @@ import {
   mapClientInteractionLedgerRows,
 } from "@/lib/crm-communication-history/crmCommunicationHistoryTypes";
 import { parseCrmLiteTickets } from "@/lib/crm-lite/parseCrmLiteTickets";
+import {
+  buildCustomerHealthReadModel,
+  buildFinanceExposureFromProfile,
+  mapDeliveryAddressRow,
+} from "./customer360DerivedSlices";
 import { assertCustomer360CompanyAccess, normalizeCompanyId } from "./customer360Identity";
 import { Customer360IdentityError } from "./customer360Identity";
 import type {
   Customer360CompanyProfile,
+  Customer360DeliverySite,
+  Customer360FinanceExposure,
+  Customer360HealthReadModel,
   Customer360InteractionSummary,
   Customer360OrderSummary,
   Customer360ReadModel,
@@ -73,7 +81,6 @@ export async function fetchCustomer360ReadModel(
   viewer: Customer360ViewerContext,
 ): Promise<Customer360ReadModel> {
   const companyId = normalizeCompanyId(rawCompanyId);
-  assertCustomer360CompanyAccess(companyId, viewer);
 
   const { data: companyRow, error: companyError } = await supabase
     .from("companies")
@@ -90,13 +97,19 @@ export async function fetchCustomer360ReadModel(
     throw new Customer360IdentityError("company_not_found", "No company exists for the requested Customer 360 identity.");
   }
 
+  assertCustomer360CompanyAccess(
+    companyId,
+    viewer,
+    (companyRow as unknown as CompanyRow).account_manager_id,
+  );
+
   const profileSlice: Customer360Slice<Customer360CompanyProfile> = {
     availability: "available",
     programmeOwner: "POINT59",
     data: mapCompanyProfile(companyRow as unknown as CompanyRow),
   };
 
-  const [ordersRes, interactionsRes, tasksRes] = await Promise.all([
+  const [ordersRes, interactionsRes, tasksRes, deliverySitesRes] = await Promise.all([
     supabase
       .from("orders")
       .select("id, order_number, status, sales_order_value, created_at")
@@ -115,6 +128,13 @@ export async function fetchCustomer360ReadModel(
       .select("id, task_type, status, due_date, description, created_at")
       .eq("company_id", companyId)
       .order("due_date", { ascending: true })
+      .limit(25),
+    supabase
+      .from("delivery_addresses")
+      .select("id, label, street_address, city, state, pincode, contact_person, contact_phone, is_default")
+      .eq("company_id", companyId)
+      .order("is_default", { ascending: false })
+      .order("label", { ascending: true })
       .limit(25),
   ]);
 
@@ -226,6 +246,64 @@ export async function fetchCustomer360ReadModel(
         ),
       };
 
+  const mappedInteractions =
+    interactionsSlice.availability === "partial_crm_lite" ? interactionsSlice.data ?? [] : [];
+  const mappedTasks = tasksSlice.availability === "partial_crm_lite" ? tasksSlice.data ?? [] : [];
+  const mappedProfile = profileSlice.data;
+
+  const branchesAndContactsSlice: Customer360Slice<Customer360DeliverySite[]> =
+    deliverySitesRes.error
+      ? {
+          availability: "error",
+          programmeOwner: "POINT60",
+          errorMessage: deliverySitesRes.error.message,
+        }
+      : {
+          availability: "available",
+          programmeOwner: "POINT60",
+          data: (deliverySitesRes.data ?? []).map((row) =>
+            mapDeliveryAddressRow(row as {
+              id: string;
+              label: string;
+              street_address: string;
+              city: string;
+              state: string;
+              pincode: string;
+              contact_person: string | null;
+              contact_phone: string | null;
+              is_default: boolean | null;
+            }),
+          ),
+        };
+
+  const financeExposureSlice: Customer360Slice<Customer360FinanceExposure> =
+    mappedProfile
+      ? {
+          availability: "available",
+          programmeOwner: "POINT77",
+          reason: "Factual exposure from company profile fields; ageing consolidation remains Core-owned.",
+          data: buildFinanceExposureFromProfile(mappedProfile),
+        }
+      : {
+          availability: "error",
+          programmeOwner: "POINT77",
+          errorMessage: "Company profile unavailable for finance exposure projection.",
+        };
+
+  const customerHealthSlice: Customer360Slice<Customer360HealthReadModel> =
+    mappedProfile
+      ? {
+          availability: "available",
+          programmeOwner: "POINT64",
+          reason: "Deterministic signals derived from CRM-lite tasks, interactions, and profile facts only.",
+          data: buildCustomerHealthReadModel(mappedProfile, mappedTasks, mappedInteractions),
+        }
+      : {
+          availability: "error",
+          programmeOwner: "POINT64",
+          errorMessage: "Company profile unavailable for health signal projection.",
+        };
+
   return {
     identity: {
       companyId,
@@ -236,22 +314,13 @@ export async function fetchCustomer360ReadModel(
     interactions: interactionsSlice,
     tasks: tasksSlice,
     tickets: ticketsSlice,
-    branchesAndContacts: notGovernedSlice(
-      "POINT60",
-      "Company branch and contact hierarchy is not yet governed in Central.",
-    ),
+    branchesAndContacts: branchesAndContactsSlice,
     communicationsLedger: communicationsLedgerSlice,
     dispatchHistory: notGovernedSlice(
       "DISPATCH_P0_456",
       "Company-scoped dispatch history aggregate is not yet governed; use order-level dispatch views.",
     ),
-    financeExposure: notGovernedSlice(
-      "POINT77",
-      "Finance ageing and exposure consolidation (Points 77–81) is not yet governed in Customer 360.",
-    ),
-    customerHealth: notGovernedSlice(
-      "POINT64",
-      "Customer health, risk scoring, and next-best-action are not yet governed.",
-    ),
+    financeExposure: financeExposureSlice,
+    customerHealth: customerHealthSlice,
   };
 }

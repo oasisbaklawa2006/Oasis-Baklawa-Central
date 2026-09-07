@@ -28,8 +28,26 @@ export function normalizeCompanyId(raw: string | null | undefined): string {
 export function assertCustomer360CompanyAccess(
   companyId: string,
   viewer: Customer360ViewerContext,
+  accountManagerId?: string | null,
 ): void {
-  if (!viewer.isStorefrontViewer) return;
+  if (!viewer.isStorefrontViewer) {
+    if (viewer.isSalesExecutiveViewer) {
+      if (!viewer.viewerUserId) {
+        throw new Customer360IdentityError(
+          "ambiguous_identity",
+          "Sales executive identity is unresolved; Customer 360 access is blocked.",
+        );
+      }
+      if (!accountManagerId || accountManagerId.toLowerCase() !== viewer.viewerUserId.toLowerCase()) {
+        throw new Customer360IdentityError(
+          "cross_company_access_denied",
+          "This company is not assigned to the signed-in sales executive.",
+        );
+      }
+    }
+    return;
+  }
+
   if (!viewer.viewerCompanyId) {
     throw new Customer360IdentityError(
       "ambiguous_identity",
@@ -46,4 +64,8 @@ export function assertCustomer360CompanyAccess(
 
 export function customer360RouteForCompany(companyId: string): string {
   return `/admin/clients/${normalizeCompanyId(companyId)}`;
+}
+
+export function salesCustomer360RouteForCompany(companyId: string): string {
+  return `/sales/clients/${normalizeCompanyId(companyId)}`;
 }

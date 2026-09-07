@@ -9,7 +9,9 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Loader2, Search, Building2, Wallet, IndianRupee, Phone, MessageSquare, TrendingUp, Target, AlertCircle } from "lucide-react";
+import { Loader2, Search, Building2, Wallet, IndianRupee, Phone, MessageSquare, TrendingUp, Target, AlertCircle, ExternalLink } from "lucide-react";
+import { Link } from "react-router-dom";
+import { salesCustomer360RouteForCompany } from "@/lib/customer-360/customer360Identity";
 import { toast } from "@/hooks/use-toast";
 import { getWalletBalance } from "@/lib/order-authority/creditWalletAuthorityClient";
 import { format, startOfMonth } from "date-fns";
@@ -286,6 +288,7 @@ const SalesDashboard = () => {
                     <TableHead className="text-right">Wallet</TableHead>
                     <TableHead className="text-right">Credit Limit</TableHead>
                     <TableHead className="text-right">Balance Due</TableHead>
+                    <TableHead className="text-center">Customer 360</TableHead>
                     <TableHead className="text-center">Assist</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -298,6 +301,14 @@ const SalesDashboard = () => {
                       <TableCell className="text-right font-mono text-sm">{c.wallet_balance == null ? "Unavailable" : `₹${c.wallet_balance.toLocaleString()}`}</TableCell>
                       <TableCell className="text-right font-mono text-sm">₹{(c.credit_limit || 0).toLocaleString()}</TableCell>
                       <TableCell className="text-right font-mono text-sm">₹{(c.current_balance || 0).toLocaleString()}</TableCell>
+                      <TableCell className="text-center">
+                        <Button asChild size="sm" variant="outline" className="h-8 text-xs gap-1">
+                          <Link to={salesCustomer360RouteForCompany(c.id)}>
+                            <ExternalLink size={12} />
+                            View 360
+                          </Link>
+                        </Button>
+                      </TableCell>
                       <TableCell className="text-center">
                         <Button
                           size="sm"

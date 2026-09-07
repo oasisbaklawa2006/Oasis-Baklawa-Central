@@ -71,6 +71,48 @@ export type Customer360TicketSummary = {
   createdAt: string | null;
 };
 
+export type Customer360DeliverySite = {
+  id: string;
+  label: string;
+  streetAddress: string;
+  city: string;
+  state: string;
+  pincode: string;
+  contactPerson: string | null;
+  contactPhone: string | null;
+  isDefault: boolean;
+};
+
+export type Customer360FinanceExposure = {
+  totalOutstanding: number;
+  currentBalance: number | null;
+  creditLimit: number | null;
+  walletBalance: number | null;
+  allowCredit: boolean | null;
+  paymentTerms: string | null;
+  creditHeadroom: number | null;
+};
+
+export type Customer360HealthSignal = {
+  signal: string;
+  severity: "info" | "warning" | "critical";
+  factualBasis: string;
+};
+
+export type Customer360NextBestAction = {
+  action: string;
+  reason: string;
+  priority: number;
+};
+
+export type Customer360HealthReadModel = {
+  signals: Customer360HealthSignal[];
+  nextBestActions: Customer360NextBestAction[];
+  overdueTaskCount: number;
+  daysSinceLastInteraction: number | null;
+  creditUtilizationPercent: number | null;
+};
+
 export type Customer360Slice<T> = {
   availability: Customer360SliceAvailability;
   programmeOwner: string;
@@ -89,14 +131,16 @@ export type Customer360ReadModel = {
   interactions: Customer360Slice<Customer360InteractionSummary[]>;
   tasks: Customer360Slice<Customer360TaskSummary[]>;
   tickets: Customer360Slice<Customer360TicketSummary[]>;
-  branchesAndContacts: Customer360Slice<never>;
+  branchesAndContacts: Customer360Slice<Customer360DeliverySite[]>;
   communicationsLedger: Customer360Slice<CrmCommunicationHistoryReadModel>;
   dispatchHistory: Customer360Slice<never>;
-  financeExposure: Customer360Slice<never>;
-  customerHealth: Customer360Slice<never>;
+  financeExposure: Customer360Slice<Customer360FinanceExposure>;
+  customerHealth: Customer360Slice<Customer360HealthReadModel>;
 };
 
 export type Customer360ViewerContext = {
   viewerCompanyId: string | null;
   isStorefrontViewer: boolean;
+  viewerUserId?: string | null;
+  isSalesExecutiveViewer?: boolean;
 };

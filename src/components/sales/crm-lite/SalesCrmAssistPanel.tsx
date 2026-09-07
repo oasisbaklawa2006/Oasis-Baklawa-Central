@@ -1,4 +1,7 @@
+import { Link } from "react-router-dom";
 import ClientInteractionsTab from "@/components/sales/ClientInteractionsTab";
+import { Button } from "@/components/ui/button";
+import { salesCustomer360RouteForCompany } from "@/lib/customer-360/customer360Identity";
 import type { CrmLiteCompany } from "@/lib/crm-lite/salesCrmLiteTypes";
 
 interface Props {
@@ -21,9 +24,16 @@ export default function SalesCrmAssistPanel({ companies, userId, focusCompanyId 
           <code className="mx-1 rounded bg-muted px-1">companies.account_manager_id</code>.
         </p>
         {focusCompany && (
-          <p className="mt-2 text-xs font-medium text-primary">
-            Assisting: {focusCompany.business_name}
-          </p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <p className="text-xs font-medium text-primary">
+              Assisting: {focusCompany.business_name}
+            </p>
+            <Button asChild size="sm" variant="outline" className="h-7 text-xs">
+              <Link to={salesCustomer360RouteForCompany(focusCompany.id)} data-testid="sales-customer360-link">
+                Open Customer 360
+              </Link>
+            </Button>
+          </div>
         )}
       </div>
 

@@ -544,6 +544,16 @@ const App = () => (
                     }
                   />
                   <Route
+                    path="/sales/clients/:companyId"
+                    element={
+                      <ProtectedRoute>
+                        <RoleProtectedRoute allowedRoles={SALES_DASHBOARD_ROLES}>
+                          <Customer360Page variant="sales" />
+                        </RoleProtectedRoute>
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
                     path="/sales/3pgs-visibility"
                     element={
                       <ProtectedRoute>

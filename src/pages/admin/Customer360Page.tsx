@@ -1,4 +1,4 @@
-import { Link, useParams } from "react-router-dom";
+import { Link, useLocation, useParams } from "react-router-dom";
 import { format } from "date-fns";
 import {
   AlertCircle,
@@ -11,6 +11,8 @@ import {
   Package,
   ShieldAlert,
   Users,
+  MapPin,
+  Activity,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -44,9 +46,15 @@ function SliceUnavailable({ slice }: { slice: Customer360Slice<unknown> }) {
   );
 }
 
-export default function Customer360Page() {
+export default function Customer360Page({ variant }: { variant?: "admin" | "sales" }) {
   const { companyId } = useParams<{ companyId: string }>();
-  const { state, refresh } = useCustomer360(companyId);
+  const location = useLocation();
+  const resolvedVariant = variant ?? (location.pathname.startsWith("/sales/clients/") ? "sales" : "admin");
+  const { state, refresh } = useCustomer360(companyId, {
+    salesExecutiveViewer: resolvedVariant === "sales",
+  });
+  const backHref = resolvedVariant === "sales" ? "/sales/dashboard" : "/admin/clients";
+  const backLabel = resolvedVariant === "sales" ? "Sales console" : "Client governance";
 
   if (state.status === "loading" || state.status === "idle") {
     return (
@@ -63,9 +71,9 @@ export default function Customer360Page() {
         <h1 className="text-xl font-semibold">Customer 360 access blocked</h1>
         <p className="text-sm text-muted-foreground">{state.message}</p>
         <Button asChild variant="outline">
-          <Link to="/admin/clients">
+          <Link to={backHref}>
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to client governance
+            Back to {backLabel}
           </Link>
         </Button>
       </div>
@@ -80,9 +88,9 @@ export default function Customer360Page() {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <Button asChild variant="ghost" size="sm" className="mb-2 px-0">
-            <Link to="/admin/clients">
+            <Link to={backHref}>
               <ArrowLeft className="mr-2 h-4 w-4" />
-              Client governance
+              {backLabel}
             </Link>
           </Button>
           <h1 className="flex items-center gap-3 text-2xl font-bold">
@@ -168,12 +176,18 @@ export default function Customer360Page() {
                     {model.orders.data.map((order) => (
                       <TableRow key={order.orderId}>
                         <TableCell>
-                          <Link
-                            className="font-medium text-primary hover:underline"
-                            to={`/admin/order-management?orderId=${order.orderId}`}
-                          >
-                            {order.orderNumber ?? order.orderId.slice(0, 8)}
-                          </Link>
+                          {resolvedVariant === "admin" ? (
+                            <Link
+                              className="font-medium text-primary hover:underline"
+                              to={`/admin/order-management?orderId=${order.orderId}`}
+                            >
+                              {order.orderNumber ?? order.orderId.slice(0, 8)}
+                            </Link>
+                          ) : (
+                            <span className="font-medium">
+                              {order.orderNumber ?? order.orderId.slice(0, 8)}
+                            </span>
+                          )}
                           {order.createdAt && (
                             <p className="text-xs text-muted-foreground">
                               {format(new Date(order.createdAt), "dd MMM yyyy")}
@@ -363,6 +377,148 @@ export default function Customer360Page() {
         </CardContent>
       </Card>
 
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <MapPin className="h-5 w-5" />
+                Branches & contacts
+              </CardTitle>
+              {availabilityBadge(model.branchesAndContacts.availability)}
+            </div>
+            <CardDescription>
+              Delivery sites and branch contacts from Core <code className="rounded bg-muted px-1 py-0.5 text-xs">delivery_addresses</code>.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {model.branchesAndContacts.availability === "available" && model.branchesAndContacts.data ? (
+              model.branchesAndContacts.data.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No delivery sites recorded for this company.</p>
+              ) : (
+                <ul className="space-y-3">
+                  {model.branchesAndContacts.data.map((site) => (
+                    <li key={site.id} className="rounded-lg border p-3 text-sm">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="font-medium">{site.label}</p>
+                        {site.isDefault && <Badge variant="outline">Default</Badge>}
+                      </div>
+                      <p className="text-muted-foreground">
+                        {site.streetAddress}, {site.city}, {site.state} {site.pincode}
+                      </p>
+                      {(site.contactPerson || site.contactPhone) && (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {site.contactPerson ?? "Contact"} · {site.contactPhone ?? "—"}
+                        </p>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )
+            ) : (
+              <SliceUnavailable slice={model.branchesAndContacts} />
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <CreditCard className="h-5 w-5" />
+                Finance exposure
+              </CardTitle>
+              {availabilityBadge(model.financeExposure.availability)}
+            </div>
+            {model.financeExposure.reason && <CardDescription>{model.financeExposure.reason}</CardDescription>}
+          </CardHeader>
+          <CardContent>
+            {model.financeExposure.availability === "available" && model.financeExposure.data ? (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Outstanding</p>
+                  <p className="font-medium">₹{model.financeExposure.data.totalOutstanding.toLocaleString()}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Credit headroom</p>
+                  <p className="font-medium">
+                    {model.financeExposure.data.creditHeadroom == null
+                      ? "—"
+                      : `₹${model.financeExposure.data.creditHeadroom.toLocaleString()}`}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Wallet</p>
+                  <p className="font-medium">₹{(model.financeExposure.data.walletBalance ?? 0).toLocaleString()}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Payment terms</p>
+                  <p className="font-medium">{model.financeExposure.data.paymentTerms ?? "—"}</p>
+                </div>
+              </div>
+            ) : (
+              <SliceUnavailable slice={model.financeExposure} />
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Activity className="h-5 w-5" />
+                Account health & next best action
+              </CardTitle>
+              {availabilityBadge(model.customerHealth.availability)}
+            </div>
+            {model.customerHealth.reason && <CardDescription>{model.customerHealth.reason}</CardDescription>}
+          </CardHeader>
+          <CardContent className="grid gap-4 md:grid-cols-2">
+            {model.customerHealth.availability === "available" && model.customerHealth.data ? (
+              <>
+                <div>
+                  <p className="mb-2 text-sm font-medium">Signals</p>
+                  {model.customerHealth.data.signals.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No risk signals from available CRM facts.</p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {model.customerHealth.data.signals.map((signal) => (
+                        <li key={signal.signal} className="rounded-lg border p-3 text-sm">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="font-medium">{signal.signal.replace(/_/g, " ")}</p>
+                            <Badge variant={signal.severity === "critical" ? "destructive" : "outline"}>
+                              {signal.severity}
+                            </Badge>
+                          </div>
+                          <p className="mt-1 text-muted-foreground">{signal.factualBasis}</p>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+                <div>
+                  <p className="mb-2 text-sm font-medium">Next best actions</p>
+                  {model.customerHealth.data.nextBestActions.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No prioritized actions from current facts.</p>
+                  ) : (
+                    <ol className="space-y-2">
+                      {model.customerHealth.data.nextBestActions.map((action, index) => (
+                        <li key={`${action.action}-${index}`} className="rounded-lg border p-3 text-sm">
+                          <p className="font-medium">{action.action}</p>
+                          <p className="mt-1 text-muted-foreground">{action.reason}</p>
+                        </li>
+                      ))}
+                    </ol>
+                  )}
+                </div>
+              </>
+            ) : (
+              <SliceUnavailable slice={model.customerHealth} />
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
@@ -374,10 +530,7 @@ export default function Customer360Page() {
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-2">
-          <SliceUnavailable slice={model.branchesAndContacts} />
           <SliceUnavailable slice={model.dispatchHistory} />
-          <SliceUnavailable slice={model.financeExposure} />
-          <SliceUnavailable slice={model.customerHealth} />
         </CardContent>
       </Card>
     </div>
