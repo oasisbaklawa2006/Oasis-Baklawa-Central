@@ -90,7 +90,7 @@ const OperationsController = () => {
   ];
 
   return (
-    <div className="bg-slate-50 min-h-screen pb-safe font-sans">
+    <div className="bg-slate-50 min-h-screen pb-safe font-sans" data-testid="macro-production-execution-surface">
       <TopNavBar />
 
       {loadError && (

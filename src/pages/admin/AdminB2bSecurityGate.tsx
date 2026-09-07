@@ -263,6 +263,7 @@ const AdminB2bSecurityGate = () => {
         <p className="mt-5 max-w-3xl text-center text-lg font-medium text-white/80">{message}</p>
         <form onSubmit={(event) => { void handleScan(event); }} className="mt-10 w-full max-w-xl">
           <input ref={inputRef} value={input} onChange={(event) => { setInput(event.target.value); }} autoFocus autoComplete="off"
+            data-testid="macro-security-gate-scanner"
             placeholder="Scanner / carton barcode" className="w-full rounded-2xl border border-white/20 bg-black/40 px-5 py-5 text-center font-mono text-xl text-white outline-none focus:border-white" />
         </form>
         {processing && <p className="mt-5 text-sm"><Loader2 className="mr-2 inline h-4 w-4 animate-spin" />Revalidating Core gate authority…</p>}
@@ -285,7 +286,7 @@ const AdminB2bSecurityGate = () => {
           ))}
         </div>
 
-        <div className="mt-6 border-t border-slate-800 pt-5">
+        <div className="mt-6 border-t border-slate-800 pt-5" data-testid="macro-security-gate-dispatch-proof">
           <div className="flex items-center gap-2 font-semibold"><Truck className="h-4 w-4" /> Freeze final gate-exit dispatch proof</div>
           <p className="mt-1 text-xs text-slate-500">Core accepts this only after every Finance-frozen DPL carton has independently passed the gate.</p>
           <div className="mt-3 space-y-2">
@@ -308,7 +309,7 @@ const AdminB2bSecurityGate = () => {
           </div>
         </div>
 
-        <div className="mt-6 border-t border-slate-800 pt-5">
+        <div className="mt-6 border-t border-slate-800 pt-5" data-testid="macro-security-gate-complaint-window">
           <h3 className="font-semibold">Ticket-window handoff</h3>
           <p className="mt-1 text-xs text-slate-500">The 10-calendar-day ticket-raise clock starts from the final invoice date. Gate exit never starts, restarts or extends it.</p>
           {handoffFacts?.dispatchProofId ? (
@@ -326,6 +327,7 @@ const AdminB2bSecurityGate = () => {
                   </p>
                   <button
                     type="button"
+                    data-testid="macro-security-gate-customer-comm"
                     onClick={() => { void sendCustomerDispatchCommunication(); }}
                     disabled={customerCommProcessing || !communicationEligibility.eligible}
                     className="mt-3 w-full rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold disabled:opacity-50"

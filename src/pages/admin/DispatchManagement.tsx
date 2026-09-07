@@ -712,7 +712,7 @@ export default function DispatchManagement() {
   };
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 p-4 pb-24">
+    <div className="mx-auto max-w-5xl space-y-6 p-4 pb-24" data-testid="macro-packing-carton-surface">
       <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-4">
         <div className="flex flex-wrap items-center gap-2">
           <PackageCheck className="h-7 w-7 text-primary" aria-hidden />

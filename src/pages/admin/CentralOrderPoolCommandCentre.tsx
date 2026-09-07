@@ -78,7 +78,7 @@ export default function CentralOrderPoolCommandCentre() {
   const metrics = useMemo(() => centralOrderPoolMetrics(snapshot), [snapshot]);
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6 p-4 pb-24">
+    <div className="mx-auto max-w-7xl space-y-6 p-4 pb-24" data-testid="macro-order-pool-surface">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
         <div>
           <div className="flex items-center gap-2">

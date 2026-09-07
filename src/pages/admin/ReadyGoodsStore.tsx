@@ -448,7 +448,7 @@ export default function ReadyGoodsStore() {
   const pendingAcceptanceCount = transfers.filter((row) => !row.rgs_notified).length;
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6 p-4 pb-24">
+    <div className="mx-auto max-w-7xl space-y-6 p-4 pb-24" data-testid="macro-ready-goods-surface">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
         <div>
           <h1 className="text-xl font-bold tracking-tight">Ready Goods Store (RGS)</h1>

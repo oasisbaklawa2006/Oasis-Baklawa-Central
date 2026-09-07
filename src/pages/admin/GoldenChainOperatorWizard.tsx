@@ -529,7 +529,7 @@ export default function GoldenChainOperatorWizard() {
   }
 
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-4 p-4 pb-32">
+    <div className="mx-auto flex max-w-4xl flex-col gap-4 p-4 pb-32" data-testid="macro-golden-chain-surface">
       <header className="space-y-1 border-b border-border pb-4">
         <div className="flex flex-wrap items-center gap-2">
           <Workflow className="h-7 w-7 text-primary shrink-0" aria-hidden />

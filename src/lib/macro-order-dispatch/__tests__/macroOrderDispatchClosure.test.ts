@@ -7,6 +7,11 @@ import {
   MACRO_ORDER_DISPATCH_JOURNEY,
   MACRO_PHYSICAL_UAT_DEFERRED,
 } from "@/lib/macro-order-dispatch/macroOrderDispatchJourney";
+import {
+  MACRO_LEAP13_JOURNEY_HOOK_BINDINGS,
+  MACRO_LEAP13_UAT_HOOK,
+  MACRO_LEAP13_UAT_SCENARIOS,
+} from "@/lib/macro-order-dispatch/macroLeap13PhysicalUatHooks";
 import { CENTRAL_ORDER_POOL_CANONICAL_ROUTE } from "@/lib/centralOrderPool/centralOrderPoolRouteCensus";
 
 const source = (relativePath: string) => readFileSync(resolve(process.cwd(), relativePath), "utf8");
@@ -79,6 +84,20 @@ describe("Central #554 Leap 7 macro order-to-gate closure", () => {
     expect(MACRO_PHYSICAL_UAT_DEFERRED).toContain("physical_scanner_pass");
     expect(MACRO_PHYSICAL_UAT_DEFERRED).toContain("physical_tv_pass");
     expect(MACRO_PHYSICAL_UAT_DEFERRED).toContain("physical_gate_pass");
+  });
+
+  it("prepares Leap 13 physical UAT hooks and executable operator scripts", () => {
+    const leap13Doc = source("docs/MACRO_ORDER_DISPATCH_LEAP13_PHYSICAL_UAT.md");
+    expect(leap13Doc).toContain("LEAP13-006");
+    expect(leap13Doc).toContain("macro-security-gate-scanner");
+    expect(MACRO_LEAP13_UAT_SCENARIOS.length).toBeGreaterThanOrEqual(9);
+    expect(MACRO_LEAP13_JOURNEY_HOOK_BINDINGS).toHaveLength(MACRO_ORDER_DISPATCH_JOURNEY.length);
+
+    const gate = source("src/pages/admin/AdminB2bSecurityGate.tsx");
+    expect(gate).toContain(`data-testid="${MACRO_LEAP13_UAT_HOOK.SECURITY_GATE_SCANNER}"`);
+    expect(gate).toContain(`data-testid="${MACRO_LEAP13_UAT_HOOK.SECURITY_GATE_DISPATCH_PROOF}"`);
+    expect(gate).toContain(`data-testid="${MACRO_LEAP13_UAT_HOOK.SECURITY_GATE_COMPLAINT_WINDOW}"`);
+    expect(gate).toContain(`data-testid="${MACRO_LEAP13_UAT_HOOK.SECURITY_GATE_CUSTOMER_COMM}"`);
   });
 
   it("exposes amendment/cancel/substitute on the governed order management surface", () => {

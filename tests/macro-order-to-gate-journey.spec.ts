@@ -59,8 +59,9 @@ test.describe("Macro order-to-gate journey — synthetic route census", () => {
       waitUntil: "domcontentloaded",
       timeout: 45_000,
     });
-    await expect(page.getByText(/Ticket-window handoff/i)).toBeVisible();
-    await expect(page.getByText(/Freeze final gate-exit dispatch proof/i)).toBeVisible();
+    await expect(page.getByTestId("macro-security-gate-dispatch-proof")).toBeVisible();
+    await expect(page.getByTestId("macro-security-gate-complaint-window")).toBeVisible();
+    await expect(page.getByTestId("macro-security-gate-scanner")).toBeVisible();
   });
 
   test("order management remains reachable for amendment surface", async ({ page }) => {
