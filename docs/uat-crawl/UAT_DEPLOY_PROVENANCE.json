@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-09-07T23:51:19.514Z",
-  "runId": "watchdog-2026-09-07T2351Z",
+  "generatedAt": "2026-09-07T23:51:50.466Z",
+  "runId": "34171418066",
   "runTranche": "credential-prefix-unblock",
   "requiredSha": "6c7de2a69cec960f709a66fb85d25049dfcc2ae0",
   "priorCurrentMainHoldSha": "15c59a3f54c92f2b289bd150005bcd7114b51a93",
@@ -8,7 +8,7 @@
   "resolvedSha": null,
   "resolvedUrl": null,
   "status": "DEPLOY_BLOCKED",
-  "reason": "No successful Vercel deployment for current main 6c7de2a69cec960f709a66fb85d25049dfcc2ae0; lane-7 requires exact SHA — no 15c59a3f/d55306b3/c7f4ddf2/ace340fe substitution.",
+  "reason": "No successful Vercel deployment for 6c7de2a69cec960f709a66fb85d25049dfcc2ae0; credential-prefix-unblock requires current-main cert — no 15c59a3f/d55306b3 substitution.",
   "deployProvenance": "Current-main authority @ 6c7de2a (#556) — prior 15c59a3f/e2f123b0 evidence preserved append-only.",
   "policy": "Do not substitute 15c59a3f, d55306b3, c7f4ddf2, ace340fe, or e2f123b0 as 6c7de2a lane-7 evidence."
 }

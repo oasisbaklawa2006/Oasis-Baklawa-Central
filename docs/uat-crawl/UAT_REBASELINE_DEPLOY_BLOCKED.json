@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-09-07T23:51:19.514Z",
-  "runId": "watchdog-2026-09-07T2351Z",
+  "generatedAt": "2026-09-07T23:51:50.466Z",
+  "runId": "34171418066",
   "runTranche": "credential-prefix-unblock",
   "lane": "seventh — credential-prefix-unblock @ exact current main",
   "requiredSha": "6c7de2a69cec960f709a66fb85d25049dfcc2ae0",
@@ -9,7 +9,7 @@
   "latestProductionDeploySha": "c7f4ddf2",
   "latestProductionDeployNote": "Not substitutable — does not match requiredSha 6c7de2a",
   "deployStatus": "BLOCKED",
-  "reason": "No successful Vercel deployment for current main 6c7de2a69cec960f709a66fb85d25049dfcc2ae0; lane-7 requires exact SHA — no 15c59a3f/d55306b3/c7f4ddf2/ace340fe substitution.",
+  "reason": "No successful Vercel deployment for 6c7de2a69cec960f709a66fb85d25049dfcc2ae0; credential-prefix-unblock requires current-main cert — no 15c59a3f/d55306b3 substitution.",
   "vercelCommitStatus": "failure — Deployment rate limited (api-deployments-free-per-day)",
   "vercelRateLimitSuspected": true,
   "censusTotal": 131,

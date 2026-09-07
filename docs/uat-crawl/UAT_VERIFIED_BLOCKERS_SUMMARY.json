@@ -1,23 +1,21 @@
 {
-  "generatedAt": "2026-09-07T23:51:19.514Z",
-  "runId": "watchdog-2026-09-07T2351Z",
+  "generatedAt": "2026-09-07T23:51:56.726Z",
+  "runId": "34171418066",
   "resolvedDeploySha": "6c7de2a69cec960f709a66fb85d25049dfcc2ae0",
   "currentMainHoldSha": "6c7de2a69cec960f709a66fb85d25049dfcc2ae0",
-  "priorCurrentMainHoldSha": "15c59a3f54c92f2b289bd150005bcd7114b51a93",
   "crawlBaseUrl": "",
   "deployProvenance": "Current-main authority @ 6c7de2a (#556) — prior 15c59a3f/e2f123b0 evidence preserved append-only.",
-  "authenticatedCompleteAtPriorShas": 81,
-  "publicContinuationCompleteAtPriorShas": 5,
-  "recertifiedAtRequiredSha": 0,
-  "deployNotTested": 103,
-  "verifiedCredentialBlocked": 28,
-  "credentialsAvailableAwaitingDeploy": 18,
+  "authenticatedComplete": 81,
+  "publicContinuationComplete": 5,
+  "remainingWithoutAuthEvidence": 45,
+  "verifiedBlocked": 28,
+  "credentialsAvailableAwaitingEvidence": 18,
   "counts": {
-    "censusTotal": 131,
-    "deployNotTested": 103,
-    "credentialBlocked": 28,
-    "credsAvailableAwaitingDeploy": 18,
-    "recertifiedAt6c7de2a": 0
+    "authenticated": 81,
+    "publicFunctionObserved": 5,
+    "blocked": 28,
+    "credsAvailableNoEvidence": 18,
+    "totalCensus": 131
   },
-  "policy": "No fabricated PASS. Historical manifests/screenshots at prior SHAs preserved append-only; current-main authority retargeted to 6c7de2a (#556)."
+  "policy": "No fabricated PASS. FAIL-493 pre-fix + preview + current-main cert evidence preserved append-only."
 }
