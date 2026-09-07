@@ -55,6 +55,7 @@ describe("collectionsReportingProjection", () => {
 
     expect(snap.recoverableOutstanding.value).toBe(13000);
     expect(snap.recoverableOutstanding.semantics).toBe("observed");
+    expect(snap.recoveredInPeriod.semantics).toBe("unavailable");
     expect(snap.ageingBuckets.find((b) => b.bucket === "31-60")?.orderCount).toBe(1);
     expect(snap.ageingBuckets.find((b) => b.bucket === "0-30")?.orderCount).toBe(1);
     expect(snap.topExposureClients[0]?.metric).toBe(8000);
@@ -63,5 +64,29 @@ describe("collectionsReportingProjection", () => {
     expect(snap.ageingSource).toContain("Central order.created_at");
     expect(snap.walletExposure.source).toContain("Central table");
     expect(snap.walletExposure.source).not.toContain("core:#255");
+  });
+
+  it("uses Core timestamped payment facts for recovered-in-period when available", () => {
+    const snap = buildCollectionsReportingSnapshot({
+      orders: [],
+      companies: [],
+      disputedOrHeldAmount: 0,
+      periodStartIso: "2026-09-01T00:00:00.000Z",
+      periodEndIso: "2026-09-30T23:59:59.999Z",
+      coreFinance255: {
+        recoverableOutstanding: 0,
+        recoveredInPeriod: 4200,
+        recoveredInPeriodAvailable: true,
+        recoveredInPeriodBlocker: null,
+        ordersWithCoreFacts: 0,
+        ordersAttempted: 0,
+        recoveryOrdersWithFacts: 3,
+        recoveryOrdersAttempted: 5,
+        source: "core:#255/get_order_payment_facts_v1@cd078c5",
+        warnings: [],
+      },
+    });
+    expect(snap.recoveredInPeriod.semantics).toBe("observed");
+    expect(snap.recoveredInPeriod.value).toBe(4200);
   });
 });

@@ -29,8 +29,12 @@ const MAX_PAYMENT_FACT_ORDERS = 25;
 export interface CoreFinance255CollectionsSnapshot {
   recoverableOutstanding: number;
   recoveredInPeriod: number;
+  recoveredInPeriodAvailable: boolean;
+  recoveredInPeriodBlocker: string | null;
   ordersWithCoreFacts: number;
   ordersAttempted: number;
+  recoveryOrdersWithFacts: number;
+  recoveryOrdersAttempted: number;
   source: string;
   warnings: string[];
 }
@@ -42,15 +46,42 @@ function num(value: unknown): number {
 
 function parsePaymentFactsRow(data: unknown): {
   remainingCommercialAmount: number;
-  verifiedTotal: number;
 } | null {
   const row = Array.isArray(data) ? data[0] : data;
   if (!row || typeof row !== "object") return null;
   const facts = row as Record<string, unknown>;
   return {
     remainingCommercialAmount: num(facts.remaining_commercial_amount),
-    verifiedTotal: num(facts.verified_total),
   };
+}
+
+function sumVerifiedInPeriod(
+  data: unknown,
+  periodStart: number,
+  periodEnd: number,
+): { amount: number; hasTimestamps: boolean } {
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row || typeof row !== "object") return { amount: 0, hasTimestamps: false };
+  const facts = row as Record<string, unknown>;
+  const payments = facts.payments;
+  if (!Array.isArray(payments)) return { amount: 0, hasTimestamps: false };
+
+  let amount = 0;
+  let hasTimestamps = false;
+  for (const item of payments) {
+    if (!item || typeof item !== "object") continue;
+    const payment = item as Record<string, unknown>;
+    const verifiedAt = typeof payment.verified_at === "string" ? payment.verified_at : null;
+    const verifiedAmount = num(payment.verified_amount);
+    if (!verifiedAt || verifiedAmount <= 0) continue;
+    hasTimestamps = true;
+    const ts = new Date(verifiedAt).getTime();
+    if (Number.isNaN(ts)) continue;
+    if (ts >= periodStart && ts <= periodEnd) {
+      amount += verifiedAmount;
+    }
+  }
+  return { amount, hasTimestamps };
 }
 
 async function resolvePiId(orderId: string): Promise<string | null> {
@@ -70,18 +101,22 @@ async function resolvePiId(orderId: string): Promise<string | null> {
 
 export async function fetchCoreFinance255CollectionsSnapshot(input: {
   unpaidOrderIds: string[];
+  recoveryOrderIds: string[];
   periodStartIso: string;
   periodEndIso: string;
 }): Promise<CoreFinance255CollectionsSnapshot> {
   const warnings: string[] = [];
-  const boundedIds = input.unpaidOrderIds.slice(0, MAX_PAYMENT_FACT_ORDERS);
+  const boundedUnpaidIds = input.unpaidOrderIds.slice(0, MAX_PAYMENT_FACT_ORDERS);
+  const boundedRecoveryIds = input.recoveryOrderIds.slice(0, MAX_PAYMENT_FACT_ORDERS);
   let recoverableOutstanding = 0;
   let recoveredInPeriod = 0;
   let ordersWithCoreFacts = 0;
+  let recoveryOrdersWithFacts = 0;
+  let recoveryHasTimestampContract = false;
   const periodStart = new Date(input.periodStartIso).getTime();
   const periodEnd = new Date(input.periodEndIso).getTime();
 
-  for (const orderId of boundedIds) {
+  for (const orderId of boundedUnpaidIds) {
     const piId = await resolvePiId(orderId);
     if (!piId) {
       warnings.push(`Order ${orderId.slice(0, 8)}… has no governed PI binding — skipped for Core payment facts`);
@@ -99,22 +134,50 @@ export async function fetchCoreFinance255CollectionsSnapshot(input: {
     }
     ordersWithCoreFacts += 1;
     recoverableOutstanding += Math.max(0, parsed.remainingCommercialAmount);
-    if (parsed.verifiedTotal > 0) {
-      recoveredInPeriod += parsed.verifiedTotal;
-    }
   }
 
-  if (boundedIds.length < input.unpaidOrderIds.length) {
+  for (const orderId of boundedRecoveryIds) {
+    const piId = await resolvePiId(orderId);
+    if (!piId) continue;
+    const { data, error } = await db.rpc("get_order_payment_facts_v1", { p_pi_id: piId });
+    if (error) {
+      warnings.push(`Period recovery lookup failed for ${orderId.slice(0, 8)}…: ${error.message}`);
+      continue;
+    }
+    const periodSum = sumVerifiedInPeriod(data, periodStart, periodEnd);
+    recoveryOrdersWithFacts += 1;
+    if (periodSum.hasTimestamps) recoveryHasTimestampContract = true;
+    recoveredInPeriod += periodSum.amount;
+  }
+
+  if (boundedUnpaidIds.length < input.unpaidOrderIds.length) {
     warnings.push(
       `Core payment facts bounded to ${MAX_PAYMENT_FACT_ORDERS} of ${input.unpaidOrderIds.length} unpaid orders`,
     );
   }
+  if (boundedRecoveryIds.length < input.recoveryOrderIds.length) {
+    warnings.push(
+      `Period recovery lookup bounded to ${MAX_PAYMENT_FACT_ORDERS} of ${input.recoveryOrderIds.length} orders`,
+    );
+  }
+
+  const recoveredInPeriodAvailable =
+    recoveryOrdersWithFacts > 0 && recoveryHasTimestampContract;
+  const recoveredInPeriodBlocker = recoveredInPeriodAvailable
+    ? null
+    : recoveryOrdersWithFacts === 0
+      ? "No governed PI bindings returned timestamped payment facts for period recovery"
+      : "get_order_payment_facts_v1 payments lack verified_at timestamps for period filtering";
 
   return {
     recoverableOutstanding,
     recoveredInPeriod,
+    recoveredInPeriodAvailable,
+    recoveredInPeriodBlocker,
     ordersWithCoreFacts,
-    ordersAttempted: boundedIds.length,
+    ordersAttempted: boundedUnpaidIds.length,
+    recoveryOrdersWithFacts,
+    recoveryOrdersAttempted: boundedRecoveryIds.length,
     source: coreFinance255Source("get_order_payment_facts_v1"),
     warnings,
   };

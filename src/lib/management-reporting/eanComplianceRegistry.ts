@@ -78,10 +78,11 @@ export function buildEanRegistryEntries(
   const filtered = products.filter((p) => {
     if (!normalizedSearch) return true;
     const ean = normalizeEan(p.barcode_sku) ?? "";
+    const digitsQuery = normalizedSearch.replace(/\D/g, "");
     return (
       p.name.toLowerCase().includes(normalizedSearch) ||
       (p.sku ?? "").toLowerCase().includes(normalizedSearch) ||
-      ean.includes(normalizedSearch.replace(/\D/g, ""))
+      (digitsQuery.length > 0 && ean.includes(digitsQuery))
     );
   });
 

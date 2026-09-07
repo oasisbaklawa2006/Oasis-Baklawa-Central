@@ -21,9 +21,7 @@ test.describe("Management command center auth gate", () => {
     const onLogin = /\/login/.test(url);
     const showsManagementCmd = /Management Command Center/i.test(bodyText);
 
-    expect(onLogin || showsManagementCmd).toBeTruthy();
-    if (onLogin) {
-      expect(/Management Command Center/i.test(bodyText)).toBeFalsy();
-    }
+    expect(onLogin, `expected redirect to /login, got ${url}`).toBeTruthy();
+    expect(showsManagementCmd).toBeFalsy();
   });
 });

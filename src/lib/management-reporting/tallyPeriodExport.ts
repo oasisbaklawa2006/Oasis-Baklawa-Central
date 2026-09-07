@@ -99,7 +99,9 @@ export async function exportTallyPeriodBatch(
     query = query.eq("company_id", filter.companyId);
   }
 
-  const { data: orders, error } = await query.order("created_at", { ascending: true });
+  const { data: orders, error } = await query
+    .order("created_at", { ascending: true })
+    .order("id", { ascending: true });
   if (error) return { ok: false, error: error.message };
 
   const eligible = (orders ?? []).filter((o) => isOrderReadyForTallyExportV1(o.status));

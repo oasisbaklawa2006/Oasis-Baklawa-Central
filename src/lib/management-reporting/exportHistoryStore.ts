@@ -22,7 +22,11 @@ function readRaw(): StoredExportRecord[] {
 
 function writeRaw(records: StoredExportRecord[]): void {
   if (typeof localStorage === "undefined") return;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(records.slice(0, MAX_ENTRIES)));
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(records.slice(0, MAX_ENTRIES)));
+  } catch {
+    // Export history is advisory; never fail the export on a storage error.
+  }
 }
 
 export function listExportHistory(): StoredExportRecord[] {

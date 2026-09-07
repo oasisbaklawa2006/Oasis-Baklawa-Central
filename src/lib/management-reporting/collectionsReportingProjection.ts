@@ -37,6 +37,8 @@ export function buildCollectionsReportingSnapshot(input: {
   orders: OrderFactRow[];
   companies: CompanyCreditFactRow[];
   disputedOrHeldAmount: number;
+  disputedOrHeldUnavailable?: boolean;
+  disputedOrHeldBlocker?: string;
   periodStartIso: string;
   periodEndIso: string;
   referenceDate?: Date;
@@ -56,21 +58,7 @@ export function buildCollectionsReportingSnapshot(input: {
       ? `${core.source} (${core.ordersWithCoreFacts}/${core.ordersAttempted} orders with governed PI)`
       : "orders.payment_status!=paid outstanding gap (Central table aggregate)";
 
-  const periodStart = parseISO(input.periodStartIso);
-  const periodEnd = parseISO(input.periodEndIso);
-  const tableRecoveredInPeriod = input.orders
-    .filter((o) => {
-      if (o.payment_status !== "paid" || !o.created_at) return false;
-      const created = parseISO(o.created_at);
-      return created >= periodStart && created <= periodEnd;
-    })
-    .reduce((s, o) => s + (o.sales_order_value ?? 0), 0);
-  const recoveredValue =
-    core && core.ordersWithCoreFacts > 0 ? core.recoveredInPeriod : tableRecoveredInPeriod;
-  const recoveredSource =
-    core && core.ordersWithCoreFacts > 0
-      ? core.source
-      : "orders.payment_status=paid in selected period (Central table aggregate)";
+  const recoveredInPeriod = buildRecoveredInPeriodMetric(core);
 
   const walletExposure = input.companies.reduce(
     (s, c) => s + Math.max(0, -(c.wallet_balance ?? 0)),
@@ -123,11 +111,17 @@ export function buildCollectionsReportingSnapshot(input: {
   return {
     asOfIso: ref.toISOString(),
     recoverableOutstanding: wrapObservedMetric(recoverableValue, recoverableSource),
-    recoveredInPeriod: wrapObservedMetric(recoveredValue, recoveredSource),
-    disputedOrHeld: wrapObservedMetric(
-      input.disputedOrHeldAmount,
-      "ledger_disputes + finance holds (Central observed)",
-    ),
+    recoveredInPeriod,
+    disputedOrHeld: input.disputedOrHeldUnavailable
+      ? wrapUnavailableMetric(
+          0,
+          "ledger_disputes + finance holds (Central observed)",
+          input.disputedOrHeldBlocker ?? "ledger_disputes read failed",
+        )
+      : wrapObservedMetric(
+          input.disputedOrHeldAmount,
+          "ledger_disputes + finance holds (Central observed)",
+        ),
     walletExposure: wrapObservedMetric(
       walletExposure,
       "companies.wallet_balance negative aggregate (Central table)",
@@ -150,5 +144,20 @@ export function buildProfitabilityMetric() {
     0,
     coreFinance255Source("get_finance_profitability_facts_v1"),
     "No profitability macro RPC deployed on Core #255",
+  );
+}
+
+function buildRecoveredInPeriodMetric(core: CoreFinance255CollectionsSnapshot | null | undefined) {
+  if (core?.recoveredInPeriodAvailable) {
+    return wrapObservedMetric(
+      core.recoveredInPeriod,
+      `${core.source} (verified_at within selected period; ${core.recoveryOrdersWithFacts}/${core.recoveryOrdersAttempted} orders)`,
+    );
+  }
+  return wrapUnavailableMetric(
+    0,
+    coreFinance255Source("get_order_payment_facts_v1"),
+    core?.recoveredInPeriodBlocker ??
+      "Recovered-in-period requires timestamped payment facts from get_order_payment_facts_v1",
   );
 }

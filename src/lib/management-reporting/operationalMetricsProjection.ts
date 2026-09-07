@@ -144,8 +144,8 @@ export function buildOperationalPositionSnapshot(
 
 export function buildDelayRiskSnapshot(input: {
   orders: OrderFactRow[];
-  slaBreachedSupportCount: number;
-  disputedLedgerCount: number;
+  slaBreachedSupportCount: number | null;
+  disputedLedgerCount: number | null;
 }): DelayRiskSnapshot {
   const actionable = filterActionableOrders(input.orders);
   const financeHoldCount = actionable.filter(
@@ -306,18 +306,20 @@ export function buildPeriodRankingsWithTrends(input: {
   const currentItems = filterOrderItemsByOrderIds(input.orderItems, currentOrderIds);
   const priorItems = filterOrderItemsByOrderIds(input.orderItems, priorOrderIds);
 
+  const priorLookupLimit = Number.MAX_SAFE_INTEGER;
+
   return {
     bestSellers: buildRankedEntityTrends(
       buildBestSellerRankings(currentItems, limit),
-      buildBestSellerRankings(priorItems, limit),
+      buildBestSellerRankings(priorItems, priorLookupLimit),
     ),
     bestClients: buildRankedEntityTrends(
       buildBestClientRankings(currentOrders, input.companies, limit),
-      buildBestClientRankings(priorOrders, input.companies, limit),
+      buildBestClientRankings(priorOrders, input.companies, priorLookupLimit),
     ),
     bestSalespeople: buildRankedEntityTrends(
       buildBestSalespersonRankings(currentOrders, input.companies, input.users, limit),
-      buildBestSalespersonRankings(priorOrders, input.companies, input.users, limit),
+      buildBestSalespersonRankings(priorOrders, input.companies, input.users, priorLookupLimit),
     ),
   };
 }

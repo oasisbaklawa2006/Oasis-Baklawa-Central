@@ -19,6 +19,8 @@ export interface ManagementCommandCenterFilters {
 }
 
 const DEFAULT_PAGE_SIZE = 50;
+const MAX_ORDERS = 5000;
+const MAX_ORDER_ITEMS = 10000;
 
 function defaultPeriod(): { start: string; end: string } {
   const now = new Date();
@@ -68,12 +70,13 @@ export function useManagementCommandCenter() {
           .from("orders")
           .select(
             "id, status, payment_status, sales_order_value, advance_paid, advance_required, company_id, created_at",
+            { count: "exact" },
           )
-          .limit(5000),
+          .limit(MAX_ORDERS),
         supabase
           .from("order_items")
-          .select("order_id, product_id, quantity, products(name)")
-          .limit(10000),
+          .select("order_id, product_id, quantity, products(name)", { count: "exact" })
+          .limit(MAX_ORDER_ITEMS),
         supabase
           .from("companies")
           .select(
@@ -104,6 +107,34 @@ export function useManagementCommandCenter() {
       if (ordersRes.error) throw new Error(ordersRes.error.message);
       if (companiesRes.error) throw new Error(companiesRes.error.message);
 
+      const sourceReadWarnings: string[] = [];
+      for (const [label, res] of [
+        ["order_items", orderItemsRes],
+        ["users", usersRes],
+        ["products", productsRes],
+        ["support_tickets", slaRes],
+        ["ledger_disputes", disputesRes],
+      ] as const) {
+        if (res.error) {
+          sourceReadWarnings.push(`${label} read failed: ${res.error.message}`);
+        }
+      }
+      if (ordersRes.count != null && ordersRes.count > MAX_ORDERS) {
+        sourceReadWarnings.push(
+          `orders read truncated at ${MAX_ORDERS} of ${ordersRes.count} rows — totals may understate`,
+        );
+      }
+      if (orderItemsRes.count != null && orderItemsRes.count > MAX_ORDER_ITEMS) {
+        sourceReadWarnings.push(
+          `order_items read truncated at ${MAX_ORDER_ITEMS} of ${orderItemsRes.count} rows — rankings may understate`,
+        );
+      }
+
+      const orderItemsFailed = Boolean(orderItemsRes.error);
+      const productsFailed = Boolean(productsRes.error);
+      const slaFailed = Boolean(slaRes.error);
+      const disputesFailed = Boolean(disputesRes.error);
+
       const orders = (ordersRes.data ?? []) as Array<{
         id: string;
         status: string;
@@ -115,15 +146,17 @@ export function useManagementCommandCenter() {
         created_at: string | null;
       }>;
 
-      const orderItems = (orderItemsRes.data ?? []).map((row) => {
-        const products = row.products as { name?: string | null } | null;
-        return {
-          order_id: row.order_id as string,
-          product_id: row.product_id as string | null,
-          quantity: row.quantity as number | null,
-          product_name: products?.name ?? null,
-        };
-      });
+      const orderItems = orderItemsFailed
+        ? []
+        : (orderItemsRes.data ?? []).map((row) => {
+            const products = row.products as { name?: string | null } | null;
+            return {
+              order_id: row.order_id as string,
+              product_id: row.product_id as string | null,
+              quantity: row.quantity as number | null,
+              product_name: products?.name ?? null,
+            };
+          });
 
       const companies = (companiesRes.data ?? []) as Array<{
         id: string;
@@ -137,16 +170,17 @@ export function useManagementCommandCenter() {
         account_manager_id: string | null;
       }>;
 
-      const disputes = (disputesRes.data ?? []) as Array<{
-        id: string;
-        status: string | null;
-        ledger: { total_amount: number | null } | null;
-      }>;
+      const disputes = disputesFailed
+        ? []
+        : ((disputesRes.data ?? []) as Array<{
+            id: string;
+            status: string | null;
+            ledger: { total_amount: number | null } | null;
+          }>);
       const openDisputes = disputes.filter((d) => d.status !== "resolved");
-      const disputedOrHeldAmount = openDisputes.reduce(
-        (s, d) => s + (d.ledger?.total_amount ?? 0),
-        0,
-      );
+      const disputedOrHeldAmount = disputesFailed
+        ? 0
+        : openDisputes.reduce((s, d) => s + (d.ledger?.total_amount ?? 0), 0);
 
       let coreFinance255 = null;
       let coreFinanceWarnings: string[] = [];
@@ -160,10 +194,13 @@ export function useManagementCommandCenter() {
           .map((o) => o.id);
         coreFinance255 = await fetchCoreFinance255CollectionsSnapshot({
           unpaidOrderIds,
+          recoveryOrderIds: orders.map((o) => o.id),
           periodStartIso: filters.periodStart,
           periodEndIso: filters.periodEnd,
         });
-        coreFinanceWarnings = coreFinance255.warnings;
+        coreFinanceWarnings = [...coreFinance255.warnings, ...sourceReadWarnings];
+      } else {
+        coreFinanceWarnings = sourceReadWarnings;
       }
 
       const built = buildManagementCommandCenterProjection({
@@ -175,23 +212,31 @@ export function useManagementCommandCenter() {
           account_manager_id: c.account_manager_id,
         })),
         companyCredit: companies,
-        users: (usersRes.data ?? []) as Array<{
-          id: string;
-          full_name: string | null;
-          name: string | null;
-        }>,
-        products: (productsRes.data ?? []) as Parameters<
-          typeof buildManagementCommandCenterProjection
-        >[0]["products"],
+        users: usersRes.error
+          ? []
+          : ((usersRes.data ?? []) as Array<{
+              id: string;
+              full_name: string | null;
+              name: string | null;
+            }>),
+        products: productsFailed
+          ? []
+          : ((productsRes.data ?? []) as Parameters<
+              typeof buildManagementCommandCenterProjection
+            >[0]["products"]),
         companyCompliance: companies.map((c) => ({
           id: c.id,
           business_name: c.business_name,
           fssai_number: c.fssai_number,
           gst_number: c.gst_number,
         })),
-        slaBreachedSupportCount: slaRes.count ?? 0,
-        disputedLedgerCount: openDisputes.length,
+        slaBreachedSupportCount: slaFailed ? null : (slaRes.count ?? 0),
+        disputedLedgerCount: disputesFailed ? null : openDisputes.length,
         disputedOrHeldAmount,
+        disputedOrHeldUnavailable: disputesFailed,
+        disputedOrHeldBlocker: disputesFailed
+          ? (disputesRes.error?.message ?? "ledger_disputes read failed")
+          : undefined,
         periodStartIso: filters.periodStart,
         periodEndIso: filters.periodEnd,
         eanSearchQuery: filters.eanSearch,
@@ -200,6 +245,9 @@ export function useManagementCommandCenter() {
         includeFinance: canViewFinance,
         coreFinance255,
         coreFinanceWarnings,
+        sourceReadWarnings,
+        rankingsUnavailable: orderItemsFailed,
+        complianceDataUnavailable: productsFailed,
       });
 
       setProjection(built);

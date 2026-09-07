@@ -126,4 +126,47 @@ describe("operationalMetricsProjection", () => {
     expect(ranked.bestSellers[0]?.trendDelta).toBe(8);
     expect(ranked.bestClients[0]?.label).toBe("Alpha");
   });
+
+  it("uses complete prior lookup for entities outside prior top-N", () => {
+    const orders: OrderFactRow[] = [
+      order({
+        id: "o-current-a",
+        company_id: "c-current",
+        sales_order_value: 9000,
+        created_at: "2026-09-20T10:00:00.000Z",
+      }),
+      order({
+        id: "o-prior-a",
+        company_id: "c-current",
+        sales_order_value: 1500,
+        created_at: "2026-08-20T10:00:00.000Z",
+      }),
+      ...Array.from({ length: 5 }, (_, i) =>
+        order({
+          id: `o-prior-top-${i}`,
+          company_id: `c-top-${i}`,
+          sales_order_value: 10000 - i,
+          created_at: "2026-08-10T10:00:00.000Z",
+        }),
+      ),
+    ];
+    const ranked = buildPeriodRankingsWithTrends({
+      orders,
+      orderItems: [],
+      companies: [
+        { id: "c-current", business_name: "Current Leader" },
+        ...Array.from({ length: 5 }, (_, i) => ({
+          id: `c-top-${i}`,
+          business_name: `Top ${i}`,
+        })),
+      ],
+      users: [],
+      periodStartIso: "2026-09-01T00:00:00.000Z",
+      periodEndIso: "2026-09-30T23:59:59.999Z",
+      limit: 1,
+    });
+    expect(ranked.bestClients[0]?.label).toBe("Current Leader");
+    expect(ranked.bestClients[0]?.priorMetric).toBe(1500);
+    expect(ranked.bestClients[0]?.trendDelta).toBe(7500);
+  });
 });

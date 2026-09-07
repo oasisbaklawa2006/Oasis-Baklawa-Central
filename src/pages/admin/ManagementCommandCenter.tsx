@@ -128,10 +128,26 @@ export default function ManagementCommandCenter() {
   const [exportHistory, setExportHistory] = useState(() => listExportHistory());
   const [exceptionCategory, setExceptionCategory] = useState<ComplianceException["category"] | "all">("all");
   const [exceptionSeverity, setExceptionSeverity] = useState<ComplianceException["severity"] | "all">("all");
+  const [eanSearchInput, setEanSearchInput] = useState(filters.eanSearch);
 
   useEffect(() => {
     document.title = "Management Command Center";
   }, []);
+
+  useEffect(() => {
+    setEanSearchInput(filters.eanSearch);
+  }, [filters.eanSearch]);
+
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      setFilters((current) =>
+        current.eanSearch === eanSearchInput
+          ? current
+          : { ...current, eanSearch: eanSearchInput, eanPage: 0 },
+      );
+    }, 300);
+    return () => window.clearTimeout(handle);
+  }, [eanSearchInput, setFilters]);
 
   const criticalExceptions = useMemo(
     () => projection?.complianceExceptions.filter((e) => e.severity === "critical").length ?? 0,
@@ -164,8 +180,13 @@ export default function ManagementCommandCenter() {
       const a = document.createElement("a");
       a.href = url;
       a.download = result.filename;
+      a.style.display = "none";
+      document.body.appendChild(a);
       a.click();
-      URL.revokeObjectURL(url);
+      window.setTimeout(() => {
+        URL.revokeObjectURL(url);
+        a.remove();
+      }, 1000);
       appendExportHistory(result.audit, result.filename);
       setExportHistory(listExportHistory());
       toast.success(
@@ -250,6 +271,24 @@ export default function ManagementCommandCenter() {
 
       {error ? <p className="text-xs text-destructive">{error}</p> : null}
 
+      {p?.sourceReadWarnings.length ? (
+        <Card className="border-amber-200 bg-amber-50/40">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm text-amber-900">Source read degradation</CardTitle>
+            <CardDescription className="text-xs text-amber-800">
+              Affected metrics are unavailable or truncated — not reported as observed zero facts.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ul className="list-disc space-y-1 pl-4 text-xs text-amber-900">
+              {p.sourceReadWarnings.map((warning) => (
+                <li key={warning}>{warning}</li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      ) : null}
+
       {p?.finance255Blockers.length ? (
         <Card className="border-amber-200 bg-amber-50/50">
           <CardHeader className="pb-2">
@@ -331,6 +370,11 @@ export default function ManagementCommandCenter() {
                 <p className="col-span-full text-xs text-muted-foreground">
                   Rankings for {p.rankingPeriodLabel} — trend vs prior window of equal length
                 </p>
+                {p.rankingsUnavailable ? (
+                  <p className="col-span-full rounded-md border border-amber-200 bg-amber-50/50 px-3 py-2 text-xs text-amber-900">
+                    Rankings unavailable — order_items read failed. Refresh after source access is restored.
+                  </p>
+                ) : null}
                 {(
                   [
                     ["Best sellers", p.rankings.bestSellers, "units"],
@@ -343,7 +387,9 @@ export default function ManagementCommandCenter() {
                       <CardTitle className="text-sm">{title}</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-2 text-xs">
-                      {items.length === 0 ? (
+                      {p.rankingsUnavailable ? (
+                        <p className="text-amber-800">Unavailable — source read failed</p>
+                      ) : items.length === 0 ? (
                         <p className="text-muted-foreground">No ranked data in selected period</p>
                       ) : (
                         items.map((item, idx) => (
@@ -380,20 +426,24 @@ export default function ManagementCommandCenter() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5 text-xs">
-                  {[
-                    ["Finance holds", p.delayRisk.financeHoldCount, "/admin/finance-board"],
-                    ["Awaiting final payment", p.delayRisk.awaitingFinalPaymentCount, "/admin/accounts-release"],
-                    ["SLA breached (support)", p.delayRisk.slaBreachedSupportCount, "/admin/support"],
-                    ["Dispatch bottleneck", p.delayRisk.dispatchBottleneckCount, "/admin/packing-dispatch"],
-                    ["Open ledger disputes", p.delayRisk.disputedLedgerCount, "/admin/finance"],
-                  ].map(([label, count, route]) => (
+                  {(
+                    [
+                      ["Finance holds", p.delayRisk.financeHoldCount, "/admin/finance-board"],
+                      ["Awaiting final payment", p.delayRisk.awaitingFinalPaymentCount, "/admin/accounts-release"],
+                      ["SLA breached (support)", p.delayRisk.slaBreachedSupportCount, "/admin/support"],
+                      ["Dispatch bottleneck", p.delayRisk.dispatchBottleneckCount, "/admin/packing-dispatch"],
+                      ["Open ledger disputes", p.delayRisk.disputedLedgerCount, "/admin/finance"],
+                    ] as const
+                  ).map(([label, count, route]) => (
                     <Link
-                      key={String(label)}
-                      to={String(route)}
+                      key={label}
+                      to={route}
                       className="rounded-lg border border-border p-3 hover:bg-muted/40"
                     >
                       <p className="text-muted-foreground">{label}</p>
-                      <p className="text-xl font-semibold tabular-nums">{count}</p>
+                      <p className="text-xl font-semibold tabular-nums">
+                        {count === null ? "unavailable" : count}
+                      </p>
                     </Link>
                   ))}
                 </CardContent>
@@ -599,11 +649,16 @@ export default function ManagementCommandCenter() {
         ) : null}
 
         <TabsContent value="compliance" className="space-y-4">
+          {p?.complianceDataUnavailable ? (
+            <p className="rounded-md border border-amber-200 bg-amber-50/50 px-3 py-2 text-xs text-amber-900">
+              EAN registry and compliance exceptions unavailable — products read failed.
+            </p>
+          ) : null}
           <div className="flex flex-wrap items-center gap-2">
             <Input
               placeholder="Search EAN, SKU, product name…"
-              value={filters.eanSearch}
-              onChange={(e) => setFilters((f) => ({ ...f, eanSearch: e.target.value, eanPage: 0 }))}
+              value={eanSearchInput}
+              onChange={(e) => setEanSearchInput(e.target.value)}
               className="max-w-sm"
             />
             <Select

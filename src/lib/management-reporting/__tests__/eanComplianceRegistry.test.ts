@@ -46,4 +46,14 @@ describe("eanComplianceRegistry", () => {
     expect(exceptions.some((e) => e.category === "ean" && e.severity === "critical")).toBe(true);
     expect(exceptions.some((e) => e.category === "fssai")).toBe(true);
   });
+
+  it("does not match all EAN rows for non-numeric search terms", () => {
+    const products = [
+      product({ id: "p1", name: "Chocolate Baklava", barcode_sku: "8901234567890" }),
+      product({ id: "p2", name: "Plain Kunafa", barcode_sku: "8909876543210" }),
+    ];
+    const { entries, total } = buildEanRegistryEntries(products, 50, 0, "choco");
+    expect(total).toBe(1);
+    expect(entries[0]?.productName).toBe("Chocolate Baklava");
+  });
 });

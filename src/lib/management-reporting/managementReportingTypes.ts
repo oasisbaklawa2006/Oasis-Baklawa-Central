@@ -49,9 +49,9 @@ export interface RankedEntityWithTrend extends RankedEntity {
 export interface DelayRiskSnapshot {
   financeHoldCount: number;
   awaitingFinalPaymentCount: number;
-  slaBreachedSupportCount: number;
+  slaBreachedSupportCount: number | null;
   dispatchBottleneckCount: number;
-  disputedLedgerCount: number;
+  disputedLedgerCount: number | null;
 }
 
 export interface CreditRiskSnapshot {
@@ -131,6 +131,9 @@ export interface ManagementCommandCenterProjection {
   finance255AvailableContracts: string[];
   finance255ProductionAnchor: string;
   coreFinanceWarnings: string[];
+  sourceReadWarnings: string[];
+  rankingsUnavailable: boolean;
+  complianceDataUnavailable: boolean;
   eanRegistry: EanRegistryEntry[];
   eanRegistryTotal: number;
   complianceExceptions: ComplianceException[];
