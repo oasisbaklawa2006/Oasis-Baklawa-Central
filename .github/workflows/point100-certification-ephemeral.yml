@@ -108,7 +108,7 @@ jobs:
 
       - name: Upload Point100 artifacts
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b5404e07ed712e7b1473eb750 # v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: point100-certification-${{ github.run_id }}
           path: |
