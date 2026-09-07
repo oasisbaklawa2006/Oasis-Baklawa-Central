@@ -1,4 +1,5 @@
 import { assertFinanceAuthority, isForbiddenFinanceAction } from "@/lib/finance-authority/financeAuthorityGuard";
+import type { Point80ControlPersistenceMode } from "@/lib/order-authority/financeControlBoundary";
 import { validateCommercialReleaseAttempt, validateRejection } from "./financeApprovalWorkflow";
 import {
   buildFinanceOperationalEvent,
@@ -36,13 +37,30 @@ export function createInMemoryFinanceEventSink(): FinanceEventSink {
   };
 }
 
+function isTestMode(): boolean {
+  return (
+    typeof import.meta !== "undefined" &&
+    (import.meta.env?.MODE === "test" || import.meta.env?.VITEST === "true")
+  );
+}
+
 export interface FinanceGovernanceServiceDeps {
   evidence: FinanceEvidenceStore;
   events: FinanceEventSink;
+  controlMode?: Point80ControlPersistenceMode;
 }
 
 export function createFinanceGovernanceService(deps: FinanceGovernanceServiceDeps) {
-  const { evidence, events } = deps;
+  const { evidence, events, controlMode = "blocked" } = deps;
+
+  function assertCoreWriteAuthority(action: string) {
+    if (controlMode === "core") return;
+    if (controlMode === "demo" && isTestMode()) return;
+    throw new FinanceGovernanceError(
+      "core_prerequisite",
+      `Core prerequisite missing for ${action}: deploy PF-6D finance control RPCs in oasis-supabase-core before Central may mutate hold/release/reversal/second-approval authority.`,
+    );
+  }
 
   function guard(action: string, ctx: FinanceGovernanceWriteContext) {
     if (isForbiddenFinanceAction(action)) {
@@ -64,6 +82,7 @@ export function createFinanceGovernanceService(deps: FinanceGovernanceServiceDep
       input: FinanceGovernanceInput,
       ctx: FinanceGovernanceWriteContext,
     ): Promise<{ projection: ReturnType<typeof projectFinanceRelease>; eventId: string; evidenceId: string }> {
+      assertCoreWriteAuthority("finance review");
       guard("finance:review", ctx);
       const projection = projectFinanceRelease(input);
       const record = await evidence.insertEvidence({
@@ -131,6 +150,7 @@ export function createFinanceGovernanceService(deps: FinanceGovernanceServiceDep
       holdType: FinanceHoldType,
       ctx: FinanceGovernanceWriteContext,
     ): Promise<{ eventId: string }> {
+      assertCoreWriteAuthority("place finance hold");
       guard("finance:place_hold", ctx);
       await evidence.insertEvidence({
         orderId,
@@ -165,6 +185,7 @@ export function createFinanceGovernanceService(deps: FinanceGovernanceServiceDep
       holdType: FinanceHoldType,
       ctx: FinanceGovernanceWriteContext,
     ): Promise<{ eventId: string }> {
+      assertCoreWriteAuthority("release finance hold");
       guard("finance:release_hold", ctx);
       await evidence.insertEvidence({
         orderId,
@@ -198,6 +219,7 @@ export function createFinanceGovernanceService(deps: FinanceGovernanceServiceDep
       input: FinanceGovernanceInput,
       ctx: FinanceGovernanceWriteContext,
     ): Promise<{ projection: ReturnType<typeof projectFinanceRelease>; eventId: string }> {
+      assertCoreWriteAuthority("commercial release");
       guard("finance:commercial_release", ctx);
       const check = validateCommercialReleaseAttempt(input, ctx);
       if (!check.allowed) {
@@ -236,6 +258,7 @@ export function createFinanceGovernanceService(deps: FinanceGovernanceServiceDep
       input: FinanceGovernanceInput,
       ctx: FinanceGovernanceWriteContext,
     ): Promise<{ eventId: string }> {
+      assertCoreWriteAuthority("reject commercial release");
       guard("finance:reject_release", ctx);
       validateRejection(ctx);
       await evidence.insertEvidence({
