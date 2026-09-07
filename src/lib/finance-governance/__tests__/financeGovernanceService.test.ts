@@ -33,6 +33,7 @@ function svc() {
   return createFinanceGovernanceService({
     evidence: createInMemoryFinanceEvidenceStore(),
     events: createInMemoryFinanceEventSink(),
+    controlMode: "demo",
   });
 }
 
@@ -51,6 +52,7 @@ describe("financeGovernanceService", () => {
     const s = createFinanceGovernanceService({
       evidence,
       events: createInMemoryFinanceEventSink(),
+      controlMode: "demo",
     });
     await s.commercialRelease(ready, ctx);
     const rows = await s.listEvidence(ready.orderId);
@@ -74,6 +76,7 @@ describe("financeGovernanceService", () => {
     const s = createFinanceGovernanceService({
       evidence,
       events: createInMemoryFinanceEventSink(),
+      controlMode: "demo",
     });
     const { evidenceId } = await s.startReview(ready, ctx);
     expect(evidenceId).toBeTruthy();

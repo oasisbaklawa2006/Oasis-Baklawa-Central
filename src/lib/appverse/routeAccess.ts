@@ -32,7 +32,6 @@ const ADMIN_ROUTE_MODULES: Array<{ prefix: string; moduleKey: AppVerseModuleKey 
   { prefix: "/admin/operational-search", moduleKey: "cmd_war_room" },
   { prefix: "/admin/operator-inbox", moduleKey: "support" },
   { prefix: "/admin/whatsapp", moduleKey: "support" },
-  { prefix: "/admin/central-pool", moduleKey: "support" },
   { prefix: "/admin/cmd-war-room", moduleKey: "cmd_war_room" },
   { prefix: "/admin/verification", moduleKey: "cmd_war_room" },
   { prefix: "/admin/support", moduleKey: "support" },

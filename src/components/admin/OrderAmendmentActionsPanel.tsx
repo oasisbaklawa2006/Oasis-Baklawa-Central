@@ -1,10 +1,8 @@
 import { useCallback, useMemo, useState } from "react";
-import { Loader2, ShieldAlert } from "lucide-react";
+import { ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { OrderAmendmentFormFields } from "./OrderAmendmentFormFields";
 import {
   buildOrderChangeCorrelationId,
   buildOrderChangeDecisionIdentity,
@@ -218,88 +216,27 @@ export function OrderAmendmentActionsPanel({
         </p>
       )}
 
-      <Textarea
-        value={reason}
-        onChange={handleReasonChange}
-        placeholder="Governed reason (required)"
-        className="min-h-[72px] text-xs"
+      <OrderAmendmentFormFields
+        reason={reason}
+        onReasonChange={handleReasonChange}
+        amendEligible={amendEligible}
+        cancelEligible={cancelEligible}
+        substituteEligible={substituteEligible}
+        submitting={submitting}
+        disabledHints={disabledHints}
+        onAmendClick={handleAmendClick}
+        onCancelClick={handleCancelClick}
+        onSubstituteClick={handleSubstituteClick}
+        items={items}
+        loadingItems={loadingItems}
+        onRefreshLinesClick={handleRefreshLinesClick}
+        selectedItemId={selectedItemId}
+        onSelectedItemChange={handleSelectedItemChange}
+        substituteProductId={substituteProductId}
+        onSubstituteProductChange={handleSubstituteProductChange}
+        substituteQty={substituteQty}
+        onSubstituteQtyChange={handleSubstituteQtyChange}
       />
-
-      <div className="flex flex-wrap gap-2">
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          disabled={!amendEligible || submitting !== null}
-          title={disabledHints.amend || "Request governed amendment via Core"}
-          onClick={handleAmendClick}
-        >
-          {submitting === "amend" ? <Loader2 size={14} className="animate-spin" /> : null}
-          Amend line
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          disabled={!cancelEligible || submitting !== null}
-          title={disabledHints.cancel || "Request governed cancellation via Core"}
-          onClick={handleCancelClick}
-        >
-          {submitting === "cancel" ? <Loader2 size={14} className="animate-spin" /> : null}
-          Cancel order
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          disabled={!substituteEligible || submitting !== null}
-          title={disabledHints.substitute || "Request governed substitution via Core"}
-          onClick={handleSubstituteClick}
-        >
-          {submitting === "substitute" ? <Loader2 size={14} className="animate-spin" /> : null}
-          Substitute line
-        </Button>
-      </div>
-
-      {(amendEligible || substituteEligible) && (
-        <div className="space-y-2 border-t border-border pt-2">
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-[11px] text-muted-foreground">Line identity (read-only load; mutation via Core only)</p>
-            <Button type="button" size="sm" variant="ghost" className="h-7 text-xs" onClick={handleRefreshLinesClick}>
-              {loadingItems ? <Loader2 size={12} className="animate-spin" /> : "Refresh lines"}
-            </Button>
-          </div>
-          {items.length > 0 && (
-            <select
-              className="w-full rounded border border-input bg-background px-2 py-1.5 text-xs"
-              value={selectedItemId ?? ""}
-              onChange={handleSelectedItemChange}
-            >
-              {items.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.product?.name ?? item.id.slice(0, 8)} · qty {item.quantity}
-                </option>
-              ))}
-            </select>
-          )}
-          {substituteEligible && (
-            <div className="grid grid-cols-2 gap-2">
-              <Input
-                value={substituteProductId}
-                onChange={handleSubstituteProductChange}
-                placeholder="Replacement product id"
-                className="h-8 text-xs"
-              />
-              <Input
-                value={substituteQty}
-                onChange={handleSubstituteQtyChange}
-                placeholder="Qty"
-                className="h-8 text-xs"
-              />
-            </div>
-          )}
-        </div>
-      )}
     </section>
   );
 }

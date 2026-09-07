@@ -158,39 +158,39 @@ describe("Point 87 — production department execution boundary", () => {
       );
     });
 
-    it("JobIntakeTab routes accept/reject through governed RPCs", () => {
+    it("JobIntakeTab routes accept/reject through productionGovernedRpc", () => {
       const intake = source("src/components/phh/JobIntakeTab.tsx");
-      expect(intake).toContain('"accept_production_job"');
-      expect(intake).toContain('"reject_production_job"');
+      expect(intake).toContain("productionGovernedRpc.acceptJob");
+      expect(intake).toContain("productionGovernedRpc.rejectJob");
       expect(intake).not.toMatch(/\.from\("production_jobs"\)[\s\S]*\.(insert|update|delete)/);
     });
 
-    it("JobExecutionTab routes lifecycle and completion through governed RPCs", () => {
+    it("JobExecutionTab routes lifecycle and completion through productionGovernedRpc", () => {
       const execution = source("src/components/phh/JobExecutionTab.tsx");
-      for (const rpc of [
-        "start_production_job",
-        "pause_production_job",
-        "resume_production_job",
-        "advance_production_job_stage",
-        "record_production_output",
-        "declare_production_ready",
-        "dispatch_production_to_rgs",
-        "report_production_issue",
-        "resolve_production_issue",
+      for (const method of [
+        "startJob",
+        "pauseJob",
+        "resumeJob",
+        "advanceStage",
+        "recordOutput",
+        "declareReady",
+        "dispatchToRgs",
       ]) {
-        expect(execution).toContain(`"${rpc}"`);
+        expect(execution).toContain(`productionGovernedRpc.${method}`);
       }
+      expect(execution).toContain('rgsGovernedRpc.rpc("report_production_issue"');
+      expect(execution).toContain('rgsGovernedRpc.rpc("resolve_production_issue"');
       expect(execution).not.toMatch(/\.from\("production_jobs"\)[\s\S]*\.(insert|update|delete)/);
     });
 
-    it("DayEndSignoffTab submits through submit_production_day_end only", () => {
+    it("DayEndSignoffTab submits through productionGovernedRpc.submitDayEnd", () => {
       const dayEnd = source("src/components/phh/DayEndSignoffTab.tsx");
-      expect(dayEnd).toContain('"submit_production_day_end"');
+      expect(dayEnd).toContain("productionGovernedRpc.submitDayEnd");
     });
 
-    it("QuickEntryTab routes ad-hoc logging through quick_log_production_to_rgs", () => {
+    it("QuickEntryTab routes ad-hoc logging through productionGovernedRpc.quickLogToRgs", () => {
       const quick = source("src/components/phh/QuickEntryTab.tsx");
-      expect(quick).toContain('"quick_log_production_to_rgs"');
+      expect(quick).toContain("productionGovernedRpc.quickLogToRgs");
     });
   });
 
@@ -205,9 +205,9 @@ describe("Point 87 — production department execution boundary", () => {
 
     it("JobExecutionTab invokes the handoff chain in sequence", () => {
       const execution = source("src/components/phh/JobExecutionTab.tsx");
-      const outputIdx = execution.indexOf('"record_production_output"');
-      const readyIdx = execution.indexOf('"declare_production_ready"');
-      const dispatchIdx = execution.indexOf('"dispatch_production_to_rgs"');
+      const outputIdx = execution.indexOf("productionGovernedRpc.recordOutput");
+      const readyIdx = execution.indexOf("productionGovernedRpc.declareReady");
+      const dispatchIdx = execution.indexOf("productionGovernedRpc.dispatchToRgs");
       expect(outputIdx).toBeGreaterThan(-1);
       expect(readyIdx).toBeGreaterThan(outputIdx);
       expect(dispatchIdx).toBeGreaterThan(readyIdx);
@@ -237,17 +237,19 @@ describe("Point 87 — production department execution boundary", () => {
       expect(execution).toMatch(/toast\.error\(error\.message/);
     });
 
-    it("rgsGovernedRpc is the only mutation boundary for PHH lifecycle", () => {
-      const phhFiles = [
+    it("PHH lifecycle mutations route through governed RPC boundaries only", () => {
+      const lifecycleFiles = [
         "src/components/phh/JobIntakeTab.tsx",
         "src/components/phh/JobExecutionTab.tsx",
         "src/components/phh/QuickEntryTab.tsx",
         "src/components/phh/DayEndSignoffTab.tsx",
       ];
-      for (const file of phhFiles) {
+      for (const file of lifecycleFiles) {
         const content = source(file);
-        expect(content).toContain("rgsGovernedRpc");
+        expect(content).toContain("productionGovernedRpc");
       }
+      const execution = source("src/components/phh/JobExecutionTab.tsx");
+      expect(execution).toContain("rgsGovernedRpc");
     });
   });
 
