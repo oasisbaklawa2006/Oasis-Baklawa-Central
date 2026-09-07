@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from "fs";
-import { join, resolve } from "path";
+import { join } from "path";
 import { describe, expect, it } from "vitest";
 import {
   AUTHORITATIVE_PACKING_RELATIONS,
@@ -11,24 +11,21 @@ import {
 
 const ROOT = join(import.meta.dirname, "../../..");
 
-const ALLOWED_SRC_PATHS = new Set([
-  "pages/admin/CartonExplorer.tsx",
-  "pages/admin/ScanTimeline.tsx",
-  "pages/admin/DispatchTV.tsx",
-  "pages/admin/DispatchManagement.tsx",
-  "pages/admin/AdminPackingDispatch.tsx",
-  "hooks/useCartonExplorer.ts",
-]);
+const SRC_FILES: Record<string, string> = {
+  "pages/admin/CartonExplorer.tsx": join(ROOT, "pages/admin/CartonExplorer.tsx"),
+  "pages/admin/ScanTimeline.tsx": join(ROOT, "pages/admin/ScanTimeline.tsx"),
+  "pages/admin/DispatchTV.tsx": join(ROOT, "pages/admin/DispatchTV.tsx"),
+  "pages/admin/DispatchManagement.tsx": join(ROOT, "pages/admin/DispatchManagement.tsx"),
+  "pages/admin/AdminPackingDispatch.tsx": join(ROOT, "pages/admin/AdminPackingDispatch.tsx"),
+  "hooks/useCartonExplorer.ts": join(ROOT, "hooks/useCartonExplorer.ts"),
+};
 
 const DIRECT_WRITE_OPS = ["insert", "update", "upsert", "delete"] as const;
 
 function readSrc(relative: string): string {
-  if (!ALLOWED_SRC_PATHS.has(relative)) {
+  const absolute = SRC_FILES[relative];
+  if (!absolute) {
     throw new Error(`Unexpected source path: ${relative}`);
-  }
-  const absolute = resolve(ROOT, relative);
-  if (!absolute.startsWith(ROOT)) {
-    throw new Error(`Path traversal blocked: ${relative}`);
   }
   return readFileSync(absolute, "utf8");
 }
@@ -46,7 +43,7 @@ function assertNoDirectRelationMutation(
 
 describe("Point92 Central packing/carton/DPL authority boundary", () => {
   it("readSrc rejects paths outside the allowlist", () => {
-    expect(() => readSrc("../package.json")).toThrow(/Unexpected source path|Path traversal blocked/);
+    expect(() => readSrc("../package.json")).toThrow(/Unexpected source path/);
   });
 
   it("declares DispatchManagement as the sole mutation surface", () => {
@@ -121,7 +118,7 @@ describe("Point92 Central packing/carton/DPL authority boundary", () => {
   });
 
   it("useCartonExplorer reads governed relations only", () => {
-    expect(existsSync(join(ROOT, "hooks/useCartonExplorer.ts"))).toBe(true);
+    expect(existsSync(SRC_FILES["hooks/useCartonExplorer.ts"])).toBe(true);
     const hook = readSrc("hooks/useCartonExplorer.ts");
     expect(hook).toContain("b2b_dispatch_shipment_execution_view");
     expect(hook).toContain("b2b_dispatch_cartons");

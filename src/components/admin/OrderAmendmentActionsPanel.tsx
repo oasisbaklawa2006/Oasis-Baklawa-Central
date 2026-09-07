@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, type ChangeEvent } from "react";
 import { Loader2, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -178,6 +178,22 @@ export function OrderAmendmentActionsPanel({
     [orderStatus],
   );
 
+  const handleReasonChange = useCallback((event: ChangeEvent<HTMLTextAreaElement>) => {
+    setReason(event.target.value);
+  }, []);
+
+  const handleSelectedItemChange = useCallback((event: ChangeEvent<HTMLSelectElement>) => {
+    setSelectedItemId(event.target.value);
+  }, []);
+
+  const handleSubstituteProductChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+    setSubstituteProductId(event.target.value);
+  }, []);
+
+  const handleSubstituteQtyChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+    setSubstituteQty(event.target.value);
+  }, []);
+
   return (
     <section className="space-y-3 rounded-lg border border-border bg-muted/20 p-3" data-point="75">
       <div className="flex items-start gap-2">
@@ -201,9 +217,7 @@ export function OrderAmendmentActionsPanel({
 
       <Textarea
         value={reason}
-        onChange={(event) => {
-          setReason(event.target.value);
-        }}
+        onChange={handleReasonChange}
         placeholder="Governed reason (required)"
         className="min-h-[72px] text-xs"
       />
@@ -262,9 +276,7 @@ export function OrderAmendmentActionsPanel({
             <select
               className="w-full rounded border border-input bg-background px-2 py-1.5 text-xs"
               value={selectedItemId ?? ""}
-              onChange={(event) => {
-                setSelectedItemId(event.target.value);
-              }}
+              onChange={handleSelectedItemChange}
             >
               {items.map((item) => (
                 <option key={item.id} value={item.id}>
@@ -277,17 +289,13 @@ export function OrderAmendmentActionsPanel({
             <div className="grid grid-cols-2 gap-2">
               <Input
                 value={substituteProductId}
-                onChange={(event) => {
-                  setSubstituteProductId(event.target.value);
-                }}
+                onChange={handleSubstituteProductChange}
                 placeholder="Replacement product id"
                 className="h-8 text-xs"
               />
               <Input
                 value={substituteQty}
-                onChange={(event) => {
-                  setSubstituteQty(event.target.value);
-                }}
+                onChange={handleSubstituteQtyChange}
                 placeholder="Qty"
                 className="h-8 text-xs"
               />
