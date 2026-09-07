@@ -4,11 +4,12 @@
 **Repository:** `oasisbaklawa2006/Oasis-Baklawa-Central`  
 **Base:** `main` @ `d8401931` (2026-09-07) — includes Point21 notifications, Point23 realtime census, Point24 integration-error contracts  
 **Machine-readable authority:** `src/lib/appverse/centralAdminModuleAuthorityMatrix.ts`  
-**Enforcement tests:** `src/lib/appverse/__tests__/centralAdminModuleAuthorityMatrix.test.ts`
+**Enforcement tests:** `src/lib/appverse/__tests__/centralAdminModuleAuthorityMatrix.test.ts`  
+Nav integrity: `requires every AdminLayout nav pathname to be registered in the authority matrix` fails when any nav `to` path is absent from the matrix.
 
 ---
 
-## 1. Mounted route census (96 component routes + 14 redirects)
+## 1. Mounted route census (97 component routes + 14 redirects)
 
 | Surface | Count | Guard layer | Module gate |
 |---------|------:|-------------|-------------|

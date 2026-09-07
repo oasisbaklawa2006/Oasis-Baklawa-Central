@@ -9,7 +9,10 @@ import {
 /** @deprecated Prefer `@/lib/appverse/roleAccess` directly. */
 export { ROLE_MODULE_ACCESS, type AppVerseGrantedModule, type AppVerseModuleKey };
 
-/** Legacy signature: (role, moduleKey) — delegates to canonical roleAccess. */
+/**
+ * Legacy role→module check used by execution-board tests.
+ * Fail-closed: returns false when role is null/undefined or module is not granted.
+ */
 export function hasAdminModuleAccess(role: string | null | undefined, moduleKey: string): boolean {
   if (!role) return false;
   return hasModuleAccess(getAllowedModulesForRole(role), moduleKey);

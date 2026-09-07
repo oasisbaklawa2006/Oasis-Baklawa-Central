@@ -78,7 +78,7 @@ export const CENTRAL_DEFERRED_AUTHORITY_COLLISIONS = [
   {
     route: "/admin/dispatch-mgmt",
     collision:
-      "AdminRouteGuard maps to packing; AdminModuleRoute wrapper requires dispatch; Command nav uses dispatch, Operations nav uses packing.",
+      "AdminRouteGuard and Command/Operations nav use packing; AdminModuleRoute wrapper requires dispatch.",
     deferredTo: "DISPATCH_P0_456",
   },
   {
@@ -247,14 +247,17 @@ export const CENTRAL_ADMIN_MODULE_AUTHORITY_MATRIX: CentralModuleAuthorityEntry[
 
 export const CENTRAL_MATRIX_ROUTE_COUNT = CENTRAL_ADMIN_MODULE_AUTHORITY_MATRIX.length;
 
+/** Look up the canonical authority record for a mounted absolute route path. */
 export function getCentralMatrixEntry(route: string): CentralModuleAuthorityEntry | undefined {
   return CENTRAL_ADMIN_MODULE_AUTHORITY_MATRIX.find((entry) => entry.route === route);
 }
 
+/** Return every matrix entry for one Central surface class (e.g. FACTORY_TV). */
 export function getCentralMatrixRoutesBySurface(surface: CentralRouteSurface): CentralModuleAuthorityEntry[] {
   return CENTRAL_ADMIN_MODULE_AUTHORITY_MATRIX.filter((entry) => entry.surface === surface);
 }
 
+/** Return matrix entries owned by a programme lane (Point57, DISPATCH_P0_456, etc.). */
 export function getCentralMatrixRoutesByOwnership(
   ownership: ProgrammeOwnership,
 ): CentralModuleAuthorityEntry[] {

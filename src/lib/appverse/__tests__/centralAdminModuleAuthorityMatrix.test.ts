@@ -14,6 +14,7 @@ const adminLayoutPath = resolve(process.cwd(), "src/components/AdminLayout.tsx")
 const appTsx = readFileSync(appTsxPath, "utf-8");
 const adminLayout = readFileSync(adminLayoutPath, "utf-8");
 
+/** Parse mounted `<Route path="...">` values from App.tsx for reconciliation. */
 function extractAppRoutePaths(): string[] {
   const pattern = /<Route\s+path="([^"]+)"/g;
   const paths: string[] = [];
@@ -24,12 +25,14 @@ function extractAppRoutePaths(): string[] {
   return paths;
 }
 
+/** Normalize a React Router path to an absolute census key (null for catch-all). */
 function toAbsoluteRoute(rawPath: string): string | null {
   if (rawPath === "*") return null;
   if (rawPath.startsWith("/")) return rawPath;
   return `/admin/${rawPath}`;
 }
 
+/** Map each AdminModuleRoute-wrapped path to its router-level moduleKey from App.tsx. */
 function extractAdminModuleRouteKeys(): Map<string, string> {
   const map = new Map<string, string>();
   const blocks = appTsx.split(/<Route\s+/);
@@ -43,6 +46,7 @@ function extractAdminModuleRouteKeys(): Map<string, string> {
   return map;
 }
 
+/** Extract AdminLayout nav `to` + `moduleKey` pairs for authority alignment checks. */
 function extractAdminLayoutNavItems(): Array<{ to: string; moduleKey: string }> {
   const items: Array<{ to: string; moduleKey: string }> = [];
   const pattern = /\{\s*to:\s*"([^"]+)",[\s\S]*?moduleKey:\s*"([^"]+)"/g;
@@ -123,6 +127,13 @@ describe("Central module authority matrix — dispatch P0 collision (#456)", () 
 describe("Central module authority matrix — AdminLayout nav alignment", () => {
   const navItems = extractAdminLayoutNavItems();
 
+  it("requires every AdminLayout nav pathname to be registered in the authority matrix", () => {
+    const unregistered = navItems
+      .map((item) => item.to.split("?")[0])
+      .filter((pathname) => !getCentralMatrixEntry(pathname));
+    expect(unregistered, "Admin nav paths without matrix entries").toEqual([]);
+  });
+
   it.each(navItems.map((item) => [item.to, item.moduleKey] as const))(
     "nav %s moduleKey is matrix-consistent or an allowed override",
     (to, navModuleKey) => {
@@ -134,6 +145,9 @@ describe("Central module authority matrix — AdminLayout nav alignment", () => 
       }
 
       const entry = getCentralMatrixEntry(pathname);
+      if (pathname.startsWith("/admin")) {
+        expect(entry, `No matrix entry for navigation path ${pathname}`).toBeDefined();
+      }
       if (!entry || entry.routeGuardModuleKey === null) return;
       if (deferredCollisionRoutes.has(pathname)) return;
 
