@@ -22,11 +22,15 @@ const companyRow = {
   created_at: "2026-01-01T00:00:00.000Z",
 };
 
-function createQuery(result: { data: unknown; error: unknown }) {
+function createQuery(result: { data: unknown; error: unknown }, calls?: { in?: Array<{ column: string; values: readonly unknown[] }> }) {
   const builder: Record<string, unknown> = {
     select: vi.fn(() => builder),
     eq: vi.fn(() => builder),
     not: vi.fn(() => builder),
+    in: vi.fn((column: string, values: readonly unknown[]) => {
+      calls?.in?.push({ column, values });
+      return builder;
+    }),
     order: vi.fn(() => builder),
     limit: vi.fn(() => builder),
     maybeSingle: vi.fn(async () => result),
@@ -42,8 +46,11 @@ vi.mock("@/integrations/supabase/client", () => ({
 }));
 
 describe("fetchCustomer360ReadModel", () => {
+  let ticketQueryCalls: { in: Array<{ column: string; values: readonly unknown[] }> };
+
   beforeEach(async () => {
     vi.clearAllMocks();
+    ticketQueryCalls = { in: [] };
     const { supabase } = await import("@/integrations/supabase/client");
     vi.mocked(supabase.from).mockImplementation((table: string) => {
       if (table === "companies") {
@@ -68,7 +75,17 @@ describe("fetchCustomer360ReadModel", () => {
         return createQuery({ data: [], error: null }) as never;
       }
       if (table === "support_tickets") {
-        return createQuery({ data: [], error: null }) as never;
+        return createQuery({
+          data: [{
+            id: "ticket-1",
+            order_id: "order-1",
+            issue_type: "quality",
+            status: "open",
+            created_at: "2026-02-02T00:00:00.000Z",
+            order: { company_id: VALID_UUID, order_number: "SO-1001" },
+          }],
+          error: null,
+        }, ticketQueryCalls) as never;
       }
       throw new Error(`Unexpected table ${table}`);
     });
@@ -97,5 +114,42 @@ describe("fetchCustomer360ReadModel", () => {
 
     expect(model.interactions.availability).toBe("partial_crm_lite");
     expect(model.tasks.availability).toBe("partial_crm_lite");
+  });
+
+  it("scopes support tickets to the company order set before applying the limit", async () => {
+    const model = await fetchCustomer360ReadModel(VALID_UUID, {
+      viewerCompanyId: null,
+      isStorefrontViewer: false,
+    });
+
+    expect(ticketQueryCalls.in).toEqual([{ column: "order_id", values: ["order-1"] }]);
+    expect(model.tickets.data).toHaveLength(1);
+    expect(model.tickets.data?.[0]?.orderId).toBe("order-1");
+  });
+
+  it("returns no ticket query when the company has no scoped orders", async () => {
+    const { supabase } = await import("@/integrations/supabase/client");
+    vi.mocked(supabase.from).mockImplementation((table: string) => {
+      if (table === "companies") {
+        return createQuery({ data: companyRow, error: null }) as never;
+      }
+      if (table === "orders") {
+        return createQuery({ data: [], error: null }) as never;
+      }
+      if (table === "client_interactions" || table === "crm_tasks") {
+        return createQuery({ data: [], error: null }) as never;
+      }
+      if (table === "support_tickets") {
+        throw new Error("support_tickets should not be queried without company order ids");
+      }
+      throw new Error(`Unexpected table ${table}`);
+    });
+
+    const model = await fetchCustomer360ReadModel(VALID_UUID, {
+      viewerCompanyId: null,
+      isStorefrontViewer: false,
+    });
+
+    expect(model.tickets.data).toEqual([]);
   });
 });

@@ -89,7 +89,7 @@ export async function fetchCustomer360ReadModel(
     data: mapCompanyProfile(companyRow as unknown as CompanyRow),
   };
 
-  const [ordersRes, interactionsRes, tasksRes, ticketsRes] = await Promise.all([
+  const [ordersRes, interactionsRes, tasksRes] = await Promise.all([
     supabase
       .from("orders")
       .select("id, order_number, status, sales_order_value, created_at")
@@ -109,14 +109,20 @@ export async function fetchCustomer360ReadModel(
       .eq("company_id", companyId)
       .order("due_date", { ascending: true })
       .limit(25),
-    supabase
-      .from("support_tickets")
-      .select(
-        "id, order_id, issue_type, status, created_at, order:orders(company_id, order_number)",
-      )
-      .order("created_at", { ascending: false })
-      .limit(50),
   ]);
+
+  const orderIds = (ordersRes.data ?? []).map((row) => row.id);
+  const ticketsRes =
+    orderIds.length === 0
+      ? { data: [] as unknown[], error: null }
+      : await supabase
+          .from("support_tickets")
+          .select(
+            "id, order_id, issue_type, status, created_at, order:orders(company_id, order_number)",
+          )
+          .in("order_id", orderIds)
+          .order("created_at", { ascending: false })
+          .limit(25);
 
   const ordersSlice: Customer360Slice<Customer360OrderSummary[]> = ordersRes.error
     ? {
@@ -176,9 +182,7 @@ export async function fetchCustomer360ReadModel(
         })),
       };
 
-  const parsedTickets = parseCrmLiteTickets(ticketsRes.data ?? []).filter(
-    (ticket) => ticket.order?.company_id === companyId,
-  );
+  const parsedTickets = parseCrmLiteTickets(ticketsRes.data ?? []);
   const ticketsSlice: Customer360Slice<Customer360TicketSummary[]> = ticketsRes.error
     ? {
         availability: "error",
