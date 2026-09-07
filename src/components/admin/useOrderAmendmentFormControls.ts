@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-confusing-void-expression -- named function handlers for governed order-change actions */
 import { useCallback, type ChangeEvent } from "react";
 
 type OrderAmendmentFormControls = {
