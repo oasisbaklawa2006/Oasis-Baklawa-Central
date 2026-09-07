@@ -102,6 +102,7 @@ const ProductIntelligencePrototype = lazy(
   () => import("./pages/admin/ProductIntelligencePrototype.tsx"),
 );
 const ExecutionCommandCenter = lazy(() => import("./pages/admin/ExecutionCommandCenter.tsx"));
+const ManagementCommandCenter = lazy(() => import("./pages/admin/ManagementCommandCenter.tsx"));
 const ExecutionRiskBoard = lazy(() => import("./pages/admin/ExecutionRiskBoard.tsx"));
 const ExecutionBottlenecks = lazy(() => import("./pages/admin/ExecutionBottlenecks.tsx"));
 // ProductionExecutionBoard / AssemblyExecutionBoard / ReadyGoodsExecutionBoard
@@ -424,6 +425,14 @@ const App = () => (
                       element={
                         <AdminModuleRoute moduleKey="cmd_war_room">
                           <ProductIntelligencePrototype />
+                        </AdminModuleRoute>
+                      }
+                    />
+                    <Route
+                      path="management-command-center"
+                      element={
+                        <AdminModuleRoute moduleKey="management_reporting">
+                          <ManagementCommandCenter />
                         </AdminModuleRoute>
                       }
                     />
