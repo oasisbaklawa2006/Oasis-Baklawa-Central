@@ -93,9 +93,19 @@ Full per-route owner, read/write authority, disposition, and programme tag: see 
 | Gate | State |
 |------|-------|
 | Module authority matrix committed | **YES** |
-| Registry/routes/nav/authority tests | **YES** |
-| Point 57 minimal route corrections | **YES** (`3pcs-store`, `sales-hub`, nav `dispatch-mgmt` dedup) |
-| Typecheck / unit tests / build | Pending CI on PR |
+| Registry/routes/nav/authority tests | **YES** (182 tests) |
+| Point 57 minimal route corrections | **YES** (`3pcs-store`, `sales-hub`, redirect bookmarks, nav `dispatch-mgmt` dedup) |
+| Rebased onto current main (`d8401931`) | **YES** — Point21/23/24 preserved; route table unchanged |
+| Typecheck / unit tests / build | **YES** — 2427 tests, 330 files @ exact head |
 | Point 57 programme CLEARED | **NOT_CLEARED** — requires Mission Control runtime reconciliation |
 
 `PR MERGED != Point 57 cleared`
+
+### Post-rebase preservation notes (Point21 / Point23 / Point24)
+
+| Programme | Impact on route census |
+|-----------|------------------------|
+| Point21 (notifications) | `/admin/notifications` unchanged; `settings` module gate preserved |
+| Point23 (realtime census) | No new routes; `AdminLayout` global staff toasts unchanged |
+| Point24 (integration errors) | Transport/retry contracts only; no route table changes |
+| FAIL-493-001 (#497) | `AdminRouteGuard` synchronous denial preserved |
