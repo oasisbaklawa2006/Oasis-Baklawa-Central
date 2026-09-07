@@ -5,9 +5,11 @@
  */
 import fs from "node:fs";
 import path from "node:path";
+import { resolveCredentialBlocker } from "./credential-prefix-aliases.mjs";
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
 const RUN_ID = process.env.GITHUB_RUN_ID || "local";
+
 const VERIFICATION_NOTE =
   process.env.UAT_WATCHDOG_VERIFICATION?.trim() ||
   "Watchdog re-verification — no fabricated PASS; blocked IDs retain exact secret names only.";
@@ -23,26 +25,6 @@ const DEPLOY_PROVENANCE =
   process.env.UAT_DEPLOY_PROVENANCE_LABEL?.trim() ||
   "Current-main rebaseline @ 15c59a3f (#507 POINT61) — prior e2f123b0 evidence preserved append-only.";
 
-const PERSONA_PREFIX = {
-  ADMIN_STAFF: "TEST_ADMIN",
-  ADMIN_SALES: "TEST_SALES",
-  BUYER: "TEST_BUYER",
-  FINANCE: "TEST_FINANCE",
-  P_AND_A: "TEST_ASSEMBLY",
-  DISPATCH: "TEST_DISPATCH",
-  GATE_SECURITY: "TEST_GATE_SECURITY",
-  RGS: "TEST_RGS",
-  "3PGS": "TEST_PRODUCTION",
-  TV: "TEST_TV_RGS",
-};
-
-const ROUTE_PREFIX = [
-  [/^\/operations-controller/, "TEST_OPERATIONS"],
-  [/^\/admin\/dispatch/, "TEST_DISPATCH"],
-  [/^\/tv\/3pgs/, "TEST_TV_PRODUCTION"],
-  [/^\/tv\//, "TEST_TV_RGS"],
-];
-
 const PUBLIC_RUNNABLE = new Set(["UAT-0001", "UAT-0004", "UAT-0005", "UAT-0008", "UAT-0009"]);
 
 function missingSecrets(names) {
@@ -51,37 +33,37 @@ function missingSecrets(names) {
 
 function resolveBlocker(entry) {
   if (PUBLIC_RUNNABLE.has(entry.uatId)) {
-    return { blockers: [], failId: null };
+    return { blockers: [], failId: null, wiredPrefix: null };
   }
   if (entry.app === "ai-studio") {
     return {
       blockers: ["TEST_AI_STUDIO_PREVIEW_URL"],
       failId: `FAIL-AUTH-DEPLOY-${entry.uatId.slice(-4)}`,
+      wiredPrefix: null,
     };
   }
   if (entry.app === "trace") {
     return {
       blockers: ["TEST_TRACE_PREVIEW_URL"],
       failId: `FAIL-AUTH-DEPLOY-${entry.uatId.slice(-4)}`,
+      wiredPrefix: null,
     };
   }
   if (entry.uatId === "UAT-0018" || entry.uatId === "UAT-0020") {
     return {
       blockers: ["TEST_SALES_EMAIL", "TEST_SALES_PASSWORD"],
       failId: `FAIL-AUTH-CRED-${entry.uatId.slice(-4)}`,
+      wiredPrefix: null,
     };
   }
-  const routeOverride = ROUTE_PREFIX.find(([pattern]) => pattern.test(entry.route));
-  const prefix = routeOverride?.[1] ?? PERSONA_PREFIX[entry.persona];
-  if (!prefix) {
-    return {
-      blockers: [`TEST_${entry.persona}_EMAIL`, `TEST_${entry.persona}_PASSWORD`],
-      failId: `FAIL-AUTH-CRED-${entry.uatId.slice(-4)}`,
-    };
+  const resolution = resolveCredentialBlocker(entry.persona, entry.route);
+  if (resolution.wired) {
+    return { blockers: [], failId: null, wiredPrefix: resolution.wiredPrefix };
   }
   return {
-    blockers: [`${prefix}_EMAIL`, `${prefix}_PASSWORD`],
+    blockers: resolution.missingSecretNames,
     failId: `FAIL-AUTH-CRED-${entry.uatId.slice(-4)}`,
+    wiredPrefix: null,
   };
 }
 
@@ -183,6 +165,10 @@ for (const entry of census.entries) {
 }
 
 fs.mkdirSync(path.dirname(outPath), { recursive: true });
+const archivePath = path.join(ROOT, "docs/uat-crawl/UAT_VERIFIED_BLOCKERS_ARCHIVE.jsonl");
+if (fs.existsSync(outPath)) {
+  fs.appendFileSync(archivePath, fs.readFileSync(outPath, "utf8"));
+}
 fs.writeFileSync(outPath, `${rows.map((r) => JSON.stringify(r)).join("\n")}\n`, "utf8");
 
 const summary = {

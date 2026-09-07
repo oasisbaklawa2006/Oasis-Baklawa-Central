@@ -511,7 +511,7 @@ export async function crawlTargetAuthenticated(
     return { row, failures, uxFailures: uxFailureRows };
   }
 
-  const { email, password } = getCredentials(creds.prefix);
+  const { email, password } = getCredentials(creds.wiredPrefix ?? creds.prefix!);
   let loginError: string | null = null;
   try {
     await login(page, email, password);
