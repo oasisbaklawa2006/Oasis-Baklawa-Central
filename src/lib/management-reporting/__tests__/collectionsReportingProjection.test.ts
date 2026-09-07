@@ -58,5 +58,7 @@ describe("collectionsReportingProjection", () => {
     expect(snap.ageingBuckets.find((b) => b.bucket === "31-60")?.orderCount).toBe(1);
     expect(snap.ageingBuckets.find((b) => b.bucket === "0-30")?.orderCount).toBe(1);
     expect(snap.topExposureClients[0]?.metric).toBe(8000);
+    expect(snap.creditRisk.frozenAccountCount).toBe(0);
+    expect(snap.creditRisk.highExposureCount).toBeGreaterThan(0);
   });
 });

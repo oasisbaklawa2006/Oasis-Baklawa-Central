@@ -77,7 +77,7 @@ function buildAuditHeaderRows(audit: TallyExportAuditMetadata): string[] {
 export async function exportTallyPeriodBatch(
   client: SupabaseClient<Database>,
   filter: TallyPeriodExportFilter,
-  options?: { exportId?: string },
+  options?: { exportId?: string; generatedAtIso?: string },
 ): Promise<TallyPeriodExportResult | TallyPeriodExportError> {
   const start = new Date(filter.periodStart);
   const end = new Date(filter.periodEnd);
@@ -150,7 +150,7 @@ export async function exportTallyPeriodBatch(
     };
   }
 
-  const generatedAtIso = new Date().toISOString();
+  const generatedAtIso = options?.generatedAtIso ?? new Date().toISOString();
   const exportId = options?.exportId ?? `tally-v2-${generatedAtIso.slice(0, 10)}-${eligible.length}`;
   const bodyCsv = [headerLine, ...dataRows].join("\r\n");
 

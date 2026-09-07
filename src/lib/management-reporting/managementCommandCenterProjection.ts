@@ -75,7 +75,7 @@ export function buildManagementCommandCenterProjection(
       })
     : null;
 
-  const { entries: eanRegistry } = buildEanRegistryEntries(
+  const { entries: eanRegistry, total: eanRegistryTotal } = buildEanRegistryEntries(
     input.products,
     input.eanLimit ?? 50,
     input.eanOffset ?? 0,
@@ -98,6 +98,7 @@ export function buildManagementCommandCenterProjection(
     finance255ProductionAnchor: CORE_FINANCE_255_PRODUCTION_ANCHOR,
     coreFinanceWarnings: input.coreFinanceWarnings ?? [],
     eanRegistry,
+    eanRegistryTotal,
     complianceExceptions,
   };
 }

@@ -2,6 +2,7 @@ import { differenceInDays, parseISO } from "date-fns";
 import type {
   CollectionsAgeingBucket,
   CollectionsReportingSnapshot,
+  CreditRiskSnapshot,
   RankedEntity,
 } from "./managementReportingTypes";
 import {
@@ -113,6 +114,13 @@ export function buildCollectionsReportingSnapshot(input: {
       drillRoute: `/admin/clients/${encodeURIComponent(id)}`,
     }));
 
+  const creditRisk: CreditRiskSnapshot = {
+    frozenAccountCount: input.companies.filter((c) => c.is_frozen).length,
+    negativeWalletCount: input.companies.filter((c) => (c.wallet_balance ?? 0) < 0).length,
+    creditEnabledCount: input.companies.filter((c) => c.allow_credit && !c.is_frozen).length,
+    highExposureCount: topExposureClients.filter((c) => c.metric > 0).length,
+  };
+
   return {
     asOfIso: ref.toISOString(),
     recoverableOutstanding: resolveFinanceMetric(
@@ -138,6 +146,7 @@ export function buildCollectionsReportingSnapshot(input: {
     profitability: buildProfitabilityMetric(),
     ageingBuckets: AGEING_BUCKETS.map((b) => ageingMap.get(b)!),
     topExposureClients,
+    creditRisk,
   };
 }
 

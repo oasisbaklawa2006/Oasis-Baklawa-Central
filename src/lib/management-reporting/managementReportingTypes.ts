@@ -47,6 +47,13 @@ export interface DelayRiskSnapshot {
   disputedLedgerCount: number;
 }
 
+export interface CreditRiskSnapshot {
+  frozenAccountCount: number;
+  negativeWalletCount: number;
+  creditEnabledCount: number;
+  highExposureCount: number;
+}
+
 export interface CollectionsAgeingBucket {
   bucket: "0-30" | "31-60" | "61-90" | "90+";
   orderCount: number;
@@ -63,6 +70,7 @@ export interface CollectionsReportingSnapshot {
   profitability: GovernedMetric;
   ageingBuckets: CollectionsAgeingBucket[];
   topExposureClients: RankedEntity[];
+  creditRisk: CreditRiskSnapshot;
 }
 
 export interface EanRegistryEntry {
@@ -115,5 +123,6 @@ export interface ManagementCommandCenterProjection {
   finance255ProductionAnchor: string;
   coreFinanceWarnings: string[];
   eanRegistry: EanRegistryEntry[];
+  eanRegistryTotal: number;
   complianceExceptions: ComplianceException[];
 }

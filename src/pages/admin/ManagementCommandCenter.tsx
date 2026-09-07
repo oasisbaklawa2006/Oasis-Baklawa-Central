@@ -16,6 +16,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
@@ -88,6 +95,8 @@ export default function ManagementCommandCenter() {
     periodLabel,
     setPeriodPreset,
     canViewFinance,
+    eanTotal,
+    companyOptions,
   } = useManagementCommandCenter();
   const [exporting, setExporting] = useState(false);
   const [exportHistory, setExportHistory] = useState(() => listExportHistory());
@@ -107,6 +116,7 @@ export default function ManagementCommandCenter() {
       const result = await exportTallyPeriodBatch(supabase, {
         periodStart: filters.periodStart,
         periodEnd: filters.periodEnd,
+        companyId: filters.tallyCompanyId,
       });
       if (result.ok === false) {
         toast.error(result.error);
@@ -342,7 +352,7 @@ export default function ManagementCommandCenter() {
                   <MetricCard label="Profitability" metric={p.collections.profitability} formatValue={format} />
                 </section>
 
-                <div className="grid gap-4 lg:grid-cols-2">
+                <div className="grid gap-4 lg:grid-cols-3">
                   <Card>
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2 text-sm">
@@ -394,6 +404,31 @@ export default function ManagementCommandCenter() {
                       ))}
                     </CardContent>
                   </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2 text-sm">
+                        <Shield className="h-4 w-4" aria-hidden />
+                        Credit risk signals
+                      </CardTitle>
+                      <CardDescription className="text-xs">
+                        Observed from companies table — Core credit exposure per order via get_credit_exposure_facts_v1
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="grid grid-cols-2 gap-3 text-xs">
+                      {[
+                        ["Frozen accounts", p.collections.creditRisk.frozenAccountCount],
+                        ["Negative wallet", p.collections.creditRisk.negativeWalletCount],
+                        ["Credit enabled", p.collections.creditRisk.creditEnabledCount],
+                        ["High exposure clients", p.collections.creditRisk.highExposureCount],
+                      ].map(([label, count]) => (
+                        <div key={String(label)} className="rounded-md border border-border/60 px-2 py-2">
+                          <p className="text-muted-foreground">{label}</p>
+                          <p className="text-lg font-semibold tabular-nums">{count}</p>
+                        </div>
+                      ))}
+                    </CardContent>
+                  </Card>
                 </div>
               </>
             ) : null}
@@ -414,9 +449,35 @@ export default function ManagementCommandCenter() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
-                <Button onClick={() => void handleTallyExport()} disabled={exporting}>
-                  {exporting ? "Exporting…" : "Generate & download CSV"}
-                </Button>
+                <div className="flex flex-wrap items-end gap-3">
+                  <div className="min-w-[220px]">
+                    <p className="mb-1 text-xs text-muted-foreground">Company filter (optional)</p>
+                    <Select
+                      value={filters.tallyCompanyId ?? "all"}
+                      onValueChange={(value) =>
+                        setFilters((f) => ({
+                          ...f,
+                          tallyCompanyId: value === "all" ? null : value,
+                        }))
+                      }
+                    >
+                      <SelectTrigger className="h-9">
+                        <SelectValue placeholder="All companies" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All companies</SelectItem>
+                        {companyOptions.map((c) => (
+                          <SelectItem key={c.id} value={c.id}>
+                            {c.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button onClick={() => void handleTallyExport()} disabled={exporting}>
+                    {exporting ? "Exporting…" : "Generate & download CSV"}
+                  </Button>
+                </div>
                 {exportHistory.length > 0 ? (
                   <div>
                     <p className="mb-2 text-xs font-medium text-muted-foreground">Export evidence history</p>
@@ -460,6 +521,31 @@ export default function ManagementCommandCenter() {
             <Badge variant="outline" className="text-[10px]">
               {p?.complianceExceptions.length ?? 0} exceptions
             </Badge>
+            <Badge variant="secondary" className="text-[10px]">
+              {eanTotal} registry rows
+            </Badge>
+            <div className="ml-auto flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={filters.eanPage <= 0 || loading}
+                onClick={() => setFilters((f) => ({ ...f, eanPage: Math.max(0, f.eanPage - 1) }))}
+              >
+                Previous
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={
+                  loading ||
+                  (projection?.eanRegistry.length ?? 0) < filters.eanPageSize ||
+                  (filters.eanPage + 1) * filters.eanPageSize >= eanTotal
+                }
+                onClick={() => setFilters((f) => ({ ...f, eanPage: f.eanPage + 1 }))}
+              >
+                Next
+              </Button>
+            </div>
           </div>
 
           <div className="grid gap-4 lg:grid-cols-2">

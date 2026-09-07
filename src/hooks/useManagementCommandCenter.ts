@@ -15,6 +15,7 @@ export interface ManagementCommandCenterFilters {
   eanSearch: string;
   eanPage: number;
   eanPageSize: number;
+  tallyCompanyId: string | null;
 }
 
 const DEFAULT_PAGE_SIZE = 50;
@@ -42,11 +43,13 @@ export function useManagementCommandCenter() {
     eanSearch: "",
     eanPage: 0,
     eanPageSize: DEFAULT_PAGE_SIZE,
+    tallyCompanyId: null,
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [projection, setProjection] = useState<ManagementCommandCenterProjection | null>(null);
   const [eanTotal, setEanTotal] = useState(0);
+  const [companyOptions, setCompanyOptions] = useState<Array<{ id: string; label: string }>>([]);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -200,9 +203,11 @@ export function useManagementCommandCenter() {
       });
 
       setProjection(built);
-      setEanTotal(
-        built.complianceExceptions.filter((e) => e.category === "ean").length +
-          built.eanRegistry.length,
+      setEanTotal(built.eanRegistryTotal);
+      setCompanyOptions(
+        companies
+          .map((c) => ({ id: c.id, label: c.business_name ?? c.id.slice(0, 8) }))
+          .sort((a, b) => a.label.localeCompare(b.label)),
       );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load management reporting");
@@ -264,5 +269,6 @@ export function useManagementCommandCenter() {
     setPeriodPreset,
     canViewFinance,
     eanTotal,
+    companyOptions,
   };
 }
