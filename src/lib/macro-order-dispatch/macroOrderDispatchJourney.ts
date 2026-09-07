@@ -16,7 +16,7 @@ export const MACRO_ORDER_DISPATCH_JOURNEY: readonly MacroJourneyStage[] = [
     key: "order_pool",
     label: "Order Pool",
     route: "/admin/central-pool",
-    moduleKey: "cmd_war_room",
+    moduleKey: "orders",
     absorbedPoints: ["POINT71", "POINT74"],
   },
   {
@@ -51,8 +51,15 @@ export const MACRO_ORDER_DISPATCH_JOURNEY: readonly MacroJourneyStage[] = [
     key: "three_pgs",
     label: "3PGS Procurement",
     route: "/admin/3pgs-procurement-queue",
-    moduleKey: "orders",
+    moduleKey: "inventory",
     absorbedPoints: ["3PGS"],
+  },
+  {
+    key: "dispatch_readiness",
+    label: "Dispatch Readiness",
+    route: "/admin/dispatch-readiness",
+    moduleKey: "dispatch",
+    absorbedPoints: ["DISPATCH_READY"],
   },
   {
     key: "packing_dpl",
@@ -60,6 +67,13 @@ export const MACRO_ORDER_DISPATCH_JOURNEY: readonly MacroJourneyStage[] = [
     route: "/admin/dispatch-mgmt",
     moduleKey: "dispatch",
     absorbedPoints: ["POINT92"],
+  },
+  {
+    key: "golden_chain",
+    label: "Golden Chain Operator",
+    route: "/admin/golden-chain-operator",
+    moduleKey: "dispatch",
+    absorbedPoints: ["POINT38"],
   },
   {
     key: "finance_exit",

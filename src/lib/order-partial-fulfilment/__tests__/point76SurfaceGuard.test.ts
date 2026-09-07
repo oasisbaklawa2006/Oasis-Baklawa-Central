@@ -38,6 +38,13 @@ describe("legacyPartialSplitGuard (Point 76)", () => {
 });
 
 describe("Point 76 surface guard — no client-only split mutations", () => {
+  it("Order Trace mounts governed partial fulfilment projection panel", () => {
+    const traceSheet = source("src/components/admin/OrderTraceSheet.tsx");
+    const panel = source("src/components/admin/PartialFulfilmentPanel.tsx");
+    expect(traceSheet).toContain("PartialFulfilmentPanel");
+    expect(panel).toContain('data-point="76"');
+  });
+
   it("AdminOperations no longer performs smart-split shadow fulfilment mutations", () => {
     const page = source("src/pages/admin/AdminOperations.tsx");
     expect(page).toContain("blockLegacyPartialSplitMutation");

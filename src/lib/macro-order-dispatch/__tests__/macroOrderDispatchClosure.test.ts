@@ -21,7 +21,9 @@ describe("Central #554 Leap 7 macro order-to-gate closure", () => {
       "assembly",
       "ready_goods",
       "three_pgs",
+      "dispatch_readiness",
       "packing_dpl",
+      "golden_chain",
       "finance_exit",
       "security_gate",
     ]);
@@ -47,6 +49,15 @@ describe("Central #554 Leap 7 macro order-to-gate closure", () => {
 
   it("wires governed amendment panel into order trace", () => {
     expect(source("src/components/admin/OrderTraceSheet.tsx")).toContain("OrderAmendmentActionsPanel");
+    expect(source("src/components/admin/OrderTraceSheet.tsx")).toContain("PartialFulfilmentPanel");
+  });
+
+  it("blocks dispatch floor roles from production handheld war room", () => {
+    const app = source("src/App.tsx");
+    expect(app).toContain("OPERATIONS_CONTROLLER_ROLES");
+    expect(app).toMatch(
+      /<Route path="\/operations-controller"[\s\S]*?allowedRoles=\{\[\.\.\.OPERATIONS_CONTROLLER_ROLES\]\}/,
+    );
   });
 
   it("completes customer dispatch communication at the security gate", () => {

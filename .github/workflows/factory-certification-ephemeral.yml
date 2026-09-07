@@ -575,23 +575,23 @@ jobs:
             throw new Error('POINT38_RESULT_MISSING: Playwright JSON report was not produced');
           }
           const report = JSON.parse(fs.readFileSync(resultPath, 'utf8'));
-          const statuses = [];
-          const visit = (value) => {
-            if (!value || typeof value !== 'object') return;
-            if (Array.isArray(value)) {
-              for (const item of value) visit(item);
-              return;
-            }
-            if (Array.isArray(value.results)) {
-              for (const result of value.results) {
-                if (typeof result?.status === 'string') statuses.push(result.status);
+          const point38Statuses = [];
+          const visitSuites = (suites) => {
+            for (const suite of suites ?? []) {
+              for (const spec of suite.specs ?? []) {
+                const title = typeof spec?.title === 'string' ? spec.title : '';
+                if (!title.includes('POINT-38')) continue;
+                for (const test of spec.tests ?? []) {
+                  for (const result of test.results ?? []) {
+                    if (typeof result?.status === 'string') point38Statuses.push(result.status);
+                  }
+                }
               }
-            }
-            for (const [key, child] of Object.entries(value)) {
-              if (key !== 'results') visit(child);
+              visitSuites(suite.suites);
             }
           };
-          visit(report.suites ?? report);
+          visitSuites(report.suites ?? [report]);
+          const statuses = point38Statuses;
           const counts = statuses.reduce((acc, status) => {
             acc[status] = (acc[status] ?? 0) + 1;
             return acc;

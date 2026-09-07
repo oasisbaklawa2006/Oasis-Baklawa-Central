@@ -96,5 +96,21 @@ test.describe("Macro journey — Dispatch Manager least privilege", () => {
       timeout: 45_000,
     });
     await expect(page).not.toHaveURL(/\/admin\/finance-board\/?(?:$|\?)/, { timeout: 15_000 });
+
+    for (const blockedRoute of [
+      "/operations-controller",
+      "/admin/cmd-war-room",
+      "/admin/heartbeat",
+      "/admin/execution-command-center",
+      "/admin/central-pool",
+    ]) {
+      await page.goto(`${getPreviewUrl()}${blockedRoute}`, {
+        waitUntil: "domcontentloaded",
+        timeout: 45_000,
+      });
+      await expect(page).not.toHaveURL(new RegExp(`${blockedRoute.replace(/\//g, "\\/")}\\/?(?:$|\\?)`), {
+        timeout: 15_000,
+      });
+    }
   });
 });

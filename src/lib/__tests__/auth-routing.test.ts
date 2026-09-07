@@ -77,6 +77,7 @@ describe("auth-routing", () => {
     expect(getRoleDestination("HOD_BAKERY")).toBe("/operations-controller");
     expect(getRoleDestination("HOD_NUTS")).toBe("/operations-controller");
     expect(getRoleDestination("HOD_ASSEMBLY")).toBe("/admin/assembly-tasks");
+    expect(getRoleDestination("PACKING_SUPERVISOR")).toBe("/admin/dispatch-mgmt");
   });
 
   it("respects nested paths within a role's destination", () => {

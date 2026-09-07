@@ -30,6 +30,7 @@ const OperationsController = () => {
   const [activeTab, setActiveTab] = useState<"intake" | "execution" | "quick_entry" | "day_end">("intake");
   const [jobs, setJobs] = useState<ProductionJob[]>([]);
   const [urgentCount, setUrgentCount] = useState(0);
+  const [loadError, setLoadError] = useState<string | null>(null);
   useEffect(() => {
     if (roleDepartment) setMyDepartment(roleDepartment);
   }, [roleDepartment]);
@@ -37,7 +38,7 @@ const OperationsController = () => {
   const deptLabel = DEPARTMENTS.find((d) => d.value === myDepartment)?.label || myDepartment;
 
   const fetchJobs = useCallback(async () => {
-    const { data } = await productionJobsDb
+    const { data, error } = await productionJobsDb
       .from("production_jobs")
       .select("*, product:products(name, image_url, sku), order:orders(id, created_at, status)")
       // canonical_department is trigger-maintained server-side (see
@@ -48,6 +49,14 @@ const OperationsController = () => {
       .eq("canonical_department", myDepartment)
       .in("status", ["pending", "accepted", "in_production", "paused", "completed"])
       .order("created_at", { ascending: true });
+    if (error) {
+      setLoadError(error.message || "Could not load production jobs");
+      setJobs([]);
+      setUrgentCount(0);
+      setLoading(false);
+      return;
+    }
+    setLoadError(null);
     const rows: ProductionJob[] = data ?? [];
     setJobs(rows);
     const urgent = rows.filter((j) => j.priority === "urgent" || j.priority === "red");
@@ -83,6 +92,20 @@ const OperationsController = () => {
   return (
     <div className="bg-slate-50 min-h-screen pb-safe font-sans">
       <TopNavBar />
+
+      {loadError && (
+        <div className="mx-4 mt-20 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-900">
+          <p className="font-medium">Production queue unavailable</p>
+          <p className="mt-1 text-xs">{loadError}</p>
+          <button
+            type="button"
+            className="mt-2 rounded border border-red-300 bg-white px-3 py-1 text-xs font-semibold"
+            onClick={function onRetryJobs() { void fetchJobs(); }}
+          >
+            Retry
+          </button>
+        </div>
+      )}
 
       {/* Urgent Flash Banner */}
       {urgentCount > 0 && (

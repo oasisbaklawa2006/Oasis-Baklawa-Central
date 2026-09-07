@@ -135,6 +135,11 @@ const ADMIN_STAFF_ROLES = [
   "CATALOGUE_CONTRIBUTOR",
 ];
 
+/** Dispatch/packing floor roles must not access the production handheld war room by URL. */
+const OPERATIONS_CONTROLLER_ROLES = ADMIN_STAFF_ROLES.filter(
+  (role) => !["DISPATCH_MANAGER", "DISPATCH_INCHARGE", "DISPATCH_HEAD", "PACKING_SUPERVISOR"].includes(role),
+);
+
 const SALES_DASHBOARD_ROLES = [...ADMIN_ONLY_ROLES, "SALES_EXECUTIVE"];
 
 const queryClient = new QueryClient();
@@ -243,7 +248,7 @@ const App = () => (
                 <Suspense fallback={<AuthSpinner />}>
                 <Routes>
                   <Route path="/splash" element={<Splash />} />
-                  <Route path="/operations-controller" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={[...ADMIN_STAFF_ROLES]}><OperationsController /></RoleProtectedRoute></ProtectedRoute>} />
+                  <Route path="/operations-controller" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={[...OPERATIONS_CONTROLLER_ROLES]}><OperationsController /></RoleProtectedRoute></ProtectedRoute>} />
                   <Route path="/security-gate" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={[...SECURITY_GATE_ALLOWED_ROLES]}><AdminSecurityGate /></RoleProtectedRoute></ProtectedRoute>} />
                   <Route path="/" element={<RootGate />} />
                   <Route path="/customer-app-redirect" element={<CustomerAppRedirect />} />

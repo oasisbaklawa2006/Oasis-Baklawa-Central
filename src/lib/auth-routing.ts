@@ -89,7 +89,7 @@ const STAFF_ROLE_DESTINATIONS: Record<string, string> = {
 
   // Packing / Assembly
   ASSEMBLY_MANAGER:         "/admin/assembly-tasks",
-  PACKING_SUPERVISOR:       "/admin/order-management",
+  PACKING_SUPERVISOR:       "/admin/dispatch-mgmt",
 
   // Sales
   SALES_EXECUTIVE:          "/sales/dashboard",
