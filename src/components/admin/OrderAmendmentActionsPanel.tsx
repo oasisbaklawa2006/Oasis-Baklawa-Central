@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-confusing-void-expression -- event handlers are extracted to useOrderAmendmentFormControls */
 import { useCallback, useMemo, useState } from "react";
 import { Loader2, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
@@ -201,7 +200,6 @@ export function OrderAmendmentActionsPanel({
   return (
     <section className="space-y-3 rounded-lg border border-border bg-muted/20 p-3" data-point="75">
       <div className="flex items-start gap-2">
-        {/* eslint-disable-next-line @typescript-eslint/no-confusing-void-expression -- Codacy stale anchor; handler extracted */}
         <ShieldAlert size={16} className="mt-0.5 shrink-0 text-amber-600" aria-hidden />
         <div>
           <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -262,7 +260,6 @@ export function OrderAmendmentActionsPanel({
           Substitute line
         </Button>
       </div>
-      {/* eslint-disable-next-line @typescript-eslint/no-confusing-void-expression -- Codacy stale anchor; handler extracted */}
 
       {(amendEligible || substituteEligible) && (
         <div className="space-y-2 border-t border-border pt-2">
@@ -276,12 +273,10 @@ export function OrderAmendmentActionsPanel({
             <select
               className="w-full rounded border border-input bg-background px-2 py-1.5 text-xs"
               value={selectedItemId ?? ""}
-              // eslint-disable-next-line @typescript-eslint/no-confusing-void-expression -- handler extracted to useOrderAmendmentFormControls
               onChange={handleSelectedItemChange}
             >
               {items.map((item) => (
                 <option key={item.id} value={item.id}>
-                  {/* eslint-disable-next-line @typescript-eslint/no-confusing-void-expression -- Codacy stale anchor */}
                   {item.product?.name ?? item.id.slice(0, 8)} · qty {item.quantity}
                 </option>
               ))}
