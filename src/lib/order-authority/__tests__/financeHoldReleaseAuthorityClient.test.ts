@@ -3,13 +3,20 @@ import { resolve } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   assertCommercialHoldReleaseCoreAvailable,
+  assertDualControl,
   assertFinanceControlWriteGuards,
+  assertSourceVersion,
   COMMERCIAL_HOLD_RELEASE_CORE_PREREQUISITE,
   executeFinanceControlWrite,
   FinanceHoldReleaseAuthorityError,
   FINANCE_CONTROL_SURFACE_CENSUS,
+  formatFinanceControlPrerequisite,
+  listPoint80ClearanceSurfaces,
   listPoint80CoreSurfaces,
   listPoint80ShadowSurfaces,
+  listPoint80TypedControlSurfaces,
+  POINT80_REQUIRED_CORE_RPCS,
+  POINT80_TYPED_CONTROL_CORE_PREREQUISITE,
   requiresSecondApproval,
 } from "../financeHoldReleaseAuthorityClient";
 
@@ -98,6 +105,13 @@ vi.mock("@/lib/order-authority/paymentAuthorityClient", () => ({
   })),
 }));
 
+vi.mock("@/lib/order-authority/financeControlMutations", () => ({
+  placeFinanceHold: vi.fn(async () => ({
+    eventId: "typed-hold-1",
+    alreadyApplied: false,
+  })),
+}));
+
 const baseInput = {
   lane: "operations" as const,
   action: "release" as const,
@@ -114,18 +128,38 @@ describe("Point 80 finance hold/release/reversal authority", () => {
     vi.clearAllMocks();
   });
 
-  it("census separates Point 80 Core surfaces from Point 78/79/81 and shadow paths", () => {
-    expect(FINANCE_CONTROL_SURFACE_CENSUS.length).toBeGreaterThanOrEqual(8);
-    expect(listPoint80CoreSurfaces().map((row) => row.coreRpc)).toEqual([
+  it("census separates Point 80 clearance, typed PF-6D, Point 78/79/81, and shadow paths", () => {
+    expect(FINANCE_CONTROL_SURFACE_CENSUS.length).toBeGreaterThanOrEqual(12);
+    expect(listPoint80ClearanceSurfaces().map((row) => row.coreRpc)).toEqual([
       "decide_finance_operations_clearance_v1",
       "decide_finance_dispatch_clearance_v1",
     ]);
+    expect(listPoint80TypedControlSurfaces().map((row) => row.kind)).toEqual([
+      "typed_finance_hold",
+      "typed_finance_release",
+      "typed_finance_reversal",
+      "typed_second_approval",
+    ]);
+    expect(listPoint80CoreSurfaces().length).toBeGreaterThanOrEqual(6);
     const shadowKinds = listPoint80ShadowSurfaces().map((row) => row.kind);
-    expect(shadowKinds).toContain("commercial_hold");
-    expect(shadowKinds).toContain("commercial_release");
+    expect(shadowKinds).toContain("shadow_finance_review_evidence");
     expect(shadowKinds).toContain("derived_ui_hold");
     expect(FINANCE_CONTROL_SURFACE_CENSUS.some((row) => row.pointScope === "point78")).toBe(true);
     expect(FINANCE_CONTROL_SURFACE_CENSUS.some((row) => row.pointScope === "point79")).toBe(true);
+  });
+
+  it("uses canonical PF-6D RPC names aligned with #525 census", () => {
+    expect(POINT80_REQUIRED_CORE_RPCS).toEqual([
+      "get_finance_control_facts_v1",
+      "place_finance_hold_v1",
+      "release_finance_hold_v1",
+      "request_finance_reversal_v1",
+      "complete_finance_reversal_v1",
+      "request_finance_second_approval_v1",
+      "decide_finance_second_approval_v1",
+    ]);
+    expect(POINT80_TYPED_CONTROL_CORE_PREREQUISITE).toContain("place_finance_hold_v1");
+    expect(POINT80_TYPED_CONTROL_CORE_PREREQUISITE).not.toContain("place_finance_commercial_hold_v1");
   });
 
   it("fails closed without AAL2", () => {
@@ -158,8 +192,14 @@ describe("Point 80 finance hold/release/reversal authority", () => {
     ).toThrow(/second approver/);
   });
 
-  it("blocks commercial hold/release until Core prerequisite RPCs exist", () => {
-    expect(() => assertCommercialHoldReleaseCoreAvailable()).toThrow(/commercial control RPC family/);
+  it("denies dual-control self approval and stale source version", () => {
+    expect(() => assertDualControl("actor-a", "actor-a")).toThrow(/different actor/);
+    expect(() => assertSourceVersion(2, 1)).toThrow(/Stale finance control source version/);
+    expect(() => assertSourceVersion(2, 2)).not.toThrow();
+  });
+
+  it("blocks typed hold/release until Core PF-6D prerequisite RPCs exist", () => {
+    expect(() => assertCommercialHoldReleaseCoreAvailable()).toThrow(/PF-6D finance control RPCs/);
     try {
       assertCommercialHoldReleaseCoreAvailable();
     } catch (error) {
@@ -168,6 +208,10 @@ describe("Point 80 finance hold/release/reversal authority", () => {
         COMMERCIAL_HOLD_RELEASE_CORE_PREREQUISITE,
       );
     }
+  });
+
+  it("formats prerequisite messages from missing RPC probes", () => {
+    expect(formatFinanceControlPrerequisite(["place_finance_hold_v1"])).toContain("place_finance_hold_v1");
   });
 
   it("routes operations release through decide_finance_operations_clearance_v1", async () => {
@@ -184,76 +228,44 @@ describe("Point 80 finance hold/release/reversal authority", () => {
     expect(result.eventId).toBe("clearance-1");
   });
 
-  it("maps hold and reversal to DENIED and REVOKED decisions", async () => {
-    const { decideFinanceOperationsClearance, getFinanceOperationsClearanceFacts } = await import(
-      "@/lib/order-authority/financeClearanceAuthorityClient"
-    );
-    vi.mocked(getFinanceOperationsClearanceFacts).mockResolvedValueOnce({
-      orderId: "order-1",
-      companyId: "company-1",
-      piId: "pi-1",
-      commercialVersionId: "version-1",
-      commercialValue: 10000,
-      requiredAdvance: 3000,
-      verifiedPaymentAmount: 0,
-      walletAppliedAmount: 0,
-      approvedCreditAmount: 0,
-      coveredAmount: 0,
-      eligibleForOperationsClearance: false,
-      latestClearanceEventId: null,
-      latestClearanceDecision: null,
+  it("fail-closes typed hold when PF-6D control is unavailable", async () => {
+    const { decideFinanceOperationsClearance } = await import("@/lib/order-authority/financeClearanceAuthorityClient");
+    const { placeFinanceHold } = await import("@/lib/order-authority/financeControlMutations");
+
+    await expect(
+      executeFinanceControlWrite({ ...baseInput, action: "hold", typedControlAvailable: false }),
+    ).rejects.toThrow(/PF-6D finance control RPCs/);
+    expect(placeFinanceHold).not.toHaveBeenCalled();
+    expect(decideFinanceOperationsClearance).not.toHaveBeenCalled();
+  });
+
+  it("routes typed hold through place_finance_hold_v1 when PF-6D is available", async () => {
+    const { placeFinanceHold } = await import("@/lib/order-authority/financeControlMutations");
+    const result = await executeFinanceControlWrite({
+      ...baseInput,
+      action: "hold",
+      holdType: "compliance_review_pending",
+      typedControlAvailable: true,
     });
-
-    await executeFinanceControlWrite({ ...baseInput, action: "hold" });
-    expect(decideFinanceOperationsClearance).toHaveBeenCalledWith(
-      expect.objectContaining({ decision: "DENIED" }),
+    expect(placeFinanceHold).toHaveBeenCalledWith(
+      expect.objectContaining({
+        holdType: "compliance_review_pending",
+        binding: expect.objectContaining({ orderId: "order-1", piId: "pi-1" }),
+      }),
     );
+    expect(result.decision).toBe("HELD");
+    expect(result.eventId).toBe("typed-hold-1");
+  });
 
-    vi.mocked(getFinanceOperationsClearanceFacts).mockResolvedValueOnce({
-      orderId: "order-1",
-      companyId: "company-1",
-      piId: "pi-1",
-      commercialVersionId: "version-1",
-      commercialValue: 10000,
-      requiredAdvance: 3000,
-      verifiedPaymentAmount: 3000,
-      walletAppliedAmount: 0,
-      approvedCreditAmount: 0,
-      coveredAmount: 3000,
-      eligibleForOperationsClearance: true,
-      latestClearanceEventId: "evt-1",
-      latestClearanceDecision: "GRANTED",
-    });
-
+  it("maps reversal to REVOKED clearance decision without using clearance DENIED as hold", async () => {
+    const { decideFinanceOperationsClearance } = await import("@/lib/order-authority/financeClearanceAuthorityClient");
     await executeFinanceControlWrite({ ...baseInput, action: "reversal" });
     expect(decideFinanceOperationsClearance).toHaveBeenCalledWith(
       expect.objectContaining({ decision: "REVOKED" }),
     );
-  });
-
-  it("returns idempotent already-held without duplicate Core mutation", async () => {
-    const { decideFinanceOperationsClearance, getFinanceOperationsClearanceFacts } = await import(
-      "@/lib/order-authority/financeClearanceAuthorityClient"
+    expect(decideFinanceOperationsClearance).not.toHaveBeenCalledWith(
+      expect.objectContaining({ decision: "DENIED" }),
     );
-    vi.mocked(getFinanceOperationsClearanceFacts).mockResolvedValueOnce({
-      orderId: "order-1",
-      companyId: "company-1",
-      piId: "pi-1",
-      commercialVersionId: "version-1",
-      commercialValue: 10000,
-      requiredAdvance: 3000,
-      verifiedPaymentAmount: 0,
-      walletAppliedAmount: 0,
-      approvedCreditAmount: 0,
-      coveredAmount: 0,
-      eligibleForOperationsClearance: false,
-      latestClearanceEventId: "evt-denied",
-      latestClearanceDecision: "DENIED",
-    });
-
-    const result = await executeFinanceControlWrite({ ...baseInput, action: "hold" });
-    expect(result.alreadyDecided).toBe(true);
-    expect(decideFinanceOperationsClearance).not.toHaveBeenCalled();
   });
 
   it("routes dispatch reversal through decide_finance_dispatch_clearance_v1", async () => {
@@ -276,7 +288,8 @@ describe("Point 80 finance hold/release/reversal authority", () => {
       "utf8",
     );
     expect(client).toContain("decide_finance_operations_clearance_v1");
-    expect(client).toContain("decide_finance_dispatch_clearance_v1");
+    expect(client).toContain("place_finance_hold_v1");
+    expect(client).not.toContain("place_finance_commercial_hold_v1");
     expect(client).not.toContain('from("finance_review_evidence")');
     expect(client).not.toContain('from("orders").update');
   });

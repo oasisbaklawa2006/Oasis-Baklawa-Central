@@ -1,3 +1,4 @@
+import { supabase } from "@/integrations/supabase/client";
 import { assertFinanceAuthority } from "@/lib/finance-authority/financeAuthorityGuard";
 import {
   buildFinanceOperationsCorrelationId,
@@ -13,9 +14,15 @@ import {
   getFinanceExitFacts,
   type FinanceExitFacts,
 } from "@/lib/order-authority/financeExitAuthorityClient";
+import { placeFinanceHold } from "@/lib/order-authority/financeControlMutations";
 import { resolvePaymentBinding } from "@/lib/order-authority/paymentAuthorityClient";
 
-type RpcError = { message: string; code?: string; details?: string };
+type RpcError = { message: string; code?: string; details?: string; hint?: string };
+type RpcClient = {
+  rpc<T = unknown>(fn: string, args?: Record<string, unknown>): Promise<{ data: T | null; error: RpcError | null }>;
+};
+
+const db = supabase as unknown as RpcClient;
 
 export class FinanceHoldReleaseAuthorityError extends Error {
   readonly code?: string;
@@ -29,20 +36,42 @@ export class FinanceHoldReleaseAuthorityError extends Error {
   }
 }
 
+export const POINT80_REQUIRED_CORE_RPCS = [
+  "get_finance_control_facts_v1",
+  "place_finance_hold_v1",
+  "release_finance_hold_v1",
+  "request_finance_reversal_v1",
+  "complete_finance_reversal_v1",
+  "request_finance_second_approval_v1",
+  "decide_finance_second_approval_v1",
+] as const;
+
+export type Point80RequiredCoreRpc = (typeof POINT80_REQUIRED_CORE_RPCS)[number];
+
+/** Canonical PF-6D prerequisite — aligned with #525 census, not invented commercial_* names. */
+export const POINT80_TYPED_CONTROL_CORE_PREREQUISITE =
+  "Core prerequisite (oasis-supabase-core): deploy get_finance_control_facts_v1, place_finance_hold_v1, release_finance_hold_v1, request_finance_reversal_v1, complete_finance_reversal_v1, request_finance_second_approval_v1, and decide_finance_second_approval_v1 with has_step_up_auth(), actor binding, PI/commercial_version binding, idempotency keys, stale-version denial, and immutable audit events before Central may mutate typed finance hold/release/reversal/second-approval authority.";
+
+/** @deprecated Use POINT80_TYPED_CONTROL_CORE_PREREQUISITE */
+export const COMMERCIAL_HOLD_RELEASE_CORE_PREREQUISITE = POINT80_TYPED_CONTROL_CORE_PREREQUISITE;
+
 export type FinanceControlLane = "operations" | "dispatch";
 export type FinanceControlAction = "hold" | "release" | "reversal";
 
 export type FinanceControlSurfaceKind =
   | "operations_clearance"
   | "dispatch_clearance"
-  | "commercial_hold"
-  | "commercial_release"
+  | "typed_finance_hold"
+  | "typed_finance_release"
+  | "typed_finance_reversal"
+  | "typed_second_approval"
   | "payment_proof"
   | "wallet_credit"
   | "dispatch_completion_hold"
   | "dispatch_finalization_reversal"
   | "derived_ui_hold"
-  | "legacy_restore";
+  | "legacy_restore"
+  | "shadow_finance_review_evidence";
 
 export type FinanceControlSurfaceRecord = {
   kind: FinanceControlSurfaceKind;
@@ -58,28 +87,27 @@ export type FinanceControlSurfaceRecord = {
   notes: string;
 };
 
-/** Machine-readable census for Point 80 closure evidence. */
 export const FINANCE_CONTROL_SURFACE_CENSUS: FinanceControlSurfaceRecord[] = [
   {
     kind: "operations_clearance",
-    action: "hold|release|reversal",
+    action: "release|reversal",
     coreRpc: "decide_finance_operations_clearance_v1",
     actorRoles: ["FINANCE_HEAD", "ADMIN", "SUPER_ADMIN"],
     requiresAal2: true,
-    requiresSecondApproval: true,
+    requiresSecondApproval: false,
     bindsOrderPiCommercialVersion: true,
     idempotent: true,
     pointScope: "point80",
     shadowRisk: "none",
-    notes: "DENIED=hold, GRANTED=release, REVOKED=reversal; facts via get_finance_operations_clearance_facts_v1",
+    notes: "PF-6C GRANTED=release, REVOKED=reversal; facts via get_finance_operations_clearance_facts_v1",
   },
   {
     kind: "dispatch_clearance",
-    action: "hold|release|reversal",
+    action: "release|reversal",
     coreRpc: "decide_finance_dispatch_clearance_v1",
     actorRoles: ["FINANCE_HEAD", "ADMIN", "SUPER_ADMIN"],
     requiresAal2: true,
-    requiresSecondApproval: true,
+    requiresSecondApproval: false,
     bindsOrderPiCommercialVersion: false,
     idempotent: true,
     pointScope: "point80",
@@ -87,9 +115,35 @@ export const FINANCE_CONTROL_SURFACE_CENSUS: FinanceControlSurfaceRecord[] = [
     notes: "Binds final_invoice_id; facts via get_finance_exit_facts_v1",
   },
   {
-    kind: "commercial_hold",
-    action: "place_hold|release_hold",
-    coreRpc: null,
+    kind: "typed_finance_hold",
+    action: "place_hold",
+    coreRpc: "place_finance_hold_v1",
+    actorRoles: ["FINANCE_HEAD", "ADMIN", "SUPER_ADMIN"],
+    requiresAal2: true,
+    requiresSecondApproval: false,
+    bindsOrderPiCommercialVersion: true,
+    idempotent: true,
+    pointScope: "point80",
+    shadowRisk: "direct_table",
+    notes: "PF-6D typed hold — blocked until Core deploys POINT80_REQUIRED_CORE_RPCS",
+  },
+  {
+    kind: "typed_finance_release",
+    action: "release_hold",
+    coreRpc: "release_finance_hold_v1",
+    actorRoles: ["FINANCE_HEAD", "ADMIN", "SUPER_ADMIN"],
+    requiresAal2: true,
+    requiresSecondApproval: false,
+    bindsOrderPiCommercialVersion: true,
+    idempotent: true,
+    pointScope: "point80",
+    shadowRisk: "direct_table",
+    notes: "Requires immutable hold_event_id from get_finance_control_facts_v1",
+  },
+  {
+    kind: "typed_finance_reversal",
+    action: "request|complete",
+    coreRpc: "request_finance_reversal_v1|complete_finance_reversal_v1",
     actorRoles: ["FINANCE_HEAD", "ADMIN", "SUPER_ADMIN"],
     requiresAal2: true,
     requiresSecondApproval: true,
@@ -97,17 +151,30 @@ export const FINANCE_CONTROL_SURFACE_CENSUS: FinanceControlSurfaceRecord[] = [
     idempotent: true,
     pointScope: "point80",
     shadowRisk: "direct_table",
-    notes: "Blocked — requires Core commercial hold RPCs (see COMMERCIAL_HOLD_RELEASE_CORE_PREREQUISITE)",
+    notes: "Two-step reversal with immutable original_event_id; complete requires distinct actor",
   },
   {
-    kind: "commercial_release",
-    action: "commercial_release|override",
-    coreRpc: null,
-    actorRoles: ["FINANCE_HEAD", "ADMIN", "SUPER_ADMIN"],
+    kind: "typed_second_approval",
+    action: "request|decide",
+    coreRpc: "request_finance_second_approval_v1|decide_finance_second_approval_v1",
+    actorRoles: ["FINANCE_HEAD", "FINANCE_MANAGER", "ADMIN", "SUPER_ADMIN"],
     requiresAal2: true,
     requiresSecondApproval: true,
     bindsOrderPiCommercialVersion: true,
     idempotent: true,
+    pointScope: "point80",
+    shadowRisk: "direct_table",
+    notes: "High-value/exceptional release lane — deciding actor must differ from requester",
+  },
+  {
+    kind: "shadow_finance_review_evidence",
+    action: "direct_table_write",
+    coreRpc: null,
+    actorRoles: ["FINANCE_HEAD", "ADMIN", "SUPER_ADMIN"],
+    requiresAal2: true,
+    requiresSecondApproval: false,
+    bindsOrderPiCommercialVersion: true,
+    idempotent: false,
     pointScope: "point80",
     shadowRisk: "direct_table",
     notes: "Blocked — finance_review_evidence direct writes are not Core authority",
@@ -192,22 +259,17 @@ export const FINANCE_CONTROL_SURFACE_CENSUS: FinanceControlSurfaceRecord[] = [
   },
 ];
 
-export const COMMERCIAL_HOLD_RELEASE_CORE_PREREQUISITE =
-  "Core prerequisite (oasis-supabase-core): deploy get_finance_commercial_control_facts_v1, place_finance_commercial_hold_v1, release_finance_commercial_hold_v1, reverse_finance_commercial_decision_v1, and request_finance_second_approval_v1 / decide_finance_second_approval_v1 with has_step_up_auth(), actor binding, PI/commercial_version binding, idempotency keys, stale-version denial, and immutable audit events before Central may mutate commercial holds or commercial release evidence.";
-
 const OPERATIONS_FINANCE_ROLES = new Set(["FINANCE_HEAD", "ADMIN", "SUPER_ADMIN"]);
 const HIGH_VALUE_SECOND_APPROVAL_THRESHOLD = 250_000;
 
 function required(value: string, field: string): string {
   const normalized = value.trim();
-  if (!normalized) throw new FinanceHoldReleaseAuthorityError(`${field} is required`);
+  if (!normalized) throw new FinanceHoldReleaseAuthorityError(`${field} is required`, { code: "validation_failed" });
   return normalized;
 }
 
-function mapActionToDecision(action: FinanceControlAction): "GRANTED" | "DENIED" | "REVOKED" {
-  if (action === "hold") return "DENIED";
-  if (action === "release") return "GRANTED";
-  return "REVOKED";
+function mapClearanceDecision(action: Exclude<FinanceControlAction, "hold">): "GRANTED" | "REVOKED" {
+  return action === "release" ? "GRANTED" : "REVOKED";
 }
 
 function authorityActionFor(action: FinanceControlAction): string {
@@ -228,24 +290,83 @@ export type FinanceControlWriteInput = {
   commercialValue?: number | null;
   priorDecisionActorId?: string | null;
   secondApproverActorId?: string | null;
+  requestActorId?: string | null;
+  holdType?: string | null;
+  expectedSourceVersion?: number | null;
   piId?: string | null;
   commercialVersionId?: string | null;
   finalInvoiceId?: string | null;
   correlationId?: string;
   idempotencyKey?: string;
+  typedControlAvailable?: boolean;
 };
 
 export type FinanceControlWriteResult = {
   lane: FinanceControlLane;
   action: FinanceControlAction;
-  decision: "GRANTED" | "DENIED" | "REVOKED";
+  decision: "GRANTED" | "DENIED" | "REVOKED" | "HELD";
   eventId: string;
   alreadyDecided: boolean;
-  facts: FinanceOperationsClearanceFacts | FinanceExitFacts;
+  facts: FinanceOperationsClearanceFacts | FinanceExitFacts | null;
 };
 
 export function requiresSecondApproval(commercialValue: number | null | undefined): boolean {
   return typeof commercialValue === "number" && Number.isFinite(commercialValue) && commercialValue >= HIGH_VALUE_SECOND_APPROVAL_THRESHOLD;
+}
+
+export function assertDualControl(requestActorId: string | null | undefined, decidingActorId: string): void {
+  const requester = requestActorId?.trim();
+  const decider = decidingActorId.trim();
+  if (requester && requester === decider) {
+    throw new FinanceHoldReleaseAuthorityError(
+      "Second approval / reversal completion requires a different actor from the requesting actor.",
+      { code: "self_approval_denied" },
+    );
+  }
+}
+
+export function assertSourceVersion(expected: number | null | undefined, actual: number | null | undefined): void {
+  if (expected == null || actual == null) return;
+  if (expected !== actual) {
+    throw new FinanceHoldReleaseAuthorityError(
+      `Stale finance control source version: expected ${expected}, Core returned ${actual}.`,
+      { code: "stale_version" },
+    );
+  }
+}
+
+export function formatFinanceControlPrerequisite(missing: Point80RequiredCoreRpc[]): string {
+  if (missing.length === 0) return POINT80_TYPED_CONTROL_CORE_PREREQUISITE;
+  return `Core prerequisite: deploy and protect ${missing.join(", ")} in oasis-supabase-core (Point 80 PF-6D finance control authority). Central must not create shadow hold/release/reversal truth.`;
+}
+
+function isMissingRpcError(error: RpcError): boolean {
+  const msg = error.message.toLowerCase();
+  return (
+    msg.includes("schema cache") ||
+    msg.includes("could not find the function") ||
+    msg.includes("does not exist") ||
+    error.code === "PGRST202" ||
+    error.code === "42883"
+  );
+}
+
+export async function probeFinanceControlCoreRpc(rpc: Point80RequiredCoreRpc): Promise<boolean> {
+  const { error } = await db.rpc(rpc, {});
+  if (!error) return true;
+  return !isMissingRpcError(error);
+}
+
+export async function probeFinanceControlAuthority(): Promise<{
+  available: boolean;
+  missingCoreRpcs: Point80RequiredCoreRpc[];
+}> {
+  const missingCoreRpcs: Point80RequiredCoreRpc[] = [];
+  for (const rpc of POINT80_REQUIRED_CORE_RPCS) {
+    const ok = await probeFinanceControlCoreRpc(rpc).catch(() => false);
+    if (!ok) missingCoreRpcs.push(rpc);
+  }
+  return { available: missingCoreRpcs.length === 0, missingCoreRpcs };
 }
 
 export function assertFinanceControlWriteGuards(input: FinanceControlWriteInput): void {
@@ -269,8 +390,12 @@ export function assertFinanceControlWriteGuards(input: FinanceControlWriteInput)
     throw new FinanceHoldReleaseAuthorityError(auth.reason, { code: "authority_denied" });
   }
 
-  if (input.lane === "operations" && !OPERATIONS_FINANCE_ROLES.has(role) && role !== "SUPER_ADMIN") {
+  if (input.action !== "hold" && input.lane === "operations" && !OPERATIONS_FINANCE_ROLES.has(role) && role !== "SUPER_ADMIN") {
     throw new FinanceHoldReleaseAuthorityError(`Role ${role} cannot decide Operations Clearance`, { code: "authority_denied" });
+  }
+
+  if (input.action === "reversal" && input.requestActorId) {
+    assertDualControl(input.requestActorId, actorId);
   }
 
   if (requiresSecondApproval(input.commercialValue ?? null)) {
@@ -296,8 +421,8 @@ export function assertFinanceControlWriteGuards(input: FinanceControlWriteInput)
 
 export function assertCommercialHoldReleaseCoreAvailable(): never {
   throw new FinanceHoldReleaseAuthorityError(
-    "Commercial hold/release/reversal is blocked until Core deploys the commercial control RPC family",
-    { code: "core_prerequisite_missing", prerequisite: COMMERCIAL_HOLD_RELEASE_CORE_PREREQUISITE },
+    "Typed finance hold/release/reversal/second-approval is blocked until Core deploys PF-6D finance control RPCs",
+    { code: "core_prerequisite_missing", prerequisite: POINT80_TYPED_CONTROL_CORE_PREREQUISITE },
   );
 }
 
@@ -316,9 +441,62 @@ async function buildOperationsIdentity(
   };
 }
 
-export async function executeFinanceControlWrite(input: FinanceControlWriteInput): Promise<FinanceControlWriteResult> {
-  assertFinanceControlWriteGuards(input);
-  const decision = mapActionToDecision(input.action);
+async function buildTypedControlIdentity(scope: string, parts: unknown[]): Promise<{ correlationId: string; idempotencyKey: string }> {
+  const identity = JSON.stringify(parts);
+  const digest = async (label: string) => {
+    const subtle = globalThis.crypto?.subtle;
+    if (!subtle) throw new FinanceHoldReleaseAuthorityError("Web Crypto SHA-256 is unavailable", { code: "unavailable" });
+    const hash = await subtle.digest("SHA-256", new TextEncoder().encode(`${label}:${identity}`));
+    return Array.from(new Uint8Array(hash), (byte) => byte.toString(16).padStart(2, "0")).join("");
+  };
+  return {
+    correlationId: `central:pf6d:${scope}:${await digest("correlation")}`,
+    idempotencyKey: `central:pf6d:${scope}:${await digest("idempotency")}`,
+  };
+}
+
+async function executeTypedHold(input: FinanceControlWriteInput): Promise<FinanceControlWriteResult> {
+  if (input.typedControlAvailable !== true) {
+    assertCommercialHoldReleaseCoreAvailable();
+  }
+
+  const orderId = required(input.orderId, "order id");
+  const binding = input.piId && input.commercialVersionId
+    ? { orderId, piId: input.piId, commercialVersionId: input.commercialVersionId }
+    : await resolvePaymentBinding(orderId);
+  const holdType = required(input.holdType ?? "compliance_review_pending", "hold type");
+  const ids = input.correlationId && input.idempotencyKey
+    ? { correlationId: input.correlationId, idempotencyKey: input.idempotencyKey }
+    : await buildTypedControlIdentity("hold", [binding.orderId, binding.piId, binding.commercialVersionId, holdType, input.reason]);
+
+  const result = await placeFinanceHold({
+    binding,
+    holdType,
+    ctx: {
+      actorId: input.actorId,
+      actorRole: input.actorRole,
+      reason: input.reason,
+      evidenceReference: input.evidenceReference,
+      sourceChannel: "CENTRAL",
+      sourceReference: `point80:typed-hold:${orderId}`,
+      correlationId: ids.correlationId,
+      idempotencyKey: ids.idempotencyKey,
+      expectedSourceVersion: input.expectedSourceVersion ?? null,
+    },
+  });
+
+  return {
+    lane: input.lane,
+    action: "hold",
+    decision: "HELD",
+    eventId: result.eventId,
+    alreadyDecided: result.alreadyApplied,
+    facts: null,
+  };
+}
+
+async function executeClearanceWrite(input: FinanceControlWriteInput): Promise<FinanceControlWriteResult> {
+  const decision = mapClearanceDecision(input.action as Exclude<FinanceControlAction, "hold">);
   const orderId = required(input.orderId, "order id");
 
   if (input.lane === "operations") {
@@ -338,17 +516,6 @@ export async function executeFinanceControlWrite(input: FinanceControlWriteInput
       throw new FinanceHoldReleaseAuthorityError("Operations reversal requires an existing GRANTED clearance decision", {
         code: "stale_state",
       });
-    }
-
-    if (input.action === "hold" && facts.latestClearanceDecision === "DENIED") {
-      return {
-        lane: input.lane,
-        action: input.action,
-        decision,
-        eventId: facts.latestClearanceEventId ?? "already-held",
-        alreadyDecided: true,
-        facts,
-      };
     }
 
     const ids = input.correlationId && input.idempotencyKey
@@ -426,10 +593,30 @@ export async function executeFinanceControlWrite(input: FinanceControlWriteInput
   };
 }
 
+export async function executeFinanceControlWrite(input: FinanceControlWriteInput): Promise<FinanceControlWriteResult> {
+  assertFinanceControlWriteGuards(input);
+  if (input.action === "hold") {
+    return executeTypedHold(input);
+  }
+  return executeClearanceWrite(input);
+}
+
 export function listPoint80ShadowSurfaces(): FinanceControlSurfaceRecord[] {
   return FINANCE_CONTROL_SURFACE_CENSUS.filter((row) => row.shadowRisk !== "none" && row.pointScope === "point80");
 }
 
 export function listPoint80CoreSurfaces(): FinanceControlSurfaceRecord[] {
   return FINANCE_CONTROL_SURFACE_CENSUS.filter((row) => row.coreRpc && row.pointScope === "point80");
+}
+
+export function listPoint80ClearanceSurfaces(): FinanceControlSurfaceRecord[] {
+  return FINANCE_CONTROL_SURFACE_CENSUS.filter(
+    (row) => row.kind === "operations_clearance" || row.kind === "dispatch_clearance",
+  );
+}
+
+export function listPoint80TypedControlSurfaces(): FinanceControlSurfaceRecord[] {
+  return FINANCE_CONTROL_SURFACE_CENSUS.filter((row) =>
+    ["typed_finance_hold", "typed_finance_release", "typed_finance_reversal", "typed_second_approval"].includes(row.kind),
+  );
 }

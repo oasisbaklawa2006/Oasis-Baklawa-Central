@@ -10,12 +10,22 @@ describe("Point 80 finance hold/release surface guard", () => {
   it("FinanceGovernanceBoard routes writes through financeHoldReleaseAuthorityClient only", () => {
     const page = source("src/pages/admin/FinanceGovernanceBoard.tsx");
     expect(page).toContain("executeFinanceControlWrite");
-    expect(page).toContain("assertCommercialHoldReleaseCoreAvailable");
+    expect(page).toContain("resolvePoint80ControlBoundary");
+    expect(page).toContain("typedControlAvailable");
+    expect(page).not.toContain("place_finance_commercial_hold_v1");
     expect(page).toContain("COMMERCIAL_HOLD_RELEASE_CORE_PREREQUISITE");
     expect(page).not.toContain("bundle.service.commercialRelease");
     expect(page).not.toContain("bundle.service.startReview");
     expect(page).not.toContain("bundle.service.placeHold");
     expect(page).not.toContain("bundle.service.releaseHold");
+  });
+
+  it("createFinanceGovernanceBundle blocks shadow writes outside test demo mode", () => {
+    const bundle = source("src/lib/finance-governance/createFinanceGovernanceBundle.ts");
+    const service = source("src/lib/finance-governance/financeGovernanceService.ts");
+    expect(bundle).toContain("resolvePoint80ControlBoundary");
+    expect(bundle).toContain("controlMode: controlBoundary.persistenceMode");
+    expect(service).toContain("assertCoreWriteAuthority");
   });
 
   it("finance-governance service remains projection-only and is not imported by FinanceReleaseBoard", () => {

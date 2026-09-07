@@ -28,6 +28,10 @@ import {
   requiresSecondApproval,
 } from "@/lib/order-authority/financeHoldReleaseAuthorityClient";
 import {
+  resolvePoint80ControlBoundary,
+  type Point80ControlBoundaryState,
+} from "@/lib/order-authority/financeControlBoundary";
+import {
   loadFinanceGovernanceRows,
   PREVIEW_FINANCE_INPUTS,
   useGovernanceBoardState,
@@ -68,6 +72,7 @@ export default function FinanceGovernanceBoard() {
   const [acting, setActing] = useState<string | null>(null);
   const [bundle, setBundle] = useState<FinanceGovernanceBundle | null>(null);
   const [evidenceByOrder, setEvidenceByOrder] = useState<Record<string, FinanceEvidenceRecord[]>>({});
+  const [point80Boundary, setPoint80Boundary] = useState<Point80ControlBoundaryState | null>(null);
 
   const boardState = useGovernanceBoardState(
     supabase,
@@ -84,6 +89,13 @@ export default function FinanceGovernanceBoard() {
       })
       .catch(() => {
         if (!cancelled) setBundle(null);
+      });
+    void resolvePoint80ControlBoundary(supabase)
+      .then((boundary) => {
+        if (!cancelled) setPoint80Boundary(boundary);
+      })
+      .catch(() => {
+        if (!cancelled) setPoint80Boundary(null);
       });
     return () => {
       cancelled = true;
@@ -144,6 +156,11 @@ export default function FinanceGovernanceBoard() {
     ]);
   };
 
+  const prerequisiteMessage =
+    point80Boundary?.prerequisiteMessage ??
+    bundle?.corePrerequisiteMessage ??
+    commercialShadowWriteBlockedMessage();
+
   const runOperationsHold = async (input: FinanceGovernanceInput) => {
     if (!user?.id || !role) return;
     setActing(input.orderId);
@@ -158,6 +175,8 @@ export default function FinanceGovernanceBoard() {
         actorRole: role,
         aal2Verified: false,
         commercialValue: input.orderValue,
+        holdType: "compliance_review_pending",
+        typedControlAvailable: point80Boundary?.canExecuteTypedWrites ?? false,
       });
       appendControlEvent(
         input.orderId,
@@ -247,7 +266,7 @@ export default function FinanceGovernanceBoard() {
         </Badge>
         {bundle && (
           <Badge variant="outline" className="text-[10px]">
-            {bundle.persistenceMode}
+            {bundle.point80ControlMode}
           </Badge>
         )}
       </header>
@@ -266,11 +285,13 @@ export default function FinanceGovernanceBoard() {
           <ShieldAlert className="h-5 w-5 shrink-0 text-amber-600" aria-hidden />
           <div className="space-y-1">
             <p>
-              Writes route only through Core hold/release/reversal authority (<code className="text-[11px]">decide_finance_operations_clearance_v1</code>).
-              Commercial hold/release evidence remains blocked until Core deploys the commercial control RPC family.
-              AAL2 step-up and dual approval are enforced fail-closed in Central before any Core mutation.
+              Operations release/reversal route through PF-6C clearance (
+              <code className="text-[11px]">decide_finance_operations_clearance_v1</code>). Typed finance holds
+              require PF-6D Core RPCs (<code className="text-[11px]">place_finance_hold_v1</code>) and remain blocked
+              until Core deploys the full Point 80 control family. AAL2 step-up and dual approval are enforced
+              fail-closed in Central before any Core mutation.
             </p>
-            <p className="text-[11px] text-muted-foreground">{commercialShadowWriteBlockedMessage()}</p>
+            <p className="text-[11px] text-muted-foreground">{prerequisiteMessage}</p>
           </div>
         </CardContent>
       </Card>
@@ -332,7 +353,7 @@ export default function FinanceGovernanceBoard() {
                     disabled={!!acting}
                     onClick={() => void runOperationsHold(input)}
                   >
-                    Place operations hold (Core DENIED)
+                    Place typed finance hold (PF-6D)
                   </Button>
                   <Button
                     size="sm"
