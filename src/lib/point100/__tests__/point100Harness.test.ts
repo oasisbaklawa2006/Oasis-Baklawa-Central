@@ -1,0 +1,92 @@
+import { describe, expect, it } from "vitest";
+import { buildCapabilityMatrix, summarizeCapabilityMatrix } from "../capabilityStatus";
+import { POINT100_LIFECYCLE_STAGES, POINT100_NEGATIVE_PATHS, stagesForNegativePath } from "../lifecycleStages";
+import { bindingByKey, resolveBoundContract } from "../contractBindings";
+import { buildProbeOutcome, isRpcMissingError, probeFixtureKeys, resolvedRpcForStage } from "../probeRunner";
+
+describe("point100 lifecycle stages", () => {
+  it("defines 16 sequential stages covering the full operational lifecycle", () => {
+    expect(POINT100_LIFECYCLE_STAGES).toHaveLength(16);
+    const sequences = POINT100_LIFECYCLE_STAGES.map((stage) => stage.sequence);
+    expect(sequences).toEqual([...sequences].sort((a, b) => a - b));
+    expect(new Set(sequences).size).toBe(16);
+  });
+
+  it("maps every negative path to at least one lifecycle stage", () => {
+    for (const negative of POINT100_NEGATIVE_PATHS) {
+      expect(stagesForNegativePath(negative.id).length).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe("point100 contract bindings", () => {
+  it("resolves canonical RPC unless env override is set", () => {
+    const binding = bindingByKey("production_release");
+    expect(binding).toBeTruthy();
+    expect(resolveBoundContract(binding!)).toBe("release_order_to_in_production_v1");
+    process.env.POINT100_ORDER_DISPATCHED_RPC = "custom_release_v2";
+    const dispatched = bindingByKey("order_dispatched");
+    expect(resolveBoundContract(dispatched!)).toBe("custom_release_v2");
+    delete process.env.POINT100_ORDER_DISPATCHED_RPC;
+  });
+});
+
+describe("point100 probe runner", () => {
+  it("classifies missing RPC errors", () => {
+    expect(isRpcMissingError("Could not find the function public.foo in the schema cache")).toBe(true);
+    expect(isRpcMissingError("permission denied")).toBe(false);
+  });
+
+  it("marks trace handover as physical_uat_only", () => {
+    const stage = POINT100_LIFECYCLE_STAGES.find((s) => s.id === "trace_handover")!;
+    const outcome = buildProbeOutcome({
+      stage,
+      rpcResults: [],
+      centralBindingsPresent: true,
+      missingFixtureKeys: [],
+      executed: false,
+    });
+    expect(outcome.status).toBe("physical_uat_only");
+    expect(outcome.executable).toBe(false);
+  });
+
+  it("summarizes capability matrix counts", () => {
+    const probes = [
+      buildProbeOutcome({
+        stage: POINT100_LIFECYCLE_STAGES[0],
+        rpcResults: [{ rpc: "add_customer_order_draft_line_v1", exists: true, detail: "ok" }],
+        centralBindingsPresent: true,
+        missingFixtureKeys: [],
+        executed: true,
+        executionDetail: "ok",
+      }),
+      buildProbeOutcome({
+        stage: POINT100_LIFECYCLE_STAGES.find((s) => s.id === "trace_handover")!,
+        rpcResults: [],
+        centralBindingsPresent: true,
+        missingFixtureKeys: [],
+        executed: false,
+      }),
+    ];
+    const summary = summarizeCapabilityMatrix(probes);
+    expect(summary.total).toBe(2);
+    expect(summary.physical_uat_only).toBe(1);
+    const matrix = buildCapabilityMatrix(probes, "test-env");
+    expect(matrix.fail_closed).toBe(true);
+    expect(matrix.environment_id).toBe("test-env");
+  });
+
+  it("resolves stage RPCs through contract bindings", () => {
+    const stage = POINT100_LIFECYCLE_STAGES.find((s) => s.id === "production_release")!;
+    expect(resolvedRpcForStage(stage)).toContain("release_order_to_in_production_v1");
+  });
+
+  it("detects missing fixture env keys", () => {
+    const original = process.env.FACTORY_CERT_GOLDEN_ORDER_ID;
+    delete process.env.FACTORY_CERT_GOLDEN_ORDER_ID;
+    const result = probeFixtureKeys(["FACTORY_CERT_GOLDEN_ORDER_ID"]);
+    expect(result.satisfied).toBe(false);
+    expect(result.missingKeys).toContain("FACTORY_CERT_GOLDEN_ORDER_ID");
+    if (original) process.env.FACTORY_CERT_GOLDEN_ORDER_ID = original;
+  });
+});

@@ -21,3 +21,22 @@ Minimum executable scenarios:
 6. Negative paths: duplicate/replay, wrong tenant/role, insufficient payment, active finance hold, stock shortage, quarantined/expired lot, invalid carton/scan, gate mismatch, provider/webhook replay.
 
 Exit gate: one deterministic automated synthetic Point100 dress rehearsal runnable against canonical preview/runtime contracts, with explicit upstream-blocker reporting and no silent skips.
+
+## Run (disposable local Core)
+
+```bash
+export POINT100_CORE_REPO=/path/to/oasis-supabase-core
+export POINT100_ALLOW_LOCAL_RESET=true
+npm run test:point100:rehearsal
+```
+
+Or after manual bootstrap:
+
+```bash
+bash scripts/point100-certification/start-ephemeral.sh
+set -a && source /tmp/oasis-factory-certification.env && set +a
+export FACTORY_CERT_TARGET_URL=http://127.0.0.1:4173
+npm run test:point100
+```
+
+Artifacts: `point100-capability-matrix.json`, `point100-dress-rehearsal-ledger.json`, `point100-negative-paths-ledger.json`.

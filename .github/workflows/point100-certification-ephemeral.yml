@@ -1,0 +1,123 @@
+name: Point100 Ephemeral Dress Rehearsal
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/point100-certification-ephemeral.yml'
+      - 'playwright.point100.config.ts'
+      - 'scripts/point100-certification/**'
+      - 'src/lib/point100/**'
+      - 'tests/point100/**'
+      - '.appverse/MACRO_POINT100_INTEGRATION_MISSION.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: point100-certification-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  point100-dress-rehearsal:
+    name: Point100 disposable dress rehearsal
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      POINT100_CORE_REPO: ${{ github.workspace }}/oasis-supabase-core
+      POINT100_ALLOW_LOCAL_RESET: "true"
+      FACTORY_CERT_CORE_REPO: ${{ github.workspace }}/oasis-supabase-core
+      FACTORY_CERT_ALLOW_LOCAL_RESET: "true"
+      FACTORY_CERT_CREDENTIAL_FILE: /tmp/oasis-factory-certification.env
+      FACTORY_CERT_TARGET_URL: http://127.0.0.1:4173
+
+    steps:
+      - name: Checkout Central
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Checkout canonical Core schema authority
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          repository: oasisbaklawa2006/oasis-supabase-core
+          ref: main
+          path: oasis-supabase-core
+
+      - name: Set up pinned Supabase CLI
+        uses: supabase/setup-cli@ab058987d8d6c725971f6cf9d0b5c98467e30bd1 # v1.7.1
+        with:
+          version: 2.101.0
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate Point100 scripts
+        run: |
+          bash -n scripts/point100-certification/start-ephemeral.sh
+          bash -n scripts/point100-certification/stop-ephemeral.sh
+          bash -n scripts/point100-certification/run-dress-rehearsal.sh
+
+      - name: Unit tests (Point100 harness library)
+        run: npm run test -- src/lib/point100
+
+      - name: Start disposable Core + fixtures
+        run: bash scripts/point100-certification/start-ephemeral.sh
+
+      - name: Export certification credentials
+        shell: bash
+        run: |
+          set -a
+          source /tmp/oasis-factory-certification.env
+          set +a
+          {
+            echo "FACTORY_CERT_SUPABASE_URL=${FACTORY_CERT_SUPABASE_URL}"
+            echo "FACTORY_CERT_SUPABASE_ANON_KEY=${FACTORY_CERT_SUPABASE_ANON_KEY}"
+            echo "FACTORY_CERT_ENVIRONMENT_ID=${FACTORY_CERT_ENVIRONMENT_ID}"
+            echo "FACTORY_CERT_GOLDEN_ORDER_ID=${FACTORY_CERT_GOLDEN_ORDER_ID}"
+            echo "FACTORY_CERT_GOLDEN_ORDER_ITEM_ID=${FACTORY_CERT_GOLDEN_ORDER_ITEM_ID}"
+            echo "FACTORY_CERT_POINT37_ORDER_ID=${FACTORY_CERT_POINT37_ORDER_ID}"
+            echo "FACTORY_CERT_POINT38_ORDER_ID=${FACTORY_CERT_POINT38_ORDER_ID}"
+          } >> "${GITHUB_ENV}"
+
+      - name: Build Central preview
+        run: |
+          VITE_SUPABASE_URL="${FACTORY_CERT_SUPABASE_URL}" \
+          VITE_SUPABASE_ANON_KEY="${FACTORY_CERT_SUPABASE_ANON_KEY}" \
+          npm run build
+
+      - name: Start preview server
+        run: |
+          npm run preview -- --host 127.0.0.1 --port 4173 >/tmp/point100-preview.log 2>&1 &
+          for _ in $(seq 1 60); do
+            curl -sf http://127.0.0.1:4173 >/dev/null 2>&1 && exit 0
+            sleep 2
+          done
+          echo "Preview failed"; cat /tmp/point100-preview.log; exit 1
+
+      - name: Run Point100 dress rehearsal suite
+        run: npx playwright test -c playwright.point100.config.ts
+
+      - name: Upload Point100 artifacts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b5404e07ed712e7b1473eb750 # v4
+        with:
+          name: point100-certification-${{ github.run_id }}
+          path: |
+            point100-capability-matrix.json
+            point100-dress-rehearsal-ledger.json
+            point100-negative-paths-ledger.json
+            point100-certification-results.json
+          if-no-files-found: warn
+
+      - name: Stop disposable backend
+        if: always()
+        run: bash scripts/point100-certification/stop-ephemeral.sh
