@@ -263,6 +263,7 @@ jobs:
 
       - name: Run continuous FACT-E2E golden order
         id: golden_order
+        if: always()
         continue-on-error: true
         run: >-
           npx playwright test
@@ -431,6 +432,7 @@ jobs:
 
       - name: Run Point-37 governed production-release certification
         id: point37_production_release
+        if: always()
         continue-on-error: true
         run: >-
           npx playwright test
@@ -458,6 +460,11 @@ jobs:
           const report = JSON.parse(fs.readFileSync(resultPath, 'utf8'));
           const { collectPlaywrightTestStatuses } = require('./scripts/factory-certification/collect-playwright-test-statuses.cjs');
           const statuses = collectPlaywrightTestStatuses(report, 'POINT-37');
+          const counts = statuses.reduce((acc, status) => {
+            acc[status] = (acc[status] ?? 0) + 1;
+            return acc;
+          }, {});
+          console.log('Point-37 production-release certification result counts:', counts);
           if (statuses.length !== 1) {
             throw new Error(`POINT37_COUNT_MISMATCH: expected exactly 1 Point-37 production-release test, got ${statuses.length}`);
           }
@@ -485,6 +492,7 @@ jobs:
 
       - name: Run Point-38 Golden Pipeline governance-board certification
         id: point38_golden_pipeline
+        if: always()
         continue-on-error: true
         run: >-
           npx playwright test
