@@ -1,4 +1,8 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
+import {
+  CLIENT_INTERACTION_LEDGER_SELECT,
+  CUSTOMER360_COMMUNICATION_HISTORY_LIMIT,
+} from "@/lib/crm-communication-history/crmCommunicationHistoryTypes";
 import { fetchCustomer360ReadModel } from "../customer360ReadModel";
 
 const VALID_UUID = "a1b2c3d4-e5f6-4789-a012-3456789abcde";
@@ -22,9 +26,18 @@ const companyRow = {
   created_at: "2026-01-01T00:00:00.000Z",
 };
 
-function createQuery(result: { data: unknown; error: unknown }, calls?: { in?: Array<{ column: string; values: readonly unknown[] }> }) {
+type QueryCalls = {
+  in?: Array<{ column: string; values: readonly unknown[] }>;
+  select?: string;
+  limit?: number;
+};
+
+function createQuery(result: { data: unknown; error: unknown }, calls?: QueryCalls) {
   const builder: Record<string, unknown> = {
-    select: vi.fn(() => builder),
+    select: vi.fn((columns: string) => {
+      if (calls) calls.select = columns;
+      return builder;
+    }),
     eq: vi.fn(() => builder),
     not: vi.fn(() => builder),
     in: vi.fn((column: string, values: readonly unknown[]) => {
@@ -32,7 +45,10 @@ function createQuery(result: { data: unknown; error: unknown }, calls?: { in?: A
       return builder;
     }),
     order: vi.fn(() => builder),
-    limit: vi.fn(() => builder),
+    limit: vi.fn((value: number) => {
+      if (calls) calls.limit = value;
+      return builder;
+    }),
     maybeSingle: vi.fn(async () => result),
     then: (resolve: (value: unknown) => unknown) => Promise.resolve(result).then(resolve),
   };
@@ -46,11 +62,13 @@ vi.mock("@/integrations/supabase/client", () => ({
 }));
 
 describe("fetchCustomer360ReadModel", () => {
-  let ticketQueryCalls: { in: Array<{ column: string; values: readonly unknown[] }> };
+  let ticketQueryCalls: QueryCalls;
+  let interactionsQueryCalls: QueryCalls;
 
   beforeEach(async () => {
     vi.clearAllMocks();
     ticketQueryCalls = { in: [] };
+    interactionsQueryCalls = {};
     const { supabase } = await import("@/integrations/supabase/client");
     vi.mocked(supabase.from).mockImplementation((table: string) => {
       if (table === "companies") {
@@ -69,7 +87,7 @@ describe("fetchCustomer360ReadModel", () => {
         }) as never;
       }
       if (table === "client_interactions") {
-        return createQuery({ data: [], error: null }) as never;
+        return createQuery({ data: [], error: null }, interactionsQueryCalls) as never;
       }
       if (table === "crm_tasks") {
         return createQuery({ data: [], error: null }) as never;
@@ -113,10 +131,67 @@ describe("fetchCustomer360ReadModel", () => {
     });
 
     expect(model.interactions.availability).toBe("partial_crm_lite");
+    expect(model.interactions.reason).toContain("communicationsLedger");
     expect(model.tasks.availability).toBe("partial_crm_lite");
     expect(model.communicationsLedger.availability).toBe("available");
     expect(model.communicationsLedger.programmeOwner).toBe("POINT61");
     expect(model.communicationsLedger.data?.entries).toEqual([]);
+    expect(model.communicationsLedger.data?.recordLimit).toBe(CUSTOMER360_COMMUNICATION_HISTORY_LIMIT);
+  });
+
+  it("selects company_id and executive_id for communications ledger normalization", async () => {
+    await fetchCustomer360ReadModel(VALID_UUID, {
+      viewerCompanyId: null,
+      isStorefrontViewer: false,
+    });
+
+    expect(interactionsQueryCalls.select).toBe(CLIENT_INTERACTION_LEDGER_SELECT);
+    expect(interactionsQueryCalls.select).toContain("company_id");
+    expect(interactionsQueryCalls.select).toContain("executive_id");
+    expect(interactionsQueryCalls.limit).toBe(CUSTOMER360_COMMUNICATION_HISTORY_LIMIT);
+  });
+
+  it("populates communications ledger entries when interaction rows include company_id", async () => {
+    const { supabase } = await import("@/integrations/supabase/client");
+    vi.mocked(supabase.from).mockImplementation((table: string) => {
+      if (table === "companies") {
+        return createQuery({ data: companyRow, error: null }) as never;
+      }
+      if (table === "orders") {
+        return createQuery({ data: [], error: null }) as never;
+      }
+      if (table === "client_interactions") {
+        return createQuery({
+          data: [{
+            id: "ci-1",
+            company_id: VALID_UUID,
+            executive_id: "exec-1",
+            interaction_type: "call",
+            notes: "Follow-up call",
+            outcome: null,
+            follow_up_date: null,
+            created_at: "2026-03-01T10:00:00.000Z",
+          }],
+          error: null,
+        }, interactionsQueryCalls) as never;
+      }
+      if (table === "crm_tasks") {
+        return createQuery({ data: [], error: null }) as never;
+      }
+      if (table === "support_tickets") {
+        return createQuery({ data: [], error: null }) as never;
+      }
+      throw new Error(`Unexpected table ${table}`);
+    });
+
+    const model = await fetchCustomer360ReadModel(VALID_UUID, {
+      viewerCompanyId: null,
+      isStorefrontViewer: false,
+    });
+
+    expect(model.communicationsLedger.data?.entries).toHaveLength(1);
+    expect(model.communicationsLedger.data?.entries[0]?.channel).toBe("call");
+    expect(model.communicationsLedger.data?.entries[0]?.actor.executiveId).toBe("exec-1");
   });
 
   it("scopes support tickets to the company order set before applying the limit", async () => {

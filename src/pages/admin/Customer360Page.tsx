@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useCustomer360 } from "@/hooks/useCustomer360";
+import { CUSTOMER360_COMMUNICATION_HISTORY_LIMIT } from "@/lib/crm-communication-history/crmCommunicationHistoryTypes";
 import type { Customer360Slice, Customer360SliceAvailability } from "@/lib/customer-360/customer360Types";
 
 function availabilityBadge(availability: Customer360SliceAvailability) {
@@ -314,6 +315,7 @@ export default function Customer360Page() {
           <CardDescription>
             Company-scoped CRM ledger (Point 61) — normalized from Core{" "}
             <code className="rounded bg-muted px-1 py-0.5 text-xs">client_interactions</code> authority.
+            Shows up to {CUSTOMER360_COMMUNICATION_HISTORY_LIMIT} most recent records (bounded, not full history).
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

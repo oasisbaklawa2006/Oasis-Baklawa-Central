@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { fetchCrmCommunicationHistory } from "../crmCommunicationHistoryReadModel";
 import { buildCrmCommunicationChannelGovernance } from "../crmCommunicationHistoryNormalizer";
+import { STANDALONE_COMMUNICATION_HISTORY_LIMIT } from "../crmCommunicationHistoryTypes";
 
 const VALID_UUID = "a1b2c3d4-e5f6-4789-a012-3456789abcde";
 
@@ -57,6 +58,7 @@ describe("fetchCrmCommunicationHistory", () => {
     expect(model.entries).toHaveLength(1);
     expect(model.entries[0]?.channel).toBe("call");
     expect(model.entries[0]?.source.authority).toBe("client_interactions");
+    expect(model.recordLimit).toBe(STANDALONE_COMMUNICATION_HISTORY_LIMIT);
   });
 
   it("blocks cross-company storefront access", async () => {

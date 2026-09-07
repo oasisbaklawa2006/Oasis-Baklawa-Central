@@ -12,8 +12,10 @@ import type {
   ClientInteractionRow,
   CrmCommunicationHistoryReadModel,
 } from "./crmCommunicationHistoryTypes";
-
-const DEFAULT_LIMIT = 100;
+import {
+  CLIENT_INTERACTION_LEDGER_SELECT,
+  STANDALONE_COMMUNICATION_HISTORY_LIMIT,
+} from "./crmCommunicationHistoryTypes";
 
 export async function fetchCrmCommunicationHistory(
   rawCompanyId: string,
@@ -23,13 +25,11 @@ export async function fetchCrmCommunicationHistory(
   const companyId = normalizeCompanyId(rawCompanyId);
   assertCustomer360CompanyAccess(companyId, viewer);
 
-  const limit = options?.limit ?? DEFAULT_LIMIT;
+  const limit = options?.limit ?? STANDALONE_COMMUNICATION_HISTORY_LIMIT;
 
   const { data, error } = await supabase
     .from("client_interactions")
-    .select(
-      "id, company_id, executive_id, interaction_type, notes, outcome, follow_up_date, created_at",
-    )
+    .select(CLIENT_INTERACTION_LEDGER_SELECT)
     .eq("company_id", companyId)
     .order("created_at", { ascending: false })
     .limit(limit);
@@ -39,25 +39,21 @@ export async function fetchCrmCommunicationHistory(
   }
 
   const rows = (data ?? []) as ClientInteractionRow[];
-  const entries = buildCommunicationHistoryFromClientInteractions(rows, companyId);
 
-  return {
-    companyId,
-    resolvedAt: new Date().toISOString(),
-    entries,
-    channels: buildCrmCommunicationChannelGovernance(),
-  };
+  return buildCrmCommunicationHistoryReadModel(companyId, rows, { recordLimit: limit });
 }
 
 /** Pure builder for tests and Customer 360 adaptor wiring. */
 export function buildCrmCommunicationHistoryReadModel(
   companyId: string,
   rows: ClientInteractionRow[],
+  options?: { recordLimit?: number },
 ): CrmCommunicationHistoryReadModel {
   const normalizedCompanyId = companyId.toLowerCase();
   return {
     companyId: normalizedCompanyId,
     resolvedAt: new Date().toISOString(),
+    recordLimit: options?.recordLimit ?? rows.length,
     entries: buildCommunicationHistoryFromClientInteractions(rows, normalizedCompanyId),
     channels: buildCrmCommunicationChannelGovernance(),
   };

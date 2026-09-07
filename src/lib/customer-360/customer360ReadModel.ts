@@ -1,6 +1,10 @@
 import { supabase } from "@/integrations/supabase/client";
 import { buildCrmCommunicationHistoryReadModel } from "@/lib/crm-communication-history/crmCommunicationHistoryReadModel";
-import type { ClientInteractionRow } from "@/lib/crm-communication-history/crmCommunicationHistoryTypes";
+import {
+  CLIENT_INTERACTION_LEDGER_SELECT,
+  CUSTOMER360_COMMUNICATION_HISTORY_LIMIT,
+  type ClientInteractionRow,
+} from "@/lib/crm-communication-history/crmCommunicationHistoryTypes";
 import { parseCrmLiteTickets } from "@/lib/crm-lite/parseCrmLiteTickets";
 import { assertCustomer360CompanyAccess, normalizeCompanyId } from "./customer360Identity";
 import { Customer360IdentityError } from "./customer360Identity";
@@ -102,10 +106,10 @@ export async function fetchCustomer360ReadModel(
       .limit(25),
     supabase
       .from("client_interactions")
-      .select("id, interaction_type, notes, outcome, follow_up_date, created_at")
+      .select(CLIENT_INTERACTION_LEDGER_SELECT)
       .eq("company_id", companyId)
       .order("created_at", { ascending: false })
-      .limit(25),
+      .limit(CUSTOMER360_COMMUNICATION_HISTORY_LIMIT),
     supabase
       .from("crm_tasks")
       .select("id, task_type, status, due_date, description, created_at")
@@ -154,7 +158,8 @@ export async function fetchCustomer360ReadModel(
     : {
         availability: "partial_crm_lite",
         programmeOwner: "POINT61",
-        reason: "CRM-lite interactions only; unified communications ledger is not yet governed.",
+        reason:
+          "CRM-lite interaction summary (bounded preview). Governed multi-channel history is on the communicationsLedger slice (Point 61).",
         data: (interactionsRes.data ?? []).map((row) => ({
           id: row.id,
           interactionType: row.interaction_type,
@@ -217,6 +222,7 @@ export async function fetchCustomer360ReadModel(
         data: buildCrmCommunicationHistoryReadModel(
           companyId,
           (interactionsRes.data ?? []) as ClientInteractionRow[],
+          { recordLimit: CUSTOMER360_COMMUNICATION_HISTORY_LIMIT },
         ),
       };
 

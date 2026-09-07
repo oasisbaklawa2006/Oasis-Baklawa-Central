@@ -3,6 +3,16 @@
  * Canonical customer identity is `companies.id`. This module is read-only.
  */
 
+/** PostgREST projection required for ledger normalization (fail-closed on company_id). */
+export const CLIENT_INTERACTION_LEDGER_SELECT =
+  "id, company_id, executive_id, interaction_type, notes, outcome, follow_up_date, created_at";
+
+/** Customer 360 shares one bounded interactions query for legacy + ledger slices. */
+export const CUSTOMER360_COMMUNICATION_HISTORY_LIMIT = 25;
+
+/** Standalone adaptor default when not embedded in Customer 360. */
+export const STANDALONE_COMMUNICATION_HISTORY_LIMIT = 100;
+
 export type CrmCommunicationChannel =
   | "call"
   | "whatsapp"
@@ -65,6 +75,8 @@ export type CrmCommunicationHistoryEntry = {
 export type CrmCommunicationHistoryReadModel = {
   companyId: string;
   resolvedAt: string;
+  /** Bounded source-query window — not a claim of full company history. */
+  recordLimit: number;
   entries: CrmCommunicationHistoryEntry[];
   channels: CrmCommunicationChannelStatus[];
 };

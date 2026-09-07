@@ -2,20 +2,27 @@
 
 **ASM:** POINT61 — CRM communication history canonical closure  
 **Repository:** `oasisbaklawa2006/Oasis-Baklawa-Central`  
-**Branch:** `cursor/point61-crm-communication-history-080a`  
-**Base ancestry:** Point59 PR #503 head `60443018cd2303471ef034a399204f7cbb753947`  
-**Merge predecessor chain:** #497 Dispatch P0 → #499 Point57 → #503 Point59 → **Point61 (this PR, draft/dependent)**
+**Branch:** `cursor/point61-crm-communication-history-080a`
 
 ---
 
-## 1. Starting SHA / ancestry
+## 1. Current exact-head state
 
 | Item | Value |
 |------|--------|
-| **Starting SHA** | `60443018cd2303471ef034a399204f7cbb753947` |
-| **Starting commit** | `feat(point59): canonical Customer 360 operational read model` |
-| **Parent** | `6ffaa43babeed060ec9ccdcc567f8bff45347b94` (Point57 #499) |
-| **Commits ahead of main at start** | 2 (Point57 + Point59) |
+| **Base (current main)** | `cb15abcb1d856ed674a1b17dd48a47083457dc16` |
+| **Point59 #503** | **Merged** (squash onto main) |
+| **Point61 PR** | `#507` — Point61-only rebuild (1 commit above base) |
+| **Bounded ledger window (Customer 360)** | **25** most recent `client_interactions` rows (`CUSTOMER360_COMMUNICATION_HISTORY_LIMIT`) |
+| **Bounded ledger window (standalone adaptor)** | **100** rows (`STANDALONE_COMMUNICATION_HISTORY_LIMIT`) |
+
+### Historical preflight (Gate-4, superseded)
+
+| Item | Value |
+|------|--------|
+| Original branch stack | `6ffaa43b` (stale P57) → `60443018` (stale P59) → `0892c9b2` (P61) |
+| Original P59 head at preflight | `60443018cd2303471ef034a399204f7cbb753947` |
+| Rebuild action | Hard-reset to `cb15abcb`, cherry-pick P61 semantics only |
 
 ---
 
@@ -25,34 +32,16 @@
 
 | Surface | Route / module | Primary data source | Company scope | Channel / direction | Actor | Disposition |
 |---------|----------------|---------------------|---------------|---------------------|-------|-------------|
-| Customer 360 interactions (partial) | `/admin/clients/:companyId` | `client_interactions` | `company_id` | `interaction_type` | `executive_id` | **Partial CRM-lite** (Point59) |
-| Customer 360 communications ledger | `/admin/clients/:companyId` | `client_interactions` via Point61 adaptor | `company_id` | normalized channel/direction | executive / system | **Point61 canonical read** |
+| Customer 360 interactions (partial) | `/admin/clients/:companyId` | `client_interactions` | `company_id` | `interaction_type` | `executive_id` | **Partial CRM-lite** legacy summary |
+| Customer 360 communications ledger | `/admin/clients/:companyId` | `client_interactions` via Point61 adaptor | `company_id` + row `company_id` fail-closed | normalized channel/direction | executive / system | **Point61 canonical read** (bounded) |
 | Sales dashboard CRM-lite | `/sales/dashboard` | `client_interactions` | AM roster `company_id` IN filter | manual types | `executive_id` | Duplicate read + **Point62 writes** |
-| ClientInteractionsTab | Sales console | `client_interactions` | company filter | call/wa/visit/note | `executive_id` | Duplicate read + **Point62 writes** |
-| SalesCrmLiteWorkspace | Sales console | `client_interactions` | roster scope | same | `executive_id` | Duplicate read |
-| SalesIntelligencePanel | `/admin/sales-hub` | `client_interactions` aggregates | exec-scoped | counts only | `executive_id` | Analytics only |
-| WA outbound auto-log | Core `send-whatsapp` edge | `client_interactions` insert | `company_id` when known | whatsapp / outbound | caller user | **Core authority → CRM ledger** |
-| WA provider message log | Core `whatsapp_messages` | direct provider rows | via `order_id` only | inbound/outbound | provider | **Not CRM truth** — order/packet scoped |
-| WA operator inbox | `/admin/operator-inbox` | `whatsapp_messages` + packets | scored identity, not CRM ledger | packet projection | operator/customer | **Operational only** — not promoted |
-| WA operational feed | `operational-events/whatsappFeed` | derived inbox projection | packet/order entities | communication | heuristic | **Derived** — not CRM ledger |
-| Buyer communication log | Buyer App (`buyerCommunicationLog`) | tickets + general queries RPC | buyer-safe | support/enquiry | customer | **Buyer scope** — out of Central CRM |
-| Notifications | various | `notifications` | optional `company_id` | system alerts | user_id | Operational alerts — **not unified comms** |
-| Email records | — | **none in Central contract** | — | — | — | **Unavailable** |
+| WA provider message log | Core `whatsapp_messages` | direct provider rows | via `order_id` only | inbound/outbound | provider | **Not CRM truth** — excluded |
 | Protected WA historical corpus | certification lane | governed intakes / archives | certification only | — | — | **Explicitly excluded** (no access) |
-| Support tickets | Customer 360 tickets slice | `support_tickets` → `orders` | order-linked | support | — | Adjacent; separate Point59 slice |
-| CRM tasks / promises | Customer 360 tasks slice | `crm_tasks` + `follow_up_date` | `company_id` | task | sales exec | **Point63 / Point62** — not comms ledger |
+| Email records | — | **none in Central contract** | — | — | — | **Unavailable** |
 
-### Findings
+### Required projection for ledger normalization
 
-| Risk | Evidence | Point61 treatment |
-|------|----------|-------------------|
-| Duplicate histories | Sales dashboard, CRM-lite workspace, Customer 360 interactions all read `client_interactions` independently | Single **read adaptor** bound to Customer 360 `communicationsLedger` |
-| Provider logs as CRM truth | `whatsapp_messages` used heavily in operator inbox / edges | **Excluded** from CRM ledger; only `client_interactions` auto-log is surfaced |
-| Mock/demo rows | None in comms paths; Point59 blocks fabricated slices | Fail-closed unavailable states preserved for email / protected corpus |
-| Missing company scoping | `client_interactions.company_id` nullable; WA packets often pre-resolution | Rows with mismatched `company_id` dropped; WA partial channel documents unlinked inbound gap |
-| Ambiguous sender | Nullable `executive_id`; auto-log uses system actor | Normalized actor roles with explicit `unknown` fallback |
-| Unsafe PII exposure | Full notes returned to staff CRM surfaces | Same RLS boundary as existing `client_interactions` reads — no new exposure |
-| Events not linkable to `companies.id` | Inbound WA before identity resolution | Excluded from company ledger; channel marked `partial` |
+`CLIENT_INTERACTION_LEDGER_SELECT` must include `company_id` and `executive_id`. Without these fields, `normalizeClientInteractionRow()` fail-closes every row and the ledger renders empty.
 
 ---
 
@@ -60,11 +49,11 @@
 
 | Point | Scope | Point61 treatment |
 |-------|-------|-------------------|
-| **61** | Unified CRM communication history read | **Implemented** — `crm-communication-history` adaptor + Customer 360 slice |
-| **62** | Action capture (calls/WA/email/notes/promises writes) | **Not absorbed** — existing write surfaces unchanged |
-| **63** | CRM tasks | Remains partial slice on Customer 360 |
+| **61** | Unified CRM communication history read | **Implemented** |
+| **62** | Action capture writes | **Not absorbed** |
+| **63** | CRM tasks | Remains partial slice |
 | **64** | Customer health | Remains `unavailable_not_governed` |
-| **Protected WA corpus** | Historical certification | **No access** — explicit partial/unavailable channel governance |
+| **Protected WA corpus** | Historical certification | **No access** |
 
 ---
 
@@ -75,21 +64,21 @@
 - **Module:** `src/lib/crm-communication-history/`
 - **Authority:** `client_interactions` (Core CRM ledger; includes `send-whatsapp` auto-log)
 - **Identity:** `companies.id` via `normalizeCompanyId()` + `assertCustomer360CompanyAccess()`
-- **Normalization:** channel, direction, actor, timestamp, source provenance (`table` + `recordId`)
-- **Ordering:** newest-first with deterministic dedupe by source record
-- **Unavailable channels:** email (`unavailable_not_governed`); WhatsApp inbound/unlinked + protected corpus (`partial` with reason)
+- **Server scope:** `.eq("company_id", companyId)` retained; RLS unchanged
+- **Normalization:** channel, direction, actor, timestamp, source provenance
+- **Bounded reads:** Customer 360 = 25 rows; standalone adaptor = 100 rows (not full history)
+- **Unavailable channels:** email (`unavailable_not_governed`); WhatsApp partial (unlinked inbound / protected corpus excluded)
 
 ### Wiring
 
-- `fetchCustomer360ReadModel` populates `communicationsLedger` slice (Point61)
-- `Customer360Page` renders governed communication history + channel governance panel
-- CRM-lite interaction tab remains partial preview (not removed — separate slice contract)
+- `fetchCustomer360ReadModel` populates `communicationsLedger` from the same bounded interactions query
+- Legacy `interactions` slice remains CRM-lite/partial preview; `communicationsLedger` is the governed Point61 view
+- `Customer360Page` renders timeline + channel governance panel with bounded disclosure
 
 ### Tests
 
-- `src/lib/crm-communication-history/__tests__/crmCommunicationHistoryNormalizer.test.ts`
-- `src/lib/crm-communication-history/__tests__/crmCommunicationHistoryReadModel.test.ts`
-- `src/lib/customer-360/__tests__/customer360ReadModel.test.ts` (communications ledger availability)
+- `src/lib/crm-communication-history/__tests__/*`
+- `src/lib/customer-360/__tests__/customer360ReadModel.test.ts` — projection regression (`company_id`, `executive_id`), ledger population, `recordLimit`
 
 ---
 
@@ -97,12 +86,13 @@
 
 | Gate | State |
 |------|-------|
-| Communication-history authority census | **YES** (this document) |
-| Company-scoped read adaptor | **YES** |
-| Customer 360 `communicationsLedger` binding | **YES** |
-| Deterministic ordering / dedupe / scoping tests | **YES** |
-| Point59 #503 merged | **NO** — PR remains dependent/draft |
-| Multi-channel runtime certification | **NOT_CLEARED** — requires predecessor merge + live WA/email channel proof |
+| Communication-history authority census | **YES** |
+| Point61-only rebuild on post-#503 main | **YES** |
+| `company_id` / `executive_id` projection fix | **YES** (Gate-4 remedial) |
+| Bounded ledger behavior documented | **YES** (25 Customer 360 / 100 standalone) |
+| Point59 #503 merged | **YES** |
+| Exact-head review-clean | **pending** |
+| Multi-channel runtime certification | **NOT_CLEARED** |
 | Point61 programme CLEARED | **NOT_CLEARED** |
 
 `PR MERGED != Point61 cleared`
