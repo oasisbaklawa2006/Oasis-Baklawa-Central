@@ -21,7 +21,7 @@ describe("macroLeap13PhysicalUatHooks", () => {
   });
 
   it("declares executable scenarios without claiming deferred physical PASS", () => {
-    expect(MACRO_LEAP13_UAT_SCENARIOS.length).toBeGreaterThanOrEqual(9);
+    expect(MACRO_LEAP13_UAT_SCENARIOS.length).toBeGreaterThanOrEqual(12);
     const deferred = leap13DeferredScenarios();
     for (const scenario of deferred) {
       expect(scenario.physicalDeferred).toBe(true);

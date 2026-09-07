@@ -51,5 +51,6 @@ test.describe("Macro Leap 13 UAT hooks — software probe", () => {
     await expect(page.locator(leap13HookSelector(MACRO_LEAP13_UAT_HOOK.SECURITY_GATE_SCANNER))).toBeVisible();
     await expect(page.locator(leap13HookSelector(MACRO_LEAP13_UAT_HOOK.SECURITY_GATE_DISPATCH_PROOF))).toBeVisible();
     await expect(page.locator(leap13HookSelector(MACRO_LEAP13_UAT_HOOK.SECURITY_GATE_COMPLAINT_WINDOW))).toBeVisible();
+    await expect(page.locator(leap13HookSelector(MACRO_LEAP13_UAT_HOOK.SECURITY_GATE_CUSTOMER_COMM))).toBeAttached();
   });
 });

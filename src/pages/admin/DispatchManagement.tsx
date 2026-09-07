@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   CheckCircle2,
   Lock,
@@ -24,6 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { evaluatePackingContracts } from "@/lib/packing-carton-dpl";
 
 /**
  * Canonical Dispatch operator workflow (FACT-C3): the single governed path
@@ -74,6 +75,9 @@ type CartonRow = {
 
 type CartonItemRow = {
   id: string;
+  carton_id: string;
+  consignment_line_id: string;
+  order_item_id: string;
   barcode_value: string;
   batch_lot: string;
   quantity: number;
@@ -180,6 +184,7 @@ export default function DispatchManagement() {
   const [cartons, setCartons] = useState<CartonRow[]>([]);
   const [consignmentLines, setConsignmentLines] = useState<ConsignmentLineRow[]>([]);
   const [dplVersions, setDplVersions] = useState<DplVersionRow[]>([]);
+  const [consignmentCartonItems, setConsignmentCartonItems] = useState<CartonItemRow[]>([]);
   const [supersessionReasons, setSupersessionReasons] = useState<Map<string, string>>(new Map());
   const [workingLoading, setWorkingLoading] = useState(false);
 
@@ -252,6 +257,7 @@ export default function DispatchManagement() {
       setCartons([]);
       setConsignmentLines([]);
       setDplVersions([]);
+      setConsignmentCartonItems([]);
       setSupersessionReasons(new Map());
       return;
     }
@@ -288,9 +294,23 @@ export default function DispatchManagement() {
       if (dplRes.error) throw new Error(dplRes.error.message);
       if (eventsRes.error) throw new Error(eventsRes.error.message);
       if (requestId !== workingRequestIdRef.current) return;
-      setCartons((cartonsRes.data ?? []) as CartonRow[]);
+      const nextCartons = (cartonsRes.data ?? []) as CartonRow[];
+      setCartons(nextCartons);
       setConsignmentLines((linesRes.data ?? []) as ConsignmentLineRow[]);
       setDplVersions((dplRes.data ?? []) as DplVersionRow[]);
+      const cartonIds = nextCartons.map((carton) => carton.id);
+      if (cartonIds.length === 0) {
+        setConsignmentCartonItems([]);
+      } else {
+        const itemsRes = await supabase
+          .from("b2b_dispatch_carton_items")
+          .select("id, carton_id, consignment_line_id, order_item_id, barcode_value, batch_lot, quantity, product_code, scanned_at")
+          .in("carton_id", cartonIds)
+          .order("scanned_at", { ascending: false });
+        if (itemsRes.error) throw new Error(itemsRes.error.message);
+        if (requestId !== workingRequestIdRef.current) return;
+        setConsignmentCartonItems((itemsRes.data ?? []) as CartonItemRow[]);
+      }
       const reasonMap = new Map<string, string>();
       for (const evt of (eventsRes.data ?? []) as { document_version_id: string | null; reason: string | null }[]) {
         if (evt.document_version_id && evt.reason) reasonMap.set(evt.document_version_id, evt.reason);
@@ -314,6 +334,7 @@ export default function DispatchManagement() {
     setCartons([]);
     setConsignmentLines([]);
     setDplVersions([]);
+    setConsignmentCartonItems([]);
     setSupersessionReasons(new Map());
     setSelectedCartonId("");
     setCartonItems([]);
@@ -333,7 +354,7 @@ export default function DispatchManagement() {
       const [itemsRes, eventsRes] = await Promise.all([
         supabase
           .from("b2b_dispatch_carton_items")
-          .select("id, barcode_value, batch_lot, quantity, product_code, scanned_at")
+          .select("id, carton_id, consignment_line_id, order_item_id, barcode_value, batch_lot, quantity, product_code, scanned_at")
           .eq("carton_id", cartonId)
           .order("scanned_at", { ascending: false }),
         supabase
@@ -362,6 +383,22 @@ export default function DispatchManagement() {
   const selectedCarton = cartons.find((c) => c.id === selectedCartonId) ?? null;
   const currentDplVersion = dplVersions.find((v) => v.status !== "superseded") ?? null;
   const supersededVersions = dplVersions.filter((v) => v.status === "superseded");
+  const packingContracts = useMemo(() => {
+    if (!workingConsignmentId || cartons.length === 0) return null;
+    return evaluatePackingContracts({
+      cartons: cartons.map((carton) => ({
+        ...carton,
+        consignment_id: workingConsignmentId,
+        seal_reference: null,
+      })),
+      cartonItems: consignmentCartonItems,
+      lines: consignmentLines,
+      dplVersions: dplVersions.map((version) => ({
+        ...version,
+        consignment_id: workingConsignmentId,
+      })),
+    });
+  }, [workingConsignmentId, cartons, consignmentCartonItems, consignmentLines, dplVersions]);
 
   const confirmAuthoritativeRefresh = useCallback(
     async (refresh: () => Promise<unknown>, failureMessage: string) => {
@@ -1053,6 +1090,40 @@ export default function DispatchManagement() {
                       ? "Locking…"
                       : "Lock carton"}
                 </Button>
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {packingContracts && workingConsignmentId ? (
+            <Card data-testid="macro-packing-contract-truth">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-sm">
+                  <ShieldAlert className="h-4 w-4 text-amber-600" aria-hidden />
+                  Carton / DPL contract truth
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Read-only packing contract evaluation before DPL generation or Finance submission.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2 text-xs">
+                {packingContracts.allOk ? (
+                  <p className="text-emerald-700">All carton uniqueness, quantity conservation and DPL chain checks pass.</p>
+                ) : (
+                  <ul className="list-disc space-y-1 pl-4 text-destructive">
+                    {[
+                      ...packingContracts.uniqueness.violations,
+                      ...packingContracts.quantity.violations,
+                      ...packingContracts.dplChain.violations,
+                    ].map((violation) => (
+                      <li key={`${violation.code}:${violation.message}`}>{violation.message}</li>
+                    ))}
+                  </ul>
+                )}
+                {!packingContracts.financeHandoff.eligible ? (
+                  <p className="text-amber-800">
+                    Finance handoff blockers: {packingContracts.financeHandoff.blockers.join("; ")}
+                  </p>
+                ) : null}
               </CardContent>
             </Card>
           ) : null}

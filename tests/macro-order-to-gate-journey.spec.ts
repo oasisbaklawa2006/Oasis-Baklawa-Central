@@ -62,6 +62,7 @@ test.describe("Macro order-to-gate journey — synthetic route census", () => {
     await expect(page.getByTestId("macro-security-gate-dispatch-proof")).toBeVisible();
     await expect(page.getByTestId("macro-security-gate-complaint-window")).toBeVisible();
     await expect(page.getByTestId("macro-security-gate-scanner")).toBeVisible();
+    await expect(page.getByTestId("macro-security-gate-customer-comm")).toBeAttached();
   });
 
   test("order management remains reachable for amendment surface", async ({ page }) => {

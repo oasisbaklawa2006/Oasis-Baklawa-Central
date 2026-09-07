@@ -61,7 +61,7 @@ describe("Central #554 Leap 7 macro order-to-gate closure", () => {
     const app = source("src/App.tsx");
     expect(app).toContain("OPERATIONS_CONTROLLER_ROLES");
     expect(app).toMatch(
-      /<Route path="\/operations-controller"[\s\S]*?allowedRoles=\{\[\.\.\.OPERATIONS_CONTROLLER_ROLES\]\}/,
+      /OPERATIONS_CONTROLLER_ROLES[\s\S]*!\["DISPATCH_MANAGER", "DISPATCH_INCHARGE", "DISPATCH_HEAD", "PACKING_SUPERVISOR"\]/,
     );
   });
 
@@ -90,7 +90,7 @@ describe("Central #554 Leap 7 macro order-to-gate closure", () => {
     const leap13Doc = source("docs/MACRO_ORDER_DISPATCH_LEAP13_PHYSICAL_UAT.md");
     expect(leap13Doc).toContain("LEAP13-006");
     expect(leap13Doc).toContain("macro-security-gate-scanner");
-    expect(MACRO_LEAP13_UAT_SCENARIOS.length).toBeGreaterThanOrEqual(9);
+    expect(MACRO_LEAP13_UAT_SCENARIOS.length).toBeGreaterThanOrEqual(12);
     expect(MACRO_LEAP13_JOURNEY_HOOK_BINDINGS).toHaveLength(MACRO_ORDER_DISPATCH_JOURNEY.length);
 
     const gate = source("src/pages/admin/AdminB2bSecurityGate.tsx");
@@ -98,6 +98,10 @@ describe("Central #554 Leap 7 macro order-to-gate closure", () => {
     expect(gate).toContain(`data-testid="${MACRO_LEAP13_UAT_HOOK.SECURITY_GATE_DISPATCH_PROOF}"`);
     expect(gate).toContain(`data-testid="${MACRO_LEAP13_UAT_HOOK.SECURITY_GATE_COMPLAINT_WINDOW}"`);
     expect(gate).toContain(`data-testid="${MACRO_LEAP13_UAT_HOOK.SECURITY_GATE_CUSTOMER_COMM}"`);
+
+    const dispatch = source("src/pages/admin/DispatchManagement.tsx");
+    expect(dispatch).toContain('data-testid="macro-packing-contract-truth"');
+    expect(dispatch).toContain("evaluatePackingContracts");
   });
 
   it("exposes amendment/cancel/substitute on the governed order management surface", () => {
