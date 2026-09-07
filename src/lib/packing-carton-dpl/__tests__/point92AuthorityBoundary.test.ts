@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from "fs";
-import { join } from "path";
+import { join, resolve } from "path";
 import { describe, expect, it } from "vitest";
 import {
   AUTHORITATIVE_PACKING_RELATIONS,
@@ -11,11 +11,44 @@ import {
 
 const ROOT = join(import.meta.dirname, "../../..");
 
+const ALLOWED_SRC_PATHS = new Set([
+  "pages/admin/CartonExplorer.tsx",
+  "pages/admin/ScanTimeline.tsx",
+  "pages/admin/DispatchTV.tsx",
+  "pages/admin/DispatchManagement.tsx",
+  "pages/admin/AdminPackingDispatch.tsx",
+  "hooks/useCartonExplorer.ts",
+]);
+
+const DIRECT_WRITE_OPS = ["insert", "update", "upsert", "delete"] as const;
+
 function readSrc(relative: string): string {
-  return readFileSync(join(ROOT, relative), "utf8");
+  if (!ALLOWED_SRC_PATHS.has(relative)) {
+    throw new Error(`Unexpected source path: ${relative}`);
+  }
+  const absolute = resolve(ROOT, relative);
+  if (!absolute.startsWith(ROOT)) {
+    throw new Error(`Path traversal blocked: ${relative}`);
+  }
+  return readFileSync(absolute, "utf8");
+}
+
+function assertNoDirectRelationMutation(
+  src: string,
+  relation: string,
+  ops: readonly (typeof DIRECT_WRITE_OPS)[number][] = DIRECT_WRITE_OPS,
+): void {
+  for (const op of ops) {
+    expect(src).not.toContain(`from("${relation}").${op}`);
+    expect(src).not.toContain(`from('${relation}').${op}`);
+  }
 }
 
 describe("Point92 Central packing/carton/DPL authority boundary", () => {
+  it("readSrc rejects paths outside the allowlist", () => {
+    expect(() => readSrc("../package.json")).toThrow(/Unexpected source path|Path traversal blocked/);
+  });
+
   it("declares DispatchManagement as the sole mutation surface", () => {
     expect(PACKING_MUTATION_SURFACE).toBe("DispatchManagement");
     expect(PACKING_READ_ONLY_SURFACES).toContain("CartonExplorer");
@@ -42,7 +75,7 @@ describe("Point92 Central packing/carton/DPL authority boundary", () => {
       expect(src).not.toContain(rpc);
     }
     for (const relation of [...AUTHORITATIVE_PACKING_RELATIONS, ...LEGACY_PACKING_RELATIONS_BLOCKED]) {
-      expect(src).not.toMatch(new RegExp(`from\\(["']${relation}["']\\)\\.(insert|update|upsert|delete)`));
+      assertNoDirectRelationMutation(src, relation);
     }
     expect(src).toContain("Read-only");
     expect(src).toContain("useCartonExplorer");
@@ -76,7 +109,7 @@ describe("Point92 Central packing/carton/DPL authority boundary", () => {
     const packing = readSrc("pages/admin/AdminPackingDispatch.tsx");
     expect(packing).toContain("blockLegacyB2bCartonDplMutation");
     for (const relation of LEGACY_PACKING_RELATIONS_BLOCKED) {
-      expect(packing).not.toMatch(new RegExp(`from\\(["']${relation}["']\\)\\.insert`));
+      assertNoDirectRelationMutation(packing, relation, ["insert"]);
     }
   });
 

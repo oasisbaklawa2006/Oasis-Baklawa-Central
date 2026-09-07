@@ -66,7 +66,7 @@ export function createSupabaseOperationalQueueReadStore(client: SupabaseClient):
         .limit(limit);
       const { data: openData, error: openErr } = await openQuery;
       if (openErr) throw new Error(openErr.message);
-      let rows = (openData ?? []) as QueueItemRow[];
+      const rows = (openData ?? []) as QueueItemRow[];
       if (filter.includeCompletedToday) {
         const dayStart = new Date();
         dayStart.setHours(0, 0, 0, 0);

@@ -133,7 +133,7 @@ export async function fetchOrderPriorityOwnerSlaFactsBatch(
     );
   }
 
-  let draftByPromotedOrderId = new Map<string, DraftRow>();
+  const draftByPromotedOrderId = new Map<string, DraftRow>();
   const { data: drafts, error: draftError } = await supabase
     .from("sales_order_drafts")
     .select(

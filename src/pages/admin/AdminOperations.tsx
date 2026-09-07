@@ -57,6 +57,12 @@ interface InventoryItem {
   stock: number;
 }
 
+interface ProductWithFactoryInventory {
+  id: string;
+  name: string;
+  factory_inventory: { quantity: number | null }[] | null;
+}
+
 const AdminOperations = () => {
   const [activeTab, setActiveTab] = useState<"routing" | "store">("routing");
 
@@ -119,12 +125,12 @@ const AdminOperations = () => {
     setFinanceReadyCount(readyCountRes.error ? null : readyCountRes.count ?? 0);
     setPackedReadyCount(packedCountRes.error ? null : packedCountRes.count ?? 0);
 
-    const { data: productData } = await (supabase as any)
+    const { data: productData } = await supabase
       .from("products")
-      .select(`id, name, factory_inventory ( quantity )`);
+      .select("id, name, factory_inventory ( quantity )");
 
     if (productData) {
-      const formattedInventory = productData.map((p: any) => ({
+      const formattedInventory = (productData as ProductWithFactoryInventory[]).map((p) => ({
         id: p.id,
         name: p.name,
         stock: p.factory_inventory?.[0]?.quantity || 0,
@@ -187,24 +193,24 @@ const AdminOperations = () => {
     }
 
     try {
-      const { data: existingStock } = await (supabase as any)
+      const { data: existingStock } = await supabase
         .from("factory_inventory")
         .select("id")
         .eq("product_id", adjustingProduct.id)
         .single();
 
       if (existingStock) {
-        await (supabase as any)
+        await supabase
           .from("factory_inventory")
           .update({ quantity: newStockLevel, last_updated: new Date().toISOString() })
           .eq("product_id", adjustingProduct.id);
       } else {
-        await (supabase as any)
+        await supabase
           .from("factory_inventory")
           .insert({ product_id: adjustingProduct.id, quantity: newStockLevel });
       }
 
-      await (supabase as any).from("inventory_adjustments").insert({
+      await supabase.from("inventory_adjustments").insert({
         product_id: adjustingProduct.id,
         adjustment_type: adjustReason,
         quantity: amount,
@@ -226,7 +232,7 @@ const AdminOperations = () => {
     if (!taskProduct || !taskDept || !taskQty) return;
     setIsSubmitting(true);
     try {
-      const { data: orderData, error: orderError } = await (supabase as any)
+      const { data: orderData, error: orderError } = await supabase
         .from("orders")
         .insert({ status: "in_production", sales_order_value: 0 })
         .select("id")
@@ -234,7 +240,7 @@ const AdminOperations = () => {
 
       if (orderError) throw orderError;
 
-      const { error: itemError } = await (supabase as any).from("order_items").insert({
+      const { error: itemError } = await supabase.from("order_items").insert({
         order_id: orderData.id,
         product_id: taskProduct,
         quantity: taskQty,

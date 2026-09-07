@@ -201,7 +201,9 @@ export function OrderAmendmentActionsPanel({
 
       <Textarea
         value={reason}
-        onChange={(event) => setReason(event.target.value)}
+        onChange={(event) => {
+          setReason(event.target.value);
+        }}
         placeholder="Governed reason (required)"
         className="min-h-[72px] text-xs"
       />
@@ -260,7 +262,9 @@ export function OrderAmendmentActionsPanel({
             <select
               className="w-full rounded border border-input bg-background px-2 py-1.5 text-xs"
               value={selectedItemId ?? ""}
-              onChange={(event) => setSelectedItemId(event.target.value)}
+              onChange={(event) => {
+                setSelectedItemId(event.target.value);
+              }}
             >
               {items.map((item) => (
                 <option key={item.id} value={item.id}>
@@ -273,13 +277,17 @@ export function OrderAmendmentActionsPanel({
             <div className="grid grid-cols-2 gap-2">
               <Input
                 value={substituteProductId}
-                onChange={(event) => setSubstituteProductId(event.target.value)}
+                onChange={(event) => {
+                  setSubstituteProductId(event.target.value);
+                }}
                 placeholder="Replacement product id"
                 className="h-8 text-xs"
               />
               <Input
                 value={substituteQty}
-                onChange={(event) => setSubstituteQty(event.target.value)}
+                onChange={(event) => {
+                  setSubstituteQty(event.target.value);
+                }}
                 placeholder="Qty"
                 className="h-8 text-xs"
               />
