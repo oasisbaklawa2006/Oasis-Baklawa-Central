@@ -7,6 +7,16 @@ workflow="$repo_root/.github/workflows/core-backend-authority.yml"
 test_root="$(mktemp -d)"
 trap 'rm -rf "$test_root"' EXIT
 
+stage_guard_workflow() {
+  local dest="$1"
+  mkdir -p "$(dirname "$dest")"
+  if [[ -f "$workflow" ]]; then
+    cp "$workflow" "$dest"
+  else
+    printf '%s\n' '# bootstrap guard workflow fixture' > "$dest"
+  fi
+}
+
 new_fixture() {
   local name="$1"
   local root="$test_root/$name"
@@ -120,7 +130,7 @@ expect_fail_with "$root" "$base" 'CORE BACKEND AUTHORITY VIOLATION' "$head"
 root="$(new_fixture guard-bootstrap-addition)"
 base="$(git -C "$root" rev-parse HEAD)"
 mkdir -p "$root/.github/workflows" "$root/scripts/tests"
-cp "$workflow" "$root/.github/workflows/core-backend-authority.yml"
+stage_guard_workflow "$root/.github/workflows/core-backend-authority.yml"
 cp "$checker" "$root/scripts/check-core-backend-authority.sh"
 cp "$0" "$root/scripts/tests/verify-core-backend-authority.sh"
 chmod +x "$root/scripts/check-core-backend-authority.sh" "$root/scripts/tests/verify-core-backend-authority.sh"
@@ -132,7 +142,7 @@ expect_pass "$root" "$base" "$head"
 root="$(new_fixture guard-self-protection)"
 base="$(git -C "$root" rev-parse HEAD)"
 mkdir -p "$root/.github/workflows" "$root/scripts/tests"
-cp "$workflow" "$root/.github/workflows/core-backend-authority.yml"
+stage_guard_workflow "$root/.github/workflows/core-backend-authority.yml"
 cp "$checker" "$root/scripts/check-core-backend-authority.sh"
 cp "$0" "$root/scripts/tests/verify-core-backend-authority.sh"
 chmod +x "$root/scripts/check-core-backend-authority.sh" "$root/scripts/tests/verify-core-backend-authority.sh"
