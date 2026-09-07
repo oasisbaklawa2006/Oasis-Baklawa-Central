@@ -194,6 +194,26 @@ export function OrderAmendmentActionsPanel({
     setSubstituteQty(event.target.value);
   }, []);
 
+  const handleRefreshLinesClick = useCallback(() => {
+    void loadItems();
+  }, [loadItems]);
+
+  const handleAmendClick = useCallback(() => {
+    void loadItems().then(() => {
+      void submitGovernedChange("amend");
+    });
+  }, [loadItems, submitGovernedChange]);
+
+  const handleCancelClick = useCallback(() => {
+    void submitGovernedChange("cancel");
+  }, [submitGovernedChange]);
+
+  const handleSubstituteClick = useCallback(() => {
+    void loadItems().then(() => {
+      void submitGovernedChange("substitute");
+    });
+  }, [loadItems, submitGovernedChange]);
+
   return (
     <section className="space-y-3 rounded-lg border border-border bg-muted/20 p-3" data-point="75">
       <div className="flex items-start gap-2">
@@ -229,9 +249,7 @@ export function OrderAmendmentActionsPanel({
           variant="outline"
           disabled={!amendEligible || submitting !== null}
           title={disabledHints.amend || "Request governed amendment via Core"}
-          onClick={() => {
-            void loadItems().then(() => submitGovernedChange("amend"));
-          }}
+          onClick={handleAmendClick}
         >
           {submitting === "amend" ? <Loader2 size={14} className="animate-spin" /> : null}
           Amend line
@@ -242,9 +260,7 @@ export function OrderAmendmentActionsPanel({
           variant="outline"
           disabled={!cancelEligible || submitting !== null}
           title={disabledHints.cancel || "Request governed cancellation via Core"}
-          onClick={() => {
-            void submitGovernedChange("cancel");
-          }}
+          onClick={handleCancelClick}
         >
           {submitting === "cancel" ? <Loader2 size={14} className="animate-spin" /> : null}
           Cancel order
@@ -255,9 +271,7 @@ export function OrderAmendmentActionsPanel({
           variant="outline"
           disabled={!substituteEligible || submitting !== null}
           title={disabledHints.substitute || "Request governed substitution via Core"}
-          onClick={() => {
-            void loadItems().then(() => submitGovernedChange("substitute"));
-          }}
+          onClick={handleSubstituteClick}
         >
           {submitting === "substitute" ? <Loader2 size={14} className="animate-spin" /> : null}
           Substitute line
@@ -268,7 +282,7 @@ export function OrderAmendmentActionsPanel({
         <div className="space-y-2 border-t border-border pt-2">
           <div className="flex items-center justify-between gap-2">
             <p className="text-[11px] text-muted-foreground">Line identity (read-only load; mutation via Core only)</p>
-            <Button type="button" size="sm" variant="ghost" className="h-7 text-xs" onClick={() => void loadItems()}>
+            <Button type="button" size="sm" variant="ghost" className="h-7 text-xs" onClick={handleRefreshLinesClick}>
               {loadingItems ? <Loader2 size={12} className="animate-spin" /> : "Refresh lines"}
             </Button>
           </div>
