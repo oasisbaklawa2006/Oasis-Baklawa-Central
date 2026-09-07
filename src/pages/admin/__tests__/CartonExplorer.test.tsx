@@ -103,10 +103,10 @@ describe("CartonExplorer live bind", () => {
 
     await waitFor(() => {
       expect(screen.getByText(/Live · 1 consignments/i)).toBeInTheDocument();
+      expect(screen.getByText("Read-only")).toBeInTheDocument();
+      expect(screen.getByText("Carton uniqueness")).toBeInTheDocument();
+      expect(screen.getByText("Quantity conservation")).toBeInTheDocument();
     });
-    expect(screen.getByText("Read-only")).toBeInTheDocument();
-    expect(screen.getByText("Carton uniqueness")).toBeInTheDocument();
-    expect(screen.getByText("Quantity conservation")).toBeInTheDocument();
   });
 
   it("shows empty state without fabricating cartons", async () => {
