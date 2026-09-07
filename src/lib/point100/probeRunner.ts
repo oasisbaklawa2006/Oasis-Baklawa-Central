@@ -1,6 +1,11 @@
 import type { Point100CapabilityStatus, Point100ProbeOutcome } from "./capabilityStatus";
 import type { Point100LifecycleStage } from "./lifecycleStages";
 import { resolveBoundContract, bindingByKey } from "./contractBindings";
+import {
+  formatUpstreamBlocker,
+  isDisposableCertBootstrapPermitted,
+  upstreamBlockersForStage,
+} from "./upstreamDependencies";
 
 export type RpcProbeResult = {
   rpc: string;
@@ -60,11 +65,16 @@ export function buildProbeOutcome(input: {
 }): Point100ProbeOutcome {
   const { stage, rpcResults, centralBindingsPresent, missingFixtureKeys, executed, executionDetail } = input;
   const missingRpcs = rpcResults.filter((result) => !result.exists).map((result) => result.rpc);
+  const upstream = upstreamBlockersForStage(stage.id);
 
   let status: Point100CapabilityStatus;
   let detail: string;
 
-  if (stage.domain === "trace" && stage.id === "trace_handover") {
+  const upstreamDep = upstream[0];
+  if (upstreamDep && !(upstreamDep.id === "core-order-dispatched-rpc" && isDisposableCertBootstrapPermitted())) {
+    status = upstreamDep.failClosedStatus;
+    detail = formatUpstreamBlocker(upstreamDep);
+  } else if (stage.domain === "trace" && stage.id === "trace_handover") {
     status = "physical_uat_only";
     detail = "Trace scanner/device handover requires Leap 13 physical UAT; Central scan-timeline projection is software-only.";
   } else if (missingFixtureKeys.length > 0) {

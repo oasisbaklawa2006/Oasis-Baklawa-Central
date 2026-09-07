@@ -3,6 +3,7 @@ import { buildCapabilityMatrix, summarizeCapabilityMatrix } from "../capabilityS
 import { POINT100_LIFECYCLE_STAGES, POINT100_NEGATIVE_PATHS, stagesForNegativePath } from "../lifecycleStages";
 import { bindingByKey, resolveBoundContract } from "../contractBindings";
 import { buildProbeOutcome, isRpcMissingError, probeFixtureKeys, resolvedRpcForStage } from "../probeRunner";
+import { POINT100_UPSTREAM_DEPENDENCIES, upstreamBlockersForStage } from "../upstreamDependencies";
 
 describe("point100 lifecycle stages", () => {
   it("defines 16 sequential stages covering the full operational lifecycle", () => {
@@ -88,5 +89,20 @@ describe("point100 probe runner", () => {
     expect(result.satisfied).toBe(false);
     expect(result.missingKeys).toContain("FACTORY_CERT_GOLDEN_ORDER_ID");
     if (original) process.env.FACTORY_CERT_GOLDEN_ORDER_ID = original;
+  });
+
+  it("fail-closes open upstream macro dependencies without shadowing", () => {
+    expect(POINT100_UPSTREAM_DEPENDENCIES.some((dep) => dep.pr === "#256")).toBe(true);
+    expect(POINT100_UPSTREAM_DEPENDENCIES.some((dep) => dep.pr === "#37")).toBe(true);
+    const inventoryStage = POINT100_LIFECYCLE_STAGES.find((s) => s.id === "inventory_lot_allocation")!;
+    const outcome = buildProbeOutcome({
+      stage: inventoryStage,
+      rpcResults: [{ rpc: "reserve_rgs_stock", exists: true, detail: "ok" }],
+      centralBindingsPresent: true,
+      missingFixtureKeys: [],
+      executed: false,
+    });
+    expect(outcome.status).toBe("upstream_contract_missing");
+    expect(upstreamBlockersForStage("trace_handover")[0]?.failClosedStatus).toBe("physical_uat_only");
   });
 });

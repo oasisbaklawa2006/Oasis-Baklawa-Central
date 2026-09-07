@@ -15,6 +15,7 @@ import {
   writeDressRehearsalLedger,
   type Point100StageRecord,
 } from "./support";
+import { POINT100_UPSTREAM_DEPENDENCIES, formatUpstreamBlocker } from "../../src/lib/point100/upstreamDependencies";
 import { executeStageProbe, runLifecycleProbes } from "./probes";
 
 /**
@@ -51,8 +52,11 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
   await test.step("matrix: probe all lifecycle stages", async () => {
     const probes = await runLifecycleProbes();
     writeCapabilityMatrix(probes);
-    const blockers = probes.filter((p) => p.status === "upstream_contract_missing");
+    const blockers = probes.filter((p) => p.status === "upstream_contract_missing" || p.status === "physical_uat_only");
     upstreamBlockers.push(...blockers.map((b) => `${b.stageId}: ${b.detail}`));
+    for (const dep of POINT100_UPSTREAM_DEPENDENCIES.filter((d) => d.state !== "merged")) {
+      upstreamBlockers.push(formatUpstreamBlocker(dep));
+    }
     recordStage(stages, "capability_matrix", null, null, null, "PASS", `probes=${probes.length} blockers=${blockers.length}`);
   });
 
@@ -180,7 +184,7 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
       ],
       p_correlation_id: correlationId,
     });
-    recordStage(stages, "inventory_lot_allocation", "create_assembly_job", "HOD_ASSEMBLY", correlationId, error ? "FAIL" : "PASS", error?.message ?? `job_id=${(data as { id?: string })?.id}`);
+    recordStage(stages, "inventory_lot_allocation", "create_assembly_job", "HOD_ASSEMBLY", correlationId, error ? "FAIL" : "PASS", error?.message ?? `job_id=${(data as { id?: string })?.id}; Macro Inventory #256 lot authority remains upstream-blocked`);
     recordStage(stages, "production_qc", null, "HOD_ASSEMBLY", correlationId, error ? "FAIL" : "PASS", "assembly job created — QC stages delegated to FACT-E2E golden order cert");
     recordStage(stages, "packing_cartons_dpl", null, "HOD_ASSEMBLY", correlationId, error ? "FAIL" : "PASS", "packing/DPL chain covered by factory-operations-golden-order.cert.spec.ts");
     expect(error, error?.message).toBeNull();
@@ -194,7 +198,8 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
     expect(state, "Point38 golden chain state must load").toBeTruthy();
     recordStage(stages, "final_invoice_balance", "get_finance_exit_facts_v1", "DISPATCH_MANAGER", null, "PASS", `stage=${state!.stage} status=${state!.orderStatus}`);
     recordStage(stages, "finance_dispatch_clearance", "decide_finance_dispatch_clearance_v1", "DISPATCH_MANAGER", null, "PASS", `blockers=${state!.blockers.length}`);
-    recordStage(stages, "dispatch_consignment", "release_order_to_dispatched_v1", "DISPATCH_MANAGER", null, "PASS", `golden_chain_stage=${state!.stage}`);
+    recordStage(stages, "dispatch_consignment", "release_order_to_dispatched_v1", "DISPATCH_MANAGER", null, "BLOCKED", `canonical Core dispatch RPC upstream-blocked; golden_chain_stage=${state!.stage}`);
+    upstreamBlockers.push("dispatch_consignment: canonical release_order_to_dispatched_v1 not merged to Core main");
   });
 
   // ---- 12: Gate RPC probe ----
@@ -230,17 +235,22 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
   // ---- 14–16: Completion + complaint window ----
   await test.step("completion: dispatch proof facts + complaint window probe", async () => {
     const { client } = await createAuthenticatedCertificationClient(page);
-    const complaint = await executeStageProbe(client, "complaint_window", `p100-${RUN_SUFFIX}-complaint`);
     recordStage(stages, "customer_dispatch_proof", "record_dispatch_proof_packet_v1", "DISPATCH_MANAGER", null, "PASS", "dispatch proof authority bound in financeExitAuthorityClient");
-    recordStage(stages, "order_complete", "release_order_to_dispatched_v1", "DISPATCH_MANAGER", null, "PASS", "Point38 fixture at cleared_for_dispatch");
+    recordStage(stages, "order_complete", "release_order_to_dispatched_v1", "DISPATCH_MANAGER", null, "BLOCKED", "Point38 fixture at cleared_for_dispatch; canonical order_complete RPC upstream-blocked");
+    upstreamBlockers.push("order_complete: canonical release_order_to_dispatched_v1 not merged to Core main");
+    const complaint = await executeStageProbe(client, "complaint_window", `p100-${RUN_SUFFIX}-complaint`);
+    const complaintRow = complaint.detail;
+    const complaintAnchored =
+      complaint.ok &&
+      (complaintRow.includes("complaint_window_open=") || complaintRow.includes("complaint_clock_basis"));
     recordStage(
       stages,
       "complaint_window",
       "get_finance_exit_facts_v1",
       "DISPATCH_MANAGER",
       `p100-${RUN_SUFFIX}-complaint`,
-      complaint.ok ? "PASS" : "BLOCKED",
-      complaint.detail,
+      complaintAnchored ? "PASS" : "BLOCKED",
+      `${complaint.detail}; 10-day window must anchor to FINAL_INVOICE_DATE when final invoice exists`,
     );
   });
 

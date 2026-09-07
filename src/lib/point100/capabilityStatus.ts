@@ -3,6 +3,8 @@
  * Distinct from programme CLEARED status; describes executable harness state only.
  */
 
+import { POINT100_UPSTREAM_DEPENDENCIES } from "./upstreamDependencies";
+
 export type Point100CapabilityStatus =
   | "implemented"
   | "upstream_contract_missing"
@@ -26,6 +28,13 @@ export type Point100CapabilityMatrix = {
   generated_at: string;
   environment_id: string | null;
   fail_closed: true;
+  upstream_dependencies: Array<{
+    id: string;
+    repository: string;
+    pr: string;
+    state: string;
+    blockerDetail: string;
+  }>;
   summary: {
     total: number;
     implemented: number;
@@ -65,6 +74,15 @@ export function buildCapabilityMatrix(
     generated_at: new Date().toISOString(),
     environment_id: environmentId,
     fail_closed: true,
+    upstream_dependencies: POINT100_UPSTREAM_DEPENDENCIES
+      .filter((dep) => dep.state !== "merged")
+      .map((dep) => ({
+        id: dep.id,
+        repository: dep.repository,
+        pr: dep.pr,
+        state: dep.state,
+        blockerDetail: dep.blockerDetail,
+      })),
     summary: summarizeCapabilityMatrix(probes),
     probes,
   };

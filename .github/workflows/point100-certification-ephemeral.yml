@@ -27,6 +27,7 @@ jobs:
     env:
       POINT100_CORE_REPO: ${{ github.workspace }}/oasis-supabase-core
       POINT100_ALLOW_LOCAL_RESET: "true"
+      POINT100_ALLOW_DISPOSABLE_BOOTSTRAP: "true"
       FACTORY_CERT_CORE_REPO: ${{ github.workspace }}/oasis-supabase-core
       FACTORY_CERT_ALLOW_LOCAL_RESET: "true"
       FACTORY_CERT_CREDENTIAL_FILE: /tmp/oasis-factory-certification.env
@@ -72,36 +73,56 @@ jobs:
       - name: Start disposable Core + fixtures
         run: bash scripts/point100-certification/start-ephemeral.sh
 
-      - name: Export certification credentials
+      - name: Export local backend and disposable identities to this job only
         shell: bash
         run: |
-          set -a
-          source /tmp/oasis-factory-certification.env
-          set +a
+          pushd oasis-supabase-core >/dev/null
+          supabase status -o env > "${RUNNER_TEMP}/point100-supabase.env"
+          popd >/dev/null
+          # shellcheck disable=SC1090
+          source "${RUNNER_TEMP}/point100-supabase.env"
           {
-            echo "FACTORY_CERT_SUPABASE_URL=${FACTORY_CERT_SUPABASE_URL}"
-            echo "FACTORY_CERT_SUPABASE_ANON_KEY=${FACTORY_CERT_SUPABASE_ANON_KEY}"
-            echo "FACTORY_CERT_ENVIRONMENT_ID=${FACTORY_CERT_ENVIRONMENT_ID}"
-            echo "FACTORY_CERT_GOLDEN_ORDER_ID=${FACTORY_CERT_GOLDEN_ORDER_ID}"
-            echo "FACTORY_CERT_GOLDEN_ORDER_ITEM_ID=${FACTORY_CERT_GOLDEN_ORDER_ITEM_ID}"
-            echo "FACTORY_CERT_POINT37_ORDER_ID=${FACTORY_CERT_POINT37_ORDER_ID}"
-            echo "FACTORY_CERT_POINT38_ORDER_ID=${FACTORY_CERT_POINT38_ORDER_ID}"
+            echo "FACTORY_CERT_SUPABASE_URL=${API_URL}"
+            echo "FACTORY_CERT_SUPABASE_ANON_KEY=${ANON_KEY}"
+            echo "VITE_SUPABASE_URL=${API_URL}"
+            echo "VITE_SUPABASE_PUBLISHABLE_KEY=${ANON_KEY}"
+            echo "FACTORY_CERT_ENVIRONMENT_ID=point100-cert-gha-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           } >> "${GITHUB_ENV}"
 
+          while IFS= read -r cred_line; do
+            if [[ "${cred_line}" =~ ^export\ ([A-Z0-9_]+)_PASSWORD=\'([^\']*)\'$ ]]; then
+              echo "::add-mask::${BASH_REMATCH[2]}"
+            fi
+          done < "${FACTORY_CERT_CREDENTIAL_FILE}"
+
+          sed -n -E "s/^export ([A-Z0-9_]+)='([^']*)'$/\1=\2/p" "${FACTORY_CERT_CREDENTIAL_FILE}" >> "${GITHUB_ENV}"
+
       - name: Build Central preview
-        run: |
-          VITE_SUPABASE_URL="${FACTORY_CERT_SUPABASE_URL}" \
-          VITE_SUPABASE_ANON_KEY="${FACTORY_CERT_SUPABASE_ANON_KEY}" \
-          npm run build
+        run: npm run build
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
 
       - name: Start preview server
+        shell: bash
         run: |
-          npm run preview -- --host 127.0.0.1 --port 4173 >/tmp/point100-preview.log 2>&1 &
+          npm run preview -- --host 127.0.0.1 --port 4173 > "${RUNNER_TEMP}/point100-preview.log" 2>&1 &
+          preview_pid=$!
+          echo "${preview_pid}" > "${RUNNER_TEMP}/point100-preview.pid"
           for _ in $(seq 1 60); do
-            curl -sf http://127.0.0.1:4173 >/dev/null 2>&1 && exit 0
-            sleep 2
+            if ! kill -0 "${preview_pid}" >/dev/null 2>&1; then
+              echo "Preview exited before ready" >&2
+              cat "${RUNNER_TEMP}/point100-preview.log"
+              exit 1
+            fi
+            if curl -fsS http://127.0.0.1:4173/login >/dev/null; then
+              echo "Point100 preview target is ready."
+              exit 0
+            fi
+            sleep 1
           done
-          echo "Preview failed"; cat /tmp/point100-preview.log; exit 1
+          cat "${RUNNER_TEMP}/point100-preview.log"
+          exit 1
 
       - name: Run Point100 dress rehearsal suite
         run: npx playwright test -c playwright.point100.config.ts

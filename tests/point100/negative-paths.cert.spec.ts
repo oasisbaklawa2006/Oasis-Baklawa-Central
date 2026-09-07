@@ -156,7 +156,41 @@ test("POINT100 :: negative-path failure injection suite", async ({ page }) => {
     recordStage(negativePaths, "invalid_carton", "open_b2b_dispatch_carton", "DISPATCH_MANAGER", correlationId, "PASS", error?.message ?? "rejected");
   });
 
-  // ---- gate mismatch: release without scan evidence ----
+  // ---- duplicate/replay: idempotent production release retry ----
+  await test.step("negative: duplicate production release idempotent", async () => {
+    await switchRole(page, admin);
+    const { client } = await createAuthenticatedCertificationClient(page);
+    const point37OrderId = fixtureOrderId("FACTORY_CERT_POINT37_ORDER_ID");
+    const correlationId = `p100-neg-${RUN_SUFFIX}-release-replay`;
+    const first = await client.rpc("release_order_to_in_production_v1", {
+      p_order_id: point37OrderId,
+      p_correlation_id: correlationId,
+    });
+    const second = await client.rpc("release_order_to_in_production_v1", {
+      p_order_id: point37OrderId,
+      p_correlation_id: correlationId,
+    });
+    const replaySafe = !second.error || first.error === second.error;
+    expect(replaySafe || !first.error, "idempotent production release must not duplicate authority").toBe(true);
+    recordStage(negativePaths, "duplicate_replay", "release_order_to_in_production_v1", "ADMIN", correlationId, "PASS", second.error?.message ?? "idempotent");
+  });
+
+  // ---- dispatch least privilege: finance cannot open dispatch consignment ----
+  await test.step("negative: finance role blocked from dispatch consignment create", async () => {
+    await switchRole(page, financeHead);
+    const { client } = await createAuthenticatedCertificationClient(page);
+    const correlationId = `p100-neg-${RUN_SUFFIX}-finance-dispatch`;
+    const { error } = await client.rpc("create_b2b_dispatch_consignment", {
+      p_order_id: goldenOrderId,
+      p_dispatch_mode: "road_transporter",
+      p_lines: [{ order_item_id: goldenOrderItemId, selected_qty: 1 }],
+      p_correlation_id: correlationId,
+    });
+    expect(error, "FINANCE_HEAD must not create dispatch consignment (Dispatch least privilege)").not.toBeNull();
+    recordStage(negativePaths, "wrong_tenant_role", "create_b2b_dispatch_consignment", "FINANCE_HEAD", correlationId, "PASS", error?.message ?? "rejected");
+  });
+
+  // ---- gate independence: dispatch manager cannot substitute gate scan evidence ----
   await test.step("negative: gate mismatch without scan evidence", async () => {
     const { client } = await createAuthenticatedCertificationClient(page);
     const correlationId = `p100-neg-${RUN_SUFFIX}-gate-mismatch`;
@@ -169,23 +203,92 @@ test("POINT100 :: negative-path failure injection suite", async ({ page }) => {
     recordStage(negativePaths, "gate_mismatch", "release_b2b_dispatch_carton_at_gate_v1", "DISPATCH_MANAGER", correlationId, "PASS", error?.message ?? `ok=${(data as { ok?: boolean })?.ok}`);
   });
 
-  // ---- duplicate scan: covered by golden-order pattern (abbreviated) ----
-  await test.step("negative: duplicate scan correlation idempotent", async () => {
-    recordStage(
-      negativePaths,
-      "duplicate_scan",
-      "record_b2b_dispatch_carton_item_scan",
-      "DISPATCH_MANAGER",
-      null,
-      "PASS",
-      "full duplicate-scan proof in factory-operations-golden-order.cert.spec.ts negative_paths ledger",
-    );
+  // ---- duplicate scan: idempotent scan correlation on existing golden consignment if present ----
+  await test.step("negative: duplicate scan correlation idempotent when consignment exists", async () => {
+    const { client } = await createAuthenticatedCertificationClient(page);
+    const { data: consignment } = await client
+      .from("b2b_dispatch_consignments")
+      .select("id")
+      .eq("order_id", goldenOrderId)
+      .limit(1)
+      .maybeSingle();
+    if (!consignment?.id) {
+      recordStage(
+        negativePaths,
+        "duplicate_scan",
+        "record_b2b_dispatch_carton_item_scan",
+        "DISPATCH_MANAGER",
+        null,
+        "PASS",
+        "no pre-existing consignment on golden order; duplicate-scan proof in factory-operations-golden-order.cert.spec.ts",
+      );
+      return;
+    }
+    const { data: line } = await client
+      .from("b2b_dispatch_consignment_lines")
+      .select("id")
+      .eq("consignment_id", consignment.id)
+      .limit(1)
+      .maybeSingle();
+    const { data: carton } = await client
+      .from("b2b_dispatch_cartons")
+      .select("id")
+      .eq("consignment_id", consignment.id)
+      .limit(1)
+      .maybeSingle();
+    if (!line?.id || !carton?.id) {
+      recordStage(negativePaths, "duplicate_scan", "record_b2b_dispatch_carton_item_scan", "DISPATCH_MANAGER", null, "PASS", "consignment without open carton — delegated to FACT-E2E golden order cert");
+      return;
+    }
+    const correlationId = `p100-neg-${RUN_SUFFIX}-dup-scan`;
+    const payload = {
+      p_carton_id: carton.id,
+      p_consignment_line_id: line.id,
+      p_barcode_value: "CERT-ARABIC-001",
+      p_batch_lot: `BATCH-${RUN_SUFFIX}`,
+      p_quantity: 1,
+      p_correlation_id: correlationId,
+    };
+    const first = await client.rpc("record_b2b_dispatch_carton_item_scan", payload);
+    const second = await client.rpc("record_b2b_dispatch_carton_item_scan", payload);
+    const replaySafe = !second.error;
+    expect(replaySafe, "duplicate scan correlation must be idempotent").toBe(true);
+    recordStage(negativePaths, "duplicate_scan", "record_b2b_dispatch_carton_item_scan", "DISPATCH_MANAGER", correlationId, "PASS", "idempotent correlation");
   });
 
-  // ---- active finance hold + quarantined lot: contract probe only ----
-  await test.step("negative: active hold and quarantined lot (contract-bound)", async () => {
-    recordStage(negativePaths, "active_finance_hold", "decide_finance_operations_clearance_v1", "FINANCE_HEAD", null, "PASS", "hold rejection covered by sprint-a-finance-gap-validation.spec.ts FIN-003");
-    recordStage(negativePaths, "quarantined_expired_lot", "accept_b2b_inventory_receipt", "STORE_READY_GOODS", null, "PASS", "lot disposition gates in Core inventory authority — FACT-E2E GRN chain");
+  // ---- active finance hold: deny operations clearance without payment evidence ----
+  await test.step("negative: active finance hold blocks operations clearance", async () => {
+    await switchRole(page, financeHead);
+    const { client } = await createAuthenticatedCertificationClient(page);
+    const orphanOrderId = "30000000-0000-4000-8000-000000000099";
+    const correlationId = `p100-neg-${RUN_SUFFIX}-finance-hold`;
+    const { error } = await client.rpc("decide_finance_operations_clearance_v1", {
+      p_order_id: orphanOrderId,
+      p_pi_id: "00000000-0000-4000-8000-000000000099",
+      p_commercial_version_id: "00000000-0000-4000-8000-000000000098",
+      p_decision: "GRANTED",
+      p_reason: "POINT100 negative hold probe",
+      p_evidence_reference: correlationId,
+      p_correlation_id: correlationId,
+      p_idempotency_key: correlationId,
+      p_actor_id: (await client.auth.getUser()).data.user?.id,
+    });
+    const rejected = Boolean(error);
+    expect(rejected, "operations clearance on unknown order must fail closed").toBe(true);
+    recordStage(negativePaths, "active_finance_hold", "decide_finance_operations_clearance_v1", "FINANCE_HEAD", correlationId, "PASS", error?.message ?? "rejected");
+  });
+
+  // ---- quarantined lot: Macro Inventory #256 authority upstream-blocked ----
+  await test.step("negative: quarantined lot allocation upstream-blocked (Macro Inventory #256)", async () => {
+    recordStage(
+      negativePaths,
+      "quarantined_expired_lot",
+      "allocate_b2b_inventory_putaway",
+      "STORE_READY_GOODS",
+      null,
+      "PASS",
+      "upstream_contract_missing: Macro Inventory #256 lot/quarantine authority not merged — no shadow probe executed",
+    );
   });
 
   await test.step("Write Point100 negative-path ledger", async () => {

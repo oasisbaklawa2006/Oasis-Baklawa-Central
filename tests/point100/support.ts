@@ -147,4 +147,5 @@ export {
   createSteppedUpCertificationClient,
   hasFactoryCertificationBackend,
   hasFactoryCertificationTarget,
+  loginToFactoryCertificationTarget,
 };
