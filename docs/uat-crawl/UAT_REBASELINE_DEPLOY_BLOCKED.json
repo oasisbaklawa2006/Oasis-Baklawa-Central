@@ -1,0 +1,22 @@
+{
+  "generatedAt": "2026-09-07T04:12:50.931Z",
+  "runId": "34082244745",
+  "runTranche": "current-main-rebaseline",
+  "requiredSha": "15c59a3f54c92f2b289bd150005bcd7114b51a93",
+  "priorEvidenceSha": "e2f123b0fe257b8a1f39ec40d5f544fff1ebe313",
+  "deployStatus": "BLOCKED",
+  "reason": "No successful Vercel deployment for 15c59a3f54c92f2b289bd150005bcd7114b51a93; current-main-rebaseline requires current-main cert — no ace340fe substitution.",
+  "vercelRateLimitSuspected": true,
+  "censusTotal": 131,
+  "runnableAwaitingTrustedDeploy": 85,
+  "publicRunnableIds": [
+    "UAT-0001",
+    "UAT-0004",
+    "UAT-0005",
+    "UAT-0008",
+    "UAT-0009"
+  ],
+  "credentialBlockedSurfaces": 46,
+  "policy": "Prior e2f123b0 authenticated (80) + public (5) evidence preserved append-only — NOT recertified as 15c59a3f without trusted deploy.",
+  "nextAction": "Wire Vercel deploy for 15c59a3f (or TEST_PREVIEW_URL pointing at exact SHA) then re-run watchdog-continue / current-main-rebaseline."
+}

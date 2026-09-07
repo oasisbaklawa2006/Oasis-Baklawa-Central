@@ -1,16 +1,17 @@
 {
-  "runId": "34056691981",
+  "runId": "34082244745",
   "runAttempt": "1",
-  "runTranche": "watchdog-continue",
+  "runTranche": "current-main-rebaseline",
   "ref": "refs/heads/cursor/physical-uat-readiness-matrix-e763",
-  "sha": "618dc95457aa8412ae472df7fca83c5cf6134ff5",
-  "currentMainHoldSha": "e2f123b0fe257b8a1f39ec40d5f544fff1ebe313",
-  "resolvedDeploySha": "e2f123b0fe257b8a1f39ec40d5f544fff1ebe313",
+  "sha": "6668df0406d3ea87e1680625c177895736e5739e",
+  "currentMainHoldSha": "15c59a3f54c92f2b289bd150005bcd7114b51a93",
+  "resolvedDeploySha": "",
   "continuationFallback": false,
-  "deployProvenanceLabel": "Current-main #497 merge certification @ e2f123b0 — NOT substituting 9715c20d preview PASS.",
-  "deployBlocked": false,
-  "deployUrl": "https://oasis-baklawa-central-8lkgmf1q2-oasisbaklawa2006-6222s-projects.vercel.app",
-  "fail493EvidencePreserved": "Pre-fix FAIL @ 8f042fa (run 34015742110) + preview PASS @ 9715c20d (run 34016393457) preserved append-only; #497 merged @ e2f123b0",
+  "deployProvenanceLabel": "",
+  "deployBlocked": true,
+  "deployUrl": "",
+  "fail493EvidencePreserved": "Pre-fix FAIL @ 8f042fa (run 34015742110) + preview PASS @ 9715c20d (run 34016393457) + e2f123b0 evidence preserved append-only; rebaseline target 15c59a3f (#507 POINT61)",
+  "priorEvidenceSha": "e2f123b0fe257b8a1f39ec40d5f544fff1ebe313",
   "uat005CurrentMainPass": "",
-  "completedAt": "2026-09-06T20:18:19Z"
+  "completedAt": "2026-09-07T04:12:52Z"
 }
