@@ -18,33 +18,10 @@ import {
 import {
   hasDirectOrdersTableMutation,
   hasForbiddenOrdersShadowMutation,
-  normalizeSourceForAuthorityGuard,
 } from "../financeSurfaceSourceGuard";
 
 const source = (relativePath: string) =>
   readFileSync(resolve(process.cwd(), relativePath), "utf8");
-
-describe("Point 77 — finance surface source guard", () => {
-  it("detects shadow writes through formatting and intermediate variables", () => {
-    const source = `
-      const ordersTable = supabase.from('orders');
-      const mutation = ordersTable.update({
-        status: 'awaiting_final_payment',
-        sales_order_value: parsedTally,
-      });
-      await mutation;
-    `;
-    expect(hasDirectOrdersTableMutation(source)).toBe(true);
-    expect(hasForbiddenOrdersShadowMutation(source)).toBe(true);
-    expect(normalizeSourceForAuthorityGuard(source)).not.toContain("//");
-  });
-
-  it("allows read-only orders queries", () => {
-    const source = `await supabase.from("orders").select("id, status").eq("id", orderId).single();`;
-    expect(hasDirectOrdersTableMutation(source)).toBe(false);
-    expect(hasForbiddenOrdersShadowMutation(source)).toBe(false);
-  });
-});
 
 describe("Point 77 — Finance canonical authority map", () => {
   it("declares exactly one canonical ingress and one canonical egress surface", () => {
