@@ -1,12 +1,12 @@
 {
-  "generatedAt": "2026-09-07T04:12:50.931Z",
-  "runId": "34082244745",
-  "runTranche": "current-main-rebaseline",
+  "generatedAt": "2026-09-07T19:30:38.005Z",
+  "runId": "34155840050",
+  "runTranche": "credential-prefix-unblock",
   "requiredSha": "15c59a3f54c92f2b289bd150005bcd7114b51a93",
   "priorEvidenceSha": "e2f123b0fe257b8a1f39ec40d5f544fff1ebe313",
   "resolvedSha": null,
   "resolvedUrl": null,
   "status": "DEPLOY_BLOCKED",
-  "reason": "No successful Vercel deployment for 15c59a3f54c92f2b289bd150005bcd7114b51a93; current-main-rebaseline requires current-main cert — no ace340fe substitution.",
+  "reason": "No successful Vercel deployment for 15c59a3f54c92f2b289bd150005bcd7114b51a93; credential-prefix-unblock requires current-main cert — no ace340fe substitution.",
   "policy": "Do not substitute e2f123b0 or ace340fe as 15c59a3f current-main rebaseline evidence."
 }

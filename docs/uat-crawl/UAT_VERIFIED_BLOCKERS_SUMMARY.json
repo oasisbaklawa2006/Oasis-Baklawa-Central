@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-09-07T04:12:52.024Z",
-  "runId": "34082244745",
+  "generatedAt": "2026-09-07T19:30:39.091Z",
+  "runId": "34155840050",
   "resolvedDeploySha": "15c59a3f54c92f2b289bd150005bcd7114b51a93",
   "currentMainHoldSha": "15c59a3f54c92f2b289bd150005bcd7114b51a93",
   "crawlBaseUrl": "",
@@ -8,13 +8,13 @@
   "authenticatedComplete": 81,
   "publicContinuationComplete": 5,
   "remainingWithoutAuthEvidence": 45,
-  "verifiedBlocked": 46,
-  "credentialsAvailableAwaitingEvidence": 0,
+  "verifiedBlocked": 28,
+  "credentialsAvailableAwaitingEvidence": 18,
   "counts": {
     "authenticated": 81,
     "publicFunctionObserved": 5,
-    "blocked": 46,
-    "credsAvailableNoEvidence": 0,
+    "blocked": 28,
+    "credsAvailableNoEvidence": 18,
     "totalCensus": 131
   },
   "policy": "No fabricated PASS. FAIL-493 pre-fix + preview + current-main cert evidence preserved append-only."
