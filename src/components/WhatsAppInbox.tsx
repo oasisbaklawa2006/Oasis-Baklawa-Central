@@ -2,6 +2,7 @@
 // TOOL 1: Raw WhatsApp Inbox — Display stitched packets as conversations
 
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
+import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { ArrowLeft, Download, MessageCircle, Paperclip } from "lucide-react";
@@ -42,6 +43,7 @@ import {
   OPERATOR_INBOX_LOAD_TIMEOUT_MS,
   OPERATOR_INBOX_PACKET_PAGE_SIZE,
   fetchOpenPacketsPage,
+  fetchPacketById,
   mergeAppendUniqueByKey,
   mergeAppendUniqueById,
   withTimeout,
@@ -162,6 +164,8 @@ interface RouteSuggestion {
 
 export function WhatsAppInbox() {
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
+  const deepLinkPacketId = searchParams.get("packet")?.trim().toLowerCase() || null;
   const whatsappAuthority = useWhatsAppPermissions();
   const [packets, setPackets] = useState<OperatorInboxPacket[]>([]);
   const [selectedPacket, setSelectedPacket] = useState<OperatorInboxPacket | null>(null);
@@ -445,7 +449,18 @@ export function WhatsAppInbox() {
         OPERATOR_INBOX_LOAD_TIMEOUT_MS,
         "Timed out loading the inbox packet list. The server may be slow or unavailable.",
       );
-      const ids = rows.map((r) => r.id);
+      let mergedRows = rows;
+      if (deepLinkPacketId && !rows.some((row) => row.id.toLowerCase() === deepLinkPacketId)) {
+        const deepRow = await withTimeout(
+          fetchPacketById(deepLinkPacketId),
+          OPERATOR_INBOX_LOAD_TIMEOUT_MS,
+          "Timed out loading the deep-linked packet.",
+        );
+        if (deepRow) {
+          mergedRows = [deepRow, ...rows.filter((row) => row.id.toLowerCase() !== deepLinkPacketId)];
+        }
+      }
+      const ids = mergedRows.map((r) => r.id);
       const { byPacket: messagesByPacket, errors: batchMessageErrors } = await withTimeout(
         fetchMessagesForPacketIdsBatch(ids),
         OPERATOR_INBOX_LOAD_TIMEOUT_MS,
@@ -486,7 +501,7 @@ export function WhatsAppInbox() {
         evidenceError = evidenceResult.error;
       }
 
-      const enrichedPackets = rows.map((packet) => {
+      const enrichedPackets = mergedRows.map((packet) => {
         const contact = packet.whatsapp_contacts;
         const messages = messagesByPacket.get(packet.id) ?? [];
         return {
@@ -521,7 +536,10 @@ export function WhatsAppInbox() {
 
       const prevId = selectedPacketIdRef.current;
       let nextSelected: OperatorInboxPacket | null = null;
-      if (prevId) {
+      if (deepLinkPacketId) {
+        nextSelected = enrichedPackets.find((p) => p.id.toLowerCase() === deepLinkPacketId) ?? null;
+      }
+      if (!nextSelected && prevId) {
         nextSelected = enrichedPackets.find((p) => p.id === prevId) ?? null;
         if (!nextSelected && enrichedPackets.length > 0) {
           nextSelected = enrichedPackets[0] ?? null;
@@ -548,7 +566,7 @@ export function WhatsAppInbox() {
         setLoading(false);
       }
     }
-  }, []);
+  }, [deepLinkPacketId]);
 
   /**
    * Explicit, controlled pagination for older open conversations beyond the
@@ -930,6 +948,7 @@ export function WhatsAppInbox() {
   const filteredPackets = useMemo(() => {
     const q = filterQuery.trim().toLowerCase();
     return packets.filter((p) => {
+      if (deepLinkPacketId && p.id.toLowerCase() === deepLinkPacketId) return true;
       if (!packetMatchesBulkFilters(p, bulkFilters)) return false;
       if (exceptionQueueOnly && !packetRequiresOperatorAttention(autonomyByPacketId.get(p.id) ?? null)) return false;
       if (unansweredOnly && !isLastMessageInboundUnanswered(p.messages ?? [])) return false;
@@ -943,7 +962,7 @@ export function WhatsAppInbox() {
         fullText.includes(q)
       );
     });
-  }, [packets, filterQuery, unansweredOnly, exceptionQueueOnly, bulkFilters, packetSearchIndex, autonomyByPacketId]);
+  }, [packets, filterQuery, unansweredOnly, exceptionQueueOnly, bulkFilters, packetSearchIndex, autonomyByPacketId, deepLinkPacketId]);
 
   const orderedPackets = useMemo(() => {
     const pinSet = new Set(pinnedIds);
@@ -1026,9 +1045,10 @@ export function WhatsAppInbox() {
   /** Keep detail pane aligned with the filtered list (drop selection if the thread is hidden by filters). */
   useEffect(() => {
     if (!selectedPacket) return;
+    if (deepLinkPacketId && selectedPacket.id.toLowerCase() === deepLinkPacketId) return;
     if (orderedPackets.some((p) => p.id === selectedPacket.id)) return;
     setSelectedPacket(orderedPackets[0] ?? null);
-  }, [orderedPackets, selectedPacket]);
+  }, [orderedPackets, selectedPacket, deepLinkPacketId]);
 
   const onPacketListKeyDown = useCallback(
     (e: KeyboardEvent<HTMLDivElement>) => {

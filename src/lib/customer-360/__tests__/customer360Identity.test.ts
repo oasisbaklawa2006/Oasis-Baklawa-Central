@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   assertCustomer360CompanyAccess,
   customer360RouteForCompany,
+  salesCustomer360RouteForCompany,
   normalizeCompanyId,
   Customer360IdentityError,
 } from "../customer360Identity";
@@ -20,6 +21,7 @@ describe("customer360Identity", () => {
 
   it("builds canonical Customer 360 route", () => {
     expect(customer360RouteForCompany(VALID_UUID)).toBe(`/admin/clients/${VALID_UUID.toLowerCase()}`);
+    expect(salesCustomer360RouteForCompany(VALID_UUID)).toBe(`/sales/clients/${VALID_UUID.toLowerCase()}`);
   });
 
   it("fail-closes cross-company storefront access", () => {
@@ -44,6 +46,34 @@ describe("customer360Identity", () => {
         viewerCompanyId: null,
         isStorefrontViewer: false,
       }),
+    ).not.toThrow();
+  });
+
+  it("fail-closes sales executive access to unassigned companies", () => {
+    expect(() =>
+      assertCustomer360CompanyAccess(
+        VALID_UUID,
+        {
+          viewerCompanyId: null,
+          isStorefrontViewer: false,
+          viewerUserId: "exec-1",
+          isSalesExecutiveViewer: true,
+        },
+        "exec-2",
+      ),
+    ).toThrow(Customer360IdentityError);
+
+    expect(() =>
+      assertCustomer360CompanyAccess(
+        VALID_UUID,
+        {
+          viewerCompanyId: null,
+          isStorefrontViewer: false,
+          viewerUserId: "exec-1",
+          isSalesExecutiveViewer: true,
+        },
+        "exec-1",
+      ),
     ).not.toThrow();
   });
 });

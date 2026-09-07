@@ -32,8 +32,7 @@ export async function fetchMessagesForPacketIdsBatch(
     let from = 0;
     for (;;) {
       const { data, error } = await supabase
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .from("whatsapp_messages" as any)
+        .from("whatsapp_messages")
         .select(
           "id, content, message_type, direction, created_at, packet_sequence, status, provider, provider_message_id, media_url, packet_id",
         )

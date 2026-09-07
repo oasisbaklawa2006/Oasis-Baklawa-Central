@@ -1,4 +1,6 @@
-import { Link, useParams } from "react-router-dom";
+import { Link, useLocation, useParams } from "react-router-dom";
+import { useState } from "react";
+import { operatorInboxPathForPacket } from "@/lib/crm-communication-history/crmCommunicationDeepLink";
 import { format } from "date-fns";
 import {
   AlertCircle,
@@ -11,14 +13,19 @@ import {
   Package,
   ShieldAlert,
   Users,
+  MapPin,
+  Activity,
+  MessageCircle,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useCustomer360 } from "@/hooks/useCustomer360";
+import { useAuth } from "@/hooks/useAuth";
 import { CUSTOMER360_COMMUNICATION_HISTORY_LIMIT } from "@/lib/crm-communication-history/crmCommunicationHistoryTypes";
-import type { Customer360Slice, Customer360SliceAvailability } from "@/lib/customer-360/customer360Types";
+import type { Customer360NextBestAction, Customer360Slice, Customer360SliceAvailability } from "@/lib/customer-360/customer360Types";
+import SalesSupportEscalationDialog from "@/components/sales/crm-lite/SalesSupportEscalationDialog";
 
 function availabilityBadge(availability: Customer360SliceAvailability) {
   switch (availability) {
@@ -36,17 +43,51 @@ function availabilityBadge(availability: Customer360SliceAvailability) {
 }
 
 function SliceUnavailable({ slice }: { slice: Customer360Slice<unknown> }) {
+  const isError = slice.availability === "error";
   return (
-    <div className="rounded-lg border border-dashed border-muted-foreground/30 bg-muted/20 p-4 text-sm text-muted-foreground">
-      <p className="font-medium text-foreground">Unavailable — {slice.programmeOwner}</p>
-      <p className="mt-1">{slice.reason ?? slice.errorMessage ?? "This slice is not yet governed."}</p>
+    <div
+      className={
+        isError
+          ? "rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm"
+          : "rounded-lg border border-dashed border-muted-foreground/30 bg-muted/20 p-4 text-sm text-muted-foreground"
+      }
+    >
+      <p className={isError ? "font-medium text-destructive" : "font-medium text-foreground"}>
+        {isError ? "Read error" : "Unavailable"} — {slice.programmeOwner}
+      </p>
+      <p className={isError ? "mt-1 text-muted-foreground" : "mt-1"}>
+        {slice.errorMessage ?? slice.reason ?? "This slice is not yet governed."}
+      </p>
     </div>
   );
 }
 
-export default function Customer360Page() {
+function nextBestActionTarget(action: Customer360NextBestAction, variant: "admin" | "sales"): string | null {
+  switch (action.key) {
+    case "overdue_tasks":
+      return "#customer360-tasks";
+    case "due_follow_ups":
+      return "#customer360-interactions";
+    case "log_interaction":
+      return variant === "sales" ? "/sales/dashboard?crmTab=assist" : null;
+    case "credit_review":
+      return variant === "sales" ? "/sales/dashboard?crmTab=credit" : null;
+    default:
+      return null;
+  }
+}
+
+export default function Customer360Page({ variant }: { variant?: "admin" | "sales" }) {
   const { companyId } = useParams<{ companyId: string }>();
-  const { state, refresh } = useCustomer360(companyId);
+  const location = useLocation();
+  const resolvedVariant = variant ?? (location.pathname.startsWith("/sales/clients/") ? "sales" : "admin");
+  const [supportDialogOpen, setSupportDialogOpen] = useState(false);
+  const { role } = useAuth();
+  const { state, refresh } = useCustomer360(companyId, {
+    salesExecutiveViewer: role === "SALES_EXECUTIVE",
+  });
+  const backHref = resolvedVariant === "sales" ? "/sales/dashboard" : "/admin/clients";
+  const backLabel = resolvedVariant === "sales" ? "Sales console" : "Client governance";
 
   if (state.status === "loading" || state.status === "idle") {
     return (
@@ -63,9 +104,9 @@ export default function Customer360Page() {
         <h1 className="text-xl font-semibold">Customer 360 access blocked</h1>
         <p className="text-sm text-muted-foreground">{state.message}</p>
         <Button asChild variant="outline">
-          <Link to="/admin/clients">
+          <Link to={backHref}>
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to client governance
+            Back to {backLabel}
           </Link>
         </Button>
       </div>
@@ -74,15 +115,22 @@ export default function Customer360Page() {
 
   const { model } = state;
   const profile = model.profile.data;
+  const supportOrderOptions =
+    model.orders.availability === "available" && model.orders.data
+      ? model.orders.data.map((order) => ({
+          orderId: order.orderId,
+          orderNumber: order.orderNumber,
+        }))
+      : [];
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <Button asChild variant="ghost" size="sm" className="mb-2 px-0">
-            <Link to="/admin/clients">
+            <Link to={backHref}>
               <ArrowLeft className="mr-2 h-4 w-4" />
-              Client governance
+              {backLabel}
             </Link>
           </Button>
           <h1 className="flex items-center gap-3 text-2xl font-bold">
@@ -168,12 +216,18 @@ export default function Customer360Page() {
                     {model.orders.data.map((order) => (
                       <TableRow key={order.orderId}>
                         <TableCell>
-                          <Link
-                            className="font-medium text-primary hover:underline"
-                            to={`/admin/order-management?orderId=${order.orderId}`}
-                          >
-                            {order.orderNumber ?? order.orderId.slice(0, 8)}
-                          </Link>
+                          {resolvedVariant === "admin" ? (
+                            <Link
+                              className="font-medium text-primary hover:underline"
+                              to={`/admin/order-management?orderId=${order.orderId}`}
+                            >
+                              {order.orderNumber ?? order.orderId.slice(0, 8)}
+                            </Link>
+                          ) : (
+                            <span className="font-medium">
+                              {order.orderNumber ?? order.orderId.slice(0, 8)}
+                            </span>
+                          )}
                           {order.createdAt && (
                             <p className="text-xs text-muted-foreground">
                               {format(new Date(order.createdAt), "dd MMM yyyy")}
@@ -197,12 +251,19 @@ export default function Customer360Page() {
 
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between gap-2">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <AlertCircle className="h-5 w-5" />
-                Support tickets
-              </CardTitle>
-              {availabilityBadge(model.tickets.availability)}
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center justify-between gap-2">
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <AlertCircle className="h-5 w-5" />
+                  Support tickets
+                </CardTitle>
+                {availabilityBadge(model.tickets.availability)}
+              </div>
+              {resolvedVariant === "sales" && supportOrderOptions.length > 0 && (
+                <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setSupportDialogOpen(true)}>
+                  Escalate to support
+                </Button>
+              )}
             </div>
           </CardHeader>
           <CardContent>
@@ -235,7 +296,7 @@ export default function Customer360Page() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card id="customer360-interactions">
           <CardHeader>
             <div className="flex items-center justify-between gap-2">
               <CardTitle className="flex items-center gap-2 text-lg">
@@ -268,7 +329,7 @@ export default function Customer360Page() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card id="customer360-tasks">
           <CardHeader>
             <div className="flex items-center justify-between gap-2">
               <CardTitle className="flex items-center gap-2 text-lg">
@@ -341,6 +402,21 @@ export default function Customer360Page() {
                       <p className="mt-1 text-xs text-muted-foreground">
                         {entry.actor.displayLabel} · {entry.channel} · {entry.source.table}
                       </p>
+                      {entry.deepLink ? (
+                        resolvedVariant === "admin" ? (
+                          <p className="mt-2">
+                            <Button asChild size="sm" variant="outline" className="h-7 text-xs">
+                              <Link to={entry.deepLink.operatorInboxPath}>Open operator inbox packet</Link>
+                            </Button>
+                          </p>
+                        ) : (
+                          <p className="mt-2 text-xs text-muted-foreground">
+                            Linked WhatsApp packet{" "}
+                            <code className="rounded bg-muted px-1">{entry.deepLink.packetId.slice(0, 8)}</code>
+                            — operator review handles clarification and promotion.
+                          </p>
+                        )
+                      ) : null}
                     </li>
                   ))}
                 </ul>
@@ -363,6 +439,225 @@ export default function Customer360Page() {
         </CardContent>
       </Card>
 
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <MapPin className="h-5 w-5" />
+                Branches & contacts
+              </CardTitle>
+              {availabilityBadge(model.branchesAndContacts.availability)}
+            </div>
+            <CardDescription>
+              Delivery sites and branch contacts from Core <code className="rounded bg-muted px-1 py-0.5 text-xs">delivery_addresses</code>.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {model.branchesAndContacts.availability === "available" && model.branchesAndContacts.data ? (
+              model.branchesAndContacts.data.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No delivery sites recorded for this company.</p>
+              ) : (
+                <ul className="space-y-3">
+                  {model.branchesAndContacts.data.map((site) => (
+                    <li key={site.id} className="rounded-lg border p-3 text-sm">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="font-medium">{site.label}</p>
+                        {site.isDefault && <Badge variant="outline">Default</Badge>}
+                      </div>
+                      <p className="text-muted-foreground">
+                        {site.streetAddress}, {site.city}, {site.state} {site.pincode}
+                      </p>
+                      {(site.contactPerson || site.contactPhone) && (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {site.contactPerson ?? "Contact"} · {site.contactPhone ?? "—"}
+                        </p>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )
+            ) : (
+              <SliceUnavailable slice={model.branchesAndContacts} />
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <CreditCard className="h-5 w-5" />
+                Finance exposure
+              </CardTitle>
+              {availabilityBadge(model.financeExposure.availability)}
+            </div>
+            {model.financeExposure.reason && <CardDescription>{model.financeExposure.reason}</CardDescription>}
+          </CardHeader>
+          <CardContent>
+            {model.financeExposure.availability === "available" && model.financeExposure.data ? (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Outstanding</p>
+                  <p className="font-medium">₹{model.financeExposure.data.totalOutstanding.toLocaleString()}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Credit headroom</p>
+                  <p className="font-medium">
+                    {model.financeExposure.data.creditHeadroom == null
+                      ? "—"
+                      : `₹${model.financeExposure.data.creditHeadroom.toLocaleString()}`}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Wallet</p>
+                  <p className="font-medium">₹{(model.financeExposure.data.walletBalance ?? 0).toLocaleString()}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Payment terms</p>
+                  <p className="font-medium">{model.financeExposure.data.paymentTerms ?? "—"}</p>
+                </div>
+              </div>
+            ) : (
+              <SliceUnavailable slice={model.financeExposure} />
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <MessageCircle className="h-5 w-5" />
+                WhatsApp order linkage
+              </CardTitle>
+              {availabilityBadge(model.whatsappOrderLinkage.availability)}
+            </div>
+            {model.whatsappOrderLinkage.reason && (
+              <CardDescription>{model.whatsappOrderLinkage.reason}</CardDescription>
+            )}
+          </CardHeader>
+          <CardContent>
+            {model.whatsappOrderLinkage.availability === "available" && model.whatsappOrderLinkage.data ? (
+              model.whatsappOrderLinkage.data.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No governed WhatsApp sales-order drafts for this company.</p>
+              ) : (
+                <ul className="space-y-3">
+                  {model.whatsappOrderLinkage.data.map((link) => (
+                    <li key={link.draftId} className="rounded-lg border p-3 text-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="font-medium">{link.status.replace(/_/g, " ")}</p>
+                        <Badge variant="outline">
+                          {link.readinessOverallScore == null
+                            ? "—"
+                            : `${link.readinessOverallScore}% ready`}
+                        </Badge>
+                      </div>
+                      <p className="mt-1 text-muted-foreground">
+                        Packet <code className="rounded bg-muted px-1 text-xs">{link.packetId.slice(0, 8)}</code>
+                        {link.promotedOrderId ? (
+                          <>
+                            {" · "}Promoted order{" "}
+                            <code className="rounded bg-muted px-1 text-xs">{link.promotedOrderId.slice(0, 8)}</code>
+                          </>
+                        ) : null}
+                      </p>
+                      {resolvedVariant === "admin" ? (
+                        <Button asChild size="sm" variant="outline" className="mt-2 h-7 text-xs">
+                          <Link to={operatorInboxPathForPacket(link.packetId)}>Review in operator inbox</Link>
+                        </Button>
+                      ) : link.promotedOrderId ? (
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          Order promoted — contact operations for fulfilment status.
+                        </p>
+                      ) : (
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          Draft in progress — operator inbox handles clarification and promotion.
+                        </p>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )
+            ) : (
+              <SliceUnavailable slice={model.whatsappOrderLinkage} />
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Activity className="h-5 w-5" />
+                Account health & next best action
+              </CardTitle>
+              {availabilityBadge(model.customerHealth.availability)}
+            </div>
+            {model.customerHealth.reason && <CardDescription>{model.customerHealth.reason}</CardDescription>}
+          </CardHeader>
+          <CardContent className="grid gap-4 md:grid-cols-2">
+            {model.customerHealth.availability === "available" && model.customerHealth.data ? (
+              <>
+                <div>
+                  <p className="mb-2 text-sm font-medium">Signals</p>
+                  {model.customerHealth.data.signals.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No risk signals from available CRM facts.</p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {model.customerHealth.data.signals.map((signal) => (
+                        <li key={signal.signal} className="rounded-lg border p-3 text-sm">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="font-medium">{signal.signal.replace(/_/g, " ")}</p>
+                            <Badge variant={signal.severity === "critical" ? "destructive" : "outline"}>
+                              {signal.severity}
+                            </Badge>
+                          </div>
+                          <p className="mt-1 text-muted-foreground">{signal.factualBasis}</p>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+                <div>
+                  <p className="mb-2 text-sm font-medium">Next best actions</p>
+                  {model.customerHealth.data.nextBestActions.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No prioritized actions from current facts.</p>
+                  ) : (
+                    <ol className="space-y-2">
+                      {model.customerHealth.data.nextBestActions.map((action, index) => {
+                        const target = nextBestActionTarget(action, resolvedVariant);
+                        return (
+                          <li key={`${action.action}-${index}`} className="rounded-lg border p-3 text-sm">
+                            <div className="flex flex-wrap items-start justify-between gap-2">
+                              <p className="font-medium">{action.action}</p>
+                              {target ? (
+                                target.startsWith("/") ? (
+                                  <Button asChild size="sm" variant="ghost" className="h-7 text-xs">
+                                    <Link to={target}>Open</Link>
+                                  </Button>
+                                ) : (
+                                  <Button asChild size="sm" variant="ghost" className="h-7 text-xs">
+                                    <a href={target}>View</a>
+                                  </Button>
+                                )
+                              ) : null}
+                            </div>
+                            <p className="mt-1 text-muted-foreground">{action.reason}</p>
+                          </li>
+                        );
+                      })}
+                    </ol>
+                  )}
+                </div>
+              </>
+            ) : (
+              <SliceUnavailable slice={model.customerHealth} />
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
@@ -374,12 +669,16 @@ export default function Customer360Page() {
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-2">
-          <SliceUnavailable slice={model.branchesAndContacts} />
           <SliceUnavailable slice={model.dispatchHistory} />
-          <SliceUnavailable slice={model.financeExposure} />
-          <SliceUnavailable slice={model.customerHealth} />
         </CardContent>
       </Card>
+
+      <SalesSupportEscalationDialog
+        open={supportDialogOpen}
+        onOpenChange={setSupportDialogOpen}
+        orders={supportOrderOptions}
+        onSubmitted={() => void refresh()}
+      />
     </div>
   );
 }

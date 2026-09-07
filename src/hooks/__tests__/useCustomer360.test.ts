@@ -49,11 +49,12 @@ function readyModel(companyId: string, businessName: string): Customer360ReadMod
     interactions: { availability: "partial_crm_lite", programmeOwner: "POINT61", data: [] },
     tasks: { availability: "partial_crm_lite", programmeOwner: "POINT63", data: [] },
     tickets: { availability: "available", programmeOwner: "POINT59", data: [] },
-    branchesAndContacts: { availability: "unavailable_not_governed", programmeOwner: "POINT60" },
-    communicationsLedger: { availability: "unavailable_not_governed", programmeOwner: "POINT61" },
+    branchesAndContacts: { availability: "available", programmeOwner: "POINT60", data: [] },
+    communicationsLedger: { availability: "available", programmeOwner: "POINT61", data: { companyId: "x", resolvedAt: "", recordLimit: 25, entries: [], channels: [] } },
     dispatchHistory: { availability: "unavailable_not_governed", programmeOwner: "DISPATCH_P0_456" },
-    financeExposure: { availability: "unavailable_not_governed", programmeOwner: "POINT77" },
-    customerHealth: { availability: "unavailable_not_governed", programmeOwner: "POINT64" },
+    financeExposure: { availability: "available", programmeOwner: "POINT77", data: { totalOutstanding: 0, currentBalance: null, creditLimit: null, walletBalance: null, allowCredit: null, paymentTerms: null, creditHeadroom: null } },
+    customerHealth: { availability: "available", programmeOwner: "POINT64", data: { signals: [], nextBestActions: [], overdueTaskCount: 0, daysSinceLastInteraction: null, creditUtilizationPercent: null } },
+    whatsappOrderLinkage: { availability: "available", programmeOwner: "WA", data: [] },
   };
 }
 

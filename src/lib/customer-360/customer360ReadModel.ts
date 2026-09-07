@@ -5,11 +5,20 @@ import {
   CUSTOMER360_COMMUNICATION_HISTORY_LIMIT,
   mapClientInteractionLedgerRows,
 } from "@/lib/crm-communication-history/crmCommunicationHistoryTypes";
+import { getWalletBalance } from "@/lib/order-authority/creditWalletAuthorityClient";
 import { parseCrmLiteTickets } from "@/lib/crm-lite/parseCrmLiteTickets";
+import {
+  buildCustomerHealthReadModel,
+  buildFinanceExposureFromProfile,
+  mapDeliveryAddressRow,
+} from "./customer360DerivedSlices";
 import { assertCustomer360CompanyAccess, normalizeCompanyId } from "./customer360Identity";
 import { Customer360IdentityError } from "./customer360Identity";
 import type {
   Customer360CompanyProfile,
+  Customer360DeliverySite,
+  Customer360FinanceExposure,
+  Customer360HealthReadModel,
   Customer360InteractionSummary,
   Customer360OrderSummary,
   Customer360ReadModel,
@@ -17,6 +26,7 @@ import type {
   Customer360TaskSummary,
   Customer360TicketSummary,
   Customer360ViewerContext,
+  Customer360WhatsappOrderLink,
 } from "./customer360Types";
 import type { CrmCommunicationHistoryReadModel } from "@/lib/crm-communication-history/crmCommunicationHistoryTypes";
 
@@ -73,7 +83,6 @@ export async function fetchCustomer360ReadModel(
   viewer: Customer360ViewerContext,
 ): Promise<Customer360ReadModel> {
   const companyId = normalizeCompanyId(rawCompanyId);
-  assertCustomer360CompanyAccess(companyId, viewer);
 
   const { data: companyRow, error: companyError } = await supabase
     .from("companies")
@@ -90,13 +99,54 @@ export async function fetchCustomer360ReadModel(
     throw new Customer360IdentityError("company_not_found", "No company exists for the requested Customer 360 identity.");
   }
 
+  assertCustomer360CompanyAccess(
+    companyId,
+    viewer,
+    (companyRow as unknown as CompanyRow).account_manager_id,
+  );
+
+  const mappedCompany = companyRow as unknown as CompanyRow;
+  let governedWalletBalance: number | null = mappedCompany.wallet_balance;
+  try {
+    governedWalletBalance = await getWalletBalance(companyId);
+  } catch {
+    governedWalletBalance = null;
+  }
+
   const profileSlice: Customer360Slice<Customer360CompanyProfile> = {
-    availability: "available",
+    availability: governedWalletBalance == null ? "partial_crm_lite" : "available",
     programmeOwner: "POINT59",
-    data: mapCompanyProfile(companyRow as unknown as CompanyRow),
+    reason:
+      governedWalletBalance == null
+        ? "Wallet balance uses PF-6B RPC when available; column fallback is not shown as authoritative."
+        : undefined,
+    data: mapCompanyProfile({
+      ...mappedCompany,
+      wallet_balance: governedWalletBalance,
+    }),
   };
 
-  const [ordersRes, interactionsRes, tasksRes] = await Promise.all([
+  let interactionsQuery = supabase
+    .from("client_interactions")
+    .select(CLIENT_INTERACTION_LEDGER_SELECT)
+    .eq("company_id", companyId)
+    .order("created_at", { ascending: false })
+    .limit(CUSTOMER360_COMMUNICATION_HISTORY_LIMIT);
+  if (viewer.isSalesExecutiveViewer && viewer.viewerUserId) {
+    interactionsQuery = interactionsQuery.eq("executive_id", viewer.viewerUserId);
+  }
+
+  let tasksQuery = supabase
+    .from("crm_tasks")
+    .select("id, task_type, status, due_date, description, created_at")
+    .eq("company_id", companyId)
+    .order("due_date", { ascending: true })
+    .limit(25);
+  if (viewer.isSalesExecutiveViewer && viewer.viewerUserId) {
+    tasksQuery = tasksQuery.eq("sales_exec_id", viewer.viewerUserId);
+  }
+
+  const [ordersRes, interactionsRes, tasksRes, deliverySitesRes, waDraftsRes] = await Promise.all([
     supabase
       .from("orders")
       .select("id, order_number, status, sales_order_value, created_at")
@@ -104,18 +154,21 @@ export async function fetchCustomer360ReadModel(
       .not("status", "in", '("draft","cart","cancelled")')
       .order("created_at", { ascending: false })
       .limit(25),
+    interactionsQuery,
+    tasksQuery,
     supabase
-      .from("client_interactions")
-      .select(CLIENT_INTERACTION_LEDGER_SELECT)
+      .from("delivery_addresses")
+      .select("id, label, street_address, city, state, pincode, contact_person, contact_phone, is_default")
       .eq("company_id", companyId)
-      .order("created_at", { ascending: false })
-      .limit(CUSTOMER360_COMMUNICATION_HISTORY_LIMIT),
-    supabase
-      .from("crm_tasks")
-      .select("id, task_type, status, due_date, description, created_at")
-      .eq("company_id", companyId)
-      .order("due_date", { ascending: true })
+      .order("is_default", { ascending: false })
+      .order("label", { ascending: true })
       .limit(25),
+    supabase
+      .from("sales_order_drafts")
+      .select("id, packet_id, status, promoted_order_id, readiness_overall_score, updated_at")
+      .eq("company_id", companyId)
+      .order("updated_at", { ascending: false })
+      .limit(10),
   ]);
 
   const orderIds = (ordersRes.data ?? []).map((row) => row.id);
@@ -159,7 +212,9 @@ export async function fetchCustomer360ReadModel(
         availability: "partial_crm_lite",
         programmeOwner: "POINT61",
         reason:
-          "CRM-lite interaction summary (bounded preview). Governed multi-channel history is on the communicationsLedger slice (Point 61).",
+          viewer.isSalesExecutiveViewer
+            ? "CRM-lite interactions scoped to the signed-in sales executive. Governed multi-channel history is on the communicationsLedger slice (Point 61)."
+            : "CRM-lite interaction summary (bounded preview). Governed multi-channel history is on the communicationsLedger slice (Point 61).",
         data: (interactionsRes.data ?? []).map((row) => ({
           id: row.id,
           interactionType: row.interaction_type,
@@ -179,7 +234,9 @@ export async function fetchCustomer360ReadModel(
     : {
         availability: "partial_crm_lite",
         programmeOwner: "POINT63",
-        reason: "CRM-lite tasks only; opportunities/samples health lane is not yet governed.",
+        reason: viewer.isSalesExecutiveViewer
+          ? "CRM-lite tasks scoped to the signed-in sales executive."
+          : "CRM-lite tasks only; opportunities/samples health lane is not yet governed.",
         data: (tasksRes.data ?? []).map((row) => ({
           id: row.id,
           taskType: row.task_type,
@@ -226,6 +283,88 @@ export async function fetchCustomer360ReadModel(
         ),
       };
 
+  const mappedInteractions =
+    interactionsSlice.availability === "partial_crm_lite" ? interactionsSlice.data ?? [] : [];
+  const mappedTasks = tasksSlice.availability === "partial_crm_lite" ? tasksSlice.data ?? [] : [];
+  const mappedProfile = profileSlice.data;
+  const healthInputsDegraded =
+    interactionsSlice.availability === "error" || tasksSlice.availability === "error";
+
+  const branchesAndContactsSlice: Customer360Slice<Customer360DeliverySite[]> =
+    deliverySitesRes.error
+      ? {
+          availability: "error",
+          programmeOwner: "POINT60",
+          errorMessage: deliverySitesRes.error.message,
+        }
+      : {
+          availability: "available",
+          programmeOwner: "POINT60",
+          data: (deliverySitesRes.data ?? []).map((row) =>
+            mapDeliveryAddressRow(row as {
+              id: string;
+              label: string;
+              street_address: string;
+              city: string;
+              state: string;
+              pincode: string;
+              contact_person: string | null;
+              contact_phone: string | null;
+              is_default: boolean | null;
+            }),
+          ),
+        };
+
+  const financeExposureSlice: Customer360Slice<Customer360FinanceExposure> =
+    mappedProfile
+      ? {
+          availability: "available",
+          programmeOwner: "POINT77",
+          reason: "Factual exposure from company profile fields; ageing consolidation remains Core-owned.",
+          data: buildFinanceExposureFromProfile(mappedProfile),
+        }
+      : {
+          availability: "error",
+          programmeOwner: "POINT77",
+          errorMessage: "Company profile unavailable for finance exposure projection.",
+        };
+
+  const customerHealthSlice: Customer360Slice<Customer360HealthReadModel> =
+    mappedProfile && !healthInputsDegraded
+      ? {
+          availability: "available",
+          programmeOwner: "POINT64",
+          reason: "Deterministic signals derived from CRM-lite tasks, interactions, and profile facts only.",
+          data: buildCustomerHealthReadModel(mappedProfile, mappedTasks, mappedInteractions),
+        }
+      : {
+          availability: "error",
+          programmeOwner: "POINT64",
+          errorMessage: mappedProfile
+            ? "CRM-lite interaction or task reads failed; health signals are withheld."
+            : "Company profile unavailable for health signal projection.",
+        };
+
+  const whatsappOrderLinkageSlice: Customer360Slice<Customer360WhatsappOrderLink[]> = waDraftsRes.error
+    ? {
+        availability: "error",
+        programmeOwner: "WA",
+        errorMessage: waDraftsRes.error.message,
+      }
+    : {
+        availability: "available",
+        programmeOwner: "WA",
+        reason: "Read-only governed sales_order_drafts linkage for WhatsApp → order promotion lineage.",
+        data: (waDraftsRes.data ?? []).map((row) => ({
+          draftId: row.id,
+          packetId: row.packet_id,
+          status: row.status,
+          promotedOrderId: row.promoted_order_id,
+          readinessOverallScore: row.readiness_overall_score,
+          updatedAt: row.updated_at,
+        })),
+      };
+
   return {
     identity: {
       companyId,
@@ -236,22 +375,14 @@ export async function fetchCustomer360ReadModel(
     interactions: interactionsSlice,
     tasks: tasksSlice,
     tickets: ticketsSlice,
-    branchesAndContacts: notGovernedSlice(
-      "POINT60",
-      "Company branch and contact hierarchy is not yet governed in Central.",
-    ),
+    branchesAndContacts: branchesAndContactsSlice,
     communicationsLedger: communicationsLedgerSlice,
     dispatchHistory: notGovernedSlice(
       "DISPATCH_P0_456",
       "Company-scoped dispatch history aggregate is not yet governed; use order-level dispatch views.",
     ),
-    financeExposure: notGovernedSlice(
-      "POINT77",
-      "Finance ageing and exposure consolidation (Points 77–81) is not yet governed in Customer 360.",
-    ),
-    customerHealth: notGovernedSlice(
-      "POINT64",
-      "Customer health, risk scoring, and next-best-action are not yet governed.",
-    ),
+    financeExposure: financeExposureSlice,
+    customerHealth: customerHealthSlice,
+    whatsappOrderLinkage: whatsappOrderLinkageSlice,
   };
 }

@@ -4,6 +4,7 @@
  */
 
 import type { Database } from "@/integrations/supabase/types";
+import type { CrmCommunicationDeepLink } from "./crmCommunicationDeepLink";
 
 /** PostgREST projection required for ledger normalization (fail-closed on company_id). */
 export const CLIENT_INTERACTION_LEDGER_SELECT =
@@ -109,6 +110,8 @@ export type CrmCommunicationHistoryEntry = {
     recordId: string;
   };
   companyId: string;
+  /** Present when outcome/notes carry a governed wa_packet lineage reference. */
+  deepLink?: CrmCommunicationDeepLink;
 };
 
 export type CrmCommunicationHistoryReadModel = {

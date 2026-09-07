@@ -1,4 +1,5 @@
 import { memo, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   ArrowRightLeft,
   CheckCircle2,
@@ -69,6 +70,7 @@ export const OperatorInboxSalesOrderDraftSection = memo(function OperatorInboxSa
         ? (state.bundle ?? null)
         : null;
   const isRejected = bundle?.draft.status === "REJECTED";
+  const isApprovedForSo = bundle?.draft.status === "APPROVED_FOR_SO";
   const canCreateDraft = extractionReady && Boolean(extracted);
 
   return (
@@ -280,11 +282,26 @@ export const OperatorInboxSalesOrderDraftSection = memo(function OperatorInboxSa
               ) : null}
             </div>
           ) : (
-            <p className="mt-3 text-xs text-indigo-800/80">
-              {isRejected
-                ? "Rejected — terminal for this draft. Create a new draft when extraction is ready."
-                : "Terminal status — no further workflow actions. Live Sales Order promotion requires a separate explicit human step (not automated in Sprint 9)."}
-            </p>
+            <div className="mt-3 space-y-2 text-xs text-indigo-800/80">
+              {isApprovedForSo && bundle.draft.promoted_order_id ? (
+                <p>
+                  Governed promotion complete. Sales order{" "}
+                  <Link
+                    className="font-medium text-indigo-950 underline"
+                    to={`/admin/order-management?orderId=${bundle.draft.promoted_order_id}`}
+                  >
+                    {bundle.draft.promoted_order_id.slice(0, 8)}
+                  </Link>{" "}
+                  was created via <code>approve_sales_order_draft_for_so_atomic</code>.
+                </p>
+              ) : (
+                <p>
+                  {isRejected
+                    ? "Rejected — terminal for this draft. Create a new draft when extraction is ready."
+                    : "Terminal status — no further workflow actions on this persisted draft."}
+                </p>
+              )}
+            </div>
           )}
 
           {isRejected ? (

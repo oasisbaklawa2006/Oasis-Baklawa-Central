@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { format } from "date-fns";
+import { format, addDays, parseISO } from "date-fns";
 
 interface Company {
   id: string;
@@ -30,6 +30,7 @@ const TYPE_ICONS: Record<string, React.ReactNode> = {
   whatsapp: <MessageSquare size={14} className="text-green-500" />,
   visit: <MapPin size={14} className="text-emerald-500" />,
   note: <StickyNote size={14} className="text-amber-500" />,
+  promise: <StickyNote size={14} className="text-violet-500" />,
 };
 
 export default function ClientInteractionsTab({
@@ -46,6 +47,7 @@ export default function ClientInteractionsTab({
 }) {
   const [interactions, setInteractions] = useState<Interaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [filterCompany, setFilterCompany] = useState<string>(initialFilterCompanyId || "all");
 
@@ -62,6 +64,7 @@ export default function ClientInteractionsTab({
   const fetchInteractions = useCallback(async () => {
     if (companyIds.length === 0) { setLoading(false); return; }
     setLoading(true);
+    setFetchError(null);
     let query = supabase
       .from("client_interactions")
       .select("id, company_id, interaction_type, notes, outcome, follow_up_date, created_at")
@@ -71,8 +74,13 @@ export default function ClientInteractionsTab({
     if (scopeExecutiveId) {
       query = query.eq("executive_id", scopeExecutiveId);
     }
-    const { data } = await query;
-    setInteractions(data || []);
+    const { data, error } = await query;
+    if (error) {
+      setFetchError(error.message);
+      setInteractions([]);
+    } else {
+      setInteractions(data || []);
+    }
     setLoading(false);
   }, [companyIds, scopeExecutiveId]);
 
@@ -117,6 +125,18 @@ export default function ClientInteractionsTab({
     }
   };
 
+  const handleFollowUpUpdate = async (interactionId: string, followUpDate: string | null) => {
+    const { error } = await supabase
+      .from("client_interactions")
+      .update({ follow_up_date: followUpDate })
+      .eq("id", interactionId);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    void fetchInteractions();
+  };
+
   const companyMap: Record<string, string> = {};
   companies.forEach((c) => { companyMap[c.id] = c.business_name; });
 
@@ -143,6 +163,13 @@ export default function ClientInteractionsTab({
         </Button>
       </div>
 
+      {fetchError ? (
+        <div className="flex items-center justify-between gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+          <span>{fetchError}</span>
+          <Button size="sm" variant="outline" onClick={() => void fetchInteractions()}>Retry</Button>
+        </div>
+      ) : null}
+
       {loading ? (
         <div className="flex justify-center py-12"><Loader2 className="animate-spin text-muted-foreground" /></div>
       ) : filtered.length === 0 ? (
@@ -168,12 +195,35 @@ export default function ClientInteractionsTab({
                     <Badge variant="secondary" className="text-xs">Outcome: {int.outcome}</Badge>
                   </div>
                 )}
-                <div className="flex gap-4 mt-2 text-xs text-muted-foreground">
+                <div className="flex flex-wrap gap-4 mt-2 text-xs text-muted-foreground">
                   {int.created_at && <span>{format(new Date(int.created_at), "dd MMM yyyy, HH:mm")}</span>}
                   {int.follow_up_date && (
                     <span className="text-amber-600 font-semibold">Follow-up: {format(new Date(int.follow_up_date), "dd MMM yyyy")}</span>
                   )}
                 </div>
+                {int.follow_up_date ? (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 text-xs"
+                      onClick={() => {
+                        const next = format(addDays(parseISO(int.follow_up_date!), 7), "yyyy-MM-dd");
+                        void handleFollowUpUpdate(int.id, next);
+                      }}
+                    >
+                      Snooze 7d
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 text-xs"
+                      onClick={() => void handleFollowUpUpdate(int.id, null)}
+                    >
+                      Mark done
+                    </Button>
+                  </div>
+                ) : null}
               </div>
             </div>
           ))}
@@ -209,6 +259,7 @@ export default function ClientInteractionsTab({
                   <SelectItem value="whatsapp">💬 WhatsApp</SelectItem>
                   <SelectItem value="visit">📍 Visit</SelectItem>
                   <SelectItem value="note">📝 Note</SelectItem>
+                  <SelectItem value="promise">🤝 Promise / follow-up commitment</SelectItem>
                 </SelectContent>
               </Select>
             </div>
