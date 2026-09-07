@@ -35,7 +35,7 @@ const AdminClients = lazy(() => import("./pages/admin/AdminClients.tsx"));
 const Customer360Page = lazy(() => import("./pages/admin/Customer360Page.tsx"));
 const AdminProducts = lazy(() => import("./pages/admin/AdminProducts.tsx"));
 const AdminPricing = lazy(() => import("./pages/admin/AdminPricing.tsx"));
-const AdminOrders = lazy(() => import("./pages/admin/AdminOrders.tsx"));
+const CentralOrderPoolCommandCentre = lazy(() => import("./pages/admin/CentralOrderPoolCommandCentre.tsx"));
 const AdminProduction = lazy(() => import("./pages/admin/AdminProduction.tsx"));
 const AdminOperations = lazy(() => import("./pages/admin/AdminOperations.tsx"));
 const AdminPackingDispatch = lazy(() => import("./pages/admin/AdminPackingDispatch.tsx"));
@@ -134,6 +134,11 @@ const ADMIN_STAFF_ROLES = [
   "TV_DISPLAY", "TV_ASSEMBLY", "TV_READY",
   "CATALOGUE_CONTRIBUTOR",
 ];
+
+/** Dispatch/packing floor roles must not access the production handheld war room by URL. */
+const OPERATIONS_CONTROLLER_ROLES = ADMIN_STAFF_ROLES.filter(
+  (role) => !["DISPATCH_MANAGER", "DISPATCH_INCHARGE", "DISPATCH_HEAD", "PACKING_SUPERVISOR"].includes(role),
+);
 
 const SALES_DASHBOARD_ROLES = [...ADMIN_ONLY_ROLES, "SALES_EXECUTIVE"];
 
@@ -243,7 +248,7 @@ const App = () => (
                 <Suspense fallback={<AuthSpinner />}>
                 <Routes>
                   <Route path="/splash" element={<Splash />} />
-                  <Route path="/operations-controller" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={[...ADMIN_STAFF_ROLES]}><OperationsController /></RoleProtectedRoute></ProtectedRoute>} />
+                  <Route path="/operations-controller" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={[...OPERATIONS_CONTROLLER_ROLES]}><OperationsController /></RoleProtectedRoute></ProtectedRoute>} />
                   <Route path="/security-gate" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={[...SECURITY_GATE_ALLOWED_ROLES]}><AdminSecurityGate /></RoleProtectedRoute></ProtectedRoute>} />
                   <Route path="/" element={<RootGate />} />
                   <Route path="/customer-app-redirect" element={<CustomerAppRedirect />} />
@@ -284,7 +289,7 @@ const App = () => (
                     <Route path="approvals" element={<AdminClients />} />
                     <Route path="products" element={<AdminProducts />} />
                     <Route path="pricing" element={<ErrorBoundary fallbackTitle="Pricing Matrix crashed"><AdminPricing /></ErrorBoundary>} />
-                    <Route path="orders" element={<AdminOrders />} />
+                    <Route path="orders" element={<Navigate to="/admin/central-pool" replace />} />
                     <Route path="production" element={<AdminProduction />} />
                     <Route path="operations" element={<AdminOperations />} />
                     <Route path="packing-dispatch" element={<AdminPackingDispatch />} />
@@ -341,8 +346,15 @@ const App = () => (
                     <Route path="catalogue-sync" element={<AdminCatalogueSyncStatus />} />
                     <Route path="catalogue-approvals" element={<ApprovalInbox />} />
                     <Route path="order-management" element={<OrderManagement />} />
-                    <Route path="central-pool" element={<Navigate to="/admin/operator-inbox" replace />} />
-                    <Route path="cmd-war-room" element={<Navigate to="/admin/operator-inbox" replace />} />
+                    <Route
+                      path="central-pool"
+                      element={
+                        <AdminModuleRoute moduleKey="orders">
+                          <CentralOrderPoolCommandCentre />
+                        </AdminModuleRoute>
+                      }
+                    />
+                    <Route path="cmd-war-room" element={<Navigate to="/admin/central-pool" replace />} />
                     <Route path="inventory-command-center" element={<InventoryCommandCenter />} />
                     <Route path="inventory-receiving" element={<InventoryReceiving />} />
                     <Route path="carton-explorer" element={<CartonExplorer />} />
@@ -449,8 +461,10 @@ const App = () => (
                       authoritative tables instead. execution/dispatch now
                       redirects to FACT-C3 /admin/dispatch-mgmt (Lane D).
                       execution/third-party redirects to the governed 3PGS
-                      queue. execution/retail and execution/complaints remain
-                      in the dead-data situation and are NOT redirected here.
+                      queue. execution/retail redirects to reservation-board;
+                      execution/complaints redirects to support. Point86
+                      quarantined operational_queue_items for all remaining
+                      department queue reads.
                     */}
                     <Route path="execution/production" element={<Navigate to="/operations-controller" replace />} />
                     <Route path="execution/assembly" element={<Navigate to="/admin/assembly-tasks" replace />} />

@@ -3,6 +3,22 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import JobExecutionTab from "../JobExecutionTab";
 import type { ProductionJob } from "../types";
 
+const { rpcMock, productionRpcMock } = vi.hoisted(() => ({
+  rpcMock: vi.fn(async (_fn: string, _args: Record<string, unknown>) => ({
+    data: null,
+    error: null as { message: string } | null,
+  })),
+  productionRpcMock: {
+    startJob: vi.fn(async () => ({ data: null, error: null })),
+    pauseJob: vi.fn(async () => ({ data: null, error: null })),
+    resumeJob: vi.fn(async () => ({ data: null, error: null })),
+    advanceStage: vi.fn(async () => ({ data: null, error: null })),
+    recordOutput: vi.fn(async () => ({ data: null, error: null })),
+    declareReady: vi.fn(async () => ({ data: null, error: null })),
+    dispatchToRgs: vi.fn(async () => ({ data: null, error: null })),
+  },
+}));
+
 const job: ProductionJob = {
   id: "job-1",
   order_item_id: null,
@@ -27,12 +43,11 @@ const job: ProductionJob = {
   product: { name: "Test Sweet", image_url: null, sku: "SKU-1" },
 };
 
-const rpcMock = vi.fn(async (_fn: string, _args: Record<string, unknown>) => ({
-  data: null,
-  error: null as { message: string } | null,
-}));
-
 let openIssuesResult: unknown[] = [];
+
+vi.mock("@/lib/production-lifecycle", () => ({
+  productionGovernedRpc: productionRpcMock,
+}));
 
 vi.mock("@/lib/rgsGovernedRpc", () => ({
   rgsGovernedRpc: { rpc: (...args: unknown[]) => rpcMock(...(args as [string, Record<string, unknown>])) },
@@ -211,5 +226,45 @@ describe("JobExecutionTab governed issue resolution", () => {
     fireEvent.click(screen.getByText("Submit Issue"));
 
     expect(await screen.findByText("Mixer is jammed")).toBeTruthy();
+  });
+});
+
+describe("JobExecutionTab Point88 lifecycle actions", () => {
+  const acceptedJob: ProductionJob = { ...job, status: "accepted", stage: "prep" };
+  const pausedJob: ProductionJob = { ...job, status: "paused", stage: "processing" };
+
+  it("calls productionGovernedRpc.startJob when starting an accepted job", async () => {
+    render(<JobExecutionTab jobs={[acceptedJob]} userId="user-1" department="ARABIC_SWEETS" onRefresh={vi.fn()} />);
+    fireEvent.click(screen.getByText("Test Sweet"));
+    fireEvent.click(screen.getByText("Start Production"));
+    await waitFor(() => expect(productionRpcMock.startJob).toHaveBeenCalledWith(
+      { p_job_id: "job-1" },
+      acceptedJob,
+    ));
+  });
+
+  it("calls productionGovernedRpc.resumeJob for a paused job", async () => {
+    render(<JobExecutionTab jobs={[pausedJob]} userId="user-1" department="ARABIC_SWEETS" onRefresh={vi.fn()} />);
+    fireEvent.click(screen.getByText("Test Sweet"));
+    fireEvent.click(screen.getByText("Resume Production"));
+    await waitFor(() => expect(productionRpcMock.resumeJob).toHaveBeenCalledWith(
+      { p_job_id: "job-1" },
+      pausedJob,
+    ));
+  });
+
+  it("calls productionGovernedRpc.pauseJob with reason from the pause modal", async () => {
+    render(<JobExecutionTab jobs={[job]} userId="user-1" department="ARABIC_SWEETS" onRefresh={vi.fn()} />);
+    fireEvent.click(screen.getByText("Test Sweet"));
+    fireEvent.click(screen.getByText("Pause Production"));
+    fireEvent.click(screen.getByText("🔧 Machine Breakdown"));
+    fireEvent.click(screen.getByText("Confirm Pause"));
+    await waitFor(() => expect(productionRpcMock.pauseJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        p_job_id: "job-1",
+        p_reason: "machine_breakdown",
+      }),
+      job,
+    ));
   });
 });

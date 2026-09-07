@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { rgsGovernedRpc } from "@/lib/rgsGovernedRpc";
+import { productionGovernedRpc } from "@/lib/production-lifecycle";
 import { toast } from "sonner";
 import { Loader2, Image as ImageIcon, CheckCircle2, XCircle, AlertTriangle, Flame, Clock } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -21,10 +21,9 @@ export default function JobIntakeTab({ jobs, userId, onRefresh }: Props) {
   const handleAccept = async (jobId: string) => {
     setActing(jobId);
     const batchNum = `B-${Date.now().toString(36).toUpperCase()}`;
-    const { error } = await rgsGovernedRpc.rpc("accept_production_job", {
+    const { error } = await productionGovernedRpc.acceptJob({
       p_job_id: jobId,
       p_batch_number: batchNum,
-      p_correlation_id: crypto.randomUUID(),
     });
     if (error) {
       toast.error(error.message || "Could not accept job");
@@ -41,10 +40,9 @@ export default function JobIntakeTab({ jobs, userId, onRefresh }: Props) {
       return;
     }
     setActing(rejectJobId);
-    const { error } = await rgsGovernedRpc.rpc("reject_production_job", {
+    const { error } = await productionGovernedRpc.rejectJob({
       p_job_id: rejectJobId,
       p_rejection_reason: rejectReason,
-      p_correlation_id: crypto.randomUUID(),
     });
     if (error) {
       toast.error(error.message || "Could not reject job");

@@ -22,12 +22,11 @@ describe("WhatsApp canonical safety boundary", () => {
     expect(isWaWebhookOwnerReassignmentEnabled(hostileEnv)).toBe(false);
   });
 
-  it("redirects the retired Central Pool route to Operator Inbox", () => {
+  it("routes the retired Central Pool path to the governed composition hub", () => {
     const app = readRepoFile("src/App.tsx");
     expect(app).not.toMatch(/import\("\.\/pages\/admin\/CentralOrderPool\.tsx"\)/);
-    expect(app).toContain(
-      '<Route path="central-pool" element={<Navigate to="/admin/operator-inbox" replace />} />',
-    );
+    expect(app).toMatch(/path="central-pool"[\s\S]*?<CentralOrderPoolCommandCentre\s*\/>/);
+    expect(app).not.toContain('<Route path="central-pool" element={<Navigate to="/admin/operator-inbox" replace />} />');
   });
 
   it("removes commercial-table promotion writes from Central Pool", () => {

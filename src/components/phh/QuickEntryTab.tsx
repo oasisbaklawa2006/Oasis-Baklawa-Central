@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { rgsGovernedRpc } from "@/lib/rgsGovernedRpc";
+import { productionGovernedRpc } from "@/lib/production-lifecycle";
 import { toast } from "sonner";
 import { Loader2, Image as ImageIcon, Store } from "lucide-react";
 import { DepartmentProduct, canonicalDepartmentOf } from "./types";
@@ -79,12 +79,11 @@ export default function QuickEntryTab({ department, departmentLabel, userId }: P
     // of the physical dispatch posts permanent stock.
     let failed = 0;
     for (const row of rows) {
-      const { error } = await rgsGovernedRpc.rpc("quick_log_production_to_rgs", {
+      const { error } = await productionGovernedRpc.quickLogToRgs({
         p_product_id: row.product_id,
         p_department: department,
         p_produced_qty: row.produced_qty,
         p_wasted_qty: row.wasted_qty,
-        p_correlation_id: crypto.randomUUID(),
         p_batch_number: batchId,
       });
       if (error) {

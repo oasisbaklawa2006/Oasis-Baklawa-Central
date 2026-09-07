@@ -12,6 +12,7 @@ import {
   canAccessThreePgsSatelliteAdminShell,
   canAccessThreePgsTvAdminShell,
 } from "@/lib/threePgsAccess";
+import { canAccessCentralOrderPool } from "@/lib/centralOrderPool/centralOrderPoolAccess";
 
 interface AdminModuleRouteProps {
   moduleKey: AppVerseModuleKey;
@@ -50,6 +51,14 @@ export default function AdminModuleRoute({ moduleKey, children }: AdminModuleRou
   }
 
   if (pathname === "/admin/3pgs-tv") {
+    return <>{children}</>;
+  }
+
+  if (pathname === "/admin/central-pool" && !canAccessCentralOrderPool(role)) {
+    return <Navigate to={getRoleDestination(role)} replace />;
+  }
+
+  if (pathname === "/admin/central-pool") {
     return <>{children}</>;
   }
 

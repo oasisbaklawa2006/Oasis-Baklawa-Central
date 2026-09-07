@@ -185,7 +185,7 @@ const AdminAccountsRelease = () => {
     ewayStatus === "VALIDATED" && (!ewayNumber.trim() || !ewayDocumentReference.trim());
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-testid="macro-finance-clearance-surface">
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-display-h2 text-foreground">Finance Exit Board</h1>
@@ -482,6 +482,7 @@ const AdminAccountsRelease = () => {
                     Record E-way decision
                   </Button>
                   <Button
+                    data-testid="macro-finance-clearance-action"
                     disabled={!actorId || !facts?.finalInvoiceId || !facts.ewayEvidenceId || facts.dispatchCleared || acting !== null}
                     onClick={() => void run("clearance", () => decideFinanceDispatchClearance({
                       finalInvoiceId: facts!.finalInvoiceId!,

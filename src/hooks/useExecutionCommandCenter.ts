@@ -6,35 +6,13 @@ import {
   buildExecutionCommandCenterProjection,
   type ExecutionCommandCenterProjection,
   type ExecutionIntelligenceInput,
-  type ExecutionIntelligenceQueueItem,
 } from "@/lib/execution-intelligence";
-import { mapQueueRow, type QueueItemRow } from "@/lib/persistent-queues/queueRowMapper";
 import type { OperationalStoreEventRecord } from "@/lib/operational-events/operationalEventTypes";
 import { useOperationalLiveFeeds } from "@/hooks/useOperationalLiveFeeds";
-
-function mapQueueRows(rows: QueueItemRow[]): ExecutionIntelligenceQueueItem[] {
-  return rows.map((row) => {
-    const m = mapQueueRow(row);
-    return {
-      id: m.id,
-      queueType: m.queueType,
-      entityType: m.entityType,
-      entityId: m.entityId,
-      orderId: m.orderId,
-      customerId: m.customerId,
-      title: m.title,
-      state: m.state,
-      ownerDepartment: m.ownerDepartment,
-      assignedTo: m.assignedTo,
-      escalationLevel: m.escalationLevel,
-      blockerCode: m.blockerCode,
-      blockerSummary: m.blockerSummary,
-      slaDueAt: m.slaDueAt,
-      createdAt: m.createdAt,
-      updatedAt: m.updatedAt,
-    };
-  });
-}
+import {
+  fetchCanonicalDepartmentQueueItems,
+  toExecutionIntelligenceQueueItems,
+} from "@/lib/department-queues";
 
 type EventRow = {
   id: string;
@@ -101,13 +79,8 @@ export function useExecutionCommandCenter() {
     setError(null);
     const nowIso = new Date().toISOString();
     try {
-      const [queueRes, eventRes, scanRes] = await Promise.all([
-        operationalDb
-          .from("operational_queue_items")
-          .select("*")
-          .not("state", "in", '("completed","cancelled")')
-          .order("updated_at", { ascending: false })
-          .limit(300),
+      const [canonicalQueueRes, eventRes, scanRes] = await Promise.all([
+        fetchCanonicalDepartmentQueueItems(operationalDb, { perLaneLimit: 150 }),
         operationalDb
           .from("operational_events")
           .select("*")
@@ -120,9 +93,6 @@ export function useExecutionCommandCenter() {
           .limit(200),
       ]);
 
-      if (queueRes.error && !queueRes.error.message.includes("does not exist")) {
-        throw new Error(queueRes.error.message);
-      }
       if (eventRes.error && !eventRes.error.message.includes("does not exist")) {
         throw new Error(eventRes.error.message);
       }
@@ -130,7 +100,7 @@ export function useExecutionCommandCenter() {
         throw new Error(scanRes.error.message);
       }
 
-      const queueItems = mapQueueRows((queueRes.data ?? []) as QueueItemRow[]);
+      const queueItems = toExecutionIntelligenceQueueItems(canonicalQueueRes.items);
       const events = ((eventRes.data ?? []) as EventRow[]).map(mapEventRow);
       const scans = ((scanRes.data ?? []) as ScanRow[]).map(mapScanRow);
 

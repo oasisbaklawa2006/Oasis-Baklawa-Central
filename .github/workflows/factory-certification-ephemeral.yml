@@ -175,23 +175,8 @@ jobs:
             throw new Error('CERTIFICATION_RESULT_MISSING: Production Playwright JSON report was not produced');
           }
           const report = JSON.parse(fs.readFileSync(path, 'utf8'));
-          const statuses = [];
-          const visit = (value) => {
-            if (!value || typeof value !== 'object') return;
-            if (Array.isArray(value)) {
-              for (const item of value) visit(item);
-              return;
-            }
-            if (Array.isArray(value.results)) {
-              for (const result of value.results) {
-                if (typeof result?.status === 'string') statuses.push(result.status);
-              }
-            }
-            for (const [key, child] of Object.entries(value)) {
-              if (key !== 'results') visit(child);
-            }
-          };
-          visit(report.suites ?? report);
+          const { collectPlaywrightTestStatuses } = require('./scripts/factory-certification/collect-playwright-test-statuses.cjs');
+          const statuses = collectPlaywrightTestStatuses(report);
           const counts = statuses.reduce((acc, status) => {
             acc[status] = (acc[status] ?? 0) + 1;
             return acc;
@@ -257,23 +242,8 @@ jobs:
           }
 
           const report = JSON.parse(fs.readFileSync(resultPath, 'utf8'));
-          const statuses = [];
-          const visit = (value) => {
-            if (!value || typeof value !== 'object') return;
-            if (Array.isArray(value)) {
-              for (const item of value) visit(item);
-              return;
-            }
-            if (Array.isArray(value.results)) {
-              for (const result of value.results) {
-                if (typeof result?.status === 'string') statuses.push(result.status);
-              }
-            }
-            for (const [key, child] of Object.entries(value)) {
-              if (key !== 'results') visit(child);
-            }
-          };
-          visit(report.suites ?? report);
+          const { collectPlaywrightTestStatuses } = require('./scripts/factory-certification/collect-playwright-test-statuses.cjs');
+          const statuses = collectPlaywrightTestStatuses(report);
           const counts = statuses.reduce((acc, status) => {
             acc[status] = (acc[status] ?? 0) + 1;
             return acc;
@@ -293,6 +263,7 @@ jobs:
 
       - name: Run continuous FACT-E2E golden order
         id: golden_order
+        if: always()
         continue-on-error: true
         run: >-
           npx playwright test
@@ -318,23 +289,8 @@ jobs:
             throw new Error('GOLDEN_ORDER_RESULT_MISSING: Playwright JSON report was not produced');
           }
           const report = JSON.parse(fs.readFileSync(resultPath, 'utf8'));
-          const statuses = [];
-          const visit = (value) => {
-            if (!value || typeof value !== 'object') return;
-            if (Array.isArray(value)) {
-              for (const item of value) visit(item);
-              return;
-            }
-            if (Array.isArray(value.results)) {
-              for (const result of value.results) {
-                if (typeof result?.status === 'string') statuses.push(result.status);
-              }
-            }
-            for (const [key, child] of Object.entries(value)) {
-              if (key !== 'results') visit(child);
-            }
-          };
-          visit(report.suites ?? report);
+          const { collectPlaywrightTestStatuses } = require('./scripts/factory-certification/collect-playwright-test-statuses.cjs');
+          const statuses = collectPlaywrightTestStatuses(report, 'FACT-E2E Gate 1B');
           const counts = statuses.reduce((acc, status) => {
             acc[status] = (acc[status] ?? 0) + 1;
             return acc;
@@ -476,6 +432,7 @@ jobs:
 
       - name: Run Point-37 governed production-release certification
         id: point37_production_release
+        if: always()
         continue-on-error: true
         run: >-
           npx playwright test
@@ -501,23 +458,8 @@ jobs:
             throw new Error('POINT37_RESULT_MISSING: Playwright JSON report was not produced');
           }
           const report = JSON.parse(fs.readFileSync(resultPath, 'utf8'));
-          const statuses = [];
-          const visit = (value) => {
-            if (!value || typeof value !== 'object') return;
-            if (Array.isArray(value)) {
-              for (const item of value) visit(item);
-              return;
-            }
-            if (Array.isArray(value.results)) {
-              for (const result of value.results) {
-                if (typeof result?.status === 'string') statuses.push(result.status);
-              }
-            }
-            for (const [key, child] of Object.entries(value)) {
-              if (key !== 'results') visit(child);
-            }
-          };
-          visit(report.suites ?? report);
+          const { collectPlaywrightTestStatuses } = require('./scripts/factory-certification/collect-playwright-test-statuses.cjs');
+          const statuses = collectPlaywrightTestStatuses(report, 'POINT-37');
           const counts = statuses.reduce((acc, status) => {
             acc[status] = (acc[status] ?? 0) + 1;
             return acc;
@@ -550,6 +492,7 @@ jobs:
 
       - name: Run Point-38 Golden Pipeline governance-board certification
         id: point38_golden_pipeline
+        if: always()
         continue-on-error: true
         run: >-
           npx playwright test
@@ -575,23 +518,8 @@ jobs:
             throw new Error('POINT38_RESULT_MISSING: Playwright JSON report was not produced');
           }
           const report = JSON.parse(fs.readFileSync(resultPath, 'utf8'));
-          const statuses = [];
-          const visit = (value) => {
-            if (!value || typeof value !== 'object') return;
-            if (Array.isArray(value)) {
-              for (const item of value) visit(item);
-              return;
-            }
-            if (Array.isArray(value.results)) {
-              for (const result of value.results) {
-                if (typeof result?.status === 'string') statuses.push(result.status);
-              }
-            }
-            for (const [key, child] of Object.entries(value)) {
-              if (key !== 'results') visit(child);
-            }
-          };
-          visit(report.suites ?? report);
+          const { collectPlaywrightTestStatuses } = require('./scripts/factory-certification/collect-playwright-test-statuses.cjs');
+          const statuses = collectPlaywrightTestStatuses(report, 'POINT-38');
           const counts = statuses.reduce((acc, status) => {
             acc[status] = (acc[status] ?? 0) + 1;
             return acc;

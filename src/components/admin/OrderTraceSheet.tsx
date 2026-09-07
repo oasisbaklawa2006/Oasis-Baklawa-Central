@@ -15,6 +15,8 @@ import { formatSalesOrderLabel } from "@/utils/orderSoLabel";
 import { deriveFinanceReleaseState, getFinanceReleaseBlockers } from "@/utils/financeReleaseState";
 import { FinanceReleaseChips } from "@/components/admin/FinanceReleaseChips";
 import { OperationalTimeline, type OperationalTimelineFilter } from "@/components/admin/OperationalTimeline";
+import { OrderAmendmentActionsPanel } from "@/components/admin/OrderAmendmentActionsPanel";
+import { PartialFulfilmentPanel } from "@/components/admin/PartialFulfilmentPanel";
 import {
   buildOrderOperationalFeedFromTrace,
   mergeOperationalEventFeeds,
@@ -443,6 +445,14 @@ export default function OrderTraceSheet({ orderId, open, onOpenChange }: OrderTr
                   </ul>
                 )}
               </section>
+
+              <OrderAmendmentActionsPanel
+                orderId={order.id}
+                orderStatus={order.status}
+                orderNumber={order.order_number}
+              />
+
+              <PartialFulfilmentPanel orderId={order.id} />
 
               <section className="space-y-2">
                 <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Timeline (hint)</h3>

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { productionGovernedRpc } from "@/lib/production-lifecycle";
 import { rgsGovernedRpc } from "@/lib/rgsGovernedRpc";
 import { toast } from "sonner";
 import { Loader2, Play, Pause, RotateCcw, Image as ImageIcon, AlertTriangle, Camera, Send, Lock, ChevronRight, CheckCircle2 } from "lucide-react";
@@ -93,10 +94,7 @@ export default function JobExecutionTab({ jobs, userId, department, onRefresh }:
 
   const handleStart = async (job: ProductionJob) => {
     setActing(job.id);
-    const { error } = await rgsGovernedRpc.rpc("start_production_job", {
-      p_job_id: job.id,
-      p_correlation_id: crypto.randomUUID(),
-    });
+    const { error } = await productionGovernedRpc.startJob({ p_job_id: job.id }, job);
     if (error) {
       toast.error(error.message || "Could not start production");
     } else {
@@ -109,12 +107,11 @@ export default function JobExecutionTab({ jobs, userId, department, onRefresh }:
   const handlePause = async () => {
     if (!selectedJob || !pauseReason) return;
     setActing(selectedJob.id);
-    const { error } = await rgsGovernedRpc.rpc("pause_production_job", {
+    const { error } = await productionGovernedRpc.pauseJob({
       p_job_id: selectedJob.id,
       p_reason: pauseReason,
       p_comment: pauseComment || null,
-      p_correlation_id: crypto.randomUUID(),
-    });
+    }, selectedJob);
     if (error) {
       toast.error(error.message || "Could not pause production");
     } else {
@@ -129,10 +126,7 @@ export default function JobExecutionTab({ jobs, userId, department, onRefresh }:
 
   const handleResume = async (job: ProductionJob) => {
     setActing(job.id);
-    const { error } = await rgsGovernedRpc.rpc("resume_production_job", {
-      p_job_id: job.id,
-      p_correlation_id: crypto.randomUUID(),
-    });
+    const { error } = await productionGovernedRpc.resumeJob({ p_job_id: job.id }, job);
     if (error) {
       toast.error(error.message || "Could not resume production");
     } else {
@@ -147,10 +141,7 @@ export default function JobExecutionTab({ jobs, userId, department, onRefresh }:
     if (currentIdx >= STAGE_ORDER.length - 1) return;
     const nextStage = STAGE_ORDER[currentIdx + 1];
     setActing(job.id);
-    const { error } = await rgsGovernedRpc.rpc("advance_production_job_stage", {
-      p_job_id: job.id,
-      p_correlation_id: crypto.randomUUID(),
-    });
+    const { error } = await productionGovernedRpc.advanceStage({ p_job_id: job.id }, job);
     if (error) {
       toast.error(error.message || "Could not advance stage");
     } else {
@@ -187,24 +178,23 @@ export default function JobExecutionTab({ jobs, userId, department, onRefresh }:
       metadataPayload[field.key] = field.type === "number" ? Number(raw) : raw;
     }
 
-    const { error: outputError } = await rgsGovernedRpc.rpc("record_production_output", {
+    const { error: outputError } = await productionGovernedRpc.recordOutput({
       p_job_id: job.id,
       p_produced_qty: produced,
       p_wasted_qty: wasted,
       p_batch_number: job.batch_number,
-      p_correlation_id: crypto.randomUUID(),
       p_notes: null,
       p_execution_metadata: metadataPayload,
-    });
+    }, job);
     if (outputError) {
       toast.error(outputError.message || "Could not record output");
       setActing(null);
       return;
     }
 
-    const { error: readyError } = await rgsGovernedRpc.rpc("declare_production_ready", {
-      p_job_id: job.id,
-      p_correlation_id: crypto.randomUUID(),
+    const { error: readyError } = await productionGovernedRpc.declareReady({ p_job_id: job.id }, {
+      ...job,
+      stage: "ready",
     });
     if (readyError) {
       toast.error(readyError.message || "Could not declare production ready");
@@ -212,10 +202,12 @@ export default function JobExecutionTab({ jobs, userId, department, onRefresh }:
       return;
     }
 
-    const { error: dispatchError } = await rgsGovernedRpc.rpc("dispatch_production_to_rgs", {
+    const { error: dispatchError } = await productionGovernedRpc.dispatchToRgs({
       p_job_id: job.id,
       p_dispatched_qty: produced,
-      p_correlation_id: crypto.randomUUID(),
+    }, {
+      ...job,
+      status: "ready",
     });
     if (dispatchError) {
       toast.error(dispatchError.message || "Could not dispatch to RGS");

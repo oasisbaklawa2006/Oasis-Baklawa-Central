@@ -1,4 +1,5 @@
 import { isDispatchRole } from "@/lib/auth/securityGatePolicy";
+import { canAccessCentralOrderPool } from "@/lib/centralOrderPool/centralOrderPoolAccess";
 import {
   getAllowedModulesForRole,
   hasModuleAccess,
@@ -31,7 +32,6 @@ const ADMIN_ROUTE_MODULES: Array<{ prefix: string; moduleKey: AppVerseModuleKey 
   { prefix: "/admin/operational-search", moduleKey: "cmd_war_room" },
   { prefix: "/admin/operator-inbox", moduleKey: "support" },
   { prefix: "/admin/whatsapp", moduleKey: "support" },
-  { prefix: "/admin/central-pool", moduleKey: "support" },
   { prefix: "/admin/cmd-war-room", moduleKey: "cmd_war_room" },
   { prefix: "/admin/verification", moduleKey: "cmd_war_room" },
   { prefix: "/admin/support", moduleKey: "support" },
@@ -50,6 +50,7 @@ const ADMIN_ROUTE_MODULES: Array<{ prefix: string; moduleKey: AppVerseModuleKey 
   { prefix: "/admin/finance-board", moduleKey: "finance" },
   { prefix: "/admin/finance", moduleKey: "finance" },
   { prefix: "/admin/accounts-release", moduleKey: "accounts" },
+  { prefix: "/admin/central-pool", moduleKey: "orders" },
   { prefix: "/admin/order-management", moduleKey: "orders" },
   { prefix: "/admin/orders", moduleKey: "orders" },
   { prefix: "/admin/store-coordination", moduleKey: "orders" },
@@ -134,9 +135,14 @@ export function canAccessGoldenChainOperatorRoute(role: string | null | undefine
   return GOLDEN_CHAIN_OPERATOR_MODULE_KEYS.some((moduleKey) => hasModuleAccess(allowedModules, moduleKey));
 }
 
+function isCentralOrderPoolPath(pathname: string): boolean {
+  return pathname === "/admin/central-pool" || pathname.startsWith("/admin/central-pool/");
+}
+
 /** Complete AdminRouteGuard authorization for a concrete /admin path and role. */
 export function isAuthorizedForAdminPath(pathname: string, role: string | null | undefined): boolean {
   if (!pathname.startsWith("/admin")) return true;
+  if (isCentralOrderPoolPath(pathname)) return canAccessCentralOrderPool(role);
   if (isGoldenChainOperatorPath(pathname)) return canAccessGoldenChainOperatorRoute(role);
   if (isCommercialDispatchTvPath(pathname)) return canAccessCommercialDispatchTvRoute(role);
   const requiredModule = getRequiredModuleForAdminPath(pathname);

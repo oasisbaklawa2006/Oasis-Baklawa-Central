@@ -27,6 +27,9 @@ const FORBIDDEN_ADMIN_ROUTES = [
   "/admin/carton-explorer",
   "/admin/scan-timeline",
   "/admin/order-management",
+  "/admin/central-pool",
+  "/admin/orders",
+  "/admin/cmd-war-room",
   "/admin/packing-dispatch",
   "/admin/dispatch",
   "/admin/target-vs-actual",
@@ -169,6 +172,12 @@ describe("Dispatch RBAC — commercial Dispatch TV audience", () => {
 
   it.each(DISPATCH_ROLES)("denies %s from commercial Dispatch TV", (role) => {
     expect(isAuthorizedForAdminPath("/admin/dispatch-tv", role)).toBe(false);
+  });
+});
+
+describe("Dispatch RBAC — central order pool hub", () => {
+  it("denies PACKING_SUPERVISOR from the commercial order pool composition hub", () => {
+    expect(isAuthorizedForAdminPath("/admin/central-pool", "PACKING_SUPERVISOR")).toBe(false);
   });
 });
 

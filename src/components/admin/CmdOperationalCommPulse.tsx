@@ -383,7 +383,7 @@ export function CmdOperationalCommPulse({
           Open WhatsApp inbox
         </Link>
         <Link
-          to="/admin/orders"
+          to="/admin/central-pool"
           className="inline-flex min-h-9 items-center rounded-md border border-border px-3 text-xs font-medium text-foreground outline-none transition hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
           Orders / trace
