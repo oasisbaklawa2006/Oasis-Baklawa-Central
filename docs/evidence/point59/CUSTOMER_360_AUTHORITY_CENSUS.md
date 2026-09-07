@@ -3,19 +3,21 @@
 **ASM:** POINT59 — Customer 360 canonical operational view closure  
 **Repository:** `oasisbaklawa2006/Oasis-Baklawa-Central`  
 **Branch:** `cursor/point59-customer-360-7654`  
-**Base ancestry:** Point57 PR #499 head `6ffaa43babeed060ec9ccdcc567f8bff45347b94`  
-**Merge predecessor chain:** #497 Dispatch P0 → #499 Point57 → **Point59 (this PR, draft/dependent)**
+**Base:** `main` @ `de16cdef0bebee83d90b0a7fb8e0c510b8fab636` (Point57 #499 merged)  
+**Head:** `b124c464` (Point59-only semantic cherry-pick; predecessor `6ffaa43b` dropped)  
+**Merge predecessor chain:** #497 → #499 → **Point59 (#503)**
 
 ---
 
-## 1. Starting SHA / ancestry
+## 1. SHA / ancestry (Gate-4 semantic rebase)
 
 | Item | Value |
 |------|--------|
-| **Starting SHA** | `6ffaa43babeed060ec9ccdcc567f8bff45347b94` |
-| **Starting commit** | `feat(point57): Central module authority matrix and audit closure` |
-| **Merge-base with `main`** | `64a107dfc167be76673a3d18f177a72472dcb241` |
-| **Commits ahead of main at start** | 1 (Point57 only) |
+| **Original cut base** | `6ffaa43babeed060ec9ccdcc567f8bff45347b94` (superseded #499 head) |
+| **Current `main` base** | `de16cdef0bebee83d90b0a7fb8e0c510b8fab636` (Point57 #499 merged) |
+| **Point59 head** | `b124c464` — `feat(point59): canonical Customer 360 operational read model` |
+| **Semantic delta** | 13 files, +1066/−8 (Point59-only; no stale Point57 baggage) |
+| **Dropped predecessor** | `6ffaa43b` — absorbed by #499 on `main` |
 
 ---
 
@@ -106,7 +108,13 @@
 | Customer 360 authority census | **YES** (this document) |
 | Canonical read route + binding | **YES** |
 | Fail-closed identity boundary tests | **YES** |
-| Point57 #499 merged | **NO** — PR remains dependent/draft |
-| Point59 programme CLEARED | **NOT_CLEARED** — requires #497 → #499 merge, rebase, CI/runtime reconciliation |
+| Point57 #499 merged | **YES** @ `de16cdef` |
+| Gate-4 semantic rebase onto `main` | **YES** @ `b124c464` |
+| Exact-head typecheck | **YES** |
+| Full unit tests | **YES** — 2437 tests, 333 files |
+| Build | **YES** |
+| Repo boundaries | **YES** |
+| Release controller | **YES** |
+| Point59 programme CLEARED | **NOT_CLEARED** — requires human review + runtime reconciliation |
 
 `PR MERGED != Point59 cleared`
