@@ -7,16 +7,6 @@ on:
     branches: [main]
   push:
     branches: [main]
-  workflow_dispatch:
-    inputs:
-      base_sha:
-        description: Auditable comparison base commit SHA (required for manual runs)
-        required: true
-        type: string
-      head_sha:
-        description: Optional target commit SHA (defaults to dispatch ref HEAD; evidence-only)
-        required: false
-        type: string
 
 permissions:
   contents: read
@@ -120,39 +110,3 @@ jobs:
 
       - name: Regression-test core backend authority guard
         run: bash scripts/tests/verify-core-backend-authority.sh
-
-  evidence-guard:
-    if: github.event_name == 'workflow_dispatch'
-    name: Evidence-only Core backend authority scan (workflow_dispatch)
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-
-    steps:
-      - name: Assert trusted default-branch dispatch
-        shell: bash
-        env:
-          DISPATCH_REF: ${{ github.ref }}
-        run: |
-          set -euo pipefail
-          if [[ "$DISPATCH_REF" != "refs/heads/main" ]]; then
-            echo "::error::workflow_dispatch is evidence-only and must be run from refs/heads/main, not $DISPATCH_REF."
-            exit 1
-          fi
-
-      - name: Checkout full history
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          ref: main
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Evidence-only base-to-target comparison
-        shell: bash
-        env:
-          DISPATCH_BASE_SHA: ${{ github.event.inputs.base_sha }}
-          DISPATCH_HEAD_SHA: ${{ github.event.inputs.head_sha }}
-        run: |
-          set -euo pipefail
-          target="${DISPATCH_HEAD_SHA:-HEAD}"
-          echo "::notice::Evidence-only scan; not an immutable enforcement path."
-          bash scripts/check-core-backend-authority.sh "$DISPATCH_BASE_SHA" "$target"
