@@ -72,7 +72,7 @@ describe("Central #554 Leap 7 macro order-to-gate closure", () => {
 
   it("exposes amendment/cancel/substitute on the governed order management surface", () => {
     expect(MACRO_AMENDMENT_SURFACE).toBe("/admin/order-management");
-    expect(source("src/components/admin/OrderAmendmentActionsPanel.tsx")).toContain("requestOrderCancellation");
+    expect(source("src/components/admin/GovernedOrderChangePanel.tsx")).toContain("requestOrderCancellation");
   });
 
   for (const stage of MACRO_ORDER_DISPATCH_JOURNEY) {

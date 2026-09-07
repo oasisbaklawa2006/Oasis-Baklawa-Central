@@ -9,7 +9,7 @@ function source(path: string) {
 describe("Point 75 — order amendment surface authority guard", () => {
   const evidence = readFileSync(resolve(process.cwd(), "docs/POINT75_ORDER_AMENDMENT_CLOSURE_EVIDENCE.md"), "utf8");
   const client = source("src/lib/order-authority/orderAmendmentAuthorityClient.ts");
-  const panel = source("src/components/admin/OrderAmendmentActionsPanel.tsx");
+  const panel = source("src/components/admin/GovernedOrderChangePanel.tsx");
   const traceSheet = source("src/components/admin/OrderTraceSheet.tsx");
   const orderManagement = source("src/pages/admin/OrderManagement.tsx");
   const databaseTypes = source("src/integrations/supabase/database.types.ts");
