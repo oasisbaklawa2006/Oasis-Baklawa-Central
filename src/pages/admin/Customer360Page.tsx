@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useCustomer360 } from "@/hooks/useCustomer360";
+import { CUSTOMER360_COMMUNICATION_HISTORY_LIMIT } from "@/lib/crm-communication-history/crmCommunicationHistoryTypes";
 import type { Customer360Slice, Customer360SliceAvailability } from "@/lib/customer-360/customer360Types";
 
 function availabilityBadge(availability: Customer360SliceAvailability) {
@@ -304,6 +305,66 @@ export default function Customer360Page() {
 
       <Card>
         <CardHeader>
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <MessageSquare className="h-5 w-5" />
+              Communication history
+            </CardTitle>
+            {availabilityBadge(model.communicationsLedger.availability)}
+          </div>
+          <CardDescription>
+            Company-scoped CRM ledger (Point 61) — normalized from Core{" "}
+            <code className="rounded bg-muted px-1 py-0.5 text-xs">client_interactions</code> authority.
+            Shows up to {CUSTOMER360_COMMUNICATION_HISTORY_LIMIT} most recent records (bounded, not full history).
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {model.communicationsLedger.availability === "available" && model.communicationsLedger.data ? (
+            <>
+              {model.communicationsLedger.data.entries.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No governed communication records for this company.</p>
+              ) : (
+                <ul className="space-y-3">
+                  {model.communicationsLedger.data.entries.map((entry) => (
+                    <li key={entry.entryId} className="rounded-lg border p-3 text-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="font-medium">
+                          {entry.summary} · {entry.direction}
+                        </p>
+                        {entry.occurredAt && (
+                          <p className="text-xs text-muted-foreground">
+                            {format(new Date(entry.occurredAt), "dd MMM yyyy HH:mm")}
+                          </p>
+                        )}
+                      </div>
+                      <p className="text-muted-foreground">{entry.detail ?? "—"}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {entry.actor.displayLabel} · {entry.channel} · {entry.source.table}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <div className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
+                <p className="mb-2 font-medium text-foreground">Channel governance</p>
+                <ul className="space-y-1">
+                  {model.communicationsLedger.data.channels.map((channel) => (
+                    <li key={channel.channel}>
+                      <span className="font-medium">{channel.channel}</span>: {channel.availability}
+                      {channel.reason ? ` — ${channel.reason}` : ""}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </>
+          ) : (
+            <SliceUnavailable slice={model.communicationsLedger} />
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
             <CreditCard className="h-5 w-5" />
             Deferred programme slices
@@ -314,7 +375,6 @@ export default function Customer360Page() {
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-2">
           <SliceUnavailable slice={model.branchesAndContacts} />
-          <SliceUnavailable slice={model.communicationsLedger} />
           <SliceUnavailable slice={model.dispatchHistory} />
           <SliceUnavailable slice={model.financeExposure} />
           <SliceUnavailable slice={model.customerHealth} />
