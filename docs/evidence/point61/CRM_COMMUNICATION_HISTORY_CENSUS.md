@@ -12,7 +12,7 @@
 |------|--------|
 | **Base (current main)** | `cb15abcb1d856ed674a1b17dd48a47083457dc16` |
 | **Point59 #503** | **Merged** (squash onto main) |
-| **Point61 PR** | `#507` — Point61-only rebuild (1 commit above base) |
+| **Point61 PR** | `#507` — Point61-only rebuild (**3 commits** above base; 2 substantive: feature + Gate-4 remedial) |
 | **Bounded ledger window (Customer 360)** | **25** most recent `client_interactions` rows (`CUSTOMER360_COMMUNICATION_HISTORY_LIMIT`) |
 | **Bounded ledger window (standalone adaptor)** | **100** rows (`STANDALONE_COMMUNICATION_HISTORY_LIMIT`) |
 
