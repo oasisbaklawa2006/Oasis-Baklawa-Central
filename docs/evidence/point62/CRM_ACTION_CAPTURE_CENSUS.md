@@ -74,9 +74,24 @@
 
 ### Wired surfaces
 
-- `ClientInteractionsTab` → `captureCrmManualAction` (+ promise type, provenance display strip)
-- `SalesDashboard` log modals → `captureCrmManualAction` with roster scope
+- `ClientInteractionsTab` → `captureCrmManualAction` / `captureCrmWhatsAppManualLog` (+ promise type, provenance display strip)
+- `SalesDashboard` log modals → governed capture with roster scope + surface provenance
+- `Customer360Page` → `CrmActionCaptureForm` for admin/staff governed writes (reconciled from #509)
 - `sendWhatsAppMessage` documentation aligned to Core provider authority
+
+### Gate-4 reconciliation (#509 sibling)
+
+| #509 delta incorporated into #513 | Status |
+|-----------------------------------|--------|
+| Customer360 `CrmActionCaptureForm` write surface | **YES** |
+| DB-backed `account_manager_id` roster authorization | **YES** |
+| Dedicated WhatsApp manual log (`logged_manual`) | **YES** |
+| Surface-scoped provenance (`central_customer360`, etc.) | **YES** |
+| WA provider intent row before edge invoke | **NO** — duplicate-row risk; #513 edge-only delegation retained |
+| #509 `[POINT62:…]` provenance format | **NO** — #513 `[P62\|…]` format retained |
+| #509 facade singleton / throw-based errors | **NO** — #513 result union retained |
+
+**Verdict:** #513 remains canonical Point62 successor; minimal #509 deltas merged. #509 should close after consolidation review.
 
 ### Tests
 

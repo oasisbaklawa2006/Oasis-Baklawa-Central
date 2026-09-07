@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { captureCrmManualAction } from "@/lib/crm-action-capture";
+import { captureCrmManualAction, captureCrmWhatsAppManualLog, newCrmActionIdempotencyKey } from "@/lib/crm-action-capture";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -135,15 +135,30 @@ const SalesDashboard = () => {
       return;
     }
     setLogSaving(true);
-    const result = await captureCrmManualAction({
-      companyId: logCompany,
+    const shared = {
       executiveId: user?.id || "",
-      channel: logType as "call" | "whatsapp" | "visit" | "note" | "promise",
-      notes: logNotes.trim(),
-      outcome: logOutcome.trim() || null,
-      followUpDate: logFollowUp || null,
+      actorRole: "SALES_EXECUTIVE",
+      captureSource: "central_sales_dashboard" as const,
       authorizedCompanyIds: companies.map((c) => c.id),
-    });
+      idempotencyKey: newCrmActionIdempotencyKey("sales-dash"),
+    };
+    const result =
+      logType === "whatsapp"
+        ? await captureCrmWhatsAppManualLog({
+            ...shared,
+            companyId: logCompany,
+            notes: logNotes.trim(),
+            outcome: logOutcome.trim() || null,
+            followUpDate: logFollowUp || null,
+          })
+        : await captureCrmManualAction({
+            ...shared,
+            companyId: logCompany,
+            channel: logType as "call" | "visit" | "note" | "promise",
+            notes: logNotes.trim(),
+            outcome: logOutcome.trim() || null,
+            followUpDate: logFollowUp || null,
+          });
     setLogSaving(false);
     if (result.ok === false) {
       toast({ title: "Failed", description: result.message, variant: "destructive" });

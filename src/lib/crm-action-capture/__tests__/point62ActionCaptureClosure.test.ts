@@ -32,9 +32,20 @@ describe("Point 62 — governed CRM action capture closure", () => {
 
   it("routes sales write surfaces through the governed boundary", () => {
     expect(interactions).toContain("captureCrmManualAction");
+    expect(interactions).toContain("captureCrmWhatsAppManualLog");
     expect(interactions).not.toContain('from("client_interactions").insert');
     expect(dashboard).toContain("captureCrmManualAction");
+    expect(dashboard).toContain("captureCrmWhatsAppManualLog");
     expect(dashboard).not.toContain('from("client_interactions").insert');
+  });
+
+  it("wires Customer360 governed capture form", () => {
+    const customer360 = source("pages/admin/Customer360Page.tsx");
+    const form = source("components/crm/CrmActionCaptureForm.tsx");
+    expect(customer360).toContain("CrmActionCaptureForm");
+    expect(customer360).toContain('captureSource="central_customer360"');
+    expect(form).toContain("captureEmailIntent");
+    expect(form).toContain("captureCrmWhatsAppManualLog");
   });
 
   it("separates Point62 capture from Point63 tasks and Point61 read adaptor", () => {

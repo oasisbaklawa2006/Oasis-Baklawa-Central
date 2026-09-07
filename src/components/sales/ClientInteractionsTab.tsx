@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { captureCrmManualAction } from "@/lib/crm-action-capture";
+import { captureCrmManualAction, captureCrmWhatsAppManualLog, newCrmActionIdempotencyKey } from "@/lib/crm-action-capture";
 import { stripCaptureProvenance } from "@/lib/crm-action-capture/crmActionCaptureProvenance";
 import { Loader2, Phone, MapPin, StickyNote, MessageSquare, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -96,16 +96,30 @@ export default function ClientInteractionsTab({
       return;
     }
     setSaving(true);
-    const result = await captureCrmManualAction({
-      companyId: formCompany,
+    const shared = {
       executiveId: userId || "",
-      channel: formType as "call" | "whatsapp" | "visit" | "note" | "promise",
-      notes: formNotes.trim(),
-      outcome: formOutcome.trim() || null,
-      followUpDate: formFollowUp || null,
+      actorRole: "SALES_EXECUTIVE",
+      captureSource: "central_sales_interactions" as const,
       authorizedCompanyIds: companyIds,
-      idempotencyKey: crypto.randomUUID(),
-    });
+      idempotencyKey: newCrmActionIdempotencyKey("sales-tab"),
+    };
+    const result =
+      formType === "whatsapp"
+        ? await captureCrmWhatsAppManualLog({
+            ...shared,
+            companyId: formCompany,
+            notes: formNotes.trim(),
+            outcome: formOutcome.trim() || null,
+            followUpDate: formFollowUp || null,
+          })
+        : await captureCrmManualAction({
+            ...shared,
+            companyId: formCompany,
+            channel: formType as "call" | "visit" | "note" | "promise",
+            notes: formNotes.trim(),
+            outcome: formOutcome.trim() || null,
+            followUpDate: formFollowUp || null,
+          });
     setSaving(false);
     if (result.ok === false) {
       toast.error(result.message);

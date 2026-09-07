@@ -1,9 +1,15 @@
 import { sendWhatsAppMessage } from "@/utils/whatsapp";
-import { captureCrmManualAction, insertGovernedCapture, type CrmActionCaptureDeps } from "./crmActionCaptureClient";
+import {
+  captureCrmManualAction,
+  insertGovernedCapture,
+  resolveCaptureSource,
+  type CrmActionCaptureDeps,
+} from "./crmActionCaptureClient";
 import type {
   CrmActionCaptureResult,
   CrmEmailIntentInput,
   CrmManualActionInput,
+  CrmWhatsAppManualLogInput,
   CrmWhatsAppProviderInput,
 } from "./crmActionCaptureTypes";
 import {
@@ -11,6 +17,31 @@ import {
   validateEmailIntentInput,
   validateWhatsAppProviderInput,
 } from "./crmActionCaptureValidation";
+
+/** Manual WhatsApp activity log — never claims provider delivery. */
+export async function captureCrmWhatsAppManualLog(
+  input: CrmWhatsAppManualLogInput,
+  deps?: CrmActionCaptureDeps,
+): Promise<CrmActionCaptureResult> {
+  if (!input.notes?.trim()) {
+    return captureFailure("missing_notes", "Notes cannot be empty.");
+  }
+
+  const idempotencyKey = input.idempotencyKey?.trim() || crypto.randomUUID();
+  return insertGovernedCapture(
+    {
+      input: {
+        ...input,
+        channel: "whatsapp",
+        outcome: input.outcome?.trim() || "logged_manual",
+      },
+      deliveryState: "not_applicable",
+      source: resolveCaptureSource(input),
+      idempotencyKey,
+    },
+    deps,
+  );
+}
 
 /** Capture a CRM note with actor, company, timestamp and explicit provenance. */
 export async function captureCrmNote(
@@ -42,23 +73,24 @@ export async function captureEmailIntent(
   const notes = [
     input.subject?.trim() ? `Subject: ${input.subject.trim()}` : null,
     input.body?.trim() || null,
+    input.recipientEmail?.trim() ? `To: ${input.recipientEmail.trim()}` : null,
+    "",
+    "Email provider is not configured for company-scoped CRM capture. Intent recorded only.",
   ]
-    .filter(Boolean)
+    .filter((line) => line !== null && line !== "")
     .join("\n");
 
   const idempotencyKey = input.idempotencyKey?.trim() || crypto.randomUUID();
   return insertGovernedCapture(
     {
       input: {
-        companyId: input.companyId,
-        executiveId: input.executiveId,
+        ...input,
         channel: "email",
         notes,
         outcome: null,
-        authorizedCompanyIds: input.authorizedCompanyIds,
       },
       deliveryState: "intent_only",
-      source: "intent_only",
+      source: resolveCaptureSource(input),
       idempotencyKey,
     },
     deps,

@@ -11,7 +11,12 @@ import {
   mapInteractionTypeForChannel,
   validateManualActionInput,
 } from "./crmActionCaptureValidation";
+import {
+  validateActorCompanyAuthorization,
+  type CrmActionCompanyBinding,
+} from "./crmActionCaptureAuthorization";
 import type {
+  CrmActionCaptureContext,
   CrmActionCaptureResult,
   CrmActionCaptureRow,
   CrmActionDeliveryState,
@@ -25,10 +30,23 @@ type ClientInteractionRow = Database["public"]["Tables"]["client_interactions"][
 export type CrmActionCaptureDeps = {
   insertInteraction: (row: ClientInteractionInsert) => Promise<{ data: ClientInteractionRow | null; error: { message: string } | null }>;
   findByIdempotency: (companyId: string, idempotencyKey: string) => Promise<ClientInteractionRow | null>;
+  resolveCompanyBinding?: (companyId: string) => Promise<CrmActionCompanyBinding | null>;
 };
 
 function defaultDeps(): CrmActionCaptureDeps {
   return {
+    async resolveCompanyBinding(companyId) {
+      const { data, error } = await supabase
+        .from("companies")
+        .select("id, account_manager_id")
+        .eq("id", companyId)
+        .maybeSingle();
+      if (error || !data?.id) return null;
+      return {
+        companyId: data.id,
+        accountManagerId: data.account_manager_id,
+      };
+    },
     async insertInteraction(row) {
       const { data, error } = await supabase
         .from("client_interactions")
@@ -51,6 +69,26 @@ function defaultDeps(): CrmActionCaptureDeps {
       return data;
     },
   };
+}
+
+export function resolveCaptureSource(input: Pick<CrmActionCaptureContext, "captureSource">): CrmActionSource {
+  return input.captureSource ?? "manual";
+}
+
+async function assertCaptureAuthorization(
+  input: CrmActionCaptureContext & { companyId: string },
+  deps: CrmActionCaptureDeps,
+): Promise<CrmActionCaptureResult | null> {
+  if (!deps.resolveCompanyBinding) return null;
+  const companyId = assertValidCompanyId(input.companyId);
+  const binding = await deps.resolveCompanyBinding(companyId);
+  return validateActorCompanyAuthorization({
+    executiveId: input.executiveId,
+    companyId,
+    binding,
+    actorRole: input.actorRole,
+    isInternalStaff: input.isInternalStaff,
+  });
 }
 
 export function buildCaptureRow(params: {
@@ -86,8 +124,11 @@ export function buildCaptureRow(params: {
 export function resultFromExistingRow(
   row: ClientInteractionRow,
   idempotencyKey: string,
-): CrmActionCaptureResult {
+): CrmActionCaptureResult | null {
   const parsed = parseCaptureProvenance(row.notes);
+  if (parsed.idempotencyKey && parsed.idempotencyKey !== idempotencyKey) {
+    return null;
+  }
   return {
     ok: true,
     recordId: row.id,
@@ -107,9 +148,14 @@ export async function insertGovernedCapture(
   deps: CrmActionCaptureDeps = defaultDeps(),
 ): Promise<CrmActionCaptureResult> {
   const companyId = assertValidCompanyId(params.input.companyId);
+
+  const authError = await assertCaptureAuthorization(params.input, deps);
+  if (authError) return authError;
+
   const existing = await deps.findByIdempotency(companyId, params.idempotencyKey);
   if (existing) {
-    return resultFromExistingRow(existing, params.idempotencyKey);
+    const replay = resultFromExistingRow(existing, params.idempotencyKey);
+    if (replay) return replay;
   }
 
   const row = buildCaptureRow(params);
@@ -139,7 +185,7 @@ export async function captureCrmManualAction(
     {
       input,
       deliveryState: "not_applicable",
-      source: "manual",
+      source: resolveCaptureSource(input),
       idempotencyKey,
     },
     deps,
