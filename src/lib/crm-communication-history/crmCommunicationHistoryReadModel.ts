@@ -9,12 +9,13 @@ import {
   buildCrmCommunicationChannelGovernance,
 } from "./crmCommunicationHistoryNormalizer";
 import type {
-  ClientInteractionRow,
+  ClientInteractionLedgerRow,
   CrmCommunicationHistoryReadModel,
 } from "./crmCommunicationHistoryTypes";
 import {
   CLIENT_INTERACTION_LEDGER_SELECT,
-  STANDALONE_COMMUNICATION_HISTORY_LIMIT,
+  mapClientInteractionLedgerRows,
+  resolveStandaloneCommunicationHistoryLimit,
 } from "./crmCommunicationHistoryTypes";
 
 export async function fetchCrmCommunicationHistory(
@@ -25,7 +26,7 @@ export async function fetchCrmCommunicationHistory(
   const companyId = normalizeCompanyId(rawCompanyId);
   assertCustomer360CompanyAccess(companyId, viewer);
 
-  const limit = options?.limit ?? STANDALONE_COMMUNICATION_HISTORY_LIMIT;
+  const limit = resolveStandaloneCommunicationHistoryLimit(options?.limit);
 
   const { data, error } = await supabase
     .from("client_interactions")
@@ -38,7 +39,7 @@ export async function fetchCrmCommunicationHistory(
     throw new Error(`CRM communication history read failed: ${error.message}`);
   }
 
-  const rows = (data ?? []) as ClientInteractionRow[];
+  const rows = mapClientInteractionLedgerRows(data);
 
   return buildCrmCommunicationHistoryReadModel(companyId, rows, { recordLimit: limit });
 }
@@ -46,7 +47,7 @@ export async function fetchCrmCommunicationHistory(
 /** Pure builder for tests and Customer 360 adaptor wiring. */
 export function buildCrmCommunicationHistoryReadModel(
   companyId: string,
-  rows: ClientInteractionRow[],
+  rows: ClientInteractionLedgerRow[],
   options?: { recordLimit?: number },
 ): CrmCommunicationHistoryReadModel {
   const normalizedCompanyId = companyId.toLowerCase();

@@ -1,16 +1,26 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { fetchCrmCommunicationHistory } from "../crmCommunicationHistoryReadModel";
 import { buildCrmCommunicationChannelGovernance } from "../crmCommunicationHistoryNormalizer";
-import { STANDALONE_COMMUNICATION_HISTORY_LIMIT } from "../crmCommunicationHistoryTypes";
+import {
+  resolveStandaloneCommunicationHistoryLimit,
+  STANDALONE_COMMUNICATION_HISTORY_LIMIT,
+} from "../crmCommunicationHistoryTypes";
 
 const VALID_UUID = "a1b2c3d4-e5f6-4789-a012-3456789abcde";
 
-function createQuery(result: { data: unknown; error: unknown }) {
+type QueryCalls = {
+  limit?: number;
+};
+
+function createQuery(result: { data: unknown; error: unknown }, calls?: QueryCalls) {
   const builder: Record<string, unknown> = {
     select: vi.fn(() => builder),
     eq: vi.fn(() => builder),
     order: vi.fn(() => builder),
-    limit: vi.fn(() => builder),
+    limit: vi.fn((value: number) => {
+      if (calls) calls.limit = value;
+      return builder;
+    }),
     then: (resolve: (value: unknown) => unknown) => Promise.resolve(result).then(resolve),
   };
   return builder;
@@ -23,8 +33,11 @@ vi.mock("@/integrations/supabase/client", () => ({
 }));
 
 describe("fetchCrmCommunicationHistory", () => {
+  let queryCalls: QueryCalls;
+
   beforeEach(async () => {
     vi.clearAllMocks();
+    queryCalls = {};
     const { supabase } = await import("@/integrations/supabase/client");
     vi.mocked(supabase.from).mockImplementation((table: string) => {
       if (table === "client_interactions") {
@@ -42,7 +55,7 @@ describe("fetchCrmCommunicationHistory", () => {
             },
           ],
           error: null,
-        }) as never;
+        }, queryCalls) as never;
       }
       throw new Error(`Unexpected table ${table}`);
     });
@@ -68,6 +81,33 @@ describe("fetchCrmCommunicationHistory", () => {
         isStorefrontViewer: true,
       }),
     ).rejects.toThrow(/Cross-company/);
+  });
+
+  it("caps standalone limit requests above the 100-record ceiling", async () => {
+    const model = await fetchCrmCommunicationHistory(VALID_UUID, {
+      viewerCompanyId: null,
+      isStorefrontViewer: false,
+    }, { limit: 250 });
+
+    expect(queryCalls.limit).toBe(STANDALONE_COMMUNICATION_HISTORY_LIMIT);
+    expect(model.recordLimit).toBe(STANDALONE_COMMUNICATION_HISTORY_LIMIT);
+  });
+
+  it("honours valid standalone limits below the ceiling", async () => {
+    const model = await fetchCrmCommunicationHistory(VALID_UUID, {
+      viewerCompanyId: null,
+      isStorefrontViewer: false,
+    }, { limit: 40 });
+
+    expect(queryCalls.limit).toBe(40);
+    expect(model.recordLimit).toBe(40);
+  });
+
+  it("defaults invalid standalone limits to the ceiling", () => {
+    expect(resolveStandaloneCommunicationHistoryLimit()).toBe(STANDALONE_COMMUNICATION_HISTORY_LIMIT);
+    expect(resolveStandaloneCommunicationHistoryLimit(0)).toBe(STANDALONE_COMMUNICATION_HISTORY_LIMIT);
+    expect(resolveStandaloneCommunicationHistoryLimit(-5)).toBe(STANDALONE_COMMUNICATION_HISTORY_LIMIT);
+    expect(resolveStandaloneCommunicationHistoryLimit(Number.NaN)).toBe(STANDALONE_COMMUNICATION_HISTORY_LIMIT);
   });
 
   it("exposes explicit unavailable email channel governance", () => {

@@ -3,7 +3,7 @@ import { buildCrmCommunicationHistoryReadModel } from "@/lib/crm-communication-h
 import {
   CLIENT_INTERACTION_LEDGER_SELECT,
   CUSTOMER360_COMMUNICATION_HISTORY_LIMIT,
-  type ClientInteractionRow,
+  mapClientInteractionLedgerRows,
 } from "@/lib/crm-communication-history/crmCommunicationHistoryTypes";
 import { parseCrmLiteTickets } from "@/lib/crm-lite/parseCrmLiteTickets";
 import { assertCustomer360CompanyAccess, normalizeCompanyId } from "./customer360Identity";
@@ -221,7 +221,7 @@ export async function fetchCustomer360ReadModel(
         programmeOwner: "POINT61",
         data: buildCrmCommunicationHistoryReadModel(
           companyId,
-          (interactionsRes.data ?? []) as ClientInteractionRow[],
+          mapClientInteractionLedgerRows(interactionsRes.data),
           { recordLimit: CUSTOMER360_COMMUNICATION_HISTORY_LIMIT },
         ),
       };

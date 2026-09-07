@@ -9,11 +9,11 @@ import {
   normalizeClientInteractionRow,
   sortCommunicationHistoryEntries,
 } from "../crmCommunicationHistoryNormalizer";
-import type { ClientInteractionRow, CrmCommunicationHistoryEntry } from "../crmCommunicationHistoryTypes";
+import type { ClientInteractionLedgerRow, CrmCommunicationHistoryEntry } from "../crmCommunicationHistoryTypes";
 
 const COMPANY_ID = "a1b2c3d4-e5f6-4789-a012-3456789abcde";
 
-function interaction(overrides: Partial<ClientInteractionRow> = {}): ClientInteractionRow {
+function interaction(overrides: Partial<ClientInteractionLedgerRow> = {}): ClientInteractionLedgerRow {
   return {
     id: "ci-1",
     company_id: COMPANY_ID,

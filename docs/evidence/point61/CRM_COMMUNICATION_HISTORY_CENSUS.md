@@ -12,9 +12,10 @@
 |------|--------|
 | **Base (current main)** | `cb15abcb1d856ed674a1b17dd48a47083457dc16` |
 | **Point59 #503** | **Merged** (squash onto main) |
-| **Point61 PR** | `#507` — Point61-only rebuild (**3 commits** above base; 2 substantive: feature + Gate-4 remedial) |
+| **Point61 PR** | `#507` — Point61-only rebuild (**4 commits** above base; 3 substantive: feature + Gate-4 remedial + Gate-4 final review repair; 1 docs alignment) |
 | **Bounded ledger window (Customer 360)** | **25** most recent `client_interactions` rows (`CUSTOMER360_COMMUNICATION_HISTORY_LIMIT`) |
-| **Bounded ledger window (standalone adaptor)** | **100** rows (`STANDALONE_COMMUNICATION_HISTORY_LIMIT`) |
+| **Bounded ledger window (standalone adaptor)** | **100** rows hard ceiling (`STANDALONE_COMMUNICATION_HISTORY_LIMIT`; `resolveStandaloneCommunicationHistoryLimit`) |
+| **Ledger row typing** | `ClientInteractionLedgerRow` derived from generated `Database` `Pick`; `mapClientInteractionLedgerRows()` typed read boundary |
 
 ### Historical preflight (Gate-4, superseded)
 
@@ -89,6 +90,8 @@
 | Communication-history authority census | **YES** |
 | Point61-only rebuild on post-#503 main | **YES** |
 | `company_id` / `executive_id` projection fix | **YES** (Gate-4 remedial) |
+| Standalone 100-record hard ceiling | **YES** (Gate-4 final review repair) |
+| Generated `ClientInteractionLedgerRow` projection typing | **YES** (Gate-4 final review repair) |
 | Bounded ledger behavior documented | **YES** (25 Customer 360 / 100 standalone) |
 | Point59 #503 merged | **YES** |
 | Exact-head review-clean | **pending** |

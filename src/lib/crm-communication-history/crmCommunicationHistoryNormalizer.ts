@@ -1,5 +1,5 @@
 import type {
-  ClientInteractionRow,
+  ClientInteractionLedgerRow,
   CrmCommunicationActorRole,
   CrmCommunicationChannel,
   CrmCommunicationChannelStatus,
@@ -77,7 +77,7 @@ export function mapInteractionTypeToChannel(interactionType: string | null): Crm
   }
 }
 
-export function inferDirectionFromInteraction(row: ClientInteractionRow): CrmCommunicationDirection {
+export function inferDirectionFromInteraction(row: ClientInteractionLedgerRow): CrmCommunicationDirection {
   const notes = row.notes ?? "";
   if (notes.startsWith(AUTO_LOG_PREFIX)) return "outbound";
   const type = (row.interaction_type ?? "").toLowerCase();
@@ -86,7 +86,7 @@ export function inferDirectionFromInteraction(row: ClientInteractionRow): CrmCom
   return "unknown";
 }
 
-export function inferActorRoleFromInteraction(row: ClientInteractionRow): CrmCommunicationActorRole {
+export function inferActorRoleFromInteraction(row: ClientInteractionLedgerRow): CrmCommunicationActorRole {
   const notes = row.notes ?? "";
   if (notes.startsWith(AUTO_LOG_PREFIX)) return "system";
   if (row.executive_id) return "sales_executive";
@@ -118,7 +118,7 @@ function stripAutoLogPrefix(notes: string | null): string | null {
 }
 
 export function normalizeClientInteractionRow(
-  row: ClientInteractionRow,
+  row: ClientInteractionLedgerRow,
   companyId: string,
 ): CrmCommunicationHistoryEntry | null {
   if (!row.company_id || row.company_id.toLowerCase() !== companyId.toLowerCase()) {
@@ -183,7 +183,7 @@ export function dedupeCommunicationHistoryEntries(
 }
 
 export function buildCommunicationHistoryFromClientInteractions(
-  rows: ClientInteractionRow[],
+  rows: ClientInteractionLedgerRow[],
   companyId: string,
 ): CrmCommunicationHistoryEntry[] {
   const normalized = rows
