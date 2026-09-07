@@ -40,9 +40,10 @@ export function useOrderAmendmentFormControls({
   }, [loadItems]);
 
   const handleAmendClick = useCallback(function onAmendClick() {
-    void loadItems().then(function afterItemsLoaded() {
-      void submitGovernedChange("amend");
-    });
+    void (async function submitAmendAfterLines() {
+      await loadItems();
+      await submitGovernedChange("amend");
+    })();
   }, [loadItems, submitGovernedChange]);
 
   const handleCancelClick = useCallback(function onCancelClick() {
@@ -50,9 +51,10 @@ export function useOrderAmendmentFormControls({
   }, [submitGovernedChange]);
 
   const handleSubstituteClick = useCallback(function onSubstituteClick() {
-    void loadItems().then(function afterItemsLoaded() {
-      void submitGovernedChange("substitute");
-    });
+    void (async function submitSubstituteAfterLines() {
+      await loadItems();
+      await submitGovernedChange("substitute");
+    })();
   }, [loadItems, submitGovernedChange]);
 
   return {

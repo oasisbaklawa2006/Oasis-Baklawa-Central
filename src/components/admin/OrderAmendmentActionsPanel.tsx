@@ -1,8 +1,8 @@
 import { useCallback, useMemo, useState } from "react";
-import { ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { OrderAmendmentFormFields } from "./OrderAmendmentFormFields";
+import { OrderAmendmentPanelIntro } from "./OrderAmendmentPanelIntro";
 import {
   buildOrderChangeCorrelationId,
   buildOrderChangeDecisionIdentity,
@@ -61,7 +61,9 @@ export function OrderAmendmentActionsPanel({
       setItems([]);
     } else {
       setItems((data ?? []) as TraceItem[]);
-      if (!selectedItemId && data?.[0]?.id) setSelectedItemId(data[0].id);
+      if (!selectedItemId && data?.[0]?.id) {
+        setSelectedItemId(data[0].id);
+      }
     }
     setLoadingItems(false);
   }, [orderId, selectedItemId]);
@@ -197,18 +199,7 @@ export function OrderAmendmentActionsPanel({
 
   return (
     <section className="space-y-3 rounded-lg border border-border bg-muted/20 p-3" data-point="75">
-      <div className="flex items-start gap-2">
-        <ShieldAlert size={16} className="mt-0.5 shrink-0 text-amber-600" aria-hidden />
-        <div>
-          <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Governed order change (Point 75)
-          </h3>
-          <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
-            Amendment, cancellation and substitution route only through Core RPC authority. No direct order or line
-            mutation from Central.
-          </p>
-        </div>
-      </div>
+      <OrderAmendmentPanelIntro />
 
       {factsError && (
         <p className="rounded border border-amber-300/60 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-900">
