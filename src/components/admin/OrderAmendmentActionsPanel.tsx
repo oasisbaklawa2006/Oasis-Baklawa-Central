@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, type ChangeEvent } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Loader2, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -19,6 +19,7 @@ import {
   isOrderChangeActionEligible,
   orderChangeActionDisabledReason,
 } from "@/lib/order-authority/orderAmendmentEligibility";
+import { useOrderAmendmentFormControls } from "./useOrderAmendmentFormControls";
 
 type OrderAmendmentActionsPanelProps = {
   orderId: string;
@@ -178,41 +179,23 @@ export function OrderAmendmentActionsPanel({
     [orderStatus],
   );
 
-  const handleReasonChange = useCallback((event: ChangeEvent<HTMLTextAreaElement>) => {
-    setReason(event.target.value);
-  }, []);
-
-  const handleSelectedItemChange = useCallback((event: ChangeEvent<HTMLSelectElement>) => {
-    setSelectedItemId(event.target.value);
-  }, []);
-
-  const handleSubstituteProductChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
-    setSubstituteProductId(event.target.value);
-  }, []);
-
-  const handleSubstituteQtyChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
-    setSubstituteQty(event.target.value);
-  }, []);
-
-  const handleRefreshLinesClick = useCallback(() => {
-    void loadItems();
-  }, [loadItems]);
-
-  const handleAmendClick = useCallback(() => {
-    void loadItems().then(() => {
-      void submitGovernedChange("amend");
-    });
-  }, [loadItems, submitGovernedChange]);
-
-  const handleCancelClick = useCallback(() => {
-    void submitGovernedChange("cancel");
-  }, [submitGovernedChange]);
-
-  const handleSubstituteClick = useCallback(() => {
-    void loadItems().then(() => {
-      void submitGovernedChange("substitute");
-    });
-  }, [loadItems, submitGovernedChange]);
+  const {
+    handleReasonChange,
+    handleSelectedItemChange,
+    handleSubstituteProductChange,
+    handleSubstituteQtyChange,
+    handleRefreshLinesClick,
+    handleAmendClick,
+    handleCancelClick,
+    handleSubstituteClick,
+  } = useOrderAmendmentFormControls({
+    setReason,
+    setSelectedItemId,
+    setSubstituteProductId,
+    setSubstituteQty,
+    loadItems,
+    submitGovernedChange,
+  });
 
   return (
     <section className="space-y-3 rounded-lg border border-border bg-muted/20 p-3" data-point="75">
