@@ -1,6 +1,8 @@
 name: Core Backend Authority
 
 on:
+  pull_request_target:
+    branches: [main]
   pull_request:
     branches: [main]
   push:
@@ -11,6 +13,10 @@ on:
         description: Auditable comparison base commit SHA (required for manual runs)
         required: true
         type: string
+      head_sha:
+        description: Optional target commit SHA (defaults to dispatch ref HEAD; evidence-only)
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -20,7 +26,60 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  guard:
+  trusted-guard:
+    if: github.event_name == 'pull_request_target'
+    name: Enforce oasis-supabase-core backend authority (trusted)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout trusted base revision
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Fetch PR head commit (comparison data only)
+        run: git fetch --no-tags --depth=1 origin "${{ github.event.pull_request.head.sha }}"
+
+      - name: Enforce Core backend authority from trusted base code
+        shell: bash
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          bash scripts/check-core-backend-authority.sh "$PR_BASE_SHA" "$PR_HEAD_SHA"
+
+  advisory-guard:
+    if: github.event_name == 'pull_request'
+    name: Enforce oasis-supabase-core backend authority (advisory)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Resolve auditable base and enforce boundary (advisory)
+        shell: bash
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          bash scripts/check-core-backend-authority.sh "$PR_BASE_SHA"
+
+      - name: Regression-test core backend authority guard (advisory)
+        run: bash scripts/tests/verify-core-backend-authority.sh
+
+  push-guard:
+    if: github.event_name == 'push'
     name: Enforce oasis-supabase-core backend authority
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -35,20 +94,45 @@ jobs:
       - name: Resolve auditable base and enforce boundary
         shell: bash
         env:
-          EVENT_NAME: ${{ github.event_name }}
-          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           PUSH_BEFORE: ${{ github.event.before }}
-          DISPATCH_BASE_SHA: ${{ github.event.inputs.base_sha }}
         run: |
           set -euo pipefail
-          if [[ "$EVENT_NAME" == "pull_request" ]]; then
-            base="$PR_BASE_SHA"
-          elif [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
-            base="$DISPATCH_BASE_SHA"
-          else
-            base="$PUSH_BEFORE"
-          fi
-          bash scripts/check-core-backend-authority.sh "$base"
+          bash scripts/check-core-backend-authority.sh "$PUSH_BEFORE"
 
       - name: Regression-test core backend authority guard
         run: bash scripts/tests/verify-core-backend-authority.sh
+
+  evidence-guard:
+    if: github.event_name == 'workflow_dispatch'
+    name: Evidence-only Core backend authority scan (workflow_dispatch)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Assert trusted default-branch dispatch
+        shell: bash
+        env:
+          DISPATCH_REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          if [[ "$DISPATCH_REF" != "refs/heads/main" ]]; then
+            echo "::error::workflow_dispatch is evidence-only and must be run from refs/heads/main, not $DISPATCH_REF."
+            exit 1
+          fi
+
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Evidence-only base-to-target comparison
+        shell: bash
+        env:
+          DISPATCH_BASE_SHA: ${{ github.event.inputs.base_sha }}
+          DISPATCH_HEAD_SHA: ${{ github.event.inputs.head_sha }}
+        run: |
+          set -euo pipefail
+          target="${DISPATCH_HEAD_SHA:-HEAD}"
+          echo "::notice::Evidence-only scan; not an immutable enforcement path."
+          bash scripts/check-core-backend-authority.sh "$DISPATCH_BASE_SHA" "$target"

@@ -3,6 +3,7 @@ set -euo pipefail
 
 repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
 checker="$repo_root/scripts/check-core-backend-authority.sh"
+workflow="$repo_root/.github/workflows/core-backend-authority.yml"
 test_root="$(mktemp -d)"
 trap 'rm -rf "$test_root"' EXIT
 
@@ -23,8 +24,12 @@ new_fixture() {
 }
 
 expect_pass() {
-  local root="$1" base="$2"
-  if ! (cd "$root" && bash scripts/check-core-backend-authority.sh "$base") >"$root/out" 2>"$root/err"; then
+  local root="$1" base="$2" target="${3:-}"
+  local cmd=(bash scripts/check-core-backend-authority.sh "$base")
+  if [[ -n "$target" ]]; then
+    cmd+=("$target")
+  fi
+  if ! (cd "$root" && "${cmd[@]}") >"$root/out" 2>"$root/err"; then
     cat "$root/out" "$root/err" >&2 || true
     echo "expected core backend authority guard to pass: $root" >&2
     exit 1
@@ -32,9 +37,13 @@ expect_pass() {
 }
 
 expect_fail_with() {
-  local root="$1" base="$2" expected="$3"
+  local root="$1" base="$2" expected="$3" target="${4:-}"
+  local cmd=(bash scripts/check-core-backend-authority.sh "$base")
+  if [[ -n "$target" ]]; then
+    cmd+=("$target")
+  fi
   set +e
-  (cd "$root" && bash scripts/check-core-backend-authority.sh "$base") >"$root/out" 2>"$root/err"
+  (cd "$root" && "${cmd[@]}") >"$root/out" 2>"$root/err"
   local status=$?
   set -e
   if [[ "$status" -eq 0 ]]; then
@@ -98,5 +107,42 @@ cp "$root/supabase/functions/legacy/index.ts" "$root/docs/copied-index.ts"
 git -C "$root" add docs/copied-index.ts
 git -C "$root" commit -qm "copy protected edge function to non-core path"
 expect_fail_with "$root" "$base" 'CORE BACKEND AUTHORITY VIOLATION'
+
+root="$(new_fixture explicit-base-to-head)"
+base="$(git -C "$root" rev-parse HEAD)"
+mkdir -p "$root/supabase/functions/shadow"
+printf '%s\n' 'export {}' > "$root/supabase/functions/shadow/index.ts"
+git -C "$root" add supabase/functions/shadow/index.ts
+git -C "$root" commit -qm "add shadow edge function"
+head="$(git -C "$root" rev-parse HEAD)"
+expect_fail_with "$root" "$base" 'CORE BACKEND AUTHORITY VIOLATION' "$head"
+
+root="$(new_fixture guard-bootstrap-addition)"
+base="$(git -C "$root" rev-parse HEAD)"
+mkdir -p "$root/.github/workflows" "$root/scripts/tests"
+cp "$workflow" "$root/.github/workflows/core-backend-authority.yml"
+cp "$checker" "$root/scripts/check-core-backend-authority.sh"
+cp "$0" "$root/scripts/tests/verify-core-backend-authority.sh"
+chmod +x "$root/scripts/check-core-backend-authority.sh" "$root/scripts/tests/verify-core-backend-authority.sh"
+git -C "$root" add .github/workflows/core-backend-authority.yml scripts/check-core-backend-authority.sh scripts/tests/verify-core-backend-authority.sh
+git -C "$root" commit -qm "bootstrap guard artifacts"
+head="$(git -C "$root" rev-parse HEAD)"
+expect_pass "$root" "$base" "$head"
+
+root="$(new_fixture guard-self-protection)"
+base="$(git -C "$root" rev-parse HEAD)"
+mkdir -p "$root/.github/workflows" "$root/scripts/tests"
+cp "$workflow" "$root/.github/workflows/core-backend-authority.yml"
+cp "$checker" "$root/scripts/check-core-backend-authority.sh"
+cp "$0" "$root/scripts/tests/verify-core-backend-authority.sh"
+chmod +x "$root/scripts/check-core-backend-authority.sh" "$root/scripts/tests/verify-core-backend-authority.sh"
+git -C "$root" add .github/workflows/core-backend-authority.yml scripts/check-core-backend-authority.sh scripts/tests/verify-core-backend-authority.sh
+git -C "$root" commit -qm "bootstrap guard artifacts"
+base="$(git -C "$root" rev-parse HEAD)"
+printf '\n# weakened\n' >> "$root/scripts/check-core-backend-authority.sh"
+git -C "$root" add scripts/check-core-backend-authority.sh
+git -C "$root" commit -qm "attempt to weaken guard script"
+head="$(git -C "$root" rev-parse HEAD)"
+expect_fail_with "$root" "$base" 'guard artifact' "$head"
 
 echo 'verify-core-backend-authority.sh: all cases passed'
