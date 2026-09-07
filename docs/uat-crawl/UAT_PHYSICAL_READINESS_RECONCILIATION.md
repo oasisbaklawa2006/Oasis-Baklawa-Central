@@ -1,9 +1,9 @@
 # UAT Physical Readiness Reconciliation
 
-**Generated:** 2026-09-06T20:00:43.306Z
-**Current main:** `e2f123b0fe257b8a1f39ec40d5f544fff1ebe313`
-**Deploy:** https://oasis-baklawa-central-8lkgmf1q2-oasisbaklawa2006-6222s-projects.vercel.app
-**Last GHA evidence run:** [34046709938](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34046709938)
+**Generated:** 2026-09-07T04:13:32.148Z
+**Current main:** `15c59a3f54c92f2b289bd150005bcd7114b51a93`
+**Deploy:** 
+**Last GHA evidence run:** [34082244745](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34082244745)
 
 ## Automated S0–S3 disposition (131 census surfaces)
 
@@ -26,11 +26,13 @@
 
 | Runnable now | Blocked |
 |---|---|
-| Re-refresh **80** auth surfaces + **5** public S0 (existing creds in GHA) | **46** surfaces — **only** missing `TEST_*` repo secrets / deploy URLs |
+| **0 recertified @ 15c59a3f** — deploy blocked; prior **80** auth + **5** public @ `e2f123b0` preserved | **46** credential (`TEST_*`) + **85** runnable awaiting trusted deploy for `15c59a3f` |
+
+## Stop condition
+
+**DEPLOY_BLOCKED @ 15c59a3f** — no trusted Vercel URL for exact current main (rate limit). Prior `e2f123b0` evidence preserved append-only. Re-run `current-main-rebaseline` after deploy lands.
 
 ## Exact blocker secret groups
-
-- `TEST_GATE_SECURITY_EMAIL, TEST_GATE_SECURITY_PASSWORD` — **1** IDs: UAT-0003
 - `TEST_BUYER_EMAIL, TEST_BUYER_PASSWORD` — **10** IDs: UAT-0006, UAT-0007, UAT-0114, UAT-0115, UAT-0116, UAT-0117, UAT-0118, UAT-0119 … +2 more
 - `TEST_SALES_EMAIL, TEST_SALES_PASSWORD` — **5** IDs: UAT-0018, UAT-0020, UAT-0044, UAT-0104, UAT-0105
 - `TEST_RGS_EMAIL, TEST_RGS_PASSWORD` — **6** IDs: UAT-0062, UAT-0063, UAT-0064, UAT-0065, UAT-0082, UAT-0087

@@ -1,12 +1,36 @@
 # UAT Crawl Progress Summary
 
-**Last updated:** 2026-09-06 (watchdog-continue — GHA run [34046709938](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34046709938) @ `f512371a`)  
+**Last updated:** 2026-09-07 (current-main rebaseline — GHA run [34082244745](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34082244745) @ `7fe64f8c`)  
 **Branch / PR:** `cursor/physical-uat-readiness-matrix-e763` → **#462**  
-**Current main:** `e2f123b0fe257b8a1f39ec40d5f544fff1ebe313` (#497 merged) — deploy `https://oasis-baklawa-central-8lkgmf1q2-oasisbaklawa2006-6222s-projects.vercel.app`  
-**Preserved FAIL-493 evidence (append-only):** pre-fix FAIL @ `8f042fa` run [34015742110](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34015742110); preview PASS @ `9715c20d` run [34016393457](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34016393457); current-main PASS run [34037424554](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34037424554) — **NOT substituted**  
+**Current main:** `15c59a3f54c92f2b289bd150005bcd7114b51a93` (#507 POINT61) — **no trusted Vercel deploy** (rate limit)  
+**Prior evidence baseline:** `e2f123b0` — preserved append-only (runs 34046709938, 34056691981)  
 **Mode:** Read-only evidence — **no remediation** in this programme.
 
-## Watchdog continue — GHA run [34046709938](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34046709938) @ `e2f123b0`
+## Current-main rebaseline — GHA run [34082244745](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34082244745) @ `15c59a3f`
+
+| Field | Value |
+|---|---|
+| Tranche | `current-main-rebaseline` |
+| Duration | ~30s (deploy blocked — crawl withheld) |
+| Required deploy | `15c59a3f` — **BLOCKED** (no GitHub/Vercel deployment for exact SHA) |
+| Artifact | `uat-crawl-evidence-34082244745-1` |
+| Evidence commit | `7fe64f8c` |
+
+| Metric | Result |
+|---|---:|
+| **Recertified @ 15c59a3f** (auth S0–S3 + public) | **0 / 85** runnable — deploy blocked |
+| Prior `e2f123b0` evidence preserved | **80 auth + 5 public** (append-only, not substituted) |
+| Verified **BLOCKED** (credential/deploy secrets) | **46 / 46** (re-verified, unchanged) |
+| New FAIL-IDs from crawl | **0** (no crawl executed) |
+| Secrets present in GHA | **10 / 27** (`UAT_SECRET_PRESENCE.json`) |
+
+**Deploy blocker:** `No successful Vercel deployment for 15c59a3f` — see [`UAT_REBASELINE_DEPLOY_BLOCKED.json`](UAT_REBASELINE_DEPLOY_BLOCKED.json). No ace340fe / e2f123b0 substitution.
+
+**Credential blockers unchanged (46):** `TEST_GATE_SECURITY_*` · `TEST_BUYER_*` · `TEST_SALES_*` · `TEST_RGS_*` · `TEST_PRODUCTION_*` · `TEST_TV_RGS_*` · `TEST_TV_PRODUCTION_*` · `TEST_AI_STUDIO_PREVIEW_URL` · `TEST_TRACE_PREVIEW_URL`
+
+**Next action:** Vercel deploy for `15c59a3f` (or `TEST_PREVIEW_URL` at exact SHA) → re-run `current-main-rebaseline`. Then wire missing `TEST_*` secrets for remaining 46 IDs.
+
+## Watchdog continue — GHA run [34046709938](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34046709938) @ `e2f123b0` (prior baseline — preserved)
 
 | Field | Value |
 |---|---|
