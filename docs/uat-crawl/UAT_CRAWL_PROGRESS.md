@@ -1,12 +1,35 @@
 # UAT Crawl Progress Summary
 
-**Last updated:** 2026-09-07 (current-main rebaseline — GHA run [34082244745](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34082244745) @ `7fe64f8c`)  
+**Last updated:** 2026-09-07 (credential-prefix-unblock — GHA run [34155840050](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34155840050) @ `1d923f10`)  
 **Branch / PR:** `cursor/physical-uat-readiness-matrix-e763` → **#462**  
-**Current main:** `15c59a3f54c92f2b289bd150005bcd7114b51a93` (#507 POINT61) — **no trusted Vercel deploy** (rate limit)  
-**Prior evidence baseline:** `e2f123b0` — preserved append-only (runs 34046709938, 34056691981)  
+**Current main:** `15c59a3f54c92f2b289bd150005bcd7114b51a93` (#507 POINT61) — **deploy BLOCKED** (no exact-SHA Vercel URL)  
+**Prior evidence baseline:** `e2f123b0` — preserved append-only  
 **Mode:** Read-only evidence — **no remediation** in this programme.
 
-## Current-main rebaseline — GHA run [34082244745](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34082244745) @ `15c59a3f`
+## Credential-prefix-unblock — GHA run [34155840050](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34155840050)
+
+| Field | Value |
+|---|---|
+| Tranche | `credential-prefix-unblock` |
+| Harness fix | `TEST_GATE_*` \|\| `TEST_GATE_SECURITY_*`; `TEST_3PGS_*` \|\| `TEST_PRODUCTION_*` |
+| Secrets present in GHA | **18 / 31** audited (was 10/27) — `TEST_GATE_*`, `TEST_RGS_*`, `TEST_3PGS_*`, `TEST_SALES_*` now wired |
+| Deploy @ `15c59a3f` | **BLOCKED** — crawl withheld (no stale substitution) |
+| Evidence commit | `1d923f10` |
+
+| Metric | Before (34082244745) | After (34155840050) |
+|---|---:|---:|
+| Verified **BLOCKED** (credential) | **46 / 46** | **28 / 131** |
+| Creds available, awaiting deploy/evidence | **0** | **18** (13 Gate/RGS/3PGS + 5 Sales) |
+| **Recertified @ 15c59a3f** | **0** | **0** (deploy blocked) |
+| Prior BLOCKED rows preserved | append-only archive | `UAT_VERIFIED_BLOCKERS_ARCHIVE.jsonl` |
+
+**13 Gate/RGS/3PGS targets cleared credential blockers:** UAT-0003 · 0062–0065 · 0067 · 0082 · 0087 · 0097–0101 — **await trusted deploy** to capture S0–S3 evidence.
+
+**Still credential-blocked (28):** `TEST_BUYER_*` (10) · `TEST_TV_RGS_*` (7) · `TEST_TV_PRODUCTION_*` (1) · `TEST_AI_STUDIO_PREVIEW_URL` (6) · `TEST_TRACE_PREVIEW_URL` (4)
+
+**Next:** Vercel deploy for exact `15c59a3f` → re-run `credential-prefix-unblock`.
+
+## Current-main rebaseline — GHA run [34082244745](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34082244745) @ `15c59a3f` (prior)
 
 | Field | Value |
 |---|---|

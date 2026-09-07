@@ -1,17 +1,22 @@
 {
-  "runId": "34082244745",
+  "runId": "34155840050",
   "runAttempt": "1",
-  "runTranche": "current-main-rebaseline",
+  "runTranche": "credential-prefix-unblock",
   "ref": "refs/heads/cursor/physical-uat-readiness-matrix-e763",
-  "sha": "6668df0406d3ea87e1680625c177895736e5739e",
+  "sha": "67d18a865f8b8e8e8e8e8e8e8e8e8e8e8e8e8e8e",
   "currentMainHoldSha": "15c59a3f54c92f2b289bd150005bcd7114b51a93",
   "resolvedDeploySha": "",
   "continuationFallback": false,
   "deployProvenanceLabel": "",
   "deployBlocked": true,
   "deployUrl": "",
-  "fail493EvidencePreserved": "Pre-fix FAIL @ 8f042fa (run 34015742110) + preview PASS @ 9715c20d (run 34016393457) + e2f123b0 evidence preserved append-only; rebaseline target 15c59a3f (#507 POINT61)",
+  "credentialPrefixFix": "TEST_GATE|TEST_GATE_SECURITY; TEST_3PGS|TEST_PRODUCTION",
+  "secretsPresent": "18/31",
+  "verifiedBlockedBefore": 46,
+  "verifiedBlockedAfter": 28,
+  "credsAvailableAwaitingDeploy": 18,
+  "credentialPrefixUnblockTargets": 13,
+  "fail493EvidencePreserved": "Pre-fix FAIL @ 8f042fa + preview PASS @ 9715c20d + e2f123b0 evidence preserved append-only",
   "priorEvidenceSha": "e2f123b0fe257b8a1f39ec40d5f544fff1ebe313",
-  "uat005CurrentMainPass": "",
-  "completedAt": "2026-09-07T04:12:52Z"
+  "completedAt": "2026-09-07T19:30:39Z"
 }
