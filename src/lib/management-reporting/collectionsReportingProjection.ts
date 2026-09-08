@@ -232,6 +232,13 @@ function buildRecoverableOutstandingMetric(input: {
       "orders read truncated — partial dataset",
     );
   }
+  if (core && core.ordersWithCoreFacts > 0 && core.ordersWithCoreFacts < core.ordersAttempted) {
+    return wrapUnavailableMetric(
+      0,
+      coreFinance255Source("get_order_payment_facts_v1"),
+      `Core payment facts cover ${core.ordersWithCoreFacts} of ${core.ordersAttempted} unpaid orders — incomplete coverage`,
+    );
+  }
   if (core && core.ordersWithCoreFacts > 0) {
     return wrapObservedMetric(
       core.recoverableOutstanding,
