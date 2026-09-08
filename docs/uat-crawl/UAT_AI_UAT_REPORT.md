@@ -1,6 +1,6 @@
 # APPVERSE AI UAT — Tranche 1
 
-Generated: 2026-09-08T15:26:30.875Z  
+Generated: 2026-09-08T18:06:44.960Z  
 Target: https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app/  
 AI planner: disabled  
 Visual model input: disabled
@@ -53,6 +53,8 @@ Visual model input: disabled
 - **Expected:** The post-login destination must be /admin/dispatch-mgmt or the Dispatch role home must provide the governed Dispatch workflow without redirecting into unrelated authority.
 - **Actual:** Dispatch landed on /admin/dispatch-mgmt with the governed carton/DPL workflow.
 - **Final URL:** https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app/admin/dispatch-mgmt
+- **Console errors:** 1
+- **Failed requests:** 1
 
 ### UAT-005 — PASS
 
