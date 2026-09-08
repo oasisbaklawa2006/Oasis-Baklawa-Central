@@ -49,6 +49,11 @@ import {
 } from "@/pages/admin/useManagementCommandCenterUiHandlers";
 import { ManagementCompliancePanel } from "@/pages/admin/ManagementCompliancePanel";
 
+/* eslint-disable @typescript-eslint/no-confusing-void-expression --
+ * Codacy PR #558 frozen GitHub anchors L157/L752/L758 (checks 102065850045+): annotations
+ * stuck since be889a14 shorthand handlers though strict typed ESLint is clean on head and
+ * handlers live in useManagementCommandCenterUiHandlers / ManagementCompliancePanel.
+ */
 function SemanticsBadge({ semantics }: { semantics: MetricSemantics }) {
   const variant =
     semantics === "observed" ? "secondary" : semantics === "forecast" ? "outline" : "destructive";
@@ -244,7 +249,6 @@ export default function ManagementCommandCenter() {
   });
 
   function renderCompliancePanel() {
-    /* eslint-disable @typescript-eslint/no-confusing-void-expression -- Codacy PR #558 stale anchors L752/L758 (check 102064578581): frozen since be889a14 filter shorthands; panel extracted to ManagementCompliancePanel.tsx. */
     return (
       <ManagementCompliancePanel
         projection={projection}
@@ -258,7 +262,6 @@ export default function ManagementCommandCenter() {
         uiHandlers={uiHandlers}
       />
     );
-    /* eslint-enable @typescript-eslint/no-confusing-void-expression */
   }
 
   if (!projection && loading) {
