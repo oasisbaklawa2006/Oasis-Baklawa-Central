@@ -154,7 +154,9 @@ export default function ManagementCommandCenter() {
           : { ...current, eanSearch: eanSearchInput, eanPage: 0 },
       );
     }, 300);
-    return () => window.clearTimeout(handle);
+    return () => {
+      window.clearTimeout(handle);
+    };
   }, [eanSearchInput, setFilters]);
 
   const criticalExceptions = useMemo(
@@ -749,14 +751,16 @@ export default function ManagementCommandCenter() {
             <Input
               placeholder="Search EAN, SKU, product name…"
               value={eanSearchInput}
-              onChange={(e) => setEanSearchInput(e.target.value)}
+              onChange={(e) => {
+                setEanSearchInput(e.target.value);
+              }}
               className="max-w-sm"
             />
             <Select
               value={exceptionCategory}
-              onValueChange={(value) =>
-                setExceptionCategory(value as ComplianceException["category"] | "all")
-              }
+              onValueChange={(value) => {
+                setExceptionCategory(value as ComplianceException["category"] | "all");
+              }}
             >
               <SelectTrigger className="h-9 w-[140px]">
                 <SelectValue placeholder="Category" />
@@ -772,9 +776,9 @@ export default function ManagementCommandCenter() {
             </Select>
             <Select
               value={exceptionSeverity}
-              onValueChange={(value) =>
-                setExceptionSeverity(value as ComplianceException["severity"] | "all")
-              }
+              onValueChange={(value) => {
+                setExceptionSeverity(value as ComplianceException["severity"] | "all");
+              }}
             >
               <SelectTrigger className="h-9 w-[130px]">
                 <SelectValue placeholder="Severity" />
