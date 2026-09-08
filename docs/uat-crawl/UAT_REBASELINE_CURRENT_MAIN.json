@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-09-08T15:24:09.684Z",
-  "runId": "34242121280",
+  "generatedAt": "2026-09-08T15:26:13.250Z",
+  "runId": "audit-continue-local",
   "currentMainSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
   "priorHoldSha": "6c7de2a69cec960f709a66fb85d25049dfcc2ae0",
   "deployProvenance": "Current-main authority @ a619a7a2 (#558) — prior 6c7de2a/15c59a3f/e2f123b0 evidence preserved append-only.",

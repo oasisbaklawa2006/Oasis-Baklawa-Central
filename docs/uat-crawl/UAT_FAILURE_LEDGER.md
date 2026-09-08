@@ -4,13 +4,25 @@ Phase 4 register — **no remediation in this tranche**.
 
 Functional + UX failures. UX criteria authority: [`UAT_UX_FAILURE_MATRIX.md`](./UAT_UX_FAILURE_MATRIX.md).
 
+## UAT audit continue @ `a619a7a2` (2026-09-08) — deploy CLEARED
+
+**Deploy discovery:** GitHub deployment `6329154505` explicitly bound to `a619a7a2ef01ee889d32fffebb5ff13fe3181252` (Production, Vercel success). **`64a107df` / preview evidence NOT current-main proof.**
+
+**Audit artifact:** [`UAT_AUDIT_CONTINUE.json`](./UAT_AUDIT_CONTINUE.json)
+
+| Audit outcome | Value |
+|---|---|
+| Deploy gate | **CLEARED** (not DEPLOY_BLOCKED) |
+| GHA runs @ exact SHA | [34239494014](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34239494014) · [34242121280](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34242121280) |
+| Physical/device/provider gates | **NOT TESTED** unless separately executed |
+
 ## Current-main rebaseline @ `a619a7a2` (#558) — GHA run [34239494014](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34239494014)
 
 **Deploy:** `6329154505` @ `https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app` · **Evidence:** `b609e7fc`
 
 | Metric | @ `a619a7a2` |
 |---|---:|
-| Auth S0–S3 complete | **97 / 131** |
+| Auth S0–S3 complete | **96 / 131** |
 | credential-prefix-unblock | **13 / 13** |
 | post-fix-483 UAT-0018/0020 | **0 / 2** — S0 only; FAIL-481-* **BLOCKED** (no pending review fixture) |
 | Verified credential **BLOCKED** | **28** |
