@@ -8,7 +8,7 @@ Rules:
 - This is not an audit-only PR. Build the executable integration harness, adapters, fixtures, route bindings and repair code needed on Central to consume canonical authorities.
 - Reuse and bind the macro tranches already under construction: Buyer revenue, Core Finance, Core Inventory/Factory, Central CRM, Central Order→Gate (#556 merged), AI Catalogue, and Trace. Do not create shadow truth.
 - Missing upstream authorities must be reported precisely and fail closed; where Central-side binding or orchestration is missing, implement it here.
-- Disposable synthetic rehearsal runs against Core SHA `8beea1e1` (Macro Inventory #256 production-verified via Release #159). Dispatch finalize RPC remains bootstrap-only until Core main ships `release_order_to_dispatched_v1`.
+- Disposable synthetic rehearsal runs against production-certified Core SHA `c89c538c` (#259 Trace Core via Release #161 run `34188983863`). Trace `trace_*_v1` software contracts are consumed; Trace #37 device recertification remains `physical_uat_only`. Dispatch finalize RPC remains bootstrap-only until Core ships `release_order_to_dispatched_v1`.
 - Test whole journeys, not isolated programme points. Batch defects and repairs inside this tranche.
 - Maintain role/tenant isolation, idempotency, audit lineage, AAL2/maker-checker where required, and Core migration serialization.
 - No physical-device PASS claims. Physical scanner/printer/TV/mobile/gate evidence remains Leap 13.
@@ -27,7 +27,8 @@ Exit gate: one deterministic automated synthetic Point100 dress rehearsal runnab
 
 ```bash
 export POINT100_CORE_REPO=/path/to/oasis-supabase-core
-export POINT100_CORE_VERIFIED_SHA=8beea1e1116a70a209766ed48590d653bd691ad0
+export POINT100_CORE_VERIFIED_SHA=c89c538c83eeefcd116c67f06bf86869ff63b2e3
+export POINT100_PRODUCTION_MIGRATION_RUN_ID=34188983863
 export POINT100_ALLOW_LOCAL_RESET=true
 export POINT100_ALLOW_DISPOSABLE_BOOTSTRAP=true
 npm run test:point100:rehearsal
@@ -39,6 +40,8 @@ Or after manual bootstrap:
 bash scripts/point100-certification/start-ephemeral.sh
 set -a && source /tmp/oasis-factory-certification.env && set +a
 export FACTORY_CERT_TARGET_URL=http://127.0.0.1:4173
+export POINT100_CORE_VERIFIED_SHA=c89c538c83eeefcd116c67f06bf86869ff63b2e3
+export POINT100_PRODUCTION_MIGRATION_RUN_ID=34188983863
 npm run test:point100
 ```
 

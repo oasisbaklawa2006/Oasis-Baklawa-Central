@@ -134,6 +134,15 @@ export async function executeStageProbe(
       const probe = await probeRpcExists("release_b2b_dispatch_carton_at_gate_v1");
       return { ok: probe.exists, detail: probe.detail };
     }
+    case "trace_handover": {
+      const verify = await probeRpcExists("trace_verify_handover_evidence_v1");
+      const sign = await probeRpcExists("trace_sign_handover_evidence_v1");
+      const ok = verify.exists && sign.exists;
+      return {
+        ok,
+        detail: `trace_verify=${verify.exists} trace_sign=${sign.exists}; Core#259 software contract only — Trace#37 physical recert open`,
+      };
+    }
     default:
       return { ok: true, detail: `stage ${stageId} contract probe only (${correlationId})` };
   }

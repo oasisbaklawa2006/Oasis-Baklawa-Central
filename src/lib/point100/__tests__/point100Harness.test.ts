@@ -3,7 +3,18 @@ import { buildCapabilityMatrix, summarizeCapabilityMatrix } from "../capabilityS
 import { POINT100_LIFECYCLE_STAGES, POINT100_NEGATIVE_PATHS, stagesForNegativePath } from "../lifecycleStages";
 import { bindingByKey, resolveBoundContract } from "../contractBindings";
 import { buildProbeOutcome, isRpcMissingError, probeFixtureKeys, resolvedRpcForStage } from "../probeRunner";
-import { POINT100_UPSTREAM_DEPENDENCIES, upstreamBlockersForStage, productionGateBlockers, isDisposableRehearsalMode, POINT100_PRODUCTION_MIGRATION_GATE, POINT100_CORE_PRODUCTION_VERIFIED_SHA, POINT100_PRODUCTION_MIGRATION_RUN_ID, isCoreInventoryProductionVerified, resolveProductionMigrationRunId } from "../upstreamDependencies";
+import {
+  POINT100_UPSTREAM_DEPENDENCIES,
+  POINT100_TRACE_SOFTWARE_RPCS,
+  upstreamBlockersForStage,
+  productionGateBlockers,
+  isDisposableRehearsalMode,
+  POINT100_PRODUCTION_MIGRATION_GATE,
+  POINT100_CORE_PRODUCTION_VERIFIED_SHA,
+  POINT100_PRODUCTION_MIGRATION_RUN_ID,
+  isCoreProductionVerified,
+  resolveProductionMigrationRunId,
+} from "../upstreamDependencies";
 import { CENTRAL_ADMIN_MODULE_AUTHORITY_MATRIX } from "../../appverse/centralAdminModuleAuthorityMatrix";
 import { MACRO_DISPATCH_MANAGER_HOME, MACRO_ORDER_DISPATCH_JOURNEY } from "../../macro-order-dispatch/macroOrderDispatchJourney";
 
@@ -40,17 +51,17 @@ describe("point100 probe runner", () => {
     expect(isRpcMissingError("permission denied")).toBe(false);
   });
 
-  it("marks trace handover as physical_uat_only", () => {
+  it("marks trace handover as physical_uat_only when Trace #37 recert is open", () => {
     const stage = POINT100_LIFECYCLE_STAGES.find((s) => s.id === "trace_handover")!;
     const outcome = buildProbeOutcome({
       stage,
-      rpcResults: [],
+      rpcResults: POINT100_TRACE_SOFTWARE_RPCS.map((rpc) => ({ rpc, exists: true, detail: "ok" })),
       centralBindingsPresent: true,
       missingFixtureKeys: [],
       executed: false,
     });
     expect(outcome.status).toBe("physical_uat_only");
-    expect(outcome.executable).toBe(false);
+    expect(outcome.executable).toBe(true);
   });
 
   it("summarizes capability matrix counts", () => {
@@ -65,7 +76,7 @@ describe("point100 probe runner", () => {
       }),
       buildProbeOutcome({
         stage: POINT100_LIFECYCLE_STAGES.find((s) => s.id === "trace_handover")!,
-        rpcResults: [],
+        rpcResults: POINT100_TRACE_SOFTWARE_RPCS.map((rpc) => ({ rpc, exists: true, detail: "ok" })),
         centralBindingsPresent: true,
         missingFixtureKeys: [],
         executed: false,
@@ -82,6 +93,8 @@ describe("point100 probe runner", () => {
   it("resolves stage RPCs through contract bindings", () => {
     const stage = POINT100_LIFECYCLE_STAGES.find((s) => s.id === "production_release")!;
     expect(resolvedRpcForStage(stage)).toContain("release_order_to_in_production_v1");
+    const traceStage = POINT100_LIFECYCLE_STAGES.find((s) => s.id === "trace_handover")!;
+    expect(resolvedRpcForStage(traceStage)).toContain("trace_verify_handover_evidence_v1");
   });
 
   it("detects missing fixture env keys", () => {
@@ -93,8 +106,9 @@ describe("point100 probe runner", () => {
     if (original) process.env.FACTORY_CERT_GOLDEN_ORDER_ID = original;
   });
 
-  it("fail-closes open upstream macro dependencies without shadowing", () => {
+  it("consumes Core#259 inventory authority without upstream blockers", () => {
     expect(POINT100_UPSTREAM_DEPENDENCIES.some((dep) => dep.pr === "#256" && dep.state === "merged")).toBe(true);
+    expect(POINT100_UPSTREAM_DEPENDENCIES.some((dep) => dep.pr === "#259" && dep.state === "merged")).toBe(true);
     expect(POINT100_UPSTREAM_DEPENDENCIES.some((dep) => dep.pr === "#37")).toBe(true);
     const inventoryStage = POINT100_LIFECYCLE_STAGES.find((s) => s.id === "inventory_lot_allocation")!;
     const outcome = buildProbeOutcome({
@@ -112,14 +126,14 @@ describe("point100 probe runner", () => {
     expect(upstreamBlockersForStage("trace_handover")[0]?.failClosedStatus).toBe("physical_uat_only");
   });
 
-  it("records #256 and #159 as production-verified inventory authority", () => {
-    const merged256 = POINT100_UPSTREAM_DEPENDENCIES.find((dep) => dep.id === "core-inventory-macro-256");
-    const merged159 = POINT100_UPSTREAM_DEPENDENCIES.find((dep) => dep.id === "core-production-migration-159");
-    expect(merged256?.state).toBe("merged");
-    expect(merged159?.state).toBe("merged");
+  it("records #259 and #161 as production-certified Core authority", () => {
+    const merged259 = POINT100_UPSTREAM_DEPENDENCIES.find((dep) => dep.id === "core-macro-trace-259");
+    const merged161 = POINT100_UPSTREAM_DEPENDENCIES.find((dep) => dep.id === "core-production-migration-161");
+    expect(merged259?.state).toBe("merged");
+    expect(merged161?.state).toBe("merged");
     const originalSha = process.env.POINT100_CORE_VERIFIED_SHA;
     process.env.POINT100_CORE_VERIFIED_SHA = POINT100_CORE_PRODUCTION_VERIFIED_SHA;
-    expect(isCoreInventoryProductionVerified()).toBe(true);
+    expect(isCoreProductionVerified()).toBe(true);
     expect(upstreamBlockersForStage("inventory_lot_allocation")).toHaveLength(0);
     if (originalSha === undefined) delete process.env.POINT100_CORE_VERIFIED_SHA;
     else process.env.POINT100_CORE_VERIFIED_SHA = originalSha;
@@ -146,7 +160,7 @@ describe("point100 probe runner", () => {
     else process.env.POINT100_PRODUCTION_CERTIFICATION_PERMITTED = originalProduction;
   });
 
-  it("embeds Core verified SHA metadata in capability matrix", () => {
+  it("embeds Core #259 provenance in capability matrix", () => {
     const originalSha = process.env.POINT100_CORE_VERIFIED_SHA;
     process.env.POINT100_CORE_VERIFIED_SHA = POINT100_CORE_PRODUCTION_VERIFIED_SHA;
     const matrix = buildCapabilityMatrix([], "test-env");

@@ -205,7 +205,7 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
     expect(String(orderRow?.status)).toMatch(/in_production|confirmed/);
   });
 
-  // ---- 6–8: Factory chain entry + Core#256 inventory RPC probes ----
+  // ---- 6–8: Factory chain entry + Core#259 inventory/factory RPC probes ----
   await test.step("factory: assembly job bootstrap on golden order", async () => {
     const hodAssembly = credentialsForRoleOrSkip("HOD_ASSEMBLY");
     await switchRole(page, hodAssembly);
@@ -227,13 +227,13 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
       ],
       p_correlation_id: correlationId,
     });
-    recordStage(stages, "inventory_lot_allocation", "create_assembly_job", "HOD_ASSEMBLY", correlationId, error ? "FAIL" : "PASS", error?.message ?? `job_id=${(data as { id?: string })?.id}; Core#256 lot authority production-verified via #159`);
+    recordStage(stages, "inventory_lot_allocation", "create_assembly_job", "HOD_ASSEMBLY", correlationId, error ? "FAIL" : "PASS", error?.message ?? `job_id=${(data as { id?: string })?.id}; Core#259 production pin c89c538c`);
     recordStage(stages, "production_qc", null, "HOD_ASSEMBLY", correlationId, error ? "FAIL" : "PASS", "assembly job created — QC stages delegated to FACT-E2E golden order cert");
     recordStage(stages, "packing_cartons_dpl", null, "HOD_ASSEMBLY", correlationId, error ? "FAIL" : "PASS", "packing/DPL chain covered by factory-operations-golden-order.cert.spec.ts");
     expect(error, error?.message).toBeNull();
   });
 
-  await test.step("inventory: Core#256 lot/putaway RPC contract probes", async () => {
+  await test.step("inventory: Core#259 lot/putaway RPC contract probes", async () => {
     const putawayProbe = await probeRpcExists("allocate_b2b_inventory_putaway");
     const lotExceptionProbe = await probeRpcExists("record_inventory_lot_exception");
     const ok = putawayProbe.exists && lotExceptionProbe.exists;
@@ -244,12 +244,12 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
       "STORE_READY_GOODS",
       `p100-${RUN_SUFFIX}-lot-rpc`,
       ok ? "PASS" : "FAIL",
-      `allocate_b2b_inventory_putaway=${putawayProbe.exists}; record_inventory_lot_exception=${lotExceptionProbe.exists}; core_sha=8beea1e1`,
+      `allocate_b2b_inventory_putaway=${putawayProbe.exists}; record_inventory_lot_exception=${lotExceptionProbe.exists}; core_sha=c89c538c; migration_run=34188983863`,
     );
     expect(ok, `${putawayProbe.detail}; ${lotExceptionProbe.detail}`).toBe(true);
   });
 
-  await test.step("factory: Core#256 production QC RPC contract probes", async () => {
+  await test.step("factory: Core#259 production QC RPC contract probes", async () => {
     const acceptProbe = await probeRpcExists("accept_production_job");
     const outputProbe = await probeRpcExists("record_production_output");
     const ok = acceptProbe.exists && outputProbe.exists;
@@ -260,7 +260,7 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
       "PROD_ARABIC_SWEETS",
       `p100-${RUN_SUFFIX}-factory-rpc`,
       ok ? "PASS" : "FAIL",
-      `accept_production_job=${acceptProbe.exists}; record_production_output=${outputProbe.exists}; core_sha=8beea1e1; migration_run=34167968867`,
+      `accept_production_job=${acceptProbe.exists}; record_production_output=${outputProbe.exists}; core_sha=c89c538c; migration_run=34188983863`,
     );
     expect(ok, `${acceptProbe.detail}; ${outputProbe.detail}`).toBe(true);
   });
@@ -290,7 +290,7 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
 
     const dispatchedRpc = await probeRpcExists("release_order_to_dispatched_v1");
     const disposableNote = dispatchedRpc.exists
-      ? "disposable bootstrap RPC probe passed; canonical release_order_to_dispatched_v1 not on Core 8beea1e1"
+      ? "disposable bootstrap RPC probe passed; canonical release_order_to_dispatched_v1 not on Core c89c538c"
       : "canonical Core dispatch RPC absent on disposable Core replay";
     recordStage(
       stages,
@@ -324,18 +324,21 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
     }
   });
 
-  // ---- 13: Trace (physical UAT only) ----
-  await test.step("trace: software projection only — physical UAT deferred", async () => {
+  // ---- 13: Trace software contract (Core#259) — physical UAT fail-closed ----
+  await test.step("trace: Core#259 software handover contract probe — physical UAT fail-closed", async () => {
+    const { client } = await createAuthenticatedCertificationClient(page);
+    const trace = await executeStageProbe(client, "trace_handover", `p100-${RUN_SUFFIX}-trace`);
     recordStage(
       stages,
       "trace_handover",
-      null,
+      "trace_verify_handover_evidence_v1",
       null,
       `p100-${RUN_SUFFIX}-trace`,
-      "BLOCKED",
-      "physical_uat_only: Trace scanner handover requires Leap 13 device evidence",
+      trace.ok ? "PASS" : "FAIL",
+      `${trace.detail}; Trace#37 device recertification open — no scanner/device PASS claimed`,
     );
-    upstreamBlockers.push("trace_handover: oasis-trace#37 open — physical_uat_only");
+    expect(trace.ok, trace.detail).toBe(true);
+    upstreamBlockers.push("trace_handover: oasis-trace#37 recertification open — physical_uat_only");
   });
 
   // ---- 14–16: Completion + complaint window ----
@@ -352,7 +355,7 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
       null,
       dispatchedRpc.exists ? "PASS" : "BLOCKED",
       dispatchedRpc.exists
-        ? "Point38 fixture at cleared_for_dispatch; disposable bootstrap RPC present — canonical release_order_to_dispatched_v1 not on Core 8beea1e1"
+        ? "Point38 fixture at cleared_for_dispatch; disposable bootstrap RPC present — canonical release_order_to_dispatched_v1 not on Core c89c538c"
         : "Point38 fixture at cleared_for_dispatch; canonical order_complete RPC absent on Core replay",
     );
     if (!dispatchedRpc.exists) {
@@ -392,7 +395,7 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
     const productionGateBlockerNotes = productionGateBlockers().map(formatUpstreamBlocker);
     if (productionGateBlockerNotes.length === 0) {
       productionGateBlockerNotes.push(
-        "oasis-supabase-core: canonical release_order_to_dispatched_v1 remains bootstrap-only on disposable replay (not on Core 8beea1e1)",
+        "oasis-supabase-core: canonical release_order_to_dispatched_v1 remains bootstrap-only on disposable replay (not on Core c89c538c)",
       );
     }
     const ledger = writeDressRehearsalLedger({
@@ -407,7 +410,7 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
       upstream_blockers: upstreamBlockers,
       production_gate_blockers: [
         ...productionGateBlockerNotes,
-        "oasis-trace#37: trace_handover physical_uat_only — no scanner/device PASS claimed",
+        "oasis-trace#37: trace_handover physical_uat_only — Core#259 software contracts consumed; device recertification open",
       ],
     });
     assertNoSilentSkips(ledger);

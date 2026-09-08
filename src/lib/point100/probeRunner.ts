@@ -74,6 +74,12 @@ export function buildProbeOutcome(input: {
   if (upstreamDep) {
     status = upstreamDep.failClosedStatus;
     detail = formatUpstreamBlocker(upstreamDep);
+    if (stage.id === "trace_handover" && missingRpcs.length === 0 && upstreamDep.id === "oasis-trace-macro-37") {
+      detail = `${formatUpstreamBlocker(upstreamDep)} Software contracts present on Core #259; physical handover PASS not claimed.`;
+    }
+  } else if (stage.id === "trace_handover" && missingRpcs.length > 0) {
+    status = "upstream_contract_missing";
+    detail = `Core #259 trace software RPC unavailable: ${missingRpcs.join(", ")}`;
   } else if (stage.domain === "trace" && stage.id === "trace_handover") {
     status = "physical_uat_only";
     detail = "Trace scanner/device handover requires Leap 13 physical UAT; Central scan-timeline projection is software-only.";
@@ -92,17 +98,19 @@ export function buildProbeOutcome(input: {
   } else {
     status = "implemented";
     detail = isDisposableRehearsalMode()
-      ? "Contract present on disposable Core replay; dispatch finalize RPC remains bootstrap-only until Core main ships release_order_to_dispatched_v1"
+      ? "Contract present on disposable Core replay at SHA c89c538c; dispatch finalize RPC remains bootstrap-only"
       : "Contract present; full journey execution deferred to dress-rehearsal stage";
   }
 
-  const technicalReady =
-    missingFixtureKeys.length === 0 &&
-    missingRpcs.length === 0 &&
-    centralBindingsPresent &&
-    stage.domain !== "trace";
+  const contractReady =
+    missingFixtureKeys.length === 0 && missingRpcs.length === 0 && centralBindingsPresent;
 
-  const executable = technicalReady;
+  const technicalReady = contractReady && stage.domain !== "trace";
+
+  // Trace #37 device recert is fail-closed, but Core #259 trace_*_v1 software contracts remain probeable.
+  const traceSoftwareReady = stage.id === "trace_handover" && contractReady;
+
+  const executable = technicalReady || traceSoftwareReady;
 
   return {
     stageId: stage.id,
@@ -132,6 +140,7 @@ export function primaryBindingKeyForStage(stageId: string): string | null {
     customer_dispatch_proof: "dispatch_proof",
     order_complete: "order_dispatched",
     complaint_window: "finance_exit_facts",
+    trace_handover: "trace_verify_handover",
   };
   return map[stageId] ?? null;
 }

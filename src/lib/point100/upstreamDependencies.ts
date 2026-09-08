@@ -23,13 +23,20 @@ export type Point100UpstreamDependency = {
   disposableRehearsalBypass?: boolean;
 };
 
-/** Protected-production verified Core boundary for Macro Inventory #256 via Release #159. */
-export const POINT100_CORE_PRODUCTION_VERIFIED_SHA = "8beea1e1116a70a209766ed48590d653bd691ad0";
+/** Production-certified Core boundary — Macro Trace Core #259 via Release #161. */
+export const POINT100_CORE_PRODUCTION_VERIFIED_SHA = "c89c538c83eeefcd116c67f06bf86869ff63b2e3";
 
-export const POINT100_PRODUCTION_MIGRATION_GATE = "oasis-supabase-core#159";
+export const POINT100_PRODUCTION_MIGRATION_GATE = "oasis-supabase-core#161";
 
-/** GitHub Actions run that certified semantic parity + production contract smoke for #159. */
-export const POINT100_PRODUCTION_MIGRATION_RUN_ID = "34167968867";
+/** GitHub Actions run certifying semantic parity + production contract smoke for #161. */
+export const POINT100_PRODUCTION_MIGRATION_RUN_ID = "34188983863";
+
+/** Governed Trace software contracts shipped on Core #259 (software only — not physical device PASS). */
+export const POINT100_TRACE_SOFTWARE_RPCS = [
+  "trace_verify_handover_evidence_v1",
+  "trace_sign_handover_evidence_v1",
+  "trace_allocate_identity_v1",
+] as const;
 
 /** Rebind state here when Mission Control clears an upstream macro PR. */
 export const POINT100_UPSTREAM_DEPENDENCIES: readonly Point100UpstreamDependency[] = [
@@ -57,7 +64,7 @@ export const POINT100_UPSTREAM_DEPENDENCIES: readonly Point100UpstreamDependency
     state: "merged",
     affectedStageIds: ["inventory_lot_allocation", "production_qc"],
     blockerDetail:
-      "Macro Inventory #256 merged and production-certified via Core Production Migration Release #159 (run 34167968867, SHA 8beea1e1). Harness consumes canonical lot/putaway/exception/factory RPCs on disposable Core replay.",
+      "Macro Inventory #256 merged (ancestor of production pin #259). Lot/putaway/exception/factory RPCs consumed on disposable Core replay at SHA c89c538c.",
     failClosedStatus: "implemented",
   },
   {
@@ -67,7 +74,34 @@ export const POINT100_UPSTREAM_DEPENDENCIES: readonly Point100UpstreamDependency
     state: "merged",
     affectedStageIds: ["inventory_lot_allocation", "production_qc"],
     blockerDetail:
-      "Core Production Migration Release #159 run 34167968867 SUCCESS — semantic parity + production contract smoke on SHA 8beea1e1. Finance/Inventory/Factory synthetic contracts recertified on this boundary.",
+      "Core Production Migration Release #159 deployed Macro Inventory #256 (superseded as production pin by Release #161 / SHA c89c538c).",
+    failClosedStatus: "implemented",
+  },
+  {
+    id: "core-macro-trace-259",
+    repository: "oasis-supabase-core",
+    pr: "#259",
+    state: "merged",
+    affectedStageIds: ["trace_handover"],
+    blockerDetail:
+      "Macro Trace Core #259 server identity + authenticated handover authority merged. Point100 consumes trace_*_v1 software contracts on disposable Core replay — not physical scanner/device PASS.",
+    failClosedStatus: "implemented",
+  },
+  {
+    id: "core-production-migration-161",
+    repository: "oasis-supabase-core",
+    pr: "#161",
+    state: "merged",
+    affectedStageIds: [
+      "inventory_lot_allocation",
+      "production_qc",
+      "trace_handover",
+      "packing_cartons_dpl",
+      "dispatch_consignment",
+      "order_complete",
+    ],
+    blockerDetail:
+      "Core Production Migration Release #161 run 34188983863 SUCCESS — semantic parity + production contract smoke on SHA c89c538c (#259 Trace Core authority).",
     failClosedStatus: "implemented",
   },
   {
@@ -77,7 +111,7 @@ export const POINT100_UPSTREAM_DEPENDENCIES: readonly Point100UpstreamDependency
     state: "open_pr",
     affectedStageIds: ["trace_handover"],
     blockerDetail:
-      "Trace #37 scan handover / DPL carton membership contracts are not merged. Central scan-timeline projection is software-only; physical scanner evidence remains Leap 13.",
+      "Trace #37 device/runtime recertification remains open. Core #259 trace_*_v1 software contracts are consumed; physical scanner/TV handover evidence is fail-closed (Leap 13).",
     failClosedStatus: "physical_uat_only",
   },
   {
@@ -87,7 +121,7 @@ export const POINT100_UPSTREAM_DEPENDENCIES: readonly Point100UpstreamDependency
     state: "open_pr",
     affectedStageIds: ["dispatch_consignment", "order_complete"],
     blockerDetail:
-      "Canonical Core release_order_to_dispatched_v1 is not on Core main at SHA 8beea1e1. Disposable cert bootstrap RPC may exist locally for synthetic rehearsal only — not programme authority.",
+      "Canonical Core release_order_to_dispatched_v1 is not on Core at SHA c89c538c. Disposable cert bootstrap RPC may exist locally for synthetic rehearsal only — not programme authority.",
     failClosedStatus: "upstream_contract_missing",
     disposableRehearsalBypass: true,
   },
@@ -101,9 +135,14 @@ export function resolveProductionMigrationRunId(): string | null {
   return process.env.POINT100_PRODUCTION_MIGRATION_RUN_ID?.trim() ?? POINT100_PRODUCTION_MIGRATION_RUN_ID;
 }
 
-export function isCoreInventoryProductionVerified(): boolean {
+export function isCoreProductionVerified(): boolean {
   const sha = resolveCoreVerifiedSha();
-  return sha === POINT100_CORE_PRODUCTION_VERIFIED_SHA || sha?.startsWith("8beea1e1") === true;
+  return sha === POINT100_CORE_PRODUCTION_VERIFIED_SHA || sha?.startsWith("c89c538c") === true;
+}
+
+/** @deprecated Use isCoreProductionVerified */
+export function isCoreInventoryProductionVerified(): boolean {
+  return isCoreProductionVerified();
 }
 
 export function isProductionCertificationPermitted(): boolean {

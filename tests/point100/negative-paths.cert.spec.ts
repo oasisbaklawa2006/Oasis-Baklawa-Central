@@ -317,7 +317,7 @@ test("POINT100 :: negative-path failure injection suite", async ({ page }) => {
     recordStage(negativePaths, "active_finance_hold", "decide_finance_operations_clearance_v1", "FINANCE_HEAD", correlationId, "PASS", error?.message ?? "rejected");
   });
 
-  // ---- quarantined lot: Core#256 record_inventory_lot_exception fail-closed ----
+  // ---- quarantined lot: Core#259 record_inventory_lot_exception fail-closed ----
   await test.step("negative: quarantined lot exception rejects unknown lot position", async () => {
     const storeReadyGoods = credentialsForRoleOrSkip("STORE_READY_GOODS");
     await switchRole(page, storeReadyGoods);
@@ -335,6 +335,31 @@ test("POINT100 :: negative-path failure injection suite", async ({ page }) => {
       negativePaths,
       "quarantined_expired_lot",
       "record_inventory_lot_exception",
+      "STORE_READY_GOODS",
+      correlationId,
+      "PASS",
+      error?.message ?? "rejected",
+    );
+  });
+
+  // ---- trace handover: invalid evidence rejected (Core#259 software contract) ----
+  await test.step("negative: trace handover verify rejects invalid evidence", async () => {
+    const storeReadyGoods = credentialsForRoleOrSkip("STORE_READY_GOODS");
+    await switchRole(page, storeReadyGoods);
+    const { client } = await createAuthenticatedCertificationClient(page);
+    const correlationId = `p100-neg-${RUN_SUFFIX}-trace-invalid`;
+    const { error } = await client.rpc("trace_verify_handover_evidence_v1", {
+      p_evidence: {},
+      p_prior_hash: null,
+      p_expected_action: "TRACE_INVALID_PROBE",
+      p_enforce_consumption: false,
+    });
+    const rejected = Boolean(error);
+    expect(rejected, "invalid trace handover evidence must fail closed").toBe(true);
+    recordStage(
+      negativePaths,
+      "duplicate_scan",
+      "trace_verify_handover_evidence_v1",
       "STORE_READY_GOODS",
       correlationId,
       "PASS",

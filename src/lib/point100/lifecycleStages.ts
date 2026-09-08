@@ -145,7 +145,11 @@ export const POINT100_LIFECYCLE_STAGES: readonly Point100LifecycleStage[] = [
     sequence: 13,
     label: "Trace handover → scan lineage",
     domain: "trace",
-    coreRpcs: [],
+    coreRpcs: [
+      "trace_verify_handover_evidence_v1",
+      "trace_sign_handover_evidence_v1",
+      "trace_allocate_identity_v1",
+    ],
     centralBindings: ["/admin/scan-timeline", "orderTraceFeed"],
     fixtureEnvKeys: [],
     negativePathIds: ["duplicate_scan"],

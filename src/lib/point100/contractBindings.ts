@@ -31,6 +31,8 @@ export const POINT100_CONTRACT_BINDINGS: readonly Point100ContractBinding[] = [
   { key: "dispatch_proof", kind: "core_rpc", canonical: "record_dispatch_proof_packet_v1" },
   { key: "gate_release", kind: "core_rpc", canonical: "release_b2b_dispatch_carton_at_gate_v1" },
   { key: "order_dispatched", kind: "core_rpc", canonical: "release_order_to_dispatched_v1", envOverrideKey: "POINT100_ORDER_DISPATCHED_RPC" },
+  { key: "trace_verify_handover", kind: "core_rpc", canonical: "trace_verify_handover_evidence_v1" },
+  { key: "trace_sign_handover", kind: "core_rpc", canonical: "trace_sign_handover_evidence_v1" },
   { key: "buyer_catalogue_route", kind: "central_route", canonical: "/buyer/catalogue" },
   { key: "security_gate_route", kind: "central_route", canonical: "/security-gate" },
   { key: "scan_timeline_route", kind: "central_route", canonical: "/admin/scan-timeline" },

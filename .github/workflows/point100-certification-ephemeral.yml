@@ -28,8 +28,8 @@ jobs:
       POINT100_CORE_REPO: ${{ github.workspace }}/oasis-supabase-core
       POINT100_ALLOW_LOCAL_RESET: "true"
       POINT100_ALLOW_DISPOSABLE_BOOTSTRAP: "true"
-      POINT100_CORE_VERIFIED_SHA: 8beea1e1116a70a209766ed48590d653bd691ad0
-      POINT100_PRODUCTION_MIGRATION_RUN_ID: "34167968867"
+      POINT100_CORE_VERIFIED_SHA: c89c538c83eeefcd116c67f06bf86869ff63b2e3
+      POINT100_PRODUCTION_MIGRATION_RUN_ID: "34188983863"
       FACTORY_CERT_CORE_REPO: ${{ github.workspace }}/oasis-supabase-core
       FACTORY_CERT_ALLOW_LOCAL_RESET: "true"
       FACTORY_CERT_CREDENTIAL_FILE: /tmp/oasis-factory-certification.env
@@ -46,7 +46,7 @@ jobs:
         with:
           persist-credentials: false
           repository: oasisbaklawa2006/oasis-supabase-core
-          ref: 8beea1e1116a70a209766ed48590d653bd691ad0
+          ref: c89c538c83eeefcd116c67f06bf86869ff63b2e3
           path: oasis-supabase-core
 
       - name: Set up pinned Supabase CLI
