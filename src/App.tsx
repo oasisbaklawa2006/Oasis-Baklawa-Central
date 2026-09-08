@@ -102,7 +102,7 @@ const ProductIntelligencePrototype = lazy(
   () => import("./pages/admin/ProductIntelligencePrototype.tsx"),
 );
 const ExecutionCommandCenter = lazy(() => import("./pages/admin/ExecutionCommandCenter.tsx"));
-const ManagementCommandCenter = lazy(() => import("./pages/admin/ManagementCommandCenterPage.tsx"));
+const ManagementCommandCenter = lazy(() => import("./pages/admin/ManagementCommandCenterView.tsx"));
 const ExecutionRiskBoard = lazy(() => import("./pages/admin/ExecutionRiskBoard.tsx"));
 const ExecutionBottlenecks = lazy(() => import("./pages/admin/ExecutionBottlenecks.tsx"));
 // ProductionExecutionBoard / AssemblyExecutionBoard / ReadyGoodsExecutionBoard
