@@ -1,14 +1,38 @@
 # UAT Crawl Progress Summary
 
-**Last updated:** 2026-09-07T23:51Z (lane-7 authority retarget → `6c7de2a` #556 — verified DEPLOY_BLOCKED)  
+**Last updated:** 2026-09-08T14:58Z (lane-7 rebaseline complete @ `a619a7a2` #558 — GHA run [34239494014](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34239494014))  
 **Branch / PR:** `cursor/physical-uat-readiness-matrix-e763` → **#462**  
-**Current main:** `6c7de2a69cec960f709a66fb85d25049dfcc2ae0` (#556)  
-**Prior hold (superseded):** `15c59a3f54c92f2b289bd150005bcd7114b51a93` (#507 POINT61) — preserved append-only  
-**Deploy gate:** **BLOCKED** — zero GitHub deployments for exact `6c7de2a`; Vercel rate limit on commit status  
-**Latest production deploy:** `c7f4ddf2` — **not substitutable** (does not match requiredSha)  
+**Current main:** `a619a7a2ef01ee889d32fffebb5ff13fe3181252` (#558)  
+**Prior holds (superseded):** `6c7de2a` (#556) · `15c59a3f` (#507) — preserved append-only  
+**Deploy gate:** **CLEARED** — GitHub deployment `6329154505` @ exact `a619a7a2` (Vercel success)  
+**Trusted deploy URL:** `https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app`  
 **Mode:** Read-only lane 7 — no remediation.
 
-## Lane 7 authority retarget — verified DEPLOY_BLOCKED @ `6c7de2a` (2026-09-07T23:51Z)
+## Lane 7 rebaseline complete @ `a619a7a2` — GHA run [34239494014](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34239494014)
+
+| Field | Value |
+|---|---|
+| Required SHA | `a619a7a2ef01ee889d32fffebb5ff13fe3181252` (#558) |
+| Trusted deploy | `6329154505` @ `https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app` |
+| Evidence commit | `b609e7fc` · artifact `uat-crawl-evidence-34239494014-1` |
+| Tranche | **`all`** (credential-prefix-unblock → chronological remainder) |
+
+| Step | Authenticated S0–S3 |
+|---|---:|
+| **credential-prefix-unblock** (13 Gate/RGS/3PGS) | **13 / 13** |
+| post-fix-483 (UAT-0018/0020) | **0 / 2** — S0 only; no pending review sheet (FAIL-481-* remain **BLOCKED**) |
+| auth-rerun | **11 / 13** — UAT-0006/0007 blocked (`TEST_BUYER_*`) |
+| tranche-03..08 + public + S2 gap | see manifests @ `a619a7a2` |
+| buyer-mobile | **0** — `TEST_BUYER_*` absent |
+| **Total auth S0–S3 @ a619a7a2** | **97 / 131** |
+| Verified credential **BLOCKED** | **28** |
+| Remaining without auth evidence | **29** |
+
+Prior `6c7de2a` / `15c59a3f` / `e2f123b0` evidence preserved append-only — not rewritten.
+
+## Lane 7 authority retarget — deploy CLEARED @ `a619a7a2` (2026-09-08) — superseded by run above
+
+## Lane 7 authority retarget — verified DEPLOY_BLOCKED @ `6c7de2a` (2026-09-07T23:51Z) — superseded
 
 | Field | Value |
 |---|---|
