@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-09-08T15:01:47.709Z",
-  "runId": "34239494014",
+  "generatedAt": "2026-09-08T15:24:09.684Z",
+  "runId": "34242121280",
   "currentMainSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
   "priorHoldSha": "6c7de2a69cec960f709a66fb85d25049dfcc2ae0",
   "deployProvenance": "Current-main authority @ a619a7a2 (#558) — prior 6c7de2a/15c59a3f/e2f123b0 evidence preserved append-only.",
@@ -9,13 +9,13 @@
     "censusTotal": 131,
     "passAuthS0S3": 96,
     "blocked": 28,
-    "publicS0": 0,
-    "notTested": 7
+    "publicS0": 5,
+    "notTested": 2
   },
   "rows": [
     {
       "uatId": "UAT-0001",
-      "disposition": "NOT-TESTED",
+      "disposition": "PUBLIC_S0",
       "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
     },
     {
@@ -30,12 +30,12 @@
     },
     {
       "uatId": "UAT-0004",
-      "disposition": "NOT-TESTED",
+      "disposition": "PUBLIC_S0",
       "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
     },
     {
       "uatId": "UAT-0005",
-      "disposition": "NOT-TESTED",
+      "disposition": "PUBLIC_S0",
       "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
     },
     {
@@ -60,12 +60,12 @@
     },
     {
       "uatId": "UAT-0008",
-      "disposition": "NOT-TESTED",
+      "disposition": "PUBLIC_S0",
       "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
     },
     {
       "uatId": "UAT-0009",
-      "disposition": "NOT-TESTED",
+      "disposition": "PUBLIC_S0",
       "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
     },
     {

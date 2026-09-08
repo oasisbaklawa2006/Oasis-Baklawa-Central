@@ -456,6 +456,11 @@ jobs:
         continue-on-error: true
         run: node scripts/uat-crawl/record-verified-blockers.mjs
 
+      - name: Record current-main rebaseline registry (@ a619a7a2)
+        if: env.RUN_TRANCHE != 'post-merge-proofs' && (env.RUN_TRANCHE == 'all' || env.RUN_TRANCHE == 'watchdog-continue' || env.RUN_TRANCHE == 'current-main-rebaseline' || env.RUN_TRANCHE == 'credential-prefix-unblock')
+        continue-on-error: true
+        run: node scripts/uat-crawl/record-rebaseline-current-main.mjs
+
       - name: Write run metadata for commit job
         if: always()
         shell: bash
@@ -574,6 +579,8 @@ jobs:
             docs/uat-crawl/UAT_MANIFEST_POST_MERGE_497_MAIN.jsonl docs/uat-crawl/UAT_POST_MERGE_497_MAIN_SUMMARY.json docs/uat-crawl/UAT_INDEX_POST_MERGE_497_MAIN.md \
             docs/uat-crawl/UAT_MANIFEST_PUBLIC_CONTINUATION.jsonl docs/uat-crawl/UAT_INDEX_PUBLIC_CONTINUATION.md \
             docs/uat-crawl/UAT_VERIFIED_BLOCKERS.jsonl docs/uat-crawl/UAT_VERIFIED_BLOCKERS_SUMMARY.json docs/uat-crawl/UAT_SECRET_PRESENCE.json \
+            docs/uat-crawl/UAT_REBASELINE_CURRENT_MAIN.json docs/uat-crawl/UAT_PHYSICAL_READINESS_RECONCILIATION.json docs/uat-crawl/UAT_PHYSICAL_READINESS_RECONCILIATION.md \
+            docs/uat-crawl/UAT_MANIFEST_PUBLIC_CONTINUATION_ARCHIVE.jsonl \
             docs/uat-crawl/UAT_REBASE_490_SUMMARY.json uat-evidence/screenshots/post-merge-491-kpi \
             uat-evidence/screenshots/post-merge-497-main \
             uat-evidence/screenshots/public-continuation; do
