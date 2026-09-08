@@ -14,16 +14,16 @@ const VERIFICATION_NOTE =
   process.env.UAT_WATCHDOG_VERIFICATION?.trim() ||
   "Watchdog re-verification — no fabricated PASS; blocked IDs retain exact secret names only.";
 const RESOLVED_SHA =
-  process.env.UAT_RESOLVED_DEPLOY_SHA?.trim() || "6c7de2a69cec960f709a66fb85d25049dfcc2ae0";
+  process.env.UAT_RESOLVED_DEPLOY_SHA?.trim() || "a619a7a2ef01ee889d32fffebb5ff13fe3181252";
 const RESOLVED_URL =
   process.env.TEST_PREVIEW_URL?.trim() ||
   process.env.UAT_CRAWL_BASE_URL?.trim() ||
   "";
 const CURRENT_MAIN_HOLD =
-  process.env.UAT_TARGET_SHA?.trim() || "6c7de2a69cec960f709a66fb85d25049dfcc2ae0";
+  process.env.UAT_TARGET_SHA?.trim() || "a619a7a2ef01ee889d32fffebb5ff13fe3181252";
 const DEPLOY_PROVENANCE =
   process.env.UAT_DEPLOY_PROVENANCE_LABEL?.trim() ||
-  "Current-main authority @ 6c7de2a (#556) — prior 15c59a3f/e2f123b0 evidence preserved append-only.";
+  "Current-main authority @ a619a7a2 (#558) — prior 6c7de2a/15c59a3f/e2f123b0 evidence preserved append-only.";
 
 const PUBLIC_RUNNABLE = new Set(["UAT-0001", "UAT-0004", "UAT-0005", "UAT-0008", "UAT-0009"]);
 

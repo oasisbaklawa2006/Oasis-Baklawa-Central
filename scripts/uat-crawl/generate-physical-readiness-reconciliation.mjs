@@ -1,12 +1,12 @@
 #!/usr/bin/env node
-/** Reconcile 131-surface census vs current-main automated UAT evidence @ 6c7de2a. */
+/** Reconcile 131-surface census vs current-main automated UAT evidence @ a619a7a2. */
 import fs from "node:fs";
 import path from "node:path";
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
 const CURRENT_MAIN_SHA =
-  process.env.UAT_TARGET_SHA?.trim() || "6c7de2a69cec960f709a66fb85d25049dfcc2ae0";
-const PRIOR_CURRENT_MAIN_HOLD_SHA = "15c59a3f54c92f2b289bd150005bcd7114b51a93";
+  process.env.UAT_TARGET_SHA?.trim() || "a619a7a2ef01ee889d32fffebb5ff13fe3181252";
+const PRIOR_CURRENT_MAIN_HOLD_SHA = "6c7de2a69cec960f709a66fb85d25049dfcc2ae0";
 const PRIOR_EVIDENCE_SHA = "e2f123b0fe257b8a1f39ec40d5f544fff1ebe313";
 const DEPLOY_URL = process.env.UAT_CRAWL_BASE_URL?.trim() || "";
 const RUN_ID = process.env.GITHUB_RUN_ID || "reconcile-local";
@@ -130,7 +130,7 @@ const payload = {
   lastGhaRun: LAST_GHA_RUN,
   currentMainSha: CURRENT_MAIN_SHA,
   deployUrl: DEPLOY_URL,
-  deployProvenance: "Current-main authority @ 6c7de2a (#556) — prior 15c59a3f/e2f123b0 evidence preserved append-only",
+  deployProvenance: "Current-main authority @ a619a7a2 (#558) — prior 6c7de2a/15c59a3f/e2f123b0 evidence preserved append-only",
   policy:
     "Evidence-only PR #462 — no remediation. Physical device PASS requires human artifacts; automated S0–S3 ≠ physical PASS.",
   counts: {

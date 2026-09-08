@@ -9,16 +9,17 @@ import { CREDENTIAL_PREFIX_UNBLOCK_UAT_IDS } from "./credential-prefix-aliases.m
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
 const REQUIRED_SHA =
-  process.env.UAT_TARGET_SHA?.trim() || "6c7de2a69cec960f709a66fb85d25049dfcc2ae0";
-const PRIOR_CURRENT_MAIN_HOLD_SHA = "15c59a3f54c92f2b289bd150005bcd7114b51a93";
+  process.env.UAT_TARGET_SHA?.trim() || "a619a7a2ef01ee889d32fffebb5ff13fe3181252";
+const PRIOR_CURRENT_MAIN_HOLD_SHA = "6c7de2a69cec960f709a66fb85d25049dfcc2ae0";
+const PRIOR_CURRENT_MAIN_HOLD_SHA_507 = "15c59a3f54c92f2b289bd150005bcd7114b51a93";
 const PRIOR_EVIDENCE_SHA = "e2f123b0fe257b8a1f39ec40d5f544fff1ebe313";
 const DEPLOY_PROVENANCE_LABEL =
-  "Current-main authority @ 6c7de2a (#556) — prior 15c59a3f/e2f123b0 evidence preserved append-only.";
+  "Current-main authority @ a619a7a2 (#558) — prior 6c7de2a/15c59a3f/e2f123b0 evidence preserved append-only.";
 const RUN_ID = process.env.GITHUB_RUN_ID || "watchdog-local";
 const RUN_TRANCHE = process.env.RUN_TRANCHE || "credential-prefix-unblock";
 const REASON =
   process.env.UAT_DEPLOY_BLOCK_REASON?.trim() ||
-  `No successful Vercel deployment for current main ${REQUIRED_SHA}; lane-7 requires exact SHA — no 15c59a3f/d55306b3/c7f4ddf2/ace340fe substitution.`;
+  `No successful Vercel deployment for current main ${REQUIRED_SHA}; lane-7 requires exact SHA — no 6c7de2a/15c59a3f/d55306b3/c7f4ddf2/ace340fe substitution.`;
 
 const PUBLIC_RUNNABLE = new Set(["UAT-0001", "UAT-0004", "UAT-0005", "UAT-0008", "UAT-0009"]);
 
@@ -75,6 +76,7 @@ for (const entry of census.entries) {
     device: entry.device,
     requiredSha: REQUIRED_SHA,
     priorCurrentMainHoldSha: PRIOR_CURRENT_MAIN_HOLD_SHA,
+    priorCurrentMainHoldSha507: PRIOR_CURRENT_MAIN_HOLD_SHA_507,
     priorEvidenceSha: PRIOR_EVIDENCE_SHA,
     runId: RUN_ID,
     timestamp: now,
@@ -117,11 +119,11 @@ const payload = {
   requiredSha: REQUIRED_SHA,
   priorCurrentMainHoldSha: PRIOR_CURRENT_MAIN_HOLD_SHA,
   priorEvidenceSha: PRIOR_EVIDENCE_SHA,
-  latestProductionDeploySha: "c7f4ddf2",
-  latestProductionDeployNote: "Not substitutable — does not match requiredSha 6c7de2a",
+  latestProductionDeploySha: "a619a7a2",
+  latestProductionDeployNote: "Trusted exact-SHA deploy when present; otherwise not substitutable",
   deployStatus: "BLOCKED",
   reason: REASON,
-  vercelCommitStatus: "failure — Deployment rate limited (api-deployments-free-per-day)",
+  vercelCommitStatus: "failure — Deployment rate limited or absent (api-deployments-free-per-day)",
   vercelRateLimitSuspected: true,
   censusTotal: census.entries.length,
   verifiedCredentialBlocked: verifiedBlocked,
@@ -133,11 +135,11 @@ const payload = {
   recertifiedAtRequiredSha: 0,
   publicRunnableIds: [...PUBLIC_RUNNABLE],
   policy:
-    "Prior 15c59a3f + e2f123b0 + BLOCKED/NOT-TESTED archives preserved append-only — NOT recertified as 6c7de2a without trusted deploy.",
+    "Prior 6c7de2a/15c59a3f/e2f123b0 + BLOCKED/NOT-TESTED archives preserved append-only — NOT recertified as a619a7a2 without trusted deploy.",
   stopCondition:
-    "DEPLOY_BLOCKED @ 6c7de2a — execute credential-prefix-unblock then chronological crawl when exact SHA deploy lands.",
+    "DEPLOY_BLOCKED @ a619a7a2 — execute credential-prefix-unblock then chronological crawl when exact SHA deploy lands.",
   nextAction:
-    "Vercel deploy for 6c7de2a (or TEST_PREVIEW_URL at exact SHA) → re-run credential-prefix-unblock then watchdog-continue.",
+    "Vercel deploy for a619a7a2 (or TEST_PREVIEW_URL at exact SHA) → re-run credential-prefix-unblock then watchdog-continue.",
 };
 
 writeJson("docs/uat-crawl/UAT_REBASELINE_DEPLOY_BLOCKED.json", payload);
@@ -156,7 +158,7 @@ writeJson("docs/uat-crawl/UAT_DEPLOY_PROVENANCE.json", {
   reason: REASON,
   deployProvenance: DEPLOY_PROVENANCE_LABEL,
   policy:
-    "Do not substitute 15c59a3f, d55306b3, c7f4ddf2, ace340fe, or e2f123b0 as 6c7de2a lane-7 evidence.",
+    "Do not substitute 6c7de2a, 15c59a3f, d55306b3, c7f4ddf2, ace340fe, or e2f123b0 as a619a7a2 lane-7 evidence.",
 });
 
 writeJson("docs/uat-crawl/UAT_VERIFIED_BLOCKERS_SUMMARY.json", {
@@ -178,10 +180,10 @@ writeJson("docs/uat-crawl/UAT_VERIFIED_BLOCKERS_SUMMARY.json", {
     deployNotTested: deployNotTestedRows.length,
     credentialBlocked: verifiedBlocked,
     credsAvailableAwaitingDeploy: credsAvailable,
-    recertifiedAt6c7de2a: 0,
+    recertifiedAtRequiredSha: 0,
   },
   policy:
-    "No fabricated PASS. Historical manifests/screenshots at prior SHAs preserved append-only; current-main authority retargeted to 6c7de2a (#556).",
+    "No fabricated PASS. Historical manifests/screenshots at prior SHAs preserved append-only; current-main authority retargeted to a619a7a2 (#558).",
 });
 
 console.log(

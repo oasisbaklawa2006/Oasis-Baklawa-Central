@@ -51,7 +51,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     env:
-      RUN_TRANCHE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.run_tranche || 'credential-prefix-unblock' }}
+      RUN_TRANCHE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.run_tranche || 'all' }}
       TEST_PREVIEW_URL: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.target_url != '' && github.event.inputs.target_url || secrets.TEST_PREVIEW_URL }}
       UAT_CRAWL_BASE_URL: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.target_url != '' && github.event.inputs.target_url || secrets.TEST_PREVIEW_URL }}
       TEST_ADMIN_EMAIL: ${{ secrets.TEST_ADMIN_EMAIL }}
@@ -136,14 +136,14 @@ jobs:
           echo "UAT_CURRENT_MAIN_HOLD_SHA=64a107dfc167be76673a3d18f177a72472dcb241" >> "$GITHUB_ENV"
           echo "::notice::FAST PATH uses exact-head Vercel previews only. Current main 64a107df held — no stale ace340fe/67b3d1cc substitution."
 
-      - name: Configure current-main deploy (#556 @ 6c7de2a)
-        if: env.RUN_TRANCHE == 'post-merge-497-main' || env.RUN_TRANCHE == 'watchdog-continue' || env.RUN_TRANCHE == 'current-main-rebaseline' || env.RUN_TRANCHE == 'credential-prefix-unblock'
+      - name: Configure current-main deploy (#558 @ a619a7a2)
+        if: env.RUN_TRANCHE == 'post-merge-497-main' || env.RUN_TRANCHE == 'watchdog-continue' || env.RUN_TRANCHE == 'current-main-rebaseline' || env.RUN_TRANCHE == 'credential-prefix-unblock' || env.RUN_TRANCHE == 'all'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          CURRENT_MAIN_SHA="6c7de2a69cec960f709a66fb85d25049dfcc2ae0"
+          CURRENT_MAIN_SHA="a619a7a2ef01ee889d32fffebb5ff13fe3181252"
           url="${TEST_PREVIEW_URL:-}"
           deploy_id=""
           if [[ -z "$url" ]]; then
@@ -153,9 +153,9 @@ jobs:
             fi
           fi
           if [[ -z "$url" ]]; then
-            echo "::warning::No trusted Vercel deployment for current main ${CURRENT_MAIN_SHA} (#556)."
+            echo "::warning::No trusted Vercel deployment for current main ${CURRENT_MAIN_SHA} (#558)."
             echo "UAT_DEPLOY_BLOCKED=true" >> "$GITHUB_ENV"
-            echo "UAT_DEPLOY_BLOCK_REASON=No successful Vercel deployment for ${CURRENT_MAIN_SHA}; ${RUN_TRANCHE} requires current-main cert — no 15c59a3f/d55306b3 substitution." >> "$GITHUB_ENV"
+            echo "UAT_DEPLOY_BLOCK_REASON=No successful Vercel deployment for ${CURRENT_MAIN_SHA}; ${RUN_TRANCHE} requires current-main cert — no 6c7de2a/15c59a3f/d55306b3 substitution." >> "$GITHUB_ENV"
             echo "UAT_TARGET_SHA=${CURRENT_MAIN_SHA}" >> "$GITHUB_ENV"
             exit 0
           fi
@@ -172,7 +172,7 @@ jobs:
           echo "POST_MERGE_497_DEPLOYMENT_ID=${deploy_id}" >> "$GITHUB_ENV"
           echo "TEST_PREVIEW_URL=$url" >> "$GITHUB_ENV"
           echo "UAT_CRAWL_BASE_URL=$url" >> "$GITHUB_ENV"
-          echo "UAT_DEPLOY_PROVENANCE_LABEL=Current-main authority @ 6c7de2a (#556) — prior 15c59a3f/e2f123b0 evidence preserved append-only." >> "$GITHUB_ENV"
+          echo "UAT_DEPLOY_PROVENANCE_LABEL=Current-main authority @ a619a7a2 (#558) — prior 6c7de2a/15c59a3f/e2f123b0 evidence preserved append-only." >> "$GITHUB_ENV"
           echo "::notice::${RUN_TRANCHE} bound to ${CURRENT_MAIN_SHA} @ ${url}"
 
       - name: Resolve and validate target URL (no secrets logged)
@@ -183,7 +183,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          CURRENT_MAIN_SHA="6c7de2a69cec960f709a66fb85d25049dfcc2ae0"
+          CURRENT_MAIN_SHA="a619a7a2ef01ee889d32fffebb5ff13fe3181252"
           CONTINUATION_LEGACY_SHA="ace340fe1d122a4cce5d7bb61cd237ed7ba1c894"
           CONTINUATION_LEGACY_URL="https://oasis-baklawa-central-6zo99hosg-oasisbaklawa2006-6222s-projects.vercel.app"
           url="${RAW_URL:-}"
@@ -261,8 +261,8 @@ jobs:
         if: env.RUN_TRANCHE != 'post-merge-proofs' && env.RUN_TRANCHE != 'post-merge-497-main' && env.RUN_TRANCHE != 'watchdog-continue' && env.RUN_TRANCHE != 'current-main-rebaseline' && env.RUN_TRANCHE != 'credential-prefix-unblock' && env.UAT_DEPLOY_BLOCKED != 'true' && env.UAT_CONTINUATION_FALLBACK == 'true'
         run: node scripts/uat-crawl/record-continuation-provenance.mjs
 
-      - name: Record current-main deploy provenance (#556 @ 6c7de2a)
-        if: (env.RUN_TRANCHE == 'post-merge-497-main' || env.RUN_TRANCHE == 'watchdog-continue' || env.RUN_TRANCHE == 'current-main-rebaseline' || env.RUN_TRANCHE == 'credential-prefix-unblock') && env.UAT_DEPLOY_BLOCKED != 'true'
+      - name: Record current-main deploy provenance (#558 @ a619a7a2)
+        if: (env.RUN_TRANCHE == 'post-merge-497-main' || env.RUN_TRANCHE == 'watchdog-continue' || env.RUN_TRANCHE == 'current-main-rebaseline' || env.RUN_TRANCHE == 'credential-prefix-unblock' || env.RUN_TRANCHE == 'all') && env.UAT_DEPLOY_BLOCKED != 'true'
         run: node scripts/uat-crawl/record-current-main-provenance.mjs
 
       - uses: actions/setup-node@v4
@@ -282,7 +282,7 @@ jobs:
         id: post_merge_497_005
         continue-on-error: true
         env:
-          POST_MERGE_497_MAIN_SHA: 6c7de2a69cec960f709a66fb85d25049dfcc2ae0
+          POST_MERGE_497_MAIN_SHA: a619a7a2ef01ee889d32fffebb5ff13fe3181252
           POST_MERGE_497_DEPLOYMENT_ID: ${{ env.POST_MERGE_497_DEPLOYMENT_ID }}
         run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/post-merge-497-main.spec.ts
 
@@ -370,7 +370,7 @@ jobs:
           node scripts/uat-crawl/archive-ai-uat-evidence.mjs
 
       - name: Run credential-prefix-unblock (Gate/RGS/3PGS UAT IDs)
-        if: env.RUN_TRANCHE != 'post-merge-proofs' && env.UAT_DEPLOY_BLOCKED != 'true' && env.RUN_TRANCHE == 'credential-prefix-unblock'
+        if: env.RUN_TRANCHE != 'post-merge-proofs' && env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'credential-prefix-unblock' || env.RUN_TRANCHE == 'all' || env.RUN_TRANCHE == 'watchdog-continue' || env.RUN_TRANCHE == 'current-main-rebaseline')
         continue-on-error: true
         run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/credential-prefix-unblock.spec.ts
 
@@ -469,14 +469,15 @@ jobs:
             "runTranche": "${RUN_TRANCHE}",
             "ref": "${GITHUB_REF}",
             "sha": "${GITHUB_SHA}",
-            "currentMainHoldSha": "${UAT_TARGET_SHA:-6c7de2a69cec960f709a66fb85d25049dfcc2ae0}",
+            "currentMainHoldSha": "${UAT_TARGET_SHA:-a619a7a2ef01ee889d32fffebb5ff13fe3181252}",
             "resolvedDeploySha": "${UAT_RESOLVED_DEPLOY_SHA:-}",
             "continuationFallback": ${UAT_CONTINUATION_FALLBACK:-false},
             "deployProvenanceLabel": "${UAT_DEPLOY_PROVENANCE_LABEL:-}",
             "deployBlocked": ${UAT_DEPLOY_BLOCKED:-false},
             "deployUrl": "${TEST_PREVIEW_URL:-}",
-            "fail493EvidencePreserved": "Pre-fix FAIL @ 8f042fa (run 34015742110) + preview PASS @ 9715c20d (run 34016393457) + e2f123b0/15c59a3f evidence preserved append-only; rebaseline target 6c7de2a (#556)",
+            "fail493EvidencePreserved": "Pre-fix FAIL @ 8f042fa (run 34015742110) + preview PASS @ 9715c20d (run 34016393457) + e2f123b0/15c59a3f/6c7de2a evidence preserved append-only; rebaseline target a619a7a2 (#558)",
             "priorEvidenceSha": "e2f123b0fe257b8a1f39ec40d5f544fff1ebe313",
+            "priorCurrentMainHoldSha": "6c7de2a69cec960f709a66fb85d25049dfcc2ae0",
             "uat005CurrentMainPass": "${UAT_005_CURRENT_MAIN_PASS:-}",
             "completedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           }
