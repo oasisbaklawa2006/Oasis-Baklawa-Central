@@ -1,4 +1,4 @@
-import { useCallback, type ChangeEvent } from "react";
+import { useCallback, useEffect, type ChangeEvent } from "react";
 import type { ComplianceException } from "@/lib/management-reporting";
 import type { ManagementCommandCenterFilters } from "@/hooks/useManagementCommandCenter";
 
@@ -114,4 +114,20 @@ export function createDebounceCleanup(handle: number) {
   return function clearDebounceTimer() {
     window.clearTimeout(handle);
   };
+}
+
+export function useEanSearchDebounce(
+  eanSearchInput: string,
+  setFilters: UiHandlerArgs["setFilters"],
+) {
+  useEffect(function debounceEanSearchEffect() {
+    const handle = window.setTimeout(function applyDebouncedEanSearch() {
+      setFilters(function mergeEanSearchFilter(current) {
+        return current.eanSearch === eanSearchInput
+          ? current
+          : { ...current, eanSearch: eanSearchInput, eanPage: 0 };
+      });
+    }, 300);
+    return createDebounceCleanup(handle);
+  }, [eanSearchInput, setFilters]);
 }

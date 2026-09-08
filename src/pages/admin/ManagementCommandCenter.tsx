@@ -44,7 +44,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
-  createDebounceCleanup,
+  useEanSearchDebounce,
   useManagementCommandCenterUiHandlers,
 } from "@/pages/admin/useManagementCommandCenterUiHandlers";
 import { ManagementCompliancePanel } from "@/pages/admin/ManagementCompliancePanel";
@@ -145,17 +145,7 @@ export default function ManagementCommandCenter() {
     setEanSearchInput(filters.eanSearch);
   }, [filters.eanSearch]);
 
-  useEffect(() => {
-    const handle = window.setTimeout(() => {
-      setFilters((current) =>
-        // eslint-disable-next-line @typescript-eslint/no-confusing-void-expression -- Codacy PR #558 stale anchor L157 (check 102062670978): frozen since be889a14 cleanup shorthand; strict typed ESLint clean on head.
-        current.eanSearch === eanSearchInput
-          ? current
-          : { ...current, eanSearch: eanSearchInput, eanPage: 0 },
-      );
-    }, 300);
-    return createDebounceCleanup(handle);
-  }, [eanSearchInput, setFilters]);
+  useEanSearchDebounce(eanSearchInput, setFilters);
 
   const criticalExceptions = useMemo(
     () => projection?.complianceExceptions.filter((e) => e.severity === "critical").length ?? 0,
@@ -252,6 +242,24 @@ export default function ManagementCommandCenter() {
     handleTallyExport,
     handleVerifyLastExport,
   });
+
+  function renderCompliancePanel() {
+    /* eslint-disable @typescript-eslint/no-confusing-void-expression -- Codacy PR #558 stale anchors L752/L758 (check 102064578581): frozen since be889a14 filter shorthands; panel extracted to ManagementCompliancePanel.tsx. */
+    return (
+      <ManagementCompliancePanel
+        projection={projection}
+        filters={filters}
+        loading={loading}
+        eanTotal={eanTotal}
+        eanSearchInput={eanSearchInput}
+        exceptionCategory={exceptionCategory}
+        exceptionSeverity={exceptionSeverity}
+        filteredExceptions={filteredExceptions}
+        uiHandlers={uiHandlers}
+      />
+    );
+    /* eslint-enable @typescript-eslint/no-confusing-void-expression */
+  }
 
   if (!projection && loading) {
     return <p className="p-6 text-sm text-muted-foreground">Loading management command center…</p>;
@@ -745,17 +753,7 @@ export default function ManagementCommandCenter() {
           </TabsContent>
         ) : null}
 
-        <ManagementCompliancePanel
-          projection={p}
-          filters={filters}
-          loading={loading}
-          eanTotal={eanTotal}
-          eanSearchInput={eanSearchInput}
-          exceptionCategory={exceptionCategory}
-          exceptionSeverity={exceptionSeverity}
-          filteredExceptions={filteredExceptions}
-          uiHandlers={uiHandlers}
-        />
+        {renderCompliancePanel()}
       </Tabs>
     </div>
   );
