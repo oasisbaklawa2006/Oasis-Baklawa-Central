@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { fetchClientGovernanceCounts } from "../clientGovernanceCounts";
 
-// Behavioral regression: after a successful approve mutation the pending tab list
+// Behavioral regression (FAIL-485-001): after a successful approve mutation the pending tab list
 // and KPI cards must converge on the same backend truth. This simulates mount-time
 // counts (1 pending) followed by a post-mutation refetch (0 pending, +1 approved).
 
