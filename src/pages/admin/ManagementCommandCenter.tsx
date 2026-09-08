@@ -696,13 +696,20 @@ export default function ManagementCommandCenter() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <Button onClick={() => void handleTallyExport()} disabled={exporting}>
+                  <Button
+                    onClick={() => {
+                      void handleTallyExport();
+                    }}
+                    disabled={exporting}
+                  >
                     {exporting ? "Exporting…" : "Generate & download CSV"}
                   </Button>
                   {exportHistory.length > 0 ? (
                     <Button
                       variant="outline"
-                      onClick={() => void handleVerifyLastExport()}
+                      onClick={() => {
+                        void handleVerifyLastExport();
+                      }}
                       disabled={verifyingExport || exporting}
                     >
                       {verifyingExport ? "Verifying…" : "Verify last export hash"}
