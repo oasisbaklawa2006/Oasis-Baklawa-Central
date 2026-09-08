@@ -1,9 +1,9 @@
 {
-  "runId": "34260877077",
-  "runAttempt": "1",
+  "runId": "34242121280",
+  "runAttempt": "2",
   "runTranche": "watchdog-continue",
   "ref": "refs/heads/cursor/physical-uat-readiness-matrix-e763",
-  "sha": "b7ffe750d6979d6426487f1259bb263e8cb9449b",
+  "sha": "3834acad5bae9b7c79b46d55df2fa0b863100991",
   "currentMainHoldSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
   "resolvedDeploySha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
   "continuationFallback": false,
@@ -14,5 +14,5 @@
   "priorEvidenceSha": "e2f123b0fe257b8a1f39ec40d5f544fff1ebe313",
   "priorCurrentMainHoldSha": "6c7de2a69cec960f709a66fb85d25049dfcc2ae0",
   "uat005CurrentMainPass": "",
-  "completedAt": "2026-09-08T18:25:19Z"
+  "completedAt": "2026-09-08T21:02:39Z"
 }
