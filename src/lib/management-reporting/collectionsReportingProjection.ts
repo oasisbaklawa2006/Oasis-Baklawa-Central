@@ -232,7 +232,7 @@ function buildRecoverableOutstandingMetric(input: {
       "orders read truncated — partial dataset",
     );
   }
-  if (core && core.ordersWithCoreFacts > 0 && core.ordersWithCoreFacts < core.ordersAttempted) {
+  if (core && core.ordersWithCoreFacts < core.ordersAttempted) {
     return wrapUnavailableMetric(
       0,
       coreFinance255Source("get_order_payment_facts_v1"),
