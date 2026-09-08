@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-09-08T14:38:00.904Z",
-  "runId": "34239494014",
-  "runTranche": "all",
+  "generatedAt": "2026-09-08T15:02:16.856Z",
+  "runId": "34242121280",
+  "runTranche": "watchdog-continue",
   "requiredSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
   "requiredShaStatus": "TRUSTED — current Central main (#558 @ a619a7a2)",
   "resolvedSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
