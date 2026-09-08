@@ -68,6 +68,7 @@ jobs:
           bash -n scripts/point100-certification/start-ephemeral.sh
           bash -n scripts/point100-certification/stop-ephemeral.sh
           bash -n scripts/point100-certification/run-dress-rehearsal.sh
+          bash -n scripts/point100-certification/recert-after-core-260.sh
 
       - name: Unit tests (Point100 harness library)
         run: npm run test -- src/lib/point100

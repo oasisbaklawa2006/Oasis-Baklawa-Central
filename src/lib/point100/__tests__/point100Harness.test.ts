@@ -13,6 +13,10 @@ import {
   POINT100_CORE_PRODUCTION_VERIFIED_SHA,
   POINT100_PRODUCTION_MIGRATION_RUN_ID,
   isCoreProductionVerified,
+  isCoreDispatchProductionVerified,
+  isRpcOnCertifiedCorePin,
+  POINT100_CORE_PENDING_DISPATCH_PR,
+  POINT100_DISPATCH_FINALIZE_RPC,
   resolveProductionMigrationRunId,
 } from "../upstreamDependencies";
 import { CENTRAL_ADMIN_MODULE_AUTHORITY_MATRIX } from "../../appverse/centralAdminModuleAuthorityMatrix";
@@ -146,18 +150,25 @@ describe("point100 probe runner", () => {
     expect(merged556?.affectedStageIds).toContain("dispatch_consignment");
   });
 
-  it("bypasses dispatch finalize blocker in disposable rehearsal mode", () => {
+  it("keeps dispatch finalize blocked pending Core #260 even in disposable rehearsal", () => {
     const originalBootstrap = process.env.POINT100_ALLOW_DISPOSABLE_BOOTSTRAP;
     const originalProduction = process.env.POINT100_PRODUCTION_CERTIFICATION_PERMITTED;
+    const originalDispatch = process.env.POINT100_DISPATCH_PRODUCTION_VERIFIED;
     process.env.POINT100_ALLOW_DISPOSABLE_BOOTSTRAP = "true";
     delete process.env.POINT100_PRODUCTION_CERTIFICATION_PERMITTED;
+    delete process.env.POINT100_DISPATCH_PRODUCTION_VERIFIED;
     expect(isDisposableRehearsalMode()).toBe(true);
-    expect(upstreamBlockersForStage("dispatch_consignment")).toHaveLength(0);
-    expect(productionGateBlockers().some((dep) => dep.id === "core-order-dispatched-rpc")).toBe(true);
+    expect(upstreamBlockersForStage("dispatch_consignment")).toHaveLength(1);
+    expect(upstreamBlockersForStage("dispatch_consignment")[0]?.id).toBe("core-macro-dispatch-260");
+    expect(productionGateBlockers().some((dep) => dep.id === "core-macro-dispatch-260")).toBe(true);
+    expect(isRpcOnCertifiedCorePin(POINT100_DISPATCH_FINALIZE_RPC)).toBe(false);
+    expect(isCoreDispatchProductionVerified()).toBe(false);
     if (originalBootstrap === undefined) delete process.env.POINT100_ALLOW_DISPOSABLE_BOOTSTRAP;
     else process.env.POINT100_ALLOW_DISPOSABLE_BOOTSTRAP = originalBootstrap;
     if (originalProduction === undefined) delete process.env.POINT100_PRODUCTION_CERTIFICATION_PERMITTED;
     else process.env.POINT100_PRODUCTION_CERTIFICATION_PERMITTED = originalProduction;
+    if (originalDispatch === undefined) delete process.env.POINT100_DISPATCH_PRODUCTION_VERIFIED;
+    else process.env.POINT100_DISPATCH_PRODUCTION_VERIFIED = originalDispatch;
   });
 
   it("embeds Core #259 provenance in capability matrix", () => {
@@ -166,6 +177,8 @@ describe("point100 probe runner", () => {
     const matrix = buildCapabilityMatrix([], "test-env");
     expect(matrix.certification_mode).toBe("disposable_synthetic");
     expect(matrix.inventory_production_verified).toBe(true);
+    expect(matrix.dispatch_production_verified).toBe(false);
+    expect(matrix.pending_core_recert_pr).toBe(POINT100_CORE_PENDING_DISPATCH_PR);
     expect(matrix.core_verified_sha).toBe(POINT100_CORE_PRODUCTION_VERIFIED_SHA);
     expect(matrix.production_migration_gate).toBe(POINT100_PRODUCTION_MIGRATION_GATE);
     expect(matrix.production_migration_run_id).toBe(POINT100_PRODUCTION_MIGRATION_RUN_ID);

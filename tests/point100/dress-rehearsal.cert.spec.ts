@@ -17,7 +17,13 @@ import {
   writeDressRehearsalLedger,
   type Point100StageRecord,
 } from "./support";
-import { POINT100_UPSTREAM_DEPENDENCIES, formatUpstreamBlocker, productionGateBlockers } from "../../src/lib/point100/upstreamDependencies";
+import {
+  POINT100_DISPATCH_FINALIZE_RPC,
+  POINT100_CORE_PENDING_DISPATCH_PR,
+  formatUpstreamBlocker,
+  isRpcOnCertifiedCorePin,
+  productionGateBlockers,
+} from "../../src/lib/point100/upstreamDependencies";
 import { executeStageProbe, runLifecycleProbes, macro556DispatchRoutesPresent } from "./probes";
 
 /**
@@ -288,22 +294,23 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
     recordStage(stages, "final_invoice_balance", "get_finance_exit_facts_v1", "DISPATCH_MANAGER", null, "PASS", `stage=${state!.stage} status=${state!.orderStatus}`);
     recordStage(stages, "finance_dispatch_clearance", "decide_finance_dispatch_clearance_v1", "DISPATCH_MANAGER", null, "PASS", `blockers=${state!.blockers.length}`);
 
-    const dispatchedRpc = await probeRpcExists("release_order_to_dispatched_v1");
-    const disposableNote = dispatchedRpc.exists
-      ? "disposable bootstrap RPC probe passed; canonical release_order_to_dispatched_v1 not on Core c89c538c"
-      : "canonical Core dispatch RPC absent on disposable Core replay";
+    const dispatchedRpc = await probeRpcExists(POINT100_DISPATCH_FINALIZE_RPC);
+    const onCertifiedPin = isRpcOnCertifiedCorePin(POINT100_DISPATCH_FINALIZE_RPC);
+    const dispatchNote = onCertifiedPin
+      ? `canonical ${POINT100_DISPATCH_FINALIZE_RPC} present on certified Core pin`
+      : dispatchedRpc.exists
+        ? `bootstrap shadow detected — ${POINT100_DISPATCH_FINALIZE_RPC} not certified (pending ${POINT100_CORE_PENDING_DISPATCH_PR})`
+        : `${POINT100_DISPATCH_FINALIZE_RPC} absent on certified Core pin c89c538c (pending ${POINT100_CORE_PENDING_DISPATCH_PR})`;
     recordStage(
       stages,
       "dispatch_consignment",
-      "release_order_to_dispatched_v1",
+      POINT100_DISPATCH_FINALIZE_RPC,
       "DISPATCH_MANAGER",
       null,
-      dispatchedRpc.exists ? "PASS" : "BLOCKED",
-      `${disposableNote}; golden_chain_stage=${state!.stage}`,
+      "BLOCKED",
+      `${dispatchNote}; golden_chain_stage=${state!.stage}`,
     );
-    if (!dispatchedRpc.exists) {
-      upstreamBlockers.push("dispatch_consignment: canonical release_order_to_dispatched_v1 not on Core main");
-    }
+    upstreamBlockers.push(`dispatch_consignment: ${formatUpstreamBlocker(productionGateBlockers()[0]!)}`);
   });
 
   // ---- 12: Gate RPC probe + independent gate route (#556) ----
@@ -346,21 +353,23 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
     const { client } = await createAuthenticatedCertificationClient(page);
     recordStage(stages, "customer_dispatch_proof", "record_dispatch_proof_packet_v1", "DISPATCH_MANAGER", null, "PASS", "dispatch proof authority bound in financeExitAuthorityClient");
 
-    const dispatchedRpc = await probeRpcExists("release_order_to_dispatched_v1");
+    const dispatchedRpc = await probeRpcExists(POINT100_DISPATCH_FINALIZE_RPC);
+    const onCertifiedPin = isRpcOnCertifiedCorePin(POINT100_DISPATCH_FINALIZE_RPC);
+    const orderCompleteNote = onCertifiedPin
+      ? `canonical ${POINT100_DISPATCH_FINALIZE_RPC} present on certified Core pin`
+      : dispatchedRpc.exists
+        ? `bootstrap shadow detected — ${POINT100_DISPATCH_FINALIZE_RPC} not certified (pending ${POINT100_CORE_PENDING_DISPATCH_PR})`
+        : `Point38 fixture at cleared_for_dispatch; ${POINT100_DISPATCH_FINALIZE_RPC} absent on certified Core pin`;
     recordStage(
       stages,
       "order_complete",
-      "release_order_to_dispatched_v1",
+      POINT100_DISPATCH_FINALIZE_RPC,
       "DISPATCH_MANAGER",
       null,
-      dispatchedRpc.exists ? "PASS" : "BLOCKED",
-      dispatchedRpc.exists
-        ? "Point38 fixture at cleared_for_dispatch; disposable bootstrap RPC present — canonical release_order_to_dispatched_v1 not on Core c89c538c"
-        : "Point38 fixture at cleared_for_dispatch; canonical order_complete RPC absent on Core replay",
+      "BLOCKED",
+      orderCompleteNote,
     );
-    if (!dispatchedRpc.exists) {
-      upstreamBlockers.push("order_complete: canonical release_order_to_dispatched_v1 not on Core main");
-    }
+    upstreamBlockers.push(`order_complete: ${formatUpstreamBlocker(productionGateBlockers()[0]!)}`);
 
     const complaint = await executeStageProbe(client, "complaint_window", `p100-${RUN_SUFFIX}-complaint`);
     const complaintRow = complaint.detail;
@@ -393,11 +402,6 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
 
   await test.step("Write Point100 dress rehearsal ledger", async () => {
     const productionGateBlockerNotes = productionGateBlockers().map(formatUpstreamBlocker);
-    if (productionGateBlockerNotes.length === 0) {
-      productionGateBlockerNotes.push(
-        "oasis-supabase-core: canonical release_order_to_dispatched_v1 remains bootstrap-only on disposable replay (not on Core c89c538c)",
-      );
-    }
     const ledger = writeDressRehearsalLedger({
       schema_version: 1,
       harness: "point100-dress-rehearsal",

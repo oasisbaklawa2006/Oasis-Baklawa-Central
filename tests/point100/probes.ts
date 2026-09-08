@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Point100ProbeOutcome } from "../../src/lib/point100/capabilityStatus";
 import { POINT100_LIFECYCLE_STAGES } from "../../src/lib/point100/lifecycleStages";
 import { buildProbeOutcome, probeFixtureKeys, resolvedRpcForStage } from "../../src/lib/point100/probeRunner";
+import { isRpcOnCertifiedCorePin, POINT100_CORE_PENDING_DISPATCH_PR } from "../../src/lib/point100/upstreamDependencies";
 import { CENTRAL_ADMIN_MODULE_AUTHORITY_MATRIX } from "../../src/lib/appverse/centralAdminModuleAuthorityMatrix";
 import { MACRO_DISPATCH_MANAGER_HOME, MACRO_ORDER_DISPATCH_JOURNEY } from "../../src/lib/macro-order-dispatch/macroOrderDispatchJourney";
 import { probeRpcExists } from "./support";
@@ -71,7 +72,12 @@ export async function runLifecycleProbes(): Promise<Point100ProbeOutcome[]> {
 
     for (const rpc of rpcNames) {
       const probe = await probeRpcExists(rpc);
-      rpcResults.push({ rpc, exists: probe.exists, detail: probe.detail });
+      const onCertifiedPin = isRpcOnCertifiedCorePin(rpc);
+      rpcResults.push({
+        rpc,
+        exists: probe.exists && onCertifiedPin,
+        detail: onCertifiedPin ? probe.detail : `${rpc} not on certified Core pin (pending ${POINT100_CORE_PENDING_DISPATCH_PR})`,
+      });
     }
 
     outcomes.push(

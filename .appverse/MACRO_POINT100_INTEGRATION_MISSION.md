@@ -8,7 +8,9 @@ Rules:
 - This is not an audit-only PR. Build the executable integration harness, adapters, fixtures, route bindings and repair code needed on Central to consume canonical authorities.
 - Reuse and bind the macro tranches already under construction: Buyer revenue, Core Finance, Core Inventory/Factory, Central CRM, Central Order→Gate (#556 merged), AI Catalogue, and Trace. Do not create shadow truth.
 - Missing upstream authorities must be reported precisely and fail closed; where Central-side binding or orchestration is missing, implement it here.
-- Disposable synthetic rehearsal runs against production-certified Core SHA `c89c538c` (#259 Trace Core via Release #161 run `34188983863`). Trace `trace_*_v1` software contracts are consumed; Trace #37 device recertification remains `physical_uat_only`. Dispatch finalize RPC remains bootstrap-only until Core ships `release_order_to_dispatched_v1`.
+- Disposable synthetic rehearsal runs against production-certified Core SHA `c89c538c` (#259 Trace Core via Release #161 run `34188983863`). Trace `trace_*_v1` software contracts are consumed; Trace #37 device recertification remains `physical_uat_only`.
+- Core **#260** (`release_order_to_dispatched_v1`) is approval-held and **not** production-deployed on the certified pin. Point100 does **not** certify disposable bootstrap dispatch-finalize substitutes.
+- After Core #260 merge → protected Production Migration Release → semantic/runtime verification, run `scripts/point100-certification/recert-after-core-260.sh` with the new SHA and migration run id.
 - Test whole journeys, not isolated programme points. Batch defects and repairs inside this tranche.
 - Maintain role/tenant isolation, idempotency, audit lineage, AAL2/maker-checker where required, and Core migration serialization.
 - No physical-device PASS claims. Physical scanner/printer/TV/mobile/gate evidence remains Leap 13.
@@ -46,3 +48,13 @@ npm run test:point100
 ```
 
 Artifacts: `point100-capability-matrix.json`, `point100-dress-rehearsal-ledger.json`, `point100-negative-paths-ledger.json`.
+
+## Recert after Core #260 (post protected-deploy)
+
+```bash
+export POINT100_CORE_REPO=/path/to/oasis-supabase-core
+export POINT100_CORE_VERIFIED_SHA=<post-#260-production-certified-sha>
+export POINT100_RECERT_AFTER_CORE_MIGRATION_RUN_ID=<production-migration-release-run-id>
+export POINT100_DISPATCH_PRODUCTION_VERIFIED=true
+bash scripts/point100-certification/recert-after-core-260.sh
+```

@@ -38,6 +38,19 @@ export const POINT100_TRACE_SOFTWARE_RPCS = [
   "trace_allocate_identity_v1",
 ] as const;
 
+/** Core dispatch-finalize authority — approval-held on #260, not on certified pin #259. */
+export const POINT100_DISPATCH_FINALIZE_RPC = "release_order_to_dispatched_v1";
+
+export const POINT100_CORE_PENDING_DISPATCH_PR = "#260";
+
+/**
+ * Set after Core #260 protected Production Migration Release + semantic/runtime verification.
+ * Triggers full lifecycle recertification via scripts/point100-certification/recert-after-core-260.sh
+ */
+export const POINT100_RECERT_AFTER_CORE_MIGRATION_RUN_ID_ENV = "POINT100_RECERT_AFTER_CORE_MIGRATION_RUN_ID";
+
+const POINT100_PENDING_CORE_RPCS = new Set<string>([POINT100_DISPATCH_FINALIZE_RPC]);
+
 /** Rebind state here when Mission Control clears an upstream macro PR. */
 export const POINT100_UPSTREAM_DEPENDENCIES: readonly Point100UpstreamDependency[] = [
   {
@@ -115,15 +128,14 @@ export const POINT100_UPSTREAM_DEPENDENCIES: readonly Point100UpstreamDependency
     failClosedStatus: "physical_uat_only",
   },
   {
-    id: "core-order-dispatched-rpc",
+    id: "core-macro-dispatch-260",
     repository: "oasis-supabase-core",
-    pr: "canonical release_order_to_dispatched_v1",
+    pr: POINT100_CORE_PENDING_DISPATCH_PR,
     state: "open_pr",
     affectedStageIds: ["dispatch_consignment", "order_complete"],
     blockerDetail:
-      "Canonical Core release_order_to_dispatched_v1 is not on Core at SHA c89c538c. Disposable cert bootstrap RPC may exist locally for synthetic rehearsal only — not programme authority.",
+      "Core #260 release_order_to_dispatched_v1 is approval-held and NOT production-deployed on certified pin c89c538c. Disposable bootstrap substitutes are not certified; rebind after protected Production Migration Release + semantic/runtime verification.",
     failClosedStatus: "upstream_contract_missing",
-    disposableRehearsalBypass: true,
   },
 ] as const;
 
@@ -138,6 +150,23 @@ export function resolveProductionMigrationRunId(): string | null {
 export function isCoreProductionVerified(): boolean {
   const sha = resolveCoreVerifiedSha();
   return sha === POINT100_CORE_PRODUCTION_VERIFIED_SHA || sha?.startsWith("c89c538c") === true;
+}
+
+/** True only after Core #260 is protected-deployed and Mission Control clears dispatch recert. */
+export function isCoreDispatchProductionVerified(): boolean {
+  return process.env.POINT100_DISPATCH_PRODUCTION_VERIFIED === "true";
+}
+
+export function resolveRecertAfterCoreMigrationRunId(): string | null {
+  return process.env.POINT100_RECERT_AFTER_CORE_MIGRATION_RUN_ID?.trim() ?? null;
+}
+
+/** RPCs injected by disposable cert bootstrap must not satisfy certified-pin probes. */
+export function isRpcOnCertifiedCorePin(rpcName: string): boolean {
+  if (POINT100_PENDING_CORE_RPCS.has(rpcName) && !isCoreDispatchProductionVerified()) {
+    return false;
+  }
+  return true;
 }
 
 /** @deprecated Use isCoreProductionVerified */
@@ -164,7 +193,6 @@ function isDependencyActiveForStage(
   if (dep.state === "merged") return false;
   if (!dep.affectedStageIds.includes(stageId)) return false;
   if (dep.disposableRehearsalBypass && isDisposableRehearsalMode()) return false;
-  if (dep.id === "core-order-dispatched-rpc" && isDisposableCertBootstrapPermitted()) return false;
   return true;
 }
 
@@ -174,7 +202,7 @@ export function upstreamBlockersForStage(stageId: string): Point100UpstreamDepen
 
 export function productionGateBlockers(): Point100UpstreamDependency[] {
   return POINT100_UPSTREAM_DEPENDENCIES.filter(
-    (dep) => dep.state !== "merged" && dep.id === "core-order-dispatched-rpc",
+    (dep) => dep.state !== "merged" && dep.id === "core-macro-dispatch-260",
   );
 }
 

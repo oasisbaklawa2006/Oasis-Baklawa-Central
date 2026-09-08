@@ -98,7 +98,7 @@ export function buildProbeOutcome(input: {
   } else {
     status = "implemented";
     detail = isDisposableRehearsalMode()
-      ? "Contract present on disposable Core replay at SHA c89c538c; dispatch finalize RPC remains bootstrap-only"
+      ? "Contract present on certified Core pin c89c538c; dispatch finalize blocked pending Core #260"
       : "Contract present; full journey execution deferred to dress-rehearsal stage";
   }
 
@@ -110,7 +110,13 @@ export function buildProbeOutcome(input: {
   // Trace #37 device recert is fail-closed, but Core #259 trace_*_v1 software contracts remain probeable.
   const traceSoftwareReady = stage.id === "trace_handover" && contractReady;
 
-  const executable = technicalReady || traceSoftwareReady;
+  const upstreamBlocksExecution = upstream.some(
+    (dep) =>
+      dep.failClosedStatus === "upstream_contract_missing" ||
+      dep.failClosedStatus === "preview_secret_missing",
+  );
+
+  const executable = (technicalReady || traceSoftwareReady) && !upstreamBlocksExecution;
 
   return {
     stageId: stage.id,
