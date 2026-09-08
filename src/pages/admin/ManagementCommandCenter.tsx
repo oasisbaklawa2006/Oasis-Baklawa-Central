@@ -46,6 +46,10 @@ import {
 } from "@/lib/management-reporting";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import {
+  createDebounceCleanup,
+  useManagementCommandCenterUiHandlers,
+} from "@/pages/admin/useManagementCommandCenterUiHandlers";
 
 /** Shared cap for compliance exception queue rendering and the shown-count badge. */
 const COMPLIANCE_EXCEPTION_DISPLAY_LIMIT = 40;
@@ -154,9 +158,7 @@ export default function ManagementCommandCenter() {
           : { ...current, eanSearch: eanSearchInput, eanPage: 0 },
       );
     }, 300);
-    return () => {
-      window.clearTimeout(handle);
-    };
+    return createDebounceCleanup(handle);
   }, [eanSearchInput, setFilters]);
 
   const criticalExceptions = useMemo(
@@ -244,6 +246,17 @@ export default function ManagementCommandCenter() {
     }
   };
 
+  const uiHandlers = useManagementCommandCenterUiHandlers({
+    setEanSearchInput,
+    setExceptionCategory,
+    setExceptionSeverity,
+    setFilters,
+    setPeriodPreset,
+    refresh,
+    handleTallyExport,
+    handleVerifyLastExport,
+  });
+
   if (!projection && loading) {
     return <p className="p-6 text-sm text-muted-foreground">Loading management command center…</p>;
   }
@@ -272,7 +285,7 @@ export default function ManagementCommandCenter() {
           <Button type="button" variant="outline" size="sm" asChild>
             <Link to="/admin/finance-governance">Finance governance</Link>
           </Button>
-          <Button type="button" variant="outline" size="sm" onClick={() => { void refresh(); }} disabled={loading}>
+          <Button type="button" variant="outline" size="sm" onClick={uiHandlers.handleRefreshClick} disabled={loading}>
             <RefreshCw className={`mr-1 h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} aria-hidden />
             Refresh
           </Button>
@@ -526,13 +539,13 @@ export default function ManagementCommandCenter() {
         {canViewFinance ? (
           <TabsContent value="finance" className="space-y-4">
             <div className="flex flex-wrap gap-2">
-              <Button size="sm" variant="outline" onClick={() => { setPeriodPreset("this_month"); }}>
+              <Button size="sm" variant="outline" onClick={uiHandlers.handleThisMonthClick}>
                 This month
               </Button>
-              <Button size="sm" variant="outline" onClick={() => { setPeriodPreset("last_month"); }}>
+              <Button size="sm" variant="outline" onClick={uiHandlers.handleLastMonthClick}>
                 Last month
               </Button>
-              <Button size="sm" variant="outline" onClick={() => { setPeriodPreset("last_3_months"); }}>
+              <Button size="sm" variant="outline" onClick={uiHandlers.handleLastThreeMonthsClick}>
                 Last 3 months
               </Button>
               <Badge variant="secondary" className="text-[10px]">
@@ -676,12 +689,7 @@ export default function ManagementCommandCenter() {
                     <p className="mb-1 text-xs text-muted-foreground">Company filter (optional)</p>
                     <Select
                       value={filters.tallyCompanyId ?? "all"}
-                      onValueChange={(value) => {
-                        setFilters((f) => ({
-                          ...f,
-                          tallyCompanyId: value === "all" ? null : value,
-                        }));
-                      }}
+                      onValueChange={uiHandlers.handleTallyCompanyChange}
                     >
                       <SelectTrigger className="h-9">
                         <SelectValue placeholder="All companies" />
@@ -696,20 +704,13 @@ export default function ManagementCommandCenter() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <Button
-                    onClick={() => {
-                      void handleTallyExport();
-                    }}
-                    disabled={exporting}
-                  >
+                  <Button onClick={uiHandlers.handleTallyExportClick} disabled={exporting}>
                     {exporting ? "Exporting…" : "Generate & download CSV"}
                   </Button>
                   {exportHistory.length > 0 ? (
                     <Button
                       variant="outline"
-                      onClick={() => {
-                        void handleVerifyLastExport();
-                      }}
+                      onClick={uiHandlers.handleVerifyLastExportClick}
                       disabled={verifyingExport || exporting}
                     >
                       {verifyingExport ? "Verifying…" : "Verify last export hash"}
@@ -758,17 +759,10 @@ export default function ManagementCommandCenter() {
             <Input
               placeholder="Search EAN, SKU, product name…"
               value={eanSearchInput}
-              onChange={(e) => {
-                setEanSearchInput(e.target.value);
-              }}
+              onChange={uiHandlers.handleEanSearchChange}
               className="max-w-sm"
             />
-            <Select
-              value={exceptionCategory}
-              onValueChange={(value) => {
-                setExceptionCategory(value as ComplianceException["category"] | "all");
-              }}
-            >
+            <Select value={exceptionCategory} onValueChange={uiHandlers.handleExceptionCategoryChange}>
               <SelectTrigger className="h-9 w-[140px]">
                 <SelectValue placeholder="Category" />
               </SelectTrigger>
@@ -781,12 +775,7 @@ export default function ManagementCommandCenter() {
                 <SelectItem value="nutrition">Nutrition</SelectItem>
               </SelectContent>
             </Select>
-            <Select
-              value={exceptionSeverity}
-              onValueChange={(value) => {
-                setExceptionSeverity(value as ComplianceException["severity"] | "all");
-              }}
-            >
+            <Select value={exceptionSeverity} onValueChange={uiHandlers.handleExceptionSeverityChange}>
               <SelectTrigger className="h-9 w-[130px]">
                 <SelectValue placeholder="Severity" />
               </SelectTrigger>
@@ -810,9 +799,7 @@ export default function ManagementCommandCenter() {
                 size="sm"
                 variant="outline"
                 disabled={filters.eanPage <= 0 || loading}
-                onClick={() => {
-                  setFilters((f) => ({ ...f, eanPage: Math.max(0, f.eanPage - 1) }));
-                }}
+                onClick={uiHandlers.handleEanPagePrevious}
               >
                 Previous
               </Button>
@@ -824,9 +811,7 @@ export default function ManagementCommandCenter() {
                   (projection?.eanRegistry.length ?? 0) < filters.eanPageSize ||
                   (filters.eanPage + 1) * filters.eanPageSize >= eanTotal
                 }
-                onClick={() => {
-                  setFilters((f) => ({ ...f, eanPage: f.eanPage + 1 }));
-                }}
+                onClick={uiHandlers.handleEanPageNext}
               >
                 Next
               </Button>
