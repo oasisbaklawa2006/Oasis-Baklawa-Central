@@ -47,6 +47,9 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
+/** Shared cap for compliance exception queue rendering and the shown-count badge. */
+const COMPLIANCE_EXCEPTION_DISPLAY_LIMIT = 40;
+
 function SemanticsBadge({ semantics }: { semantics: MetricSemantics }) {
   const variant =
     semantics === "observed" ? "secondary" : semantics === "forecast" ? "outline" : "destructive";
@@ -786,7 +789,7 @@ export default function ManagementCommandCenter() {
             <Badge variant="outline" className="text-[10px]">
               {p?.complianceDataUnavailable
                 ? "exceptions unavailable"
-                : `${filteredExceptions.length} shown / ${p?.complianceExceptions.length ?? 0} total`}
+                : `${Math.min(filteredExceptions.length, COMPLIANCE_EXCEPTION_DISPLAY_LIMIT)} shown / ${p?.complianceExceptions.length ?? 0} total`}
             </Badge>
             <Badge variant="secondary" className="text-[10px]">
               {p?.complianceDataUnavailable ? "registry unavailable" : `${eanTotal} registry rows`}
@@ -871,7 +874,7 @@ export default function ManagementCommandCenter() {
                 {filteredExceptions.length === 0 ? (
                   <p className="text-muted-foreground">No exceptions match the current filters</p>
                 ) : (
-                  filteredExceptions.slice(0, 40).map((ex) => (
+                  filteredExceptions.slice(0, COMPLIANCE_EXCEPTION_DISPLAY_LIMIT).map((ex) => (
                   <Link
                     key={ex.id}
                     to={ex.drillRoute}
