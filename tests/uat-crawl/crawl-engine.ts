@@ -20,6 +20,8 @@ export const ROOT = path.resolve(import.meta.dirname, "../..");
 export const BASELINE_SHA = "08ccb1cfd4a3624103f0681b5515e26727e77cd2";
 /** Current Central main (#558) — governed current-main deploy target for rebaseline. */
 export const CURRENT_MAIN_SHA = "a619a7a2ef01ee889d32fffebb5ff13fe3181252";
+/** Watchdog continue dispatch — 2026-09-08T18:05Z resume @ exact deploy a619a7a2. */
+export const WATCHDOG_CONTINUE_DISPATCH = "2026-09-08T18:05Z";
 /** Superseded current-main hold (#556 @ 6c7de2a) — preserved append-only, not substituted. */
 export const PRIOR_CURRENT_MAIN_HOLD_SHA = "6c7de2a69cec960f709a66fb85d25049dfcc2ae0";
 /** Prior current-main hold (#507 POINT61 @ 15c59a3f) — preserved append-only, not substituted. */

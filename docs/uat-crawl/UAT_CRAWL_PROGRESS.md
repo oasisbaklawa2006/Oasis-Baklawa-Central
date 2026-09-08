@@ -1,6 +1,6 @@
 # UAT Crawl Progress Summary
 
-**Last updated:** 2026-09-08T14:58Z (lane-7 rebaseline complete @ `a619a7a2` #558 — GHA run [34239494014](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34239494014))  
+**Last updated:** 2026-09-08T18:05Z (watchdog continue dispatch @ `a619a7a2` #558 — prior run [34244531921](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34244531921))  
 **Branch / PR:** `cursor/physical-uat-readiness-matrix-e763` → **#462**  
 **Current main:** `a619a7a2ef01ee889d32fffebb5ff13fe3181252` (#558)  
 **Prior holds (superseded):** `6c7de2a` (#556) · `15c59a3f` (#507) — preserved append-only  
@@ -35,6 +35,19 @@ Prior `6c7de2a` / `15c59a3f` / `e2f123b0` evidence preserved append-only — not
 **Latest @ `a619a7a2`:** **96 / 131** auth S0–S3 · **5 / 5** public S0 @ exact deploy · **28** credential BLOCKED · **2** partial (UAT-0018/0020 post-fix fixture)
 
 **UAT audit continue (2026-09-08):** Deploy `6329154505` @ exact `a619a7a2` **CLEARED** — `64a107df`/preview **NOT** current-main proof. See [`UAT_AUDIT_CONTINUE.json`](UAT_AUDIT_CONTINUE.json). Physical/device/provider gates remain **NOT TESTED**.
+
+## Watchdog continue @ `a619a7a2` — dispatch 2026-09-08T18:05Z
+
+| Field | Value |
+|---|---|
+| Prior run (no coverage advance) | [34244531921](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34244531921) — refresh only, **96 / 131** unchanged |
+| Next chronological runnable | **NONE** without operator unblock |
+| post-fix UAT-0018/0020 | **BLOCKED** — fixture `dc370b46` has no pending review sheet (S0 only) |
+| buyer-mobile UAT-0006/0007/0114–0121 | **BLOCKED** — `TEST_BUYER_*` absent |
+| TV UAT-0106–0113 | **BLOCKED** — `TEST_TV_RGS_*` / `TEST_TV_PRODUCTION_*` absent |
+| AI Studio / Trace UAT-0122–0131 | **BLOCKED** — preview URL secrets absent |
+
+Artifact: [`UAT_WATCHDOG_CONTINUE.json`](UAT_WATCHDOG_CONTINUE.json)
 
 Registry: [`UAT_REBASELINE_CURRENT_MAIN.json`](UAT_REBASELINE_CURRENT_MAIN.json) · public archive: [`UAT_MANIFEST_PUBLIC_CONTINUATION_ARCHIVE.jsonl`](UAT_MANIFEST_PUBLIC_CONTINUATION_ARCHIVE.jsonl)
 
