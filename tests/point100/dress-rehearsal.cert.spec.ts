@@ -20,6 +20,7 @@ import {
 import {
   POINT100_DISPATCH_FINALIZE_RPC,
   POINT100_CORE_PENDING_DISPATCH_PR,
+  POINT100_UPSTREAM_DEPENDENCIES,
   formatUpstreamBlocker,
   isRpcOnCertifiedCorePin,
   productionGateBlockers,
