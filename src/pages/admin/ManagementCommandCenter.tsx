@@ -272,7 +272,7 @@ export default function ManagementCommandCenter() {
           <Button type="button" variant="outline" size="sm" asChild>
             <Link to="/admin/finance-governance">Finance governance</Link>
           </Button>
-          <Button type="button" variant="outline" size="sm" onClick={() => refresh()} disabled={loading}>
+          <Button type="button" variant="outline" size="sm" onClick={() => { void refresh(); }} disabled={loading}>
             <RefreshCw className={`mr-1 h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} aria-hidden />
             Refresh
           </Button>
@@ -526,13 +526,13 @@ export default function ManagementCommandCenter() {
         {canViewFinance ? (
           <TabsContent value="finance" className="space-y-4">
             <div className="flex flex-wrap gap-2">
-              <Button size="sm" variant="outline" onClick={() => setPeriodPreset("this_month")}>
+              <Button size="sm" variant="outline" onClick={() => { setPeriodPreset("this_month"); }}>
                 This month
               </Button>
-              <Button size="sm" variant="outline" onClick={() => setPeriodPreset("last_month")}>
+              <Button size="sm" variant="outline" onClick={() => { setPeriodPreset("last_month"); }}>
                 Last month
               </Button>
-              <Button size="sm" variant="outline" onClick={() => setPeriodPreset("last_3_months")}>
+              <Button size="sm" variant="outline" onClick={() => { setPeriodPreset("last_3_months"); }}>
                 Last 3 months
               </Button>
               <Badge variant="secondary" className="text-[10px]">
@@ -676,12 +676,12 @@ export default function ManagementCommandCenter() {
                     <p className="mb-1 text-xs text-muted-foreground">Company filter (optional)</p>
                     <Select
                       value={filters.tallyCompanyId ?? "all"}
-                      onValueChange={(value) =>
+                      onValueChange={(value) => {
                         setFilters((f) => ({
                           ...f,
                           tallyCompanyId: value === "all" ? null : value,
-                        }))
-                      }
+                        }));
+                      }}
                     >
                       <SelectTrigger className="h-9">
                         <SelectValue placeholder="All companies" />
@@ -803,7 +803,9 @@ export default function ManagementCommandCenter() {
                 size="sm"
                 variant="outline"
                 disabled={filters.eanPage <= 0 || loading}
-                onClick={() => setFilters((f) => ({ ...f, eanPage: Math.max(0, f.eanPage - 1) }))}
+                onClick={() => {
+                  setFilters((f) => ({ ...f, eanPage: Math.max(0, f.eanPage - 1) }));
+                }}
               >
                 Previous
               </Button>
@@ -815,7 +817,9 @@ export default function ManagementCommandCenter() {
                   (projection?.eanRegistry.length ?? 0) < filters.eanPageSize ||
                   (filters.eanPage + 1) * filters.eanPageSize >= eanTotal
                 }
-                onClick={() => setFilters((f) => ({ ...f, eanPage: f.eanPage + 1 }))}
+                onClick={() => {
+                  setFilters((f) => ({ ...f, eanPage: f.eanPage + 1 }));
+                }}
               >
                 Next
               </Button>
