@@ -17,6 +17,21 @@ type UiHandlerArgs = {
   handleVerifyLastExport: () => Promise<void>;
 };
 
+export type ManagementCommandCenterUiHandlers = {
+  handleEanSearchChange: (event: ChangeEvent<HTMLInputElement>) => void;
+  handleExceptionCategoryChange: (value: string) => void;
+  handleExceptionSeverityChange: (value: string) => void;
+  handleTallyCompanyChange: (value: string) => void;
+  handleEanPagePrevious: () => void;
+  handleEanPageNext: () => void;
+  handleRefreshClick: () => void;
+  handleThisMonthClick: () => void;
+  handleLastMonthClick: () => void;
+  handleLastThreeMonthsClick: () => void;
+  handleTallyExportClick: () => void;
+  handleVerifyLastExportClick: () => void;
+};
+
 /** Named event handlers for Management Command Center (Codacy void-expression line hygiene). */
 export function useManagementCommandCenterUiHandlers({
   setEanSearchInput,
