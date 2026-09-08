@@ -1,15 +1,15 @@
 # UAT Visual + UX Crawl Index — auth-rerun
 
 **UAT range:** UAT-0002..0020 minus UAT-0018/0020 (buyer sheet → post-fix-483)
-**Crawl base URL:** https://oasis-baklawa-central-8lkgmf1q2-oasisbaklawa2006-6222s-projects.vercel.app
+**Crawl base URL:** https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app
 **Central baseline SHA:** `08ccb1cfd4a3624103f0681b5515e26727e77cd2`
 **UX matrix:** [UAT_UX_FAILURE_MATRIX.md](./UAT_UX_FAILURE_MATRIX.md) (148 criteria)
-**Captured:** 2026-09-06T20:06:06.477Z
+**Captured:** 2026-09-08T14:44:32.539Z
 
 | UAT ID | S0 | Route | State | Visual | Function | UX | Evaluated | Failures | Notes |
 |---|---|---|---|---|---|---|---:|---:|---|
 | UAT-0002 | [UAT-0002_central_admin_staff_operations-controller-default_S0-auth-settled.png](../../uat-evidence/screenshots/auth-rerun/UAT-0002_central_admin_staff_operations-controller-default_S0-auth-settled.png) | /operations-controller | default | OBSERVED | OBSERVED | PASS | 4/148 | 0 | Authenticated via TEST_OPERATIONS_* (values not logged) |
-| UAT-0003 | [ (pre-auth S0 preserved)](../../uat-evidence/screenshots/tranche-01/ (pre-auth S0 preserved)) | /security-gate | default | BLOCKED | BLOCKED | BLOCKED | 0/148 | 0 | AUTH BLOCKED — missing TEST_GATE_SECURITY_EMAIL, TEST_G |
+| UAT-0003 | [UAT-0003_central_gate_security_security-gate-default_S0-auth-settled.png](../../uat-evidence/screenshots/auth-rerun/UAT-0003_central_gate_security_security-gate-default_S0-auth-settled.png) | /security-gate | default | OBSERVED | OBSERVED | PASS | 4/148 | 0 | Authenticated via TEST_GATE_* (values not logged). titl |
 | UAT-0006 | [ (pre-auth S0 preserved)](../../uat-evidence/screenshots/tranche-01/ (pre-auth S0 preserved)) | /buyer/access-request | default | BLOCKED | BLOCKED | BLOCKED | 0/148 | 0 | AUTH BLOCKED — missing TEST_BUYER_EMAIL, TEST_BUYER_PAS |
 | UAT-0007 | [ (pre-auth S0 preserved)](../../uat-evidence/screenshots/tranche-01/ (pre-auth S0 preserved)) | /buyer/* | default | BLOCKED | BLOCKED | BLOCKED | 0/148 | 0 | AUTH BLOCKED — missing TEST_BUYER_EMAIL, TEST_BUYER_PAS |
 | UAT-0010 | [UAT-0010_central_admin_staff_admin-default_S0-auth-settled.png](../../uat-evidence/screenshots/auth-rerun/UAT-0010_central_admin_staff_admin-default_S0-auth-settled.png) | /admin | default | OBSERVED | OBSERVED | PASS | 4/148 | 0 | Authenticated via TEST_ADMIN_* (values not logged). tit |
@@ -23,5 +23,5 @@
 | UAT-0019 | [UAT-0019_central_admin_staff_admin-approvals-default_S0-auth-settled.png](../../uat-evidence/screenshots/auth-rerun/UAT-0019_central_admin_staff_admin-approvals-default_S0-auth-settled.png) | /admin/approvals | default | OBSERVED | OBSERVED | PASS | 4/148 | 0 | Authenticated via TEST_ADMIN_* (values not logged). tit |
 
 **Pre-auth evidence preserved** in `tranche-01/` and `tranche-02/` — not overwritten.
-**Authenticated complete:** 10 / 13
-**Blocked secret names:** TEST_BUYER_EMAIL, TEST_BUYER_PASSWORD, TEST_GATE_SECURITY_EMAIL, TEST_GATE_SECURITY_PASSWORD
+**Authenticated complete:** 11 / 13
+**Blocked secret names:** TEST_BUYER_EMAIL, TEST_BUYER_PASSWORD

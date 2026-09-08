@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-09-06T20:04:25.262Z",
-  "runId": "34056691981",
-  "targetSha": "e2f123b0fe257b8a1f39ec40d5f544fff1ebe313",
-  "crawlBaseUrl": "https://oasis-baklawa-central-8lkgmf1q2-oasisbaklawa2006-6222s-projects.vercel.app",
+  "generatedAt": "2026-09-08T14:40:05.457Z",
+  "runId": "34239494014",
+  "targetSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
+  "crawlBaseUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
   "deployStatus": "RESOLVED",
   "counts": {
     "PASS": 10,

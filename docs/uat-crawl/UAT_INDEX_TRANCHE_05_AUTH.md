@@ -1,10 +1,10 @@
 # UAT Visual + UX Crawl Index — tranche-05-auth
 
 **UAT range:** UAT-0051..UAT-0070
-**Crawl base URL:** https://oasis-baklawa-central-8lkgmf1q2-oasisbaklawa2006-6222s-projects.vercel.app
+**Crawl base URL:** https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app
 **Central baseline SHA:** `08ccb1cfd4a3624103f0681b5515e26727e77cd2`
 **UX matrix:** [UAT_UX_FAILURE_MATRIX.md](./UAT_UX_FAILURE_MATRIX.md) (148 criteria)
-**Captured:** 2026-09-06T20:12:50.400Z
+**Captured:** 2026-09-08T14:51:31.972Z
 
 | UAT ID | S0 | Route | State | Visual | Function | UX | Evaluated | Failures | Notes |
 |---|---|---|---|---|---|---|---:|---:|---|
@@ -19,17 +19,17 @@
 | UAT-0059 | [UAT-0059_central_admin_staff_admin-scan-timeline-default_S0-auth-settled.png](../../uat-evidence/screenshots/tranche-05-auth/UAT-0059_central_admin_staff_admin-scan-timeline-default_S0-auth-settled.png) | /admin/scan-timeline | default | OBSERVED | OBSERVED | PASS | 4/148 | 0 | Authenticated via TEST_ADMIN_* (values not logged). tit |
 | UAT-0060 | [UAT-0060_central_p_and_a_admin-assembly-tasks-default_S0-auth-settled.png](../../uat-evidence/screenshots/tranche-05-auth/UAT-0060_central_p_and_a_admin-assembly-tasks-default_S0-auth-settled.png) | /admin/assembly-tasks | default | OBSERVED | OBSERVED | PASS | 4/148 | 0 | Authenticated via TEST_ASSEMBLY_* (values not logged).  |
 | UAT-0061 | [UAT-0061_central_p_and_a_admin-assembly-tv-default_S0-auth-settled.png](../../uat-evidence/screenshots/tranche-05-auth/UAT-0061_central_p_and_a_admin-assembly-tv-default_S0-auth-settled.png) | /admin/assembly-tv | default | OBSERVED | OBSERVED | PASS | 4/148 | 0 | Authenticated via TEST_ASSEMBLY_* (values not logged).  |
-| UAT-0062 | [ (pre-auth S0 preserved)](../../uat-evidence/screenshots/tranche-02/ (pre-auth S0 preserved)) | /admin/ready-goods | default | BLOCKED | BLOCKED | BLOCKED | 0/148 | 0 | AUTH BLOCKED — missing TEST_RGS_EMAIL, TEST_RGS_PASSWOR |
-| UAT-0063 | [ (pre-auth S0 preserved)](../../uat-evidence/screenshots/tranche-02/ (pre-auth S0 preserved)) | /admin/ready-goods-day-close | default | BLOCKED | BLOCKED | BLOCKED | 0/148 | 0 | AUTH BLOCKED — missing TEST_RGS_EMAIL, TEST_RGS_PASSWOR |
-| UAT-0064 | [ (pre-auth S0 preserved)](../../uat-evidence/screenshots/tranche-02/ (pre-auth S0 preserved)) | /admin/ready-goods-reports | default | BLOCKED | BLOCKED | BLOCKED | 0/148 | 0 | AUTH BLOCKED — missing TEST_RGS_EMAIL, TEST_RGS_PASSWOR |
-| UAT-0065 | [ (pre-auth S0 preserved)](../../uat-evidence/screenshots/tranche-02/ (pre-auth S0 preserved)) | /admin/ready-goods-stock | default | BLOCKED | BLOCKED | BLOCKED | 0/148 | 0 | AUTH BLOCKED — missing TEST_RGS_EMAIL, TEST_RGS_PASSWOR |
+| UAT-0062 | [UAT-0062_central_rgs_admin-ready-goods-default_S0-auth-settled.png](../../uat-evidence/screenshots/tranche-05-auth/UAT-0062_central_rgs_admin-ready-goods-default_S0-auth-settled.png) | /admin/ready-goods | default | OBSERVED | OBSERVED | PASS | 4/148 | 0 | Authenticated via TEST_RGS_* (values not logged). title |
+| UAT-0063 | [UAT-0063_central_rgs_admin-ready-goods-day-close-default_S0-auth-settled.png](../../uat-evidence/screenshots/tranche-05-auth/UAT-0063_central_rgs_admin-ready-goods-day-close-default_S0-auth-settled.png) | /admin/ready-goods-day-close | default | OBSERVED | OBSERVED | PASS | 4/148 | 0 | Authenticated via TEST_RGS_* (values not logged). title |
+| UAT-0064 | [UAT-0064_central_rgs_admin-ready-goods-reports-default_S0-auth-settled.png](../../uat-evidence/screenshots/tranche-05-auth/UAT-0064_central_rgs_admin-ready-goods-reports-default_S0-auth-settled.png) | /admin/ready-goods-reports | default | OBSERVED | OBSERVED | PASS | 4/148 | 0 | Authenticated via TEST_RGS_* (values not logged). title |
+| UAT-0065 | [UAT-0065_central_rgs_admin-ready-goods-stock-default_S0-auth-settled.png](../../uat-evidence/screenshots/tranche-05-auth/UAT-0065_central_rgs_admin-ready-goods-stock-default_S0-auth-settled.png) | /admin/ready-goods-stock | default | OBSERVED | OBSERVED | PASS | 4/148 | 0 | Authenticated via TEST_RGS_* (values not logged). title |
 | UAT-0066 | [UAT-0066_central_admin_staff_admin-production-demand-planner-default_S0-auth-settled.png](../../uat-evidence/screenshots/tranche-05-auth/UAT-0066_central_admin_staff_admin-production-demand-planner-default_S0-auth-settled.png) | /admin/production-demand-planner | default | OBSERVED | OBSERVED | PASS | 4/148 | 0 | Authenticated via TEST_ADMIN_* (values not logged). tit |
-| UAT-0067 | [ (pre-auth S0 preserved)](../../uat-evidence/screenshots/tranche-02/ (pre-auth S0 preserved)) | /admin/3pgs-packing-material | default | BLOCKED | BLOCKED | BLOCKED | 0/148 | 0 | AUTH BLOCKED — missing TEST_PRODUCTION_EMAIL, TEST_PROD |
+| UAT-0067 | [UAT-0067_central_3pgs_admin-3pgs-packing-material-default_S0-auth-settled.png](../../uat-evidence/screenshots/tranche-05-auth/UAT-0067_central_3pgs_admin-3pgs-packing-material-default_S0-auth-settled.png) | /admin/3pgs-packing-material | default | OBSERVED | OBSERVED | PASS | 4/148 | 0 | Authenticated via TEST_3PGS_* (values not logged). titl |
 | UAT-0068 | [UAT-0068_central_admin_staff_admin-store-coordination-default_S0-auth-settled.png](../../uat-evidence/screenshots/tranche-05-auth/UAT-0068_central_admin_staff_admin-store-coordination-default_S0-auth-settled.png) | /admin/store-coordination | default | OBSERVED | OBSERVED | PASS | 4/148 | 0 | Authenticated via TEST_ADMIN_* (values not logged). tit |
 | UAT-0069 | [UAT-0069_central_admin_staff_admin-label-command-center-default_S0-auth-settled.png](../../uat-evidence/screenshots/tranche-05-auth/UAT-0069_central_admin_staff_admin-label-command-center-default_S0-auth-settled.png) | /admin/label-command-center | default | OBSERVED | OBSERVED | PASS | 4/148 | 0 | Authenticated via TEST_ADMIN_* (values not logged). tit |
 | UAT-0070 | [UAT-0070_central_admin_staff_admin-customer-timeline-preview-default_S0-auth-settled.png](../../uat-evidence/screenshots/tranche-05-auth/UAT-0070_central_admin_staff_admin-customer-timeline-preview-default_S0-auth-settled.png) | /admin/customer-timeline-preview | default | OBSERVED | OBSERVED | PASS | 4/148 | 0 | Authenticated via TEST_ADMIN_* (values not logged). tit |
 
 Authenticated crawl only — login-gate captures do not satisfy function/UX for role surfaces.
-**Authenticated complete:** 15 / 20
-**Blocked:** TEST_RGS_EMAIL, TEST_RGS_PASSWORD, TEST_PRODUCTION_EMAIL, TEST_PRODUCTION_PASSWORD
+**Authenticated complete:** 20 / 20
+**All targets authenticated.**
 **Remaining after tranche-05-auth:** 61 / 131 (UAT-0071..0131).

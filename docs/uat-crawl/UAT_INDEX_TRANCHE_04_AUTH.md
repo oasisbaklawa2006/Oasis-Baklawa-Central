@@ -1,10 +1,10 @@
 # UAT Visual + UX Crawl Index — tranche-04-auth
 
 **UAT range:** UAT-0031..UAT-0050
-**Crawl base URL:** https://oasis-baklawa-central-8lkgmf1q2-oasisbaklawa2006-6222s-projects.vercel.app
+**Crawl base URL:** https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app
 **Central baseline SHA:** `08ccb1cfd4a3624103f0681b5515e26727e77cd2`
 **UX matrix:** [UAT_UX_FAILURE_MATRIX.md](./UAT_UX_FAILURE_MATRIX.md) (148 criteria)
-**Captured:** 2026-09-06T20:10:32.317Z
+**Captured:** 2026-09-08T14:48:46.792Z
 
 | UAT ID | S0 | Route | State | Visual | Function | UX | Evaluated | Failures | Notes |
 |---|---|---|---|---|---|---|---:|---:|---|
@@ -21,7 +21,7 @@
 | UAT-0041 | [UAT-0041_central_admin_staff_admin-department-default_S0-auth-settled.png](../../uat-evidence/screenshots/tranche-04-auth/UAT-0041_central_admin_staff_admin-department-default_S0-auth-settled.png) | /admin/department | default | OBSERVED | OBSERVED | PASS | 4/148 | 0 | Authenticated via TEST_ADMIN_* (values not logged). tit |
 | UAT-0042 | [UAT-0042_central_admin_staff_admin-inventory-default_S0-auth-settled.png](../../uat-evidence/screenshots/tranche-04-auth/UAT-0042_central_admin_staff_admin-inventory-default_S0-auth-settled.png) | /admin/inventory | default | OBSERVED | OBSERVED | PASS | 4/148 | 0 | Authenticated via TEST_ADMIN_* (values not logged). tit |
 | UAT-0043 | [UAT-0043_central_admin_staff_admin-logistics-default_S0-auth-settled.png](../../uat-evidence/screenshots/tranche-04-auth/UAT-0043_central_admin_staff_admin-logistics-default_S0-auth-settled.png) | /admin/logistics | default | OBSERVED | OBSERVED | PASS | 4/148 | 0 | Authenticated via TEST_ADMIN_* (values not logged). tit |
-| UAT-0044 | [ (pre-auth S0 preserved)](../../uat-evidence/screenshots/tranche-02/ (pre-auth S0 preserved)) | /admin/sales-hub | default | BLOCKED | BLOCKED | BLOCKED | 0/148 | 0 | AUTH BLOCKED — missing TEST_SALES_EMAIL, TEST_SALES_PAS |
+| UAT-0044 | [UAT-0044_central_sales_admin-sales-hub-default_S0-auth-settled.png](../../uat-evidence/screenshots/tranche-04-auth/UAT-0044_central_sales_admin-sales-hub-default_S0-auth-settled.png) | /admin/sales-hub | default | OBSERVED | OBSERVED | PASS | 4/148 | 0 | Authenticated via TEST_SALES_* (values not logged). tit |
 | UAT-0045 | [UAT-0045_central_admin_staff_admin-notifications-default_S0-auth-settled.png](../../uat-evidence/screenshots/tranche-04-auth/UAT-0045_central_admin_staff_admin-notifications-default_S0-auth-settled.png) | /admin/notifications | default | OBSERVED | OBSERVED | PASS | 4/148 | 0 | Authenticated via TEST_ADMIN_* (values not logged). tit |
 | UAT-0046 | [UAT-0046_central_admin_staff_admin-heartbeat-default_S0-auth-settled.png](../../uat-evidence/screenshots/tranche-04-auth/UAT-0046_central_admin_staff_admin-heartbeat-default_S0-auth-settled.png) | /admin/heartbeat | default | OBSERVED | OBSERVED | PASS | 4/148 | 0 | Authenticated via TEST_ADMIN_* (values not logged). tit |
 | UAT-0047 | [UAT-0047_central_admin_staff_admin-display-management-default_S0-auth-settled.png](../../uat-evidence/screenshots/tranche-04-auth/UAT-0047_central_admin_staff_admin-display-management-default_S0-auth-settled.png) | /admin/display-management | default | OBSERVED | OBSERVED | PASS | 4/148 | 0 | Authenticated via TEST_ADMIN_* (values not logged). tit |
@@ -30,6 +30,6 @@
 | UAT-0050 | [UAT-0050_central_admin_staff_admin-catalogue-approvals-default_S0-auth-settled.png](../../uat-evidence/screenshots/tranche-04-auth/UAT-0050_central_admin_staff_admin-catalogue-approvals-default_S0-auth-settled.png) | /admin/catalogue-approvals | default | OBSERVED | OBSERVED | PASS | 4/148 | 0 | Authenticated via TEST_ADMIN_* (values not logged). tit |
 
 Authenticated crawl only — login-gate captures do not satisfy function/UX for role surfaces.
-**Authenticated complete:** 19 / 20
-**Blocked:** TEST_SALES_EMAIL, TEST_SALES_PASSWORD
+**Authenticated complete:** 20 / 20
+**All targets authenticated.**
 **Remaining after tranche-04-auth:** 81 / 131 (UAT-0051..0131).

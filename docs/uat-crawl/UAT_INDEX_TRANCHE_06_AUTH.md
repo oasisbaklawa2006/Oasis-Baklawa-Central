@@ -1,10 +1,10 @@
 # UAT Visual + UX Crawl Index — tranche-06-auth
 
 **UAT range:** UAT-0071..UAT-0090
-**Crawl base URL:** https://oasis-baklawa-central-8lkgmf1q2-oasisbaklawa2006-6222s-projects.vercel.app
+**Crawl base URL:** https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app
 **Central baseline SHA:** `08ccb1cfd4a3624103f0681b5515e26727e77cd2`
 **UX matrix:** [UAT_UX_FAILURE_MATRIX.md](./UAT_UX_FAILURE_MATRIX.md) (148 criteria)
-**Captured:** 2026-09-06T20:15:19.443Z
+**Captured:** 2026-09-08T14:54:10.611Z
 
 | UAT ID | S0 | Route | State | Visual | Function | UX | Evaluated | Failures | Notes |
 |---|---|---|---|---|---|---|---:|---:|---|
@@ -19,17 +19,17 @@
 | UAT-0079 | [UAT-0079_central_admin_staff_admin-execution-bottlenecks-default_S0-auth-settled.png](../../uat-evidence/screenshots/tranche-06-auth/UAT-0079_central_admin_staff_admin-execution-bottlenecks-default_S0-auth-settled.png) | /admin/execution-bottlenecks | default | OBSERVED | OBSERVED | PASS | 4/148 | 0 | Authenticated via TEST_ADMIN_* (values not logged). tit |
 | UAT-0080 | [UAT-0080_central_admin_staff_admin-execution-production-default_S0-auth-settled.png](../../uat-evidence/screenshots/tranche-06-auth/UAT-0080_central_admin_staff_admin-execution-production-default_S0-auth-settled.png) | /admin/execution/production | default | OBSERVED | OBSERVED | PASS | 4/148 | 0 | Authenticated via TEST_ADMIN_* (values not logged). tit |
 | UAT-0081 | [UAT-0081_central_p_and_a_admin-execution-assembly-default_S0-auth-settled.png](../../uat-evidence/screenshots/tranche-06-auth/UAT-0081_central_p_and_a_admin-execution-assembly-default_S0-auth-settled.png) | /admin/execution/assembly | default | OBSERVED | OBSERVED | PASS | 4/148 | 0 | Authenticated via TEST_ASSEMBLY_* (values not logged).  |
-| UAT-0082 | [ (pre-auth S0 preserved)](../../uat-evidence/screenshots/tranche-02/ (pre-auth S0 preserved)) | /admin/execution/ready-goods | default | BLOCKED | BLOCKED | BLOCKED | 0/148 | 0 | AUTH BLOCKED — missing TEST_RGS_EMAIL, TEST_RGS_PASSWOR |
+| UAT-0082 | [UAT-0082_central_rgs_admin-execution-ready-goods-default_S0-auth-settled.png](../../uat-evidence/screenshots/tranche-06-auth/UAT-0082_central_rgs_admin-execution-ready-goods-default_S0-auth-settled.png) | /admin/execution/ready-goods | default | OBSERVED | OBSERVED | PASS | 4/148 | 0 | Authenticated via TEST_RGS_* (values not logged). title |
 | UAT-0083 | [UAT-0083_central_dispatch_admin-execution-dispatch-default_S0-auth-settled.png](../../uat-evidence/screenshots/tranche-06-auth/UAT-0083_central_dispatch_admin-execution-dispatch-default_S0-auth-settled.png) | /admin/execution/dispatch | default | OBSERVED | OBSERVED | PASS | 4/148 | 0 | Authenticated via TEST_DISPATCH_* (values not logged).  |
 | UAT-0084 | [UAT-0084_central_admin_staff_admin-execution-third-party-default_S0-auth-settled.png](../../uat-evidence/screenshots/tranche-06-auth/UAT-0084_central_admin_staff_admin-execution-third-party-default_S0-auth-settled.png) | /admin/execution/third-party | default | OBSERVED | OBSERVED | PASS | 4/148 | 0 | Authenticated via TEST_ADMIN_* (values not logged). tit |
 | UAT-0085 | [UAT-0085_central_admin_staff_admin-execution-retail-default_S0-auth-settled.png](../../uat-evidence/screenshots/tranche-06-auth/UAT-0085_central_admin_staff_admin-execution-retail-default_S0-auth-settled.png) | /admin/execution/retail | default | OBSERVED | OBSERVED | PASS | 4/148 | 0 | Authenticated via TEST_ADMIN_* (values not logged). tit |
 | UAT-0086 | [UAT-0086_central_admin_staff_admin-execution-complaints-default_S0-auth-settled.png](../../uat-evidence/screenshots/tranche-06-auth/UAT-0086_central_admin_staff_admin-execution-complaints-default_S0-auth-settled.png) | /admin/execution/complaints | default | OBSERVED | OBSERVED | PASS | 4/148 | 0 | Authenticated via TEST_ADMIN_* (values not logged). tit |
-| UAT-0087 | [ (pre-auth S0 preserved)](../../uat-evidence/screenshots/tranche-02/ (pre-auth S0 preserved)) | /admin/rgs-tv | default | BLOCKED | BLOCKED | BLOCKED | 0/148 | 0 | AUTH BLOCKED — missing TEST_RGS_EMAIL, TEST_RGS_PASSWOR |
+| UAT-0087 | [UAT-0087_central_rgs_admin-rgs-tv-default_S0-auth-settled.png](../../uat-evidence/screenshots/tranche-06-auth/UAT-0087_central_rgs_admin-rgs-tv-default_S0-auth-settled.png) | /admin/rgs-tv | default | OBSERVED | OBSERVED | PASS | 4/148 | 0 | Authenticated via TEST_RGS_* (values not logged). title |
 | UAT-0088 | [UAT-0088_central_admin_staff_admin-golden-chain-operator-default_S0-auth-settled.png](../../uat-evidence/screenshots/tranche-06-auth/UAT-0088_central_admin_staff_admin-golden-chain-operator-default_S0-auth-settled.png) | /admin/golden-chain-operator | default | OBSERVED | OBSERVED | PASS | 4/148 | 0 | Authenticated via TEST_ADMIN_* (values not logged). tit |
 | UAT-0089 | [UAT-0089_central_dispatch_admin-dispatch-readiness-default_S0-auth-settled.png](../../uat-evidence/screenshots/tranche-06-auth/UAT-0089_central_dispatch_admin-dispatch-readiness-default_S0-auth-settled.png) | /admin/dispatch-readiness | default | OBSERVED | OBSERVED | PASS | 4/148 | 0 | Authenticated via TEST_DISPATCH_* (values not logged).  |
 | UAT-0090 | [UAT-0090_central_dispatch_admin-dispatch-completion-default_S0-auth-settled.png](../../uat-evidence/screenshots/tranche-06-auth/UAT-0090_central_dispatch_admin-dispatch-completion-default_S0-auth-settled.png) | /admin/dispatch-completion | default | OBSERVED | OBSERVED | PASS | 4/148 | 0 | Authenticated via TEST_DISPATCH_* (values not logged).  |
 
 Authenticated crawl only — login-gate captures do not satisfy function/UX for role surfaces.
-**Authenticated complete:** 18 / 20
-**Blocked:** TEST_RGS_EMAIL, TEST_RGS_PASSWORD
+**Authenticated complete:** 20 / 20
+**All targets authenticated.**
 **Remaining after tranche-06-auth:** 41 / 131 (UAT-0091..0131).
