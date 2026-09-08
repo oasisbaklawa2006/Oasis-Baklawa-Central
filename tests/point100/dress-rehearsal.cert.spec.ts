@@ -249,6 +249,22 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
     expect(ok, `${putawayProbe.detail}; ${lotExceptionProbe.detail}`).toBe(true);
   });
 
+  await test.step("factory: Core#256 production QC RPC contract probes", async () => {
+    const acceptProbe = await probeRpcExists("accept_production_job");
+    const outputProbe = await probeRpcExists("record_production_output");
+    const ok = acceptProbe.exists && outputProbe.exists;
+    recordStage(
+      stages,
+      "production_qc",
+      "accept_production_job",
+      "PROD_ARABIC_SWEETS",
+      `p100-${RUN_SUFFIX}-factory-rpc`,
+      ok ? "PASS" : "FAIL",
+      `accept_production_job=${acceptProbe.exists}; record_production_output=${outputProbe.exists}; core_sha=8beea1e1; migration_run=34167968867`,
+    );
+    expect(ok, `${acceptProbe.detail}; ${outputProbe.detail}`).toBe(true);
+  });
+
   // ---- 9–11: Point38 golden pipeline tail + #556 dispatch bindings ----
   await test.step("macro-556: Central dispatch workflow route census", async () => {
     const routeCensus = macro556DispatchRoutesPresent();
@@ -389,7 +405,10 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
       stages,
       negative_paths: negativePaths,
       upstream_blockers: upstreamBlockers,
-      production_gate_blockers: productionGateBlockerNotes,
+      production_gate_blockers: [
+        ...productionGateBlockerNotes,
+        "oasis-trace#37: trace_handover physical_uat_only — no scanner/device PASS claimed",
+      ],
     });
     assertNoSilentSkips(ledger);
     const hardFailures = stages.filter((s) => s.status === "FAIL");

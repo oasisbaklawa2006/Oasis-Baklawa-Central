@@ -28,6 +28,9 @@ export const POINT100_CORE_PRODUCTION_VERIFIED_SHA = "8beea1e1116a70a209766ed485
 
 export const POINT100_PRODUCTION_MIGRATION_GATE = "oasis-supabase-core#159";
 
+/** GitHub Actions run that certified semantic parity + production contract smoke for #159. */
+export const POINT100_PRODUCTION_MIGRATION_RUN_ID = "34167968867";
+
 /** Rebind state here when Mission Control clears an upstream macro PR. */
 export const POINT100_UPSTREAM_DEPENDENCIES: readonly Point100UpstreamDependency[] = [
   {
@@ -54,7 +57,7 @@ export const POINT100_UPSTREAM_DEPENDENCIES: readonly Point100UpstreamDependency
     state: "merged",
     affectedStageIds: ["inventory_lot_allocation", "production_qc"],
     blockerDetail:
-      "Macro Inventory #256 merged and production-verified via Core Production Migration Release #159 (SHA 8beea1e1). Harness consumes canonical lot/putaway/exception RPCs on disposable Core replay.",
+      "Macro Inventory #256 merged and production-certified via Core Production Migration Release #159 (run 34167968867, SHA 8beea1e1). Harness consumes canonical lot/putaway/exception/factory RPCs on disposable Core replay.",
     failClosedStatus: "implemented",
   },
   {
@@ -64,7 +67,7 @@ export const POINT100_UPSTREAM_DEPENDENCIES: readonly Point100UpstreamDependency
     state: "merged",
     affectedStageIds: ["inventory_lot_allocation", "production_qc"],
     blockerDetail:
-      "Core Production Migration Release #159 deployed Macro Inventory #256 to protected production (SHA 8beea1e1). Finance/Inventory/Factory synthetic contracts recertified on this boundary.",
+      "Core Production Migration Release #159 run 34167968867 SUCCESS — semantic parity + production contract smoke on SHA 8beea1e1. Finance/Inventory/Factory synthetic contracts recertified on this boundary.",
     failClosedStatus: "implemented",
   },
   {
@@ -92,6 +95,10 @@ export const POINT100_UPSTREAM_DEPENDENCIES: readonly Point100UpstreamDependency
 
 export function resolveCoreVerifiedSha(): string | null {
   return process.env.POINT100_CORE_VERIFIED_SHA?.trim() ?? null;
+}
+
+export function resolveProductionMigrationRunId(): string | null {
+  return process.env.POINT100_PRODUCTION_MIGRATION_RUN_ID?.trim() ?? POINT100_PRODUCTION_MIGRATION_RUN_ID;
 }
 
 export function isCoreInventoryProductionVerified(): boolean {

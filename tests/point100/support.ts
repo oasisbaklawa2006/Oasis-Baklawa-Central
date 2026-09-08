@@ -18,7 +18,7 @@ import {
   type FactoryCertificationCredentials,
 } from "../factory-certification/support";
 import { factoryCertificationCredentialSpec } from "../../src/lib/factoryCertificationCredentialPolicy";
-import { POINT100_CORE_PRODUCTION_VERIFIED_SHA, POINT100_PRODUCTION_MIGRATION_GATE, isCoreInventoryProductionVerified, isProductionCertificationPermitted, resolveCoreVerifiedSha } from "../../src/lib/point100/upstreamDependencies";
+import { POINT100_CORE_PRODUCTION_VERIFIED_SHA, POINT100_PRODUCTION_MIGRATION_GATE, POINT100_PRODUCTION_MIGRATION_RUN_ID, isCoreInventoryProductionVerified, isProductionCertificationPermitted, resolveCoreVerifiedSha, resolveProductionMigrationRunId } from "../../src/lib/point100/upstreamDependencies";
 
 export type Point100StageRecord = {
   stage: string;
@@ -40,6 +40,7 @@ export type Point100DressRehearsalLedger = {
   production_migration_gate: string | null;
   core_verified_sha: string | null;
   inventory_production_verified: boolean;
+  production_migration_run_id: string | null;
   run_token: string;
   generated_at: string;
   capability_matrix_file: string;
@@ -130,7 +131,7 @@ export function recordStage(
 }
 
 export function writeDressRehearsalLedger(
-  ledger: Omit<Point100DressRehearsalLedger, "generated_at" | "status" | "certification_mode" | "production_certification_permitted" | "production_migration_gate" | "core_verified_sha" | "inventory_production_verified" | "production_gate_blockers"> & {
+  ledger: Omit<Point100DressRehearsalLedger, "generated_at" | "status" | "certification_mode" | "production_certification_permitted" | "production_migration_gate" | "core_verified_sha" | "inventory_production_verified" | "production_migration_run_id" | "production_gate_blockers"> & {
     production_gate_blockers?: string[];
   },
 ): Point100DressRehearsalLedger {
@@ -148,6 +149,7 @@ export function writeDressRehearsalLedger(
     production_migration_gate: isCoreInventoryProductionVerified() ? POINT100_PRODUCTION_MIGRATION_GATE : null,
     core_verified_sha: resolveCoreVerifiedSha(),
     inventory_production_verified: isCoreInventoryProductionVerified(),
+    production_migration_run_id: isCoreInventoryProductionVerified() ? resolveProductionMigrationRunId() : null,
     production_gate_blockers: productionGateBlockers,
     generated_at: new Date().toISOString(),
     status: blocked

@@ -3,7 +3,7 @@ import { buildCapabilityMatrix, summarizeCapabilityMatrix } from "../capabilityS
 import { POINT100_LIFECYCLE_STAGES, POINT100_NEGATIVE_PATHS, stagesForNegativePath } from "../lifecycleStages";
 import { bindingByKey, resolveBoundContract } from "../contractBindings";
 import { buildProbeOutcome, isRpcMissingError, probeFixtureKeys, resolvedRpcForStage } from "../probeRunner";
-import { POINT100_UPSTREAM_DEPENDENCIES, upstreamBlockersForStage, productionGateBlockers, isDisposableRehearsalMode, POINT100_PRODUCTION_MIGRATION_GATE, POINT100_CORE_PRODUCTION_VERIFIED_SHA, isCoreInventoryProductionVerified } from "../upstreamDependencies";
+import { POINT100_UPSTREAM_DEPENDENCIES, upstreamBlockersForStage, productionGateBlockers, isDisposableRehearsalMode, POINT100_PRODUCTION_MIGRATION_GATE, POINT100_CORE_PRODUCTION_VERIFIED_SHA, POINT100_PRODUCTION_MIGRATION_RUN_ID, isCoreInventoryProductionVerified, resolveProductionMigrationRunId } from "../upstreamDependencies";
 import { CENTRAL_ADMIN_MODULE_AUTHORITY_MATRIX } from "../../appverse/centralAdminModuleAuthorityMatrix";
 import { MACRO_DISPATCH_MANAGER_HOME, MACRO_ORDER_DISPATCH_JOURNEY } from "../../macro-order-dispatch/macroOrderDispatchJourney";
 
@@ -154,6 +154,8 @@ describe("point100 probe runner", () => {
     expect(matrix.inventory_production_verified).toBe(true);
     expect(matrix.core_verified_sha).toBe(POINT100_CORE_PRODUCTION_VERIFIED_SHA);
     expect(matrix.production_migration_gate).toBe(POINT100_PRODUCTION_MIGRATION_GATE);
+    expect(matrix.production_migration_run_id).toBe(POINT100_PRODUCTION_MIGRATION_RUN_ID);
+    expect(resolveProductionMigrationRunId()).toBe(POINT100_PRODUCTION_MIGRATION_RUN_ID);
     if (originalSha === undefined) delete process.env.POINT100_CORE_VERIFIED_SHA;
     else process.env.POINT100_CORE_VERIFIED_SHA = originalSha;
   });
