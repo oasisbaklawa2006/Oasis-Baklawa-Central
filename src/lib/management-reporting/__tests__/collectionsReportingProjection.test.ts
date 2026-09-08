@@ -56,9 +56,12 @@ describe("collectionsReportingProjection", () => {
     expect(snap.recoverableOutstanding.value).toBe(13000);
     expect(snap.recoverableOutstanding.semantics).toBe("observed");
     expect(snap.recoveredInPeriod.semantics).toBe("unavailable");
-    expect(snap.ageingBuckets.find((b) => b.bucket === "31-60")?.orderCount).toBe(1);
-    expect(snap.ageingBuckets.find((b) => b.bucket === "0-30")?.orderCount).toBe(1);
-    expect(snap.topExposureClients[0]?.metric).toBe(8000);
+    expect(snap.ageingBuckets.semantics).toBe("observed");
+    expect(snap.ageingBuckets.items.find((b) => b.bucket === "31-60")?.orderCount).toBe(1);
+    expect(snap.ageingBuckets.items.find((b) => b.bucket === "0-30")?.orderCount).toBe(1);
+    expect(snap.topExposureClients.semantics).toBe("observed");
+    expect(snap.topExposureClients.items[0]?.metric).toBe(8000);
+    expect(snap.creditRisk.semantics).toBe("observed");
     expect(snap.creditRisk.frozenAccountCount).toBe(0);
     expect(snap.creditRisk.highExposureCount).toBeGreaterThan(0);
     expect(snap.ageingSource).toContain("Central order.created_at");
@@ -138,6 +141,32 @@ describe("collectionsReportingProjection", () => {
       periodEndIso: "2026-09-30T23:59:59.999Z",
     });
     expect(snap.recoverableOutstanding.semantics).toBe("unavailable");
-    expect(snap.ageingBuckets).toEqual([]);
+    expect(snap.ageingBuckets.semantics).toBe("unavailable");
+    expect(snap.ageingBuckets.items).toEqual([]);
+    expect(snap.topExposureClients.semantics).toBe("unavailable");
+    expect(snap.creditRisk.semantics).toBe("unavailable");
+  });
+
+  it("marks credit risk unavailable when companies source is truncated", () => {
+    const snap = buildCollectionsReportingSnapshot({
+      orders: [],
+      companies: [
+        {
+          id: "c1",
+          business_name: "A",
+          wallet_balance: -100,
+          credit_limit: 5000,
+          allow_credit: true,
+          is_frozen: true,
+        },
+      ],
+      disputedOrHeldAmount: 0,
+      companiesTruncated: true,
+      periodStartIso: "2026-09-01T00:00:00.000Z",
+      periodEndIso: "2026-09-30T23:59:59.999Z",
+    });
+    expect(snap.creditRisk.semantics).toBe("unavailable");
+    expect(snap.creditRisk.frozenAccountCount).toBeNull();
+    expect(snap.walletExposure.semantics).toBe("unavailable");
   });
 });

@@ -91,7 +91,7 @@ export function buildCollectionsReportingSnapshot(input: {
       (exposureByCompany.get(order.company_id) ?? 0) + outstandingAmount(order),
     );
   }
-  const topExposureClients: RankedEntity[] = [...exposureByCompany.entries()]
+  const topExposureClientRows: RankedEntity[] = [...exposureByCompany.entries()]
     .sort((a, b) => b[1] - a[1])
     .slice(0, 8)
     .map(([id, metric]) => ({
@@ -102,12 +102,37 @@ export function buildCollectionsReportingSnapshot(input: {
       drillRoute: `/admin/clients/${encodeURIComponent(id)}`,
     }));
 
+  const ordersTruncated = input.ordersTruncated ?? false;
+  const companiesTruncated = input.companiesTruncated ?? false;
+
+  const creditRiskCounts = companiesTruncated
+    ? {
+        frozenAccountCount: null,
+        negativeWalletCount: null,
+        creditEnabledCount: null,
+        highExposureCount: null,
+      }
+    : {
+        frozenAccountCount: input.companies.filter((c) => c.is_frozen).length,
+        negativeWalletCount: input.companies.filter((c) => (c.wallet_balance ?? 0) < 0).length,
+        creditEnabledCount: input.companies.filter((c) => c.allow_credit && !c.is_frozen).length,
+        highExposureCount: ordersTruncated
+          ? null
+          : topExposureClientRows.filter((c) => c.metric > 0).length,
+      };
+
   const creditRisk: CreditRiskSnapshot = {
-    frozenAccountCount: input.companies.filter((c) => c.is_frozen).length,
-    negativeWalletCount: input.companies.filter((c) => (c.wallet_balance ?? 0) < 0).length,
-    creditEnabledCount: input.companies.filter((c) => c.allow_credit && !c.is_frozen).length,
-    highExposureCount: topExposureClients.filter((c) => c.metric > 0).length,
+    semantics: companiesTruncated || ordersTruncated ? "unavailable" : "observed",
+    source: "companies + unpaid orders (Central table aggregate)",
+    blocker: companiesTruncated
+      ? "companies read truncated — partial dataset"
+      : ordersTruncated
+        ? "orders read truncated — exposure ranking incomplete"
+        : undefined,
+    ...creditRiskCounts,
   };
+
+  const ageingBucketRows = AGEING_BUCKETS.map((b) => ageingMap.get(b)!);
 
   return {
     asOfIso: ref.toISOString(),
@@ -148,11 +173,33 @@ export function buildCollectionsReportingSnapshot(input: {
           "companies.credit_limit where allow_credit (Central table; per-order Core via get_credit_exposure_facts_v1)",
         ),
     profitability: buildProfitabilityMetric(),
-    ageingBuckets: input.ordersTruncated ? [] : AGEING_BUCKETS.map((b) => ageingMap.get(b)!),
-    ageingSource: input.ordersTruncated
+    ageingBuckets: ordersTruncated
+      ? {
+          semantics: "unavailable",
+          source: "orders.created_at unpaid aggregate (Central table)",
+          blocker: "orders read truncated — partial dataset",
+          items: [],
+        }
+      : {
+          semantics: "observed",
+          source: "orders.created_at unpaid aggregate (Central table)",
+          items: ageingBucketRows,
+        },
+    ageingSource: ordersTruncated
       ? "Unavailable — orders read truncated; ageing requires complete unpaid order set"
       : "Central order.created_at aggregate — portfolio-level ageing macro RPC unavailable on Core #255",
-    topExposureClients,
+    topExposureClients: ordersTruncated
+      ? {
+          semantics: "unavailable",
+          source: "unpaid orders by company (Central table aggregate)",
+          blocker: "orders read truncated — partial dataset",
+          items: [],
+        }
+      : {
+          semantics: "observed",
+          source: "unpaid orders by company (Central table aggregate)",
+          items: topExposureClientRows,
+        },
     creditRisk,
   };
 }

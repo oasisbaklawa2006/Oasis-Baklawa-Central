@@ -12,6 +12,7 @@ import {
 import type {
   ComparisonWindow,
   DelayRiskSnapshot,
+  OperationalComparisonRow,
   OperationalPositionSnapshot,
   RankedEntity,
   RankedEntityWithTrend,
@@ -120,7 +121,12 @@ export function buildOperationalPositionSnapshot(
       packedAwaitingDispatch: wrapUnavailableMetric(0, source, blocker),
       dispatchedCount: wrapUnavailableMetric(0, source, blocker),
       collectionsPending: wrapUnavailableMetric(0, source, blocker),
-      comparisons: [],
+      comparisons: {
+        semantics: "unavailable",
+        source: "orders.created_at window aggregate (Central table)",
+        blocker,
+        items: [],
+      },
     };
   }
 
@@ -136,7 +142,7 @@ export function buildOperationalPositionSnapshot(
     .reduce((s, o) => s + Math.max(0, (o.sales_order_value ?? 0) - (o.advance_paid ?? 0)), 0);
 
   const windows = buildComparisonWindows(referenceDate);
-  const comparisons = windows.map((w) => {
+  const comparisonRows: OperationalComparisonRow[] = windows.map((w) => {
     const windowOrders = ordersInWindow(actionable, w.startIso, w.endIso);
     return {
       window: w.key,
@@ -154,31 +160,68 @@ export function buildOperationalPositionSnapshot(
     packedAwaitingDispatch: wrapObservedMetric(packedAwaitingDispatch, "orders.status packing|packed_ready"),
     dispatchedCount: wrapObservedMetric(dispatchedCount, "orders.status dispatched|delivered|closed"),
     collectionsPending: wrapObservedMetric(collectionsPending, "orders payment gap on dispatched legs"),
-    comparisons,
+    comparisons: {
+      semantics: "observed",
+      source: "orders.created_at window aggregate (Central table)",
+      items: comparisonRows,
+    },
   };
 }
 
 export function buildDelayRiskSnapshot(input: {
   orders: OrderFactRow[];
   slaBreachedSupportCount: number | null;
+  slaBreachedUnavailable?: boolean;
+  slaBreachedBlocker?: string;
   disputedLedgerCount: number | null;
+  disputedLedgerUnavailable?: boolean;
+  disputedLedgerBlocker?: string;
+  ordersTruncated?: boolean;
 }): DelayRiskSnapshot {
-  const actionable = filterActionableOrders(input.orders);
-  const financeHoldCount = actionable.filter(
-    (o) => (o.advance_required ?? 0) > 0 && (o.advance_paid ?? 0) < (o.advance_required ?? 0),
-  ).length;
-  const awaitingFinalPaymentCount = actionable.filter((o) => o.status === "awaiting_final_payment").length;
-  const packedCount = actionable.filter((o) => PACKED_STATUSES.has(o.status)).length;
-  const dispatchedCount = actionable.filter((o) => DISPATCHED_STATUSES.has(o.status)).length;
-  const dispatchBottleneckCount =
-    packedCount > 0 && packedCount > 3 * Math.max(dispatchedCount, 1) ? packedCount : 0;
+  const orderDerivedUnavailable = input.ordersTruncated ?? false;
+  const orderDerivedBlocker = orderDerivedUnavailable
+    ? "orders read truncated — partial dataset"
+    : undefined;
+
+  let financeHoldCount: number | null = null;
+  let awaitingFinalPaymentCount: number | null = null;
+  let dispatchBottleneckCount: number | null = null;
+
+  if (!orderDerivedUnavailable) {
+    const actionable = filterActionableOrders(input.orders);
+    financeHoldCount = actionable.filter(
+      (o) => (o.advance_required ?? 0) > 0 && (o.advance_paid ?? 0) < (o.advance_required ?? 0),
+    ).length;
+    awaitingFinalPaymentCount = actionable.filter((o) => o.status === "awaiting_final_payment").length;
+    const packedCount = actionable.filter((o) => PACKED_STATUSES.has(o.status)).length;
+    const dispatchedCount = actionable.filter((o) => DISPATCHED_STATUSES.has(o.status)).length;
+    dispatchBottleneckCount =
+      packedCount > 0 && packedCount > 3 * Math.max(dispatchedCount, 1) ? packedCount : 0;
+  }
+
+  const slaBreachedUnavailable = input.slaBreachedUnavailable ?? input.slaBreachedSupportCount === null;
+  const disputedLedgerUnavailable =
+    input.disputedLedgerUnavailable ?? input.disputedLedgerCount === null;
 
   return {
+    orderDerivedSemantics: orderDerivedUnavailable ? "unavailable" : "observed",
+    orderDerivedBlocker,
     financeHoldCount,
     awaitingFinalPaymentCount,
-    slaBreachedSupportCount: input.slaBreachedSupportCount,
     dispatchBottleneckCount,
-    disputedLedgerCount: input.disputedLedgerCount,
+    slaBreachedSupportCount: slaBreachedUnavailable ? null : input.slaBreachedSupportCount,
+    slaBreachedSemantics: slaBreachedUnavailable ? "unavailable" : "observed",
+    slaBreachedBlocker: slaBreachedUnavailable
+      ? (input.slaBreachedBlocker ?? "support_tickets read failed")
+      : undefined,
+    disputedLedgerCount: disputedLedgerUnavailable ? null : input.disputedLedgerCount,
+    disputedLedgerSemantics: disputedLedgerUnavailable ? "unavailable" : "observed",
+    disputedLedgerBlocker: disputedLedgerUnavailable
+      ? (input.disputedLedgerBlocker ??
+          (input.ordersTruncated
+            ? "ledger_disputes read truncated — partial dataset"
+            : "ledger_disputes read failed"))
+      : undefined,
   };
 }
 

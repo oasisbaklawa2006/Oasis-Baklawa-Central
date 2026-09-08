@@ -110,4 +110,47 @@ describe("managementCommandCenterProjection", () => {
     expect(projection.rankings.bestClients.length).toBeGreaterThan(0);
     expect(projection.rankings.bestSalespeople).toEqual([]);
   });
+
+  it("marks delay risk order-derived counts unavailable when orders truncated", () => {
+    const projection = buildManagementCommandCenterProjection({
+      orders: [
+        {
+          id: "o1",
+          status: "confirmed",
+          payment_status: "partial",
+          sales_order_value: 5000,
+          advance_paid: 0,
+          advance_required: 1000,
+          company_id: "c1",
+          created_at: "2026-09-07T08:00:00.000Z",
+        },
+      ],
+      orderItems: [],
+      companies: [{ id: "c1", business_name: "Alpha Traders" }],
+      companyCredit: [
+        {
+          id: "c1",
+          business_name: "Alpha Traders",
+          wallet_balance: 0,
+          credit_limit: 0,
+          allow_credit: false,
+          is_frozen: false,
+        },
+      ],
+      users: [],
+      products: [],
+      companyCompliance: [],
+      slaBreachedSupportCount: 1,
+      disputedLedgerCount: 0,
+      disputedOrHeldAmount: 0,
+      periodStartIso: "2026-09-01T00:00:00.000Z",
+      periodEndIso: "2026-09-30T23:59:59.999Z",
+      operationalDataUnavailable: true,
+      ordersTruncated: true,
+    });
+
+    expect(projection.operational.comparisons.semantics).toBe("unavailable");
+    expect(projection.delayRisk.orderDerivedSemantics).toBe("unavailable");
+    expect(projection.delayRisk.financeHoldCount).toBeNull();
+  });
 });

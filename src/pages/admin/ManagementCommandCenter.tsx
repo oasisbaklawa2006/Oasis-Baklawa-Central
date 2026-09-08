@@ -350,24 +350,30 @@ export default function ManagementCommandCenter() {
                   <CardDescription className="text-xs">Same-day windows — observed order facts only</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Window</TableHead>
-                        <TableHead className="text-right">Orders</TableHead>
-                        <TableHead className="text-right">Value</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {p.operational.comparisons.map((c) => (
-                        <TableRow key={c.window}>
-                          <TableCell>{c.label}</TableCell>
-                          <TableCell className="text-right tabular-nums">{c.orderCount}</TableCell>
-                          <TableCell className="text-right tabular-nums">{format(c.orderValue)}</TableCell>
+                  {p.operational.comparisons.semantics === "unavailable" ? (
+                    <p className="text-xs text-amber-800">
+                      Unavailable — {p.operational.comparisons.blocker ?? "order source incomplete"}
+                    </p>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Window</TableHead>
+                          <TableHead className="text-right">Orders</TableHead>
+                          <TableHead className="text-right">Value</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                      </TableHeader>
+                      <TableBody>
+                        {p.operational.comparisons.items.map((c) => (
+                          <TableRow key={c.window}>
+                            <TableCell>{c.label}</TableCell>
+                            <TableCell className="text-right tabular-nums">{c.orderCount}</TableCell>
+                            <TableCell className="text-right tabular-nums">{format(c.orderValue)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
                 </CardContent>
               </Card>
 
@@ -453,13 +459,43 @@ export default function ManagementCommandCenter() {
                 <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5 text-xs">
                   {(
                     [
-                      ["Finance holds", p.delayRisk.financeHoldCount, "/admin/finance-board"],
-                      ["Awaiting final payment", p.delayRisk.awaitingFinalPaymentCount, "/admin/accounts-release"],
-                      ["SLA breached (support)", p.delayRisk.slaBreachedSupportCount, "/admin/support"],
-                      ["Dispatch bottleneck", p.delayRisk.dispatchBottleneckCount, "/admin/packing-dispatch"],
-                      ["Open ledger disputes", p.delayRisk.disputedLedgerCount, "/admin/finance"],
+                      [
+                        "Finance holds",
+                        p.delayRisk.financeHoldCount,
+                        p.delayRisk.orderDerivedSemantics,
+                        p.delayRisk.orderDerivedBlocker,
+                        "/admin/finance-board",
+                      ],
+                      [
+                        "Awaiting final payment",
+                        p.delayRisk.awaitingFinalPaymentCount,
+                        p.delayRisk.orderDerivedSemantics,
+                        p.delayRisk.orderDerivedBlocker,
+                        "/admin/accounts-release",
+                      ],
+                      [
+                        "SLA breached (support)",
+                        p.delayRisk.slaBreachedSupportCount,
+                        p.delayRisk.slaBreachedSemantics,
+                        p.delayRisk.slaBreachedBlocker,
+                        "/admin/support",
+                      ],
+                      [
+                        "Dispatch bottleneck",
+                        p.delayRisk.dispatchBottleneckCount,
+                        p.delayRisk.orderDerivedSemantics,
+                        p.delayRisk.orderDerivedBlocker,
+                        "/admin/packing-dispatch",
+                      ],
+                      [
+                        "Open ledger disputes",
+                        p.delayRisk.disputedLedgerCount,
+                        p.delayRisk.disputedLedgerSemantics,
+                        p.delayRisk.disputedLedgerBlocker,
+                        "/admin/finance",
+                      ],
                     ] as const
-                  ).map(([label, count, route]) => (
+                  ).map(([label, count, semantics, blocker, route]) => (
                     <Link
                       key={label}
                       to={route}
@@ -467,8 +503,13 @@ export default function ManagementCommandCenter() {
                     >
                       <p className="text-muted-foreground">{label}</p>
                       <p className="text-xl font-semibold tabular-nums">
-                        {count === null ? "unavailable" : count}
+                        {semantics === "unavailable" || count === null
+                          ? "unavailable"
+                          : count}
                       </p>
+                      {semantics === "unavailable" && blocker ? (
+                        <p className="mt-1 text-[10px] text-amber-700">{blocker}</p>
+                      ) : null}
                     </Link>
                   ))}
                 </CardContent>
@@ -515,26 +556,32 @@ export default function ManagementCommandCenter() {
                       <CardDescription className="text-xs">{p.collections.ageingSource}</CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Bucket (days)</TableHead>
-                            <TableHead className="text-right">Orders</TableHead>
-                            <TableHead className="text-right">Outstanding</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {p.collections.ageingBuckets.map((b) => (
-                            <TableRow key={b.bucket}>
-                              <TableCell>{b.bucket}</TableCell>
-                              <TableCell className="text-right tabular-nums">{b.orderCount}</TableCell>
-                              <TableCell className="text-right tabular-nums">
-                                {format(b.outstandingAmount)}
-                              </TableCell>
+                      {p.collections.ageingBuckets.semantics === "unavailable" ? (
+                        <p className="text-xs text-amber-800">
+                          Unavailable — {p.collections.ageingBuckets.blocker ?? "order source incomplete"}
+                        </p>
+                      ) : (
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Bucket (days)</TableHead>
+                              <TableHead className="text-right">Orders</TableHead>
+                              <TableHead className="text-right">Outstanding</TableHead>
                             </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
+                          </TableHeader>
+                          <TableBody>
+                            {p.collections.ageingBuckets.items.map((b) => (
+                              <TableRow key={b.bucket}>
+                                <TableCell>{b.bucket}</TableCell>
+                                <TableCell className="text-right tabular-nums">{b.orderCount}</TableCell>
+                                <TableCell className="text-right tabular-nums">
+                                  {format(b.outstandingAmount)}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      )}
                     </CardContent>
                   </Card>
 
@@ -546,16 +593,24 @@ export default function ManagementCommandCenter() {
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-2 text-xs">
-                      {p.collections.topExposureClients.map((c) => (
-                        <Link
-                          key={c.id}
-                          to={c.drillRoute ?? "#"}
-                          className="flex justify-between rounded-md border border-border/60 px-2 py-1.5 hover:bg-muted/50"
-                        >
-                          <span className="truncate">{c.label}</span>
-                          <span className="font-semibold tabular-nums">{format(c.metric)}</span>
-                        </Link>
-                      ))}
+                      {p.collections.topExposureClients.semantics === "unavailable" ? (
+                        <p className="text-amber-800">
+                          Unavailable — {p.collections.topExposureClients.blocker ?? "order source incomplete"}
+                        </p>
+                      ) : p.collections.topExposureClients.items.length === 0 ? (
+                        <p className="text-muted-foreground">No outstanding client exposure in dataset</p>
+                      ) : (
+                        p.collections.topExposureClients.items.map((c) => (
+                          <Link
+                            key={c.id}
+                            to={c.drillRoute ?? "#"}
+                            className="flex justify-between rounded-md border border-border/60 px-2 py-1.5 hover:bg-muted/50"
+                          >
+                            <span className="truncate">{c.label}</span>
+                            <span className="font-semibold tabular-nums">{format(c.metric)}</span>
+                          </Link>
+                        ))
+                      )}
                     </CardContent>
                   </Card>
 
@@ -570,17 +625,25 @@ export default function ManagementCommandCenter() {
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="grid grid-cols-2 gap-3 text-xs">
-                      {[
-                        ["Frozen accounts", p.collections.creditRisk.frozenAccountCount],
-                        ["Negative wallet", p.collections.creditRisk.negativeWalletCount],
-                        ["Credit enabled", p.collections.creditRisk.creditEnabledCount],
-                        ["High exposure clients", p.collections.creditRisk.highExposureCount],
-                      ].map(([label, count]) => (
-                        <div key={String(label)} className="rounded-md border border-border/60 px-2 py-2">
-                          <p className="text-muted-foreground">{label}</p>
-                          <p className="text-lg font-semibold tabular-nums">{count}</p>
-                        </div>
-                      ))}
+                      {p.collections.creditRisk.semantics === "unavailable" ? (
+                        <p className="col-span-2 text-amber-800">
+                          Unavailable — {p.collections.creditRisk.blocker ?? "companies source incomplete"}
+                        </p>
+                      ) : (
+                        [
+                          ["Frozen accounts", p.collections.creditRisk.frozenAccountCount],
+                          ["Negative wallet", p.collections.creditRisk.negativeWalletCount],
+                          ["Credit enabled", p.collections.creditRisk.creditEnabledCount],
+                          ["High exposure clients", p.collections.creditRisk.highExposureCount],
+                        ].map(([label, count]) => (
+                          <div key={String(label)} className="rounded-md border border-border/60 px-2 py-2">
+                            <p className="text-muted-foreground">{label}</p>
+                            <p className="text-lg font-semibold tabular-nums">
+                              {count === null ? "unavailable" : count}
+                            </p>
+                          </div>
+                        ))
+                      )}
                     </CardContent>
                   </Card>
                 </div>

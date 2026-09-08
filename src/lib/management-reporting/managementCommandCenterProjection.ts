@@ -68,7 +68,13 @@ export function buildManagementCommandCenterProjection(
   const delayRisk = buildDelayRiskSnapshot({
     orders: input.orders,
     slaBreachedSupportCount: input.slaBreachedSupportCount,
+    slaBreachedUnavailable: input.slaBreachedSupportCount === null,
+    slaBreachedBlocker:
+      input.slaBreachedSupportCount === null ? "support_tickets read failed" : undefined,
     disputedLedgerCount: input.disputedLedgerCount,
+    disputedLedgerUnavailable: input.disputedOrHeldUnavailable ?? input.disputesTruncated,
+    disputedLedgerBlocker: input.disputedOrHeldBlocker,
+    ordersTruncated: input.ordersTruncated,
   });
 
   const builtRankings = input.rankingsUnavailable

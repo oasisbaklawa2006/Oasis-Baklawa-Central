@@ -8,6 +8,21 @@ export interface GovernedMetric<T = number> {
   blocker?: string;
 }
 
+/** Array/object breakdown with explicit availability — never infer unavailable from empty data. */
+export interface GovernedBreakdown<T> {
+  semantics: MetricSemantics;
+  source: string;
+  blocker?: string;
+  items: T;
+}
+
+export interface OperationalComparisonRow {
+  window: ComparisonWindow["key"];
+  label: string;
+  orderCount: number;
+  orderValue: number;
+}
+
 export interface ComparisonWindow {
   key: "today" | "same_day_last_week" | "same_day_last_month" | "same_day_last_year";
   label: string;
@@ -23,12 +38,7 @@ export interface OperationalPositionSnapshot {
   packedAwaitingDispatch: GovernedMetric;
   dispatchedCount: GovernedMetric;
   collectionsPending: GovernedMetric;
-  comparisons: Array<{
-    window: ComparisonWindow["key"];
-    label: string;
-    orderCount: number;
-    orderValue: number;
-  }>;
+  comparisons: GovernedBreakdown<OperationalComparisonRow[]>;
 }
 
 export interface RankedEntity {
@@ -47,18 +57,27 @@ export interface RankedEntityWithTrend extends RankedEntity {
 }
 
 export interface DelayRiskSnapshot {
-  financeHoldCount: number;
-  awaitingFinalPaymentCount: number;
+  orderDerivedSemantics: MetricSemantics;
+  orderDerivedBlocker?: string;
+  financeHoldCount: number | null;
+  awaitingFinalPaymentCount: number | null;
+  dispatchBottleneckCount: number | null;
   slaBreachedSupportCount: number | null;
-  dispatchBottleneckCount: number;
+  slaBreachedSemantics: MetricSemantics;
+  slaBreachedBlocker?: string;
   disputedLedgerCount: number | null;
+  disputedLedgerSemantics: MetricSemantics;
+  disputedLedgerBlocker?: string;
 }
 
 export interface CreditRiskSnapshot {
-  frozenAccountCount: number;
-  negativeWalletCount: number;
-  creditEnabledCount: number;
-  highExposureCount: number;
+  semantics: MetricSemantics;
+  source: string;
+  blocker?: string;
+  frozenAccountCount: number | null;
+  negativeWalletCount: number | null;
+  creditEnabledCount: number | null;
+  highExposureCount: number | null;
 }
 
 export interface CollectionsAgeingBucket {
@@ -75,9 +94,9 @@ export interface CollectionsReportingSnapshot {
   walletExposure: GovernedMetric;
   creditExposure: GovernedMetric;
   profitability: GovernedMetric;
-  ageingBuckets: CollectionsAgeingBucket[];
+  ageingBuckets: GovernedBreakdown<CollectionsAgeingBucket[]>;
   ageingSource: string;
-  topExposureClients: RankedEntity[];
+  topExposureClients: GovernedBreakdown<RankedEntity[]>;
   creditRisk: CreditRiskSnapshot;
 }
 

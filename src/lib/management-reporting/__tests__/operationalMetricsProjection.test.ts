@@ -3,6 +3,7 @@ import {
   buildBestClientRankings,
   buildBestSellerRankings,
   buildComparisonWindows,
+  buildDelayRiskSnapshot,
   buildOperationalPositionSnapshot,
   buildPeriodRankingsWithTrends,
   priorPeriodBounds,
@@ -176,6 +177,38 @@ describe("operationalMetricsProjection", () => {
       unavailableReason: "orders read truncated",
     });
     expect(snap.salesOrderCount.semantics).toBe("unavailable");
-    expect(snap.comparisons).toEqual([]);
+    expect(snap.comparisons.semantics).toBe("unavailable");
+    expect(snap.comparisons.items).toEqual([]);
+    expect(snap.comparisons.blocker).toContain("truncated");
+  });
+
+  it("builds observed comparisons with governed breakdown semantics", () => {
+    const orders: OrderFactRow[] = [
+      order({ id: "o1", created_at: "2026-09-07T10:00:00.000Z" }),
+    ];
+    const snap = buildOperationalPositionSnapshot(orders, REF);
+    expect(snap.comparisons.semantics).toBe("observed");
+    expect(snap.comparisons.items.length).toBe(4);
+  });
+
+  it("marks order-derived delay risk unavailable when orders truncated", () => {
+    const snap = buildDelayRiskSnapshot({
+      orders: [
+        order({
+          id: "o1",
+          advance_required: 5000,
+          advance_paid: 0,
+          status: "awaiting_final_payment",
+        }),
+      ],
+      slaBreachedSupportCount: 2,
+      disputedLedgerCount: 1,
+      ordersTruncated: true,
+    });
+    expect(snap.orderDerivedSemantics).toBe("unavailable");
+    expect(snap.financeHoldCount).toBeNull();
+    expect(snap.awaitingFinalPaymentCount).toBeNull();
+    expect(snap.slaBreachedSemantics).toBe("observed");
+    expect(snap.slaBreachedSupportCount).toBe(2);
   });
 });
