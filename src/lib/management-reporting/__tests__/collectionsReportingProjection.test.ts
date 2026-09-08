@@ -120,6 +120,45 @@ describe("collectionsReportingProjection", () => {
     expect(snap.recoverableOutstanding.semantics).toBe("unavailable");
   });
 
+  it("marks recoverable unavailable when Core returns zero facts for attempted unpaid orders", () => {
+    const snap = buildCollectionsReportingSnapshot({
+      orders: [
+        {
+          id: "o1",
+          status: "confirmed",
+          payment_status: "unpaid",
+          sales_order_value: 5000,
+          advance_paid: 0,
+          advance_required: 1500,
+          company_id: "c1",
+          created_at: "2026-09-01T10:00:00.000Z",
+        },
+      ],
+      companies: [],
+      disputedOrHeldAmount: 0,
+      periodStartIso: "2026-09-01T00:00:00.000Z",
+      periodEndIso: "2026-09-30T23:59:59.999Z",
+      coreFinance255: {
+        recoverableOutstanding: 0,
+        recoveredInPeriod: 0,
+        recoveredInPeriodAvailable: false,
+        recoveredInPeriodBlocker: "no timestamped receipt facts",
+        ordersWithCoreFacts: 0,
+        ordersAttempted: 1,
+        recoveryOrdersWithFacts: 0,
+        recoveryOrdersAttempted: 0,
+        unpaidLookupBounded: false,
+        recoveryLookupBounded: false,
+        source: "core:#255/get_order_payment_facts_v1@cd078c5",
+        warnings: ["payment facts unavailable"],
+      },
+    });
+
+    expect(snap.recoverableOutstanding.semantics).toBe("unavailable");
+    expect(snap.recoverableOutstanding.value).toBe(0);
+    expect(snap.recoverableOutstanding.blocker).toContain("0 of 1");
+  });
+
   it("marks recoverable unavailable when orders source is truncated", () => {
     const snap = buildCollectionsReportingSnapshot({
       orders: [
