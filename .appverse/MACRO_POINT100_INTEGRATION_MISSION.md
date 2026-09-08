@@ -6,8 +6,9 @@ Objective: build and continuously repair the executable cross-repository journey
 
 Rules:
 - This is not an audit-only PR. Build the executable integration harness, adapters, fixtures, route bindings and repair code needed on Central to consume canonical authorities.
-- Reuse and bind the macro tranches already under construction: Buyer revenue, Core Finance, Core Inventory/Factory, Central CRM, Central Order→Gate, AI Catalogue, and Trace. Do not create shadow truth.
+- Reuse and bind the macro tranches already under construction: Buyer revenue, Core Finance, Core Inventory/Factory, Central CRM, Central Order→Gate (#556 merged), AI Catalogue, and Trace. Do not create shadow truth.
 - Missing upstream authorities must be reported precisely and fail closed; where Central-side binding or orchestration is missing, implement it here.
+- Disposable synthetic rehearsal runs against Core main on ephemeral bootstrap. Production certification remains fail-closed while Core Production Migration Release #159 awaits protected environment approval.
 - Test whole journeys, not isolated programme points. Batch defects and repairs inside this tranche.
 - Maintain role/tenant isolation, idempotency, audit lineage, AAL2/maker-checker where required, and Core migration serialization.
 - No physical-device PASS claims. Physical scanner/printer/TV/mobile/gate evidence remains Leap 13.

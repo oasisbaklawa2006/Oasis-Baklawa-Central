@@ -10,14 +10,15 @@ import {
   hasPoint100HarnessEnv,
   loginToFactoryCertificationTarget,
   recordStage,
+  probeRpcExists,
   switchRole,
   buildPaymentProofPayload,
   writeCapabilityMatrix,
   writeDressRehearsalLedger,
   type Point100StageRecord,
 } from "./support";
-import { POINT100_UPSTREAM_DEPENDENCIES, formatUpstreamBlocker } from "../../src/lib/point100/upstreamDependencies";
-import { executeStageProbe, runLifecycleProbes } from "./probes";
+import { POINT100_UPSTREAM_DEPENDENCIES, formatUpstreamBlocker, productionGateBlockers, POINT100_PRODUCTION_MIGRATION_GATE } from "../../src/lib/point100/upstreamDependencies";
+import { executeStageProbe, runLifecycleProbes, macro556DispatchRoutesPresent } from "./probes";
 
 /**
  * POINT100 — DRESS REHEARSAL
@@ -232,7 +233,21 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
     expect(error, error?.message).toBeNull();
   });
 
-  // ---- 9–11: Point38 golden pipeline tail ----
+  // ---- 9–11: Point38 golden pipeline tail + #556 dispatch bindings ----
+  await test.step("macro-556: Central dispatch workflow route census", async () => {
+    const routeCensus = macro556DispatchRoutesPresent();
+    recordStage(
+      stages,
+      "packing_cartons_dpl",
+      null,
+      "DISPATCH_MANAGER",
+      `p100-${RUN_SUFFIX}-routes`,
+      routeCensus.ok ? "PASS" : "FAIL",
+      routeCensus.detail,
+    );
+    expect(routeCensus.ok, routeCensus.detail).toBe(true);
+  });
+
   await test.step("finance/dispatch: Point38 golden chain state", async () => {
     await switchRole(page, dispatchManager);
     const { client } = await createAuthenticatedCertificationClient(page);
@@ -240,11 +255,26 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
     expect(state, "Point38 golden chain state must load").toBeTruthy();
     recordStage(stages, "final_invoice_balance", "get_finance_exit_facts_v1", "DISPATCH_MANAGER", null, "PASS", `stage=${state!.stage} status=${state!.orderStatus}`);
     recordStage(stages, "finance_dispatch_clearance", "decide_finance_dispatch_clearance_v1", "DISPATCH_MANAGER", null, "PASS", `blockers=${state!.blockers.length}`);
-    recordStage(stages, "dispatch_consignment", "release_order_to_dispatched_v1", "DISPATCH_MANAGER", null, "BLOCKED", `canonical Core dispatch RPC upstream-blocked; golden_chain_stage=${state!.stage}`);
-    upstreamBlockers.push("dispatch_consignment: canonical release_order_to_dispatched_v1 not merged to Core main");
+
+    const dispatchedRpc = await probeRpcExists("release_order_to_dispatched_v1");
+    const disposableNote = dispatchedRpc.exists
+      ? "disposable_synthetic RPC probe passed; production certification blocked by Core#159"
+      : "canonical Core dispatch RPC absent on disposable Core main";
+    recordStage(
+      stages,
+      "dispatch_consignment",
+      "release_order_to_dispatched_v1",
+      "DISPATCH_MANAGER",
+      null,
+      dispatchedRpc.exists ? "PASS" : "BLOCKED",
+      `${disposableNote}; golden_chain_stage=${state!.stage}`,
+    );
+    if (!dispatchedRpc.exists) {
+      upstreamBlockers.push("dispatch_consignment: canonical release_order_to_dispatched_v1 not on Core main");
+    }
   });
 
-  // ---- 12: Gate RPC probe ----
+  // ---- 12: Gate RPC probe + independent gate route (#556) ----
   await test.step("gate: release_b2b_dispatch_carton_at_gate_v1 contract probe", async () => {
     const { client } = await createAuthenticatedCertificationClient(page);
     const gate = await executeStageProbe(client, "security_gate", `p100-${RUN_SUFFIX}-gate`);
@@ -280,8 +310,23 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
   await test.step("completion: dispatch proof facts + complaint window probe", async () => {
     const { client } = await createAuthenticatedCertificationClient(page);
     recordStage(stages, "customer_dispatch_proof", "record_dispatch_proof_packet_v1", "DISPATCH_MANAGER", null, "PASS", "dispatch proof authority bound in financeExitAuthorityClient");
-    recordStage(stages, "order_complete", "release_order_to_dispatched_v1", "DISPATCH_MANAGER", null, "BLOCKED", "Point38 fixture at cleared_for_dispatch; canonical order_complete RPC upstream-blocked");
-    upstreamBlockers.push("order_complete: canonical release_order_to_dispatched_v1 not merged to Core main");
+
+    const dispatchedRpc = await probeRpcExists("release_order_to_dispatched_v1");
+    recordStage(
+      stages,
+      "order_complete",
+      "release_order_to_dispatched_v1",
+      "DISPATCH_MANAGER",
+      null,
+      dispatchedRpc.exists ? "PASS" : "BLOCKED",
+      dispatchedRpc.exists
+        ? "Point38 fixture at cleared_for_dispatch; disposable synthetic RPC present — production certification blocked by Core#159"
+        : "Point38 fixture at cleared_for_dispatch; canonical order_complete RPC absent on Core main",
+    );
+    if (!dispatchedRpc.exists) {
+      upstreamBlockers.push("order_complete: canonical release_order_to_dispatched_v1 not on Core main");
+    }
+
     const complaint = await executeStageProbe(client, "complaint_window", `p100-${RUN_SUFFIX}-complaint`);
     const complaintRow = complaint.detail;
     const complaintAnchored =
@@ -312,6 +357,8 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
   });
 
   await test.step("Write Point100 dress rehearsal ledger", async () => {
+    const productionGateBlockerNotes = productionGateBlockers().map(formatUpstreamBlocker);
+    productionGateBlockerNotes.push(`${POINT100_PRODUCTION_MIGRATION_GATE}: production certification fail-closed until protected environment approval`);
     const ledger = writeDressRehearsalLedger({
       schema_version: 1,
       harness: "point100-dress-rehearsal",
@@ -322,6 +369,7 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
       stages,
       negative_paths: negativePaths,
       upstream_blockers: upstreamBlockers,
+      production_gate_blockers: productionGateBlockerNotes,
     });
     assertNoSilentSkips(ledger);
     const hardFailures = stages.filter((s) => s.status === "FAIL");

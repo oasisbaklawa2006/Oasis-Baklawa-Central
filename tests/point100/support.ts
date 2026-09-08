@@ -18,6 +18,7 @@ import {
   type FactoryCertificationCredentials,
 } from "../factory-certification/support";
 import { factoryCertificationCredentialSpec } from "../../src/lib/factoryCertificationCredentialPolicy";
+import { POINT100_PRODUCTION_MIGRATION_GATE, isProductionCertificationPermitted } from "../../src/lib/point100/upstreamDependencies";
 
 export type Point100StageRecord = {
   stage: string;
@@ -34,12 +35,16 @@ export type Point100DressRehearsalLedger = {
   status: "PASS" | "FAIL" | "BLOCKED";
   environment: string;
   production_accessed: false;
+  certification_mode: "disposable_synthetic" | "production";
+  production_certification_permitted: boolean;
+  production_migration_gate: string | null;
   run_token: string;
   generated_at: string;
   capability_matrix_file: string;
   stages: Point100StageRecord[];
   negative_paths: Point100StageRecord[];
   upstream_blockers: string[];
+  production_gate_blockers: string[];
 };
 
 export function hasPoint100HarnessEnv(): boolean {
@@ -123,13 +128,23 @@ export function recordStage(
 }
 
 export function writeDressRehearsalLedger(
-  ledger: Omit<Point100DressRehearsalLedger, "generated_at" | "status">,
+  ledger: Omit<Point100DressRehearsalLedger, "generated_at" | "status" | "certification_mode" | "production_certification_permitted" | "production_migration_gate" | "production_gate_blockers"> & {
+    production_gate_blockers?: string[];
+  },
 ): Point100DressRehearsalLedger {
   const failedStages = ledger.stages.filter((s) => s.status === "FAIL");
   const failedNegative = ledger.negative_paths.filter((s) => s.status === "FAIL");
-  const blocked = ledger.stages.some((s) => s.status === "BLOCKED") || ledger.upstream_blockers.length > 0;
+  const productionGateBlockers = ledger.production_gate_blockers ?? [];
+  const blocked =
+    ledger.stages.some((s) => s.status === "BLOCKED") ||
+    ledger.upstream_blockers.length > 0 ||
+    productionGateBlockers.length > 0;
   const summary: Point100DressRehearsalLedger = {
     ...ledger,
+    certification_mode: isProductionCertificationPermitted() ? "production" : "disposable_synthetic",
+    production_certification_permitted: isProductionCertificationPermitted(),
+    production_migration_gate: isProductionCertificationPermitted() ? null : POINT100_PRODUCTION_MIGRATION_GATE,
+    production_gate_blockers: productionGateBlockers,
     generated_at: new Date().toISOString(),
     status: blocked
       ? "BLOCKED"

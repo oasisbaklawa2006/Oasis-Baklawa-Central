@@ -3,7 +3,7 @@
  * Distinct from programme CLEARED status; describes executable harness state only.
  */
 
-import { POINT100_UPSTREAM_DEPENDENCIES } from "./upstreamDependencies";
+import { POINT100_PRODUCTION_MIGRATION_GATE, POINT100_UPSTREAM_DEPENDENCIES, isProductionCertificationPermitted } from "./upstreamDependencies";
 
 export type Point100CapabilityStatus =
   | "implemented"
@@ -28,6 +28,9 @@ export type Point100CapabilityMatrix = {
   generated_at: string;
   environment_id: string | null;
   fail_closed: true;
+  certification_mode: "disposable_synthetic" | "production";
+  production_certification_permitted: boolean;
+  production_migration_gate: string | null;
   upstream_dependencies: Array<{
     id: string;
     repository: string;
@@ -74,6 +77,9 @@ export function buildCapabilityMatrix(
     generated_at: new Date().toISOString(),
     environment_id: environmentId,
     fail_closed: true,
+    certification_mode: isProductionCertificationPermitted() ? "production" : "disposable_synthetic",
+    production_certification_permitted: isProductionCertificationPermitted(),
+    production_migration_gate: isProductionCertificationPermitted() ? null : POINT100_PRODUCTION_MIGRATION_GATE,
     upstream_dependencies: POINT100_UPSTREAM_DEPENDENCIES
       .filter((dep) => dep.state !== "merged")
       .map((dep) => ({

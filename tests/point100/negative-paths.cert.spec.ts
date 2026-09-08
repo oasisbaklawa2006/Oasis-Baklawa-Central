@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { writeFileSync } from "node:fs";
 import { test, expect } from "@playwright/test";
+import { canAccessSecurityGate } from "@/lib/auth/securityGatePolicy";
+import { isAuthorizedForAdminPath } from "@/lib/appverse/routeAccess";
 import {
   buildPaymentProofPayload,
   createAuthenticatedCertificationClient,
@@ -210,6 +212,21 @@ test("POINT100 :: negative-path failure injection suite", async ({ page }) => {
     });
     expect(error, "FINANCE_HEAD must not create dispatch consignment (Dispatch least privilege)").not.toBeNull();
     recordStage(negativePaths, "wrong_tenant_role", "create_b2b_dispatch_consignment", "FINANCE_HEAD", correlationId, "PASS", error?.message ?? "rejected");
+  });
+
+  // ---- gate independence: dispatch manager cannot access security gate surface ----
+  await test.step("negative: dispatch manager denied independent security gate route", async () => {
+    expect(canAccessSecurityGate("DISPATCH_MANAGER")).toBe(false);
+    expect(isAuthorizedForAdminPath("/security-gate", "DISPATCH_MANAGER")).toBe(false);
+    recordStage(
+      negativePaths,
+      "gate_mismatch",
+      null,
+      "DISPATCH_MANAGER",
+      `p100-neg-${RUN_SUFFIX}-gate-route`,
+      "PASS",
+      "independent gate route denied for dispatch roles (#556 least-privilege)",
+    );
   });
 
   // ---- gate independence: dispatch manager cannot substitute gate scan evidence ----

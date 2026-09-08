@@ -3,7 +3,7 @@ import type { Point100LifecycleStage } from "./lifecycleStages";
 import { resolveBoundContract, bindingByKey } from "./contractBindings";
 import {
   formatUpstreamBlocker,
-  isDisposableCertBootstrapPermitted,
+  isDisposableRehearsalMode,
   upstreamBlockersForStage,
 } from "./upstreamDependencies";
 
@@ -71,7 +71,7 @@ export function buildProbeOutcome(input: {
   let detail: string;
 
   const upstreamDep = upstream[0];
-  if (upstreamDep && !(upstreamDep.id === "core-order-dispatched-rpc" && isDisposableCertBootstrapPermitted())) {
+  if (upstreamDep) {
     status = upstreamDep.failClosedStatus;
     detail = formatUpstreamBlocker(upstreamDep);
   } else if (stage.domain === "trace" && stage.id === "trace_handover") {
@@ -91,7 +91,9 @@ export function buildProbeOutcome(input: {
     detail = executionDetail ?? "Executable probe passed";
   } else {
     status = "implemented";
-    detail = "Contract present; full journey execution deferred to dress-rehearsal stage";
+    detail = isDisposableRehearsalMode()
+      ? "Contract present on disposable Core main rehearsal; production certification blocked by Core#159"
+      : "Contract present; full journey execution deferred to dress-rehearsal stage";
   }
 
   const technicalReady =

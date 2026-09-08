@@ -3,7 +3,9 @@ import { buildCapabilityMatrix, summarizeCapabilityMatrix } from "../capabilityS
 import { POINT100_LIFECYCLE_STAGES, POINT100_NEGATIVE_PATHS, stagesForNegativePath } from "../lifecycleStages";
 import { bindingByKey, resolveBoundContract } from "../contractBindings";
 import { buildProbeOutcome, isRpcMissingError, probeFixtureKeys, resolvedRpcForStage } from "../probeRunner";
-import { POINT100_UPSTREAM_DEPENDENCIES, upstreamBlockersForStage } from "../upstreamDependencies";
+import { POINT100_UPSTREAM_DEPENDENCIES, upstreamBlockersForStage, productionGateBlockers, isDisposableRehearsalMode, POINT100_PRODUCTION_MIGRATION_GATE } from "../upstreamDependencies";
+import { CENTRAL_ADMIN_MODULE_AUTHORITY_MATRIX } from "../../appverse/centralAdminModuleAuthorityMatrix";
+import { MACRO_DISPATCH_MANAGER_HOME, MACRO_ORDER_DISPATCH_JOURNEY } from "../../macro-order-dispatch/macroOrderDispatchJourney";
 
 describe("point100 lifecycle stages", () => {
   it("defines 16 sequential stages covering the full operational lifecycle", () => {
@@ -104,5 +106,48 @@ describe("point100 probe runner", () => {
     });
     expect(outcome.status).toBe("upstream_contract_missing");
     expect(upstreamBlockersForStage("trace_handover")[0]?.failClosedStatus).toBe("physical_uat_only");
+  });
+
+  it("records #556 as merged Central dispatch authority", () => {
+    const merged556 = POINT100_UPSTREAM_DEPENDENCIES.find((dep) => dep.id === "central-macro-ops-556");
+    expect(merged556?.state).toBe("merged");
+    expect(merged556?.affectedStageIds).toContain("packing_cartons_dpl");
+    expect(merged556?.affectedStageIds).toContain("dispatch_consignment");
+  });
+
+  it("bypasses production migration gate blockers in disposable rehearsal mode", () => {
+    const originalBootstrap = process.env.POINT100_ALLOW_DISPOSABLE_BOOTSTRAP;
+    const originalProduction = process.env.POINT100_PRODUCTION_CERTIFICATION_PERMITTED;
+    process.env.POINT100_ALLOW_DISPOSABLE_BOOTSTRAP = "true";
+    delete process.env.POINT100_PRODUCTION_CERTIFICATION_PERMITTED;
+    expect(isDisposableRehearsalMode()).toBe(true);
+    expect(upstreamBlockersForStage("dispatch_consignment")).toHaveLength(0);
+    expect(productionGateBlockers().some((dep) => dep.pr === "#159")).toBe(true);
+    if (originalBootstrap === undefined) delete process.env.POINT100_ALLOW_DISPOSABLE_BOOTSTRAP;
+    else process.env.POINT100_ALLOW_DISPOSABLE_BOOTSTRAP = originalBootstrap;
+    if (originalProduction === undefined) delete process.env.POINT100_PRODUCTION_CERTIFICATION_PERMITTED;
+    else process.env.POINT100_PRODUCTION_CERTIFICATION_PERMITTED = originalProduction;
+  });
+
+  it("embeds production migration gate metadata in capability matrix", () => {
+    const matrix = buildCapabilityMatrix([], "test-env");
+    expect(matrix.certification_mode).toBe("disposable_synthetic");
+    expect(matrix.production_certification_permitted).toBe(false);
+    expect(matrix.production_migration_gate).toBe(POINT100_PRODUCTION_MIGRATION_GATE);
+  });
+
+  it("binds #556 canonical dispatch workflow routes in Central census", () => {
+    const routes = new Set(CENTRAL_ADMIN_MODULE_AUTHORITY_MATRIX.map((entry) => entry.route));
+    const required = [
+      MACRO_DISPATCH_MANAGER_HOME,
+      ...MACRO_ORDER_DISPATCH_JOURNEY.filter((stage) =>
+        ["dispatch_readiness", "packing_dpl", "golden_chain", "security_gate"].includes(stage.key),
+      ).map((stage) => stage.route),
+      "/admin/dispatch-completion",
+      "/admin/dispatch-finalization",
+    ];
+    for (const route of required) {
+      expect(routes.has(route), `missing route ${route}`).toBe(true);
+    }
   });
 });
