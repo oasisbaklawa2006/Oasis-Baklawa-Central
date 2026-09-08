@@ -115,7 +115,7 @@ export function buildManagementCommandCenterProjection(
   const productsForCompliance =
     input.complianceDataUnavailable || input.productsTruncated ? [] : input.products;
   const companiesForCompliance =
-    input.complianceDataUnavailable || input.productsTruncated ? [] : input.companyCompliance;
+    input.complianceDataUnavailable || input.companiesTruncated ? [] : input.companyCompliance;
 
   const { entries: eanRegistry, total: eanRegistryTotal } = buildEanRegistryEntries(
     productsForCompliance,
@@ -147,7 +147,9 @@ export function buildManagementCommandCenterProjection(
     salespeopleRankingsUnavailable: input.salespeopleRankingsUnavailable ?? false,
     operationalDataUnavailable: input.operationalDataUnavailable ?? false,
     complianceDataUnavailable:
-      (input.complianceDataUnavailable ?? false) || (input.productsTruncated ?? false),
+      (input.complianceDataUnavailable ?? false) ||
+      (input.productsTruncated ?? false) ||
+      (input.companiesTruncated ?? false),
     eanRegistry,
     eanRegistryTotal,
     complianceExceptions,
