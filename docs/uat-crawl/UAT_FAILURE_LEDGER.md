@@ -4,6 +4,29 @@ Phase 4 register — **no remediation in this tranche**.
 
 Functional + UX failures. UX criteria authority: [`UAT_UX_FAILURE_MATRIX.md`](./UAT_UX_FAILURE_MATRIX.md).
 
+## Current-main rebaseline @ `a619a7a2` (#558) — GHA run [34239494014](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34239494014)
+
+**Deploy:** `6329154505` @ `https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app` · **Evidence:** `b609e7fc`
+
+| Metric | @ `a619a7a2` |
+|---|---:|
+| Auth S0–S3 complete | **97 / 131** |
+| credential-prefix-unblock | **13 / 13** |
+| post-fix-483 UAT-0018/0020 | **0 / 2** — S0 only; FAIL-481-* **BLOCKED** (no pending review fixture) |
+| Verified credential **BLOCKED** | **28** |
+| Remaining without auth evidence | **29** |
+
+**Policy:** Prior `6c7de2a` / `15c59a3f` / `e2f123b0` / ace340fe evidence append-only — not recertified as current-main PASS without exact-SHA crawl rows.
+
+| FAIL-ID cluster | Status @ `a619a7a2` | Blocker |
+|---|---|---|
+| FAIL-481-001, FAIL-481-002, FAIL-UX-481-001, FAIL-UX-481-002 | **BLOCKED** (retest) | No pending review sheet in UAT fixture — S0 captured only |
+| FAIL-485-001 | **OPEN** | Issue **#485** — KPI truth (physical recording) |
+| FAIL-AUTH-CRED-* (28 UAT IDs) | **BLOCKED** | See [`UAT_VERIFIED_BLOCKERS.jsonl`](./UAT_VERIFIED_BLOCKERS.jsonl) |
+| Buyer mobile UAT-0114–0121 | **BLOCKED** | `TEST_BUYER_EMAIL`, `TEST_BUYER_PASSWORD` |
+
+**Classification rule:** No screenshot = NOT-TESTED; no action/result evidence = function NOT-TESTED.
+
 ## Post-merge targeted proofs (2026-09-06) — NOT current-main certification
 
 | Proof | Deploy SHA | GitHub deploy ID | GHA run | Status |

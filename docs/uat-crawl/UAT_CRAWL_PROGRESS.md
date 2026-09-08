@@ -30,6 +30,18 @@
 
 Prior `6c7de2a` / `15c59a3f` / `e2f123b0` evidence preserved append-only — not rewritten.
 
+## Continuation dispatch — public @ `a619a7a2` + post-fix retry (pending GHA)
+
+Harness fix: `public-continuation-crawl.spec.ts` now binds `baselineSha` to `CURRENT_MAIN_SHA` (was ace340fe). Push triggers **`watchdog-continue`** (skips redundant credential-prefix-unblock 13/13).
+
+| Runnable remainder | Disposition |
+|---|---|
+| UAT-0001/0004/0005/0008/0009 | public re-cert @ `a619a7a2` |
+| UAT-0018/0020 | post-fix retry (fixture-dependent) |
+| UAT-0006/0007/0114–0121 + TV/AI/Trace | **BLOCKED** — credentials |
+
+Registry: [`UAT_REBASELINE_CURRENT_MAIN.json`](UAT_REBASELINE_CURRENT_MAIN.json)
+
 ## Lane 7 authority retarget — deploy CLEARED @ `a619a7a2` (2026-09-08) — superseded by run above
 
 ## Lane 7 authority retarget — verified DEPLOY_BLOCKED @ `6c7de2a` (2026-09-07T23:51Z) — superseded

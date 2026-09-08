@@ -51,7 +51,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     env:
-      RUN_TRANCHE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.run_tranche || 'all' }}
+      RUN_TRANCHE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.run_tranche || 'watchdog-continue' }}
       TEST_PREVIEW_URL: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.target_url != '' && github.event.inputs.target_url || secrets.TEST_PREVIEW_URL }}
       UAT_CRAWL_BASE_URL: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.target_url != '' && github.event.inputs.target_url || secrets.TEST_PREVIEW_URL }}
       TEST_ADMIN_EMAIL: ${{ secrets.TEST_ADMIN_EMAIL }}
