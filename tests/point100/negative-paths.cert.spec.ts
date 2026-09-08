@@ -348,14 +348,15 @@ test("POINT100 :: negative-path failure injection suite", async ({ page }) => {
     await switchRole(page, storeReadyGoods);
     const { client } = await createAuthenticatedCertificationClient(page);
     const correlationId = `p100-neg-${RUN_SUFFIX}-trace-invalid`;
-    const { error } = await client.rpc("trace_verify_handover_evidence_v1", {
+    const { data, error } = await client.rpc("trace_verify_handover_evidence_v1", {
       p_evidence: {},
       p_prior_hash: null,
       p_expected_action: "TRACE_INVALID_PROBE",
       p_enforce_consumption: false,
     });
-    const rejected = Boolean(error);
-    expect(rejected, "invalid trace handover evidence must fail closed").toBe(true);
+    expect(error, "trace verify RPC must be callable on Core #259").toBeNull();
+    const rejected = data === false;
+    expect(rejected, "invalid trace handover evidence must fail closed (returns false)").toBe(true);
     recordStage(
       negativePaths,
       "duplicate_scan",
@@ -363,7 +364,7 @@ test("POINT100 :: negative-path failure injection suite", async ({ page }) => {
       "STORE_READY_GOODS",
       correlationId,
       "PASS",
-      error?.message ?? "rejected",
+      error?.message ?? (rejected ? "returned false" : "unexpected pass"),
     );
   });
 
