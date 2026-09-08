@@ -20,6 +20,7 @@ export const POINT100_CONTRACT_BINDINGS: readonly Point100ContractBinding[] = [
   { key: "finance_operations_clearance", kind: "core_rpc", canonical: "decide_finance_operations_clearance_v1" },
   { key: "production_release", kind: "core_rpc", canonical: "release_order_to_in_production_v1" },
   { key: "rgs_reserve", kind: "core_rpc", canonical: "reserve_rgs_stock" },
+  { key: "inventory_lot_exception", kind: "core_rpc", canonical: "record_inventory_lot_exception" },
   { key: "dispatch_consignment", kind: "core_rpc", canonical: "create_b2b_dispatch_consignment" },
   { key: "dispatch_carton", kind: "core_rpc", canonical: "open_b2b_dispatch_carton" },
   { key: "dispatch_dpl", kind: "core_rpc", canonical: "create_b2b_dispatch_packing_list" },

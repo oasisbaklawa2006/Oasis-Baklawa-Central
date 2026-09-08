@@ -3,7 +3,7 @@ import { buildCapabilityMatrix, summarizeCapabilityMatrix } from "../capabilityS
 import { POINT100_LIFECYCLE_STAGES, POINT100_NEGATIVE_PATHS, stagesForNegativePath } from "../lifecycleStages";
 import { bindingByKey, resolveBoundContract } from "../contractBindings";
 import { buildProbeOutcome, isRpcMissingError, probeFixtureKeys, resolvedRpcForStage } from "../probeRunner";
-import { POINT100_UPSTREAM_DEPENDENCIES, upstreamBlockersForStage, productionGateBlockers, isDisposableRehearsalMode, POINT100_PRODUCTION_MIGRATION_GATE } from "../upstreamDependencies";
+import { POINT100_UPSTREAM_DEPENDENCIES, upstreamBlockersForStage, productionGateBlockers, isDisposableRehearsalMode, POINT100_PRODUCTION_MIGRATION_GATE, POINT100_CORE_PRODUCTION_VERIFIED_SHA, isCoreInventoryProductionVerified } from "../upstreamDependencies";
 import { CENTRAL_ADMIN_MODULE_AUTHORITY_MATRIX } from "../../appverse/centralAdminModuleAuthorityMatrix";
 import { MACRO_DISPATCH_MANAGER_HOME, MACRO_ORDER_DISPATCH_JOURNEY } from "../../macro-order-dispatch/macroOrderDispatchJourney";
 
@@ -94,18 +94,35 @@ describe("point100 probe runner", () => {
   });
 
   it("fail-closes open upstream macro dependencies without shadowing", () => {
-    expect(POINT100_UPSTREAM_DEPENDENCIES.some((dep) => dep.pr === "#256")).toBe(true);
+    expect(POINT100_UPSTREAM_DEPENDENCIES.some((dep) => dep.pr === "#256" && dep.state === "merged")).toBe(true);
     expect(POINT100_UPSTREAM_DEPENDENCIES.some((dep) => dep.pr === "#37")).toBe(true);
     const inventoryStage = POINT100_LIFECYCLE_STAGES.find((s) => s.id === "inventory_lot_allocation")!;
     const outcome = buildProbeOutcome({
       stage: inventoryStage,
-      rpcResults: [{ rpc: "reserve_rgs_stock", exists: true, detail: "ok" }],
+      rpcResults: [
+        { rpc: "reserve_rgs_stock", exists: true, detail: "ok" },
+        { rpc: "allocate_b2b_inventory_putaway", exists: true, detail: "ok" },
+        { rpc: "record_inventory_lot_exception", exists: true, detail: "ok" },
+      ],
       centralBindingsPresent: true,
       missingFixtureKeys: [],
       executed: false,
     });
-    expect(outcome.status).toBe("upstream_contract_missing");
+    expect(outcome.status).toBe("implemented");
     expect(upstreamBlockersForStage("trace_handover")[0]?.failClosedStatus).toBe("physical_uat_only");
+  });
+
+  it("records #256 and #159 as production-verified inventory authority", () => {
+    const merged256 = POINT100_UPSTREAM_DEPENDENCIES.find((dep) => dep.id === "core-inventory-macro-256");
+    const merged159 = POINT100_UPSTREAM_DEPENDENCIES.find((dep) => dep.id === "core-production-migration-159");
+    expect(merged256?.state).toBe("merged");
+    expect(merged159?.state).toBe("merged");
+    const originalSha = process.env.POINT100_CORE_VERIFIED_SHA;
+    process.env.POINT100_CORE_VERIFIED_SHA = POINT100_CORE_PRODUCTION_VERIFIED_SHA;
+    expect(isCoreInventoryProductionVerified()).toBe(true);
+    expect(upstreamBlockersForStage("inventory_lot_allocation")).toHaveLength(0);
+    if (originalSha === undefined) delete process.env.POINT100_CORE_VERIFIED_SHA;
+    else process.env.POINT100_CORE_VERIFIED_SHA = originalSha;
   });
 
   it("records #556 as merged Central dispatch authority", () => {
@@ -115,25 +132,30 @@ describe("point100 probe runner", () => {
     expect(merged556?.affectedStageIds).toContain("dispatch_consignment");
   });
 
-  it("bypasses production migration gate blockers in disposable rehearsal mode", () => {
+  it("bypasses dispatch finalize blocker in disposable rehearsal mode", () => {
     const originalBootstrap = process.env.POINT100_ALLOW_DISPOSABLE_BOOTSTRAP;
     const originalProduction = process.env.POINT100_PRODUCTION_CERTIFICATION_PERMITTED;
     process.env.POINT100_ALLOW_DISPOSABLE_BOOTSTRAP = "true";
     delete process.env.POINT100_PRODUCTION_CERTIFICATION_PERMITTED;
     expect(isDisposableRehearsalMode()).toBe(true);
     expect(upstreamBlockersForStage("dispatch_consignment")).toHaveLength(0);
-    expect(productionGateBlockers().some((dep) => dep.pr === "#159")).toBe(true);
+    expect(productionGateBlockers().some((dep) => dep.id === "core-order-dispatched-rpc")).toBe(true);
     if (originalBootstrap === undefined) delete process.env.POINT100_ALLOW_DISPOSABLE_BOOTSTRAP;
     else process.env.POINT100_ALLOW_DISPOSABLE_BOOTSTRAP = originalBootstrap;
     if (originalProduction === undefined) delete process.env.POINT100_PRODUCTION_CERTIFICATION_PERMITTED;
     else process.env.POINT100_PRODUCTION_CERTIFICATION_PERMITTED = originalProduction;
   });
 
-  it("embeds production migration gate metadata in capability matrix", () => {
+  it("embeds Core verified SHA metadata in capability matrix", () => {
+    const originalSha = process.env.POINT100_CORE_VERIFIED_SHA;
+    process.env.POINT100_CORE_VERIFIED_SHA = POINT100_CORE_PRODUCTION_VERIFIED_SHA;
     const matrix = buildCapabilityMatrix([], "test-env");
     expect(matrix.certification_mode).toBe("disposable_synthetic");
-    expect(matrix.production_certification_permitted).toBe(false);
+    expect(matrix.inventory_production_verified).toBe(true);
+    expect(matrix.core_verified_sha).toBe(POINT100_CORE_PRODUCTION_VERIFIED_SHA);
     expect(matrix.production_migration_gate).toBe(POINT100_PRODUCTION_MIGRATION_GATE);
+    if (originalSha === undefined) delete process.env.POINT100_CORE_VERIFIED_SHA;
+    else process.env.POINT100_CORE_VERIFIED_SHA = originalSha;
   });
 
   it("binds #556 canonical dispatch workflow routes in Central census", () => {

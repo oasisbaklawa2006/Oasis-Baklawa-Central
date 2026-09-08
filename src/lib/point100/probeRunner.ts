@@ -92,7 +92,7 @@ export function buildProbeOutcome(input: {
   } else {
     status = "implemented";
     detail = isDisposableRehearsalMode()
-      ? "Contract present on disposable Core main rehearsal; production certification blocked by Core#159"
+      ? "Contract present on disposable Core replay; dispatch finalize RPC remains bootstrap-only until Core main ships release_order_to_dispatched_v1"
       : "Contract present; full journey execution deferred to dress-rehearsal stage";
   }
 

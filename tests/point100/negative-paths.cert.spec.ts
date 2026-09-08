@@ -317,16 +317,28 @@ test("POINT100 :: negative-path failure injection suite", async ({ page }) => {
     recordStage(negativePaths, "active_finance_hold", "decide_finance_operations_clearance_v1", "FINANCE_HEAD", correlationId, "PASS", error?.message ?? "rejected");
   });
 
-  // ---- quarantined lot: Macro Inventory #256 authority upstream-blocked ----
-  await test.step("negative: quarantined lot allocation upstream-blocked (Macro Inventory #256)", async () => {
+  // ---- quarantined lot: Core#256 record_inventory_lot_exception fail-closed ----
+  await test.step("negative: quarantined lot exception rejects unknown lot position", async () => {
+    const storeReadyGoods = credentialsForRoleOrSkip("STORE_READY_GOODS");
+    await switchRole(page, storeReadyGoods);
+    const { client } = await createAuthenticatedCertificationClient(page);
+    const correlationId = `p100-neg-${RUN_SUFFIX}-quarantine`;
+    const { error } = await client.rpc("record_inventory_lot_exception", {
+      p_lot_position_id: "00000000-0000-4000-8000-000000000099",
+      p_action: "quarantine",
+      p_quantity: 1,
+      p_reason: "POINT100 negative quarantine probe",
+      p_correlation_id: correlationId,
+    });
+    expect(error, "unknown lot position must fail closed").not.toBeNull();
     recordStage(
       negativePaths,
       "quarantined_expired_lot",
-      "allocate_b2b_inventory_putaway",
+      "record_inventory_lot_exception",
       "STORE_READY_GOODS",
-      null,
+      correlationId,
       "PASS",
-      "upstream_contract_missing: Macro Inventory #256 lot/quarantine authority not merged — no shadow probe executed",
+      error?.message ?? "rejected",
     );
   });
 

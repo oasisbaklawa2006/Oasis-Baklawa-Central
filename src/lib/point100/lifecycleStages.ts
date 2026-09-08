@@ -70,7 +70,7 @@ export const POINT100_LIFECYCLE_STAGES: readonly Point100LifecycleStage[] = [
     sequence: 6,
     label: "Inventory reservation → lot allocation",
     domain: "inventory",
-    coreRpcs: ["reserve_rgs_stock", "allocate_b2b_inventory_putaway"],
+    coreRpcs: ["reserve_rgs_stock", "allocate_b2b_inventory_putaway", "record_inventory_lot_exception"],
     centralBindings: ["ReadyGoodsStore", "rgsGovernedRpc"],
     fixtureEnvKeys: ["FACTORY_CERT_GOLDEN_ORDER_ID"],
     negativePathIds: ["stock_shortage", "quarantined_expired_lot"],

@@ -23,6 +23,11 @@ export type Point100UpstreamDependency = {
   disposableRehearsalBypass?: boolean;
 };
 
+/** Protected-production verified Core boundary for Macro Inventory #256 via Release #159. */
+export const POINT100_CORE_PRODUCTION_VERIFIED_SHA = "8beea1e1116a70a209766ed48590d653bd691ad0";
+
+export const POINT100_PRODUCTION_MIGRATION_GATE = "oasis-supabase-core#159";
+
 /** Rebind state here when Mission Control clears an upstream macro PR. */
 export const POINT100_UPSTREAM_DEPENDENCIES: readonly Point100UpstreamDependency[] = [
   {
@@ -46,11 +51,21 @@ export const POINT100_UPSTREAM_DEPENDENCIES: readonly Point100UpstreamDependency
     id: "core-inventory-macro-256",
     repository: "oasis-supabase-core",
     pr: "#256",
-    state: "open_pr",
-    affectedStageIds: ["inventory_lot_allocation"],
+    state: "merged",
+    affectedStageIds: ["inventory_lot_allocation", "production_qc"],
     blockerDetail:
-      "Macro Inventory #256 governed lot/quarantine allocation authority is not merged to Core main. Harness exercises only merged reserve/putaway RPCs; no shadow lot truth.",
-    failClosedStatus: "upstream_contract_missing",
+      "Macro Inventory #256 merged and production-verified via Core Production Migration Release #159 (SHA 8beea1e1). Harness consumes canonical lot/putaway/exception RPCs on disposable Core replay.",
+    failClosedStatus: "implemented",
+  },
+  {
+    id: "core-production-migration-159",
+    repository: "oasis-supabase-core",
+    pr: "#159",
+    state: "merged",
+    affectedStageIds: ["inventory_lot_allocation", "production_qc"],
+    blockerDetail:
+      "Core Production Migration Release #159 deployed Macro Inventory #256 to protected production (SHA 8beea1e1). Finance/Inventory/Factory synthetic contracts recertified on this boundary.",
+    failClosedStatus: "implemented",
   },
   {
     id: "oasis-trace-macro-37",
@@ -69,24 +84,20 @@ export const POINT100_UPSTREAM_DEPENDENCIES: readonly Point100UpstreamDependency
     state: "open_pr",
     affectedStageIds: ["dispatch_consignment", "order_complete"],
     blockerDetail:
-      "Canonical Core release_order_to_dispatched_v1 is not on Core main. Disposable cert bootstrap RPC may exist locally for synthetic rehearsal only — not programme authority.",
-    failClosedStatus: "upstream_contract_missing",
-    disposableRehearsalBypass: true,
-  },
-  {
-    id: "core-production-migration-159",
-    repository: "oasis-supabase-core",
-    pr: "#159",
-    state: "production_migration_pending",
-    affectedStageIds: ["dispatch_consignment", "order_complete", "packing_cartons_dpl"],
-    blockerDetail:
-      "Core Production Migration Release #159 awaiting protected environment approval. Disposable synthetic rehearsal may exercise bootstrap contracts; production certification remains fail-closed.",
+      "Canonical Core release_order_to_dispatched_v1 is not on Core main at SHA 8beea1e1. Disposable cert bootstrap RPC may exist locally for synthetic rehearsal only — not programme authority.",
     failClosedStatus: "upstream_contract_missing",
     disposableRehearsalBypass: true,
   },
 ] as const;
 
-export const POINT100_PRODUCTION_MIGRATION_GATE = "oasis-supabase-core#159";
+export function resolveCoreVerifiedSha(): string | null {
+  return process.env.POINT100_CORE_VERIFIED_SHA?.trim() ?? null;
+}
+
+export function isCoreInventoryProductionVerified(): boolean {
+  const sha = resolveCoreVerifiedSha();
+  return sha === POINT100_CORE_PRODUCTION_VERIFIED_SHA || sha?.startsWith("8beea1e1") === true;
+}
 
 export function isProductionCertificationPermitted(): boolean {
   return process.env.POINT100_PRODUCTION_CERTIFICATION_PERMITTED === "true";
@@ -117,9 +128,7 @@ export function upstreamBlockersForStage(stageId: string): Point100UpstreamDepen
 
 export function productionGateBlockers(): Point100UpstreamDependency[] {
   return POINT100_UPSTREAM_DEPENDENCIES.filter(
-    (dep) =>
-      dep.state === "production_migration_pending" ||
-      (dep.id === "core-order-dispatched-rpc" && dep.state === "open_pr"),
+    (dep) => dep.state !== "merged" && dep.id === "core-order-dispatched-rpc",
   );
 }
 

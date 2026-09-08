@@ -8,7 +8,7 @@ Rules:
 - This is not an audit-only PR. Build the executable integration harness, adapters, fixtures, route bindings and repair code needed on Central to consume canonical authorities.
 - Reuse and bind the macro tranches already under construction: Buyer revenue, Core Finance, Core Inventory/Factory, Central CRM, Central Order→Gate (#556 merged), AI Catalogue, and Trace. Do not create shadow truth.
 - Missing upstream authorities must be reported precisely and fail closed; where Central-side binding or orchestration is missing, implement it here.
-- Disposable synthetic rehearsal runs against Core main on ephemeral bootstrap. Production certification remains fail-closed while Core Production Migration Release #159 awaits protected environment approval.
+- Disposable synthetic rehearsal runs against Core SHA `8beea1e1` (Macro Inventory #256 production-verified via Release #159). Dispatch finalize RPC remains bootstrap-only until Core main ships `release_order_to_dispatched_v1`.
 - Test whole journeys, not isolated programme points. Batch defects and repairs inside this tranche.
 - Maintain role/tenant isolation, idempotency, audit lineage, AAL2/maker-checker where required, and Core migration serialization.
 - No physical-device PASS claims. Physical scanner/printer/TV/mobile/gate evidence remains Leap 13.
@@ -27,7 +27,9 @@ Exit gate: one deterministic automated synthetic Point100 dress rehearsal runnab
 
 ```bash
 export POINT100_CORE_REPO=/path/to/oasis-supabase-core
+export POINT100_CORE_VERIFIED_SHA=8beea1e1116a70a209766ed48590d653bd691ad0
 export POINT100_ALLOW_LOCAL_RESET=true
+export POINT100_ALLOW_DISPOSABLE_BOOTSTRAP=true
 npm run test:point100:rehearsal
 ```
 
