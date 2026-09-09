@@ -6,14 +6,14 @@ Objective: build and continuously repair the executable cross-repository journey
 
 Rules:
 - This is not an audit-only PR. Build the executable integration harness, adapters, fixtures, route bindings and repair code needed on Central to consume canonical authorities.
-- Reuse and bind the macro tranches already under construction: Buyer revenue, Core Finance, Core Inventory/Factory, Central CRM, Central Order→Gate (#556 merged), AI Catalogue, and Trace. Do not create shadow truth.
+- Reuse and bind canonical macro tranches: Buyer revenue, Core Finance, Core Inventory/Factory, Central CRM, Central Order→Gate, Management #558, AI Catalogue, Trace #37, and Core Dispatch Finalization #260. Do not create shadow truth.
 - Missing upstream authorities must be reported precisely and fail closed; where Central-side binding or orchestration is missing, implement it here.
-- Disposable synthetic rehearsal runs against production-certified Core SHA `c89c538c` (#259 Trace Core via Release #161 run `34188983863`). Trace `trace_*_v1` software contracts are consumed; Trace #37 device recertification remains `physical_uat_only`.
-- Core **#260** (`release_order_to_dispatched_v1`) is approval-held and **not** production-deployed on the certified pin. Point100 does **not** certify disposable bootstrap dispatch-finalize substitutes.
-- After Core #260 merge → protected Production Migration Release → semantic/runtime verification, run `scripts/point100-certification/recert-after-core-260.sh` with the new SHA and migration run id.
+- Final software recertification is bound to production-certified Core SHA `da7506ad4b8f566f19bf40188ba4415a38361ba6` (#260) and protected Production Migration Release #163 run `34271047926`.
+- Core `release_order_to_dispatched_v1` is canonical on that certified pin. Disposable/shadow substitutes are forbidden and `POINT100_ALLOW_DISPOSABLE_BOOTSTRAP` must remain `false` for final recertification.
+- Trace #37 software authority is merged; scanner/printer/TV/physical handover remains `physical_uat_only` and is not claimed by Point100 software tests.
 - Test whole journeys, not isolated programme points. Batch defects and repairs inside this tranche.
-- Maintain role/tenant isolation, idempotency, audit lineage, AAL2/maker-checker where required, and Core migration serialization.
-- No physical-device PASS claims. Physical scanner/printer/TV/mobile/gate evidence remains Leap 13.
+- Maintain role/tenant isolation, idempotency, audit lineage, AAL2/maker-checker where required, Dispatch least privilege, independent Security Gate, and Core migration serialization.
+- No physical-device/provider PASS claims. Physical scanner/printer/TV/mobile/gate, WhatsApp provider/media, and payment/bank evidence remain downstream UAT gates.
 
 Minimum executable scenarios:
 1. Buyer catalogue → Genie/editable draft → quotation → accept → SO → advance payable.
@@ -23,38 +23,21 @@ Minimum executable scenarios:
 5. Customer dispatch proof → order complete → 10-day complaint window opened.
 6. Negative paths: duplicate/replay, wrong tenant/role, insufficient payment, active finance hold, stock shortage, quarantined/expired lot, invalid carton/scan, gate mismatch, provider/webhook replay.
 
-Exit gate: one deterministic automated synthetic Point100 dress rehearsal runnable against canonical preview/runtime contracts, with explicit upstream-blocker reporting and no silent skips.
+Exit gate: one deterministic automated Point100 software dress rehearsal against canonical production-certified Core source, with explicit provider/physical blockers and no silent skips.
 
-## Run (disposable local Core)
-
-```bash
-export POINT100_CORE_REPO=/path/to/oasis-supabase-core
-export POINT100_CORE_VERIFIED_SHA=c89c538c83eeefcd116c67f06bf86869ff63b2e3
-export POINT100_PRODUCTION_MIGRATION_RUN_ID=34188983863
-export POINT100_ALLOW_LOCAL_RESET=true
-export POINT100_ALLOW_DISPOSABLE_BOOTSTRAP=true
-npm run test:point100:rehearsal
-```
-
-Or after manual bootstrap:
-
-```bash
-bash scripts/point100-certification/start-ephemeral.sh
-set -a && source /tmp/oasis-factory-certification.env && set +a
-export FACTORY_CERT_TARGET_URL=http://127.0.0.1:4173
-export POINT100_CORE_VERIFIED_SHA=c89c538c83eeefcd116c67f06bf86869ff63b2e3
-export POINT100_PRODUCTION_MIGRATION_RUN_ID=34188983863
-npm run test:point100
-```
-
-Artifacts: `point100-capability-matrix.json`, `point100-dress-rehearsal-ledger.json`, `point100-negative-paths-ledger.json`.
-
-## Recert after Core #260 (post protected-deploy)
+## Final software recertification
 
 ```bash
 export POINT100_CORE_REPO=/path/to/oasis-supabase-core
-export POINT100_CORE_VERIFIED_SHA=<post-#260-production-certified-sha>
-export POINT100_RECERT_AFTER_CORE_MIGRATION_RUN_ID=<production-migration-release-run-id>
+export POINT100_CORE_VERIFIED_SHA=da7506ad4b8f566f19bf40188ba4415a38361ba6
+export POINT100_RECERT_AFTER_CORE_MIGRATION_RUN_ID=34271047926
+export POINT100_PRODUCTION_MIGRATION_RUN_ID=34271047926
 export POINT100_DISPATCH_PRODUCTION_VERIFIED=true
+export POINT100_ALLOW_LOCAL_RESET=true
+export POINT100_ALLOW_DISPOSABLE_BOOTSTRAP=false
 bash scripts/point100-certification/recert-after-core-260.sh
 ```
+
+The runner may instantiate a disposable local database from the exact production-certified Core source for deterministic software testing; it must not create or accept shadow Core authorities.
+
+Artifacts: `point100-capability-matrix.json`, `point100-dress-rehearsal-ledger.json`, `point100-negative-paths-ledger.json`, `point100-certification-results.json`.
