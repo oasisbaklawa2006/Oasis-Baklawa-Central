@@ -23,13 +23,13 @@ export type Point100UpstreamDependency = {
   disposableRehearsalBypass?: boolean;
 };
 
-/** Production-certified Core boundary — Macro Dispatch Finalize #260 via protected Release #163. */
-export const POINT100_CORE_PRODUCTION_VERIFIED_SHA = "da7506ad4b8f566f19bf40188ba4415a38361ba6";
+/** Production-certified Core boundary — current protected production release after Macro Dispatch Finalize #260. */
+export const POINT100_CORE_PRODUCTION_VERIFIED_SHA = "b9b690abe166fec1aec547d37c749eda9783fbcb";
 
 export const POINT100_PRODUCTION_MIGRATION_GATE = "oasis-supabase-core#163";
 
-/** GitHub Actions run certifying exact-SHA deploy, semantic parity and production contract smoke for #163. */
-export const POINT100_PRODUCTION_MIGRATION_RUN_ID = "34271047926";
+/** GitHub Actions run certifying exact-SHA deploy, semantic parity and production contract smoke for the current protected release. */
+export const POINT100_PRODUCTION_MIGRATION_RUN_ID = "34346404335";
 
 /** Governed Trace software contracts shipped on Core #259 and consumed by merged Trace #37. */
 export const POINT100_TRACE_SOFTWARE_RPCS = [
@@ -45,7 +45,7 @@ export const POINT100_DISPATCH_FINALIZE_RPC = "release_order_to_dispatched_v1";
 export const POINT100_CORE_PENDING_DISPATCH_PR = "#260";
 
 /**
- * Optional explicit recertification run override. The canonical default is Release #163.
+ * Optional explicit recertification run override. The canonical default is the current protected production release.
  */
 export const POINT100_RECERT_AFTER_CORE_MIGRATION_RUN_ID_ENV = "POINT100_RECERT_AFTER_CORE_MIGRATION_RUN_ID";
 
@@ -88,7 +88,7 @@ export const POINT100_UPSTREAM_DEPENDENCIES: readonly Point100UpstreamDependency
     state: "merged",
     affectedStageIds: ["inventory_lot_allocation", "production_qc"],
     blockerDetail:
-      "Macro Inventory #256 merged and remains an ancestor of the production-certified #260 pin. Lot/putaway/exception/factory RPCs are consumed from Core SHA da7506ad.",
+      "Macro Inventory #256 merged and remains an ancestor of the production-certified current pin. Lot/putaway/exception/factory RPCs are consumed from Core SHA b9b690ab.",
     failClosedStatus: "implemented",
   },
   {
@@ -98,7 +98,7 @@ export const POINT100_UPSTREAM_DEPENDENCIES: readonly Point100UpstreamDependency
     state: "merged",
     affectedStageIds: ["inventory_lot_allocation", "production_qc"],
     blockerDetail:
-      "Core Production Migration Release #159 deployed Macro Inventory #256 and is superseded as the current production pin by Release #163 / SHA da7506ad.",
+      "Core Production Migration Release #159 deployed Macro Inventory #256 and is superseded as the current production pin by protected run 34346404335 / SHA b9b690ab.",
     failClosedStatus: "implemented",
   },
   {
@@ -108,7 +108,7 @@ export const POINT100_UPSTREAM_DEPENDENCIES: readonly Point100UpstreamDependency
     state: "merged",
     affectedStageIds: ["trace_handover"],
     blockerDetail:
-      "Macro Trace Core #259 server identity + authenticated handover authority is an ancestor of production-certified Core #260.",
+      "Macro Trace Core #259 server identity + authenticated handover authority is an ancestor of production-certified Core SHA b9b690ab.",
     failClosedStatus: "implemented",
   },
   {
@@ -125,7 +125,7 @@ export const POINT100_UPSTREAM_DEPENDENCIES: readonly Point100UpstreamDependency
       "order_complete",
     ],
     blockerDetail:
-      "Core Production Migration Release #161 certified Trace Core #259 and is superseded by the current Release #163 production boundary.",
+      "Core Production Migration Release #161 certified Trace Core #259 and is superseded by the current protected production boundary.",
     failClosedStatus: "implemented",
   },
   {
@@ -145,7 +145,7 @@ export const POINT100_UPSTREAM_DEPENDENCIES: readonly Point100UpstreamDependency
     state: "merged",
     affectedStageIds: ["dispatch_consignment", "order_complete"],
     blockerDetail:
-      "Core #260 canonical release_order_to_dispatched_v1 merged at da7506ad4b8f566f19bf40188ba4415a38361ba6 and is protected-production-certified by Release #163 run 34271047926.",
+      "Core #260 canonical release_order_to_dispatched_v1 remains on the production-certified lineage; the current protected production authority is run 34346404335 on Core SHA b9b690abe166fec1aec547d37c749eda9783fbcb.",
     failClosedStatus: "implemented",
   },
   {
@@ -161,7 +161,7 @@ export const POINT100_UPSTREAM_DEPENDENCIES: readonly Point100UpstreamDependency
       "order_complete",
     ],
     blockerDetail:
-      "Protected Production Migration Release #163 run 34271047926 passed exact-commit binding, deployment, post-deploy ledger verification, semantic schema parity, production contract smoke and provenance on Core SHA da7506ad.",
+      "Current protected Production Migration Release run 34346404335 passed on exact Core SHA b9b690abe166fec1aec547d37c749eda9783fbcb; Point100 binds to that exact current production authority rather than stale release evidence.",
     failClosedStatus: "implemented",
   },
 ] as const;
