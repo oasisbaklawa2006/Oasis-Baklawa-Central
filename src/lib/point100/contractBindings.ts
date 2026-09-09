@@ -45,7 +45,20 @@ export const POINT100_CONTRACT_BINDINGS: readonly Point100ContractBinding[] = [
 export function resolveBoundContract(binding: Point100ContractBinding): string {
   if (binding.envOverrideKey) {
     const override = typeof process !== "undefined" ? process.env[binding.envOverrideKey]?.trim() : undefined;
-    if (override) return override;
+    if (override) {
+      const disposableBootstrapAllowed =
+        typeof process !== "undefined" && process.env.POINT100_ALLOW_DISPOSABLE_BOOTSTRAP === "true";
+      if (
+        binding.key === "order_dispatched" &&
+        !disposableBootstrapAllowed &&
+        override !== binding.canonical
+      ) {
+        throw new Error(
+          `POINT100_ORDER_DISPATCHED_RPC must remain canonical (${binding.canonical}) for final certification`,
+        );
+      }
+      return override;
+    }
   }
   return binding.canonical;
 }
