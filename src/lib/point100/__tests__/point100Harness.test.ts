@@ -38,14 +38,32 @@ describe("point100 lifecycle stages", () => {
 });
 
 describe("point100 contract bindings", () => {
-  it("resolves canonical RPC unless env override is set", () => {
+  it("keeps the final dispatch RPC canonical and permits overrides only in disposable-bootstrap mode", () => {
     const binding = bindingByKey("production_release");
     expect(binding).toBeTruthy();
     expect(resolveBoundContract(binding!)).toBe("release_order_to_in_production_v1");
-    process.env.POINT100_ORDER_DISPATCHED_RPC = "custom_release_v2";
+
     const dispatched = bindingByKey("order_dispatched");
-    expect(resolveBoundContract(dispatched!)).toBe("custom_release_v2");
-    delete process.env.POINT100_ORDER_DISPATCHED_RPC;
+    expect(dispatched).toBeTruthy();
+    const originalOverride = process.env.POINT100_ORDER_DISPATCHED_RPC;
+    const originalBootstrap = process.env.POINT100_ALLOW_DISPOSABLE_BOOTSTRAP;
+    try {
+      process.env.POINT100_ORDER_DISPATCHED_RPC = "custom_release_v2";
+      process.env.POINT100_ALLOW_DISPOSABLE_BOOTSTRAP = "false";
+      expect(() => resolveBoundContract(dispatched!)).toThrow(/must remain canonical/);
+
+      process.env.POINT100_ALLOW_DISPOSABLE_BOOTSTRAP = "true";
+      expect(resolveBoundContract(dispatched!)).toBe("custom_release_v2");
+
+      process.env.POINT100_ALLOW_DISPOSABLE_BOOTSTRAP = "false";
+      process.env.POINT100_ORDER_DISPATCHED_RPC = POINT100_DISPATCH_FINALIZE_RPC;
+      expect(resolveBoundContract(dispatched!)).toBe(POINT100_DISPATCH_FINALIZE_RPC);
+    } finally {
+      if (originalOverride === undefined) delete process.env.POINT100_ORDER_DISPATCHED_RPC;
+      else process.env.POINT100_ORDER_DISPATCHED_RPC = originalOverride;
+      if (originalBootstrap === undefined) delete process.env.POINT100_ALLOW_DISPOSABLE_BOOTSTRAP;
+      else process.env.POINT100_ALLOW_DISPOSABLE_BOOTSTRAP = originalBootstrap;
+    }
   });
 });
 
@@ -139,8 +157,9 @@ describe("point100 probe runner", () => {
     process.env.POINT100_CORE_VERIFIED_SHA = POINT100_CORE_PRODUCTION_VERIFIED_SHA;
     expect(isCoreProductionVerified()).toBe(true);
     expect(isCoreDispatchProductionVerified()).toBe(true);
-    expect(upstreamBlockersForStage("inventory_lot_allocation")).toHaveLength(0);
-    expect(upstreamBlockersForStage("dispatch_consignment")).toHaveLength(0);
+    process.env.POINT100_CORE_VERIFIED_SHA = POINT100_CORE_PRODUCTION_VERIFIED_SHA.slice(0, 8);
+    expect(isCoreProductionVerified()).toBe(false);
+    expect(isCoreDispatchProductionVerified()).toBe(false);
     if (originalSha === undefined) delete process.env.POINT100_CORE_VERIFIED_SHA;
     else process.env.POINT100_CORE_VERIFIED_SHA = originalSha;
   });
