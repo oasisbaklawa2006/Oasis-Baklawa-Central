@@ -152,7 +152,7 @@ export const POINT100_LIFECYCLE_STAGES: readonly Point100LifecycleStage[] = [
     ],
     centralBindings: ["/admin/scan-timeline", "orderTraceFeed"],
     fixtureEnvKeys: [],
-    negativePathIds: ["duplicate_scan"],
+    negativePathIds: ["duplicate_scan", "invalid_trace_evidence"],
   },
   {
     id: "customer_dispatch_proof",
@@ -197,6 +197,7 @@ export const POINT100_NEGATIVE_PATHS = [
   { id: "duplicate_scan", label: "Duplicate scan" },
   { id: "gate_mismatch", label: "Gate mismatch" },
   { id: "provider_replay", label: "Provider / webhook replay" },
+  { id: "invalid_trace_evidence", label: "Invalid Trace handover evidence" },
 ] as const;
 
 export type Point100NegativePathId = (typeof POINT100_NEGATIVE_PATHS)[number]["id"];
