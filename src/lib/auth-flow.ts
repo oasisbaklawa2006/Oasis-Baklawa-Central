@@ -130,6 +130,20 @@ export function getPostLoginRedirectOnError(error: unknown): string | null {
   return null;
 }
 
+/**
+ * Issue #561 — new-buyer onboarding.
+ *
+ * A freshly OTP-verified buyer legitimately has no `profiles` row and no company yet:
+ * `msg91-otp` creates the verified auth user and inserts `public.users.role = 'PENDING'`.
+ * That state is onboarding, not corruption, and must keep the verified session so the
+ * existing unresolved-account redirect can send it to /customer-app-redirect.
+ *
+ * Every other role with a missing profile AND missing company stays fail-closed.
+ */
+export function getMissingProfileResolution(role: string | null | undefined): "ACCOUNT_PENDING" | "PROFILE_MISSING" {
+  return normalizeRole(role) === "PENDING" ? "ACCOUNT_PENDING" : "PROFILE_MISSING";
+}
+
 export function readAuthCache(): AuthCache | null {
   try {
     const raw = localStorage.getItem(AUTH_CACHE_KEY);
@@ -432,6 +446,18 @@ async function resolveUserByIdentifier(identifierInput: string, attemptId: strin
   }
 
   if (!profileRow && !matchedUser.company_id) {
+    if (getMissingProfileResolution(matchedUser.role) === "ACCOUNT_PENDING") {
+      logAuthEvent("PROFILE_FETCH_FAILED", {
+        attemptId,
+        method,
+        identifier: normalized.normalized,
+        result: "failed",
+        error: "pending_onboarding_profile_absent",
+        details: { userId: matchedUser.id, role: normalizeRole(matchedUser.role) },
+      });
+      throw new AuthFlowError("ACCOUNT_PENDING", USER_MESSAGE_BY_CODE.ACCOUNT_PENDING, "failed");
+    }
+
     logAuthEvent("PROFILE_FETCH_FAILED", {
       attemptId,
       method,

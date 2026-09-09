@@ -283,25 +283,18 @@ const Login = () => {
     return providerLoadRef.current;
   }, []);
 
-  // ── PART 3: Manual Magic-Link bypass ──
-  // When the magic link redirects with ?manual_auth=true, completely bypass
-  // onAuthStateChange and manually extract the access/refresh tokens from the
-  // URL hash, then call supabase.auth.setSession() directly. This sidesteps
-  // the SMTP redirection conflict that was causing "Auth configuration mismatch".
   useEffect(() => {
     if (typeof window === "undefined") return;
     const url = new URL(window.location.href);
     const isManual = url.searchParams.get("manual_auth") === "true";
     if (!isManual) return;
 
-    // Tokens come back in the URL fragment from Supabase magic-link emails.
     const hash = window.location.hash?.startsWith("#") ? window.location.hash.slice(1) : window.location.hash;
     const params = new URLSearchParams(hash || "");
     const access_token = params.get("access_token");
     const refresh_token = params.get("refresh_token");
 
     if (!access_token || !refresh_token) {
-      // Nothing to do — fall back to normal flow silently.
       return;
     }
 
@@ -315,7 +308,6 @@ const Login = () => {
           setLoading(false);
           return;
         }
-        // Clear sensitive tokens from URL
         window.history.replaceState({}, "", url.pathname);
         const identity = data.session.user.email || data.session.user.phone || data.session.user.id;
         await redirectAfterAuth(identity, "session_restore", data.session.user.id);
@@ -324,7 +316,6 @@ const Login = () => {
         setLoading(false);
       }
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -370,6 +361,11 @@ const Login = () => {
     teardownMsg91Widget();
   };
 
+  const handleApplyForB2BAccess = () => {
+    setActiveTab("msg91");
+    launchMsg91Widget();
+  };
+
   const launchMsg91Widget = () => {
     if (typeof window === "undefined") return;
     if (!isMsg91Ready || typeof window.initSendOTP !== "function") {
@@ -410,20 +406,12 @@ const Login = () => {
         "country-code": "91",
         "auto-country": false,
         captchaRenderId: "",
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         success: async (payload: any) => {
-          // ── HARD GUARD #1: Stale attempt → ignore. ──
           if (attemptRef.current?.id !== attemptId) return;
-          // ── HARD GUARD #2: Cancel ALL armed timers IMMEDIATELY. No path can show "timed out" + "verified". ──
           controllerRef.current.clearAllTimers();
 
           const accessToken = extractMsg91AccessToken(payload);
           const verifiedPhone = extractMsg91Phone(payload);
-          console.info("[auth] MSG91 success payload raw", sanitizeAuthDebugPayload(payload));
-          console.info("[auth] MSG91 success payload parsed", {
-            accessToken: maskSecret(accessToken),
-            verifiedPhone,
-          });
           if (!accessToken) {
             await finalizeFailure("Verification did not return a valid token. Please retry or use Email login.", "failed", false);
             return;
@@ -431,41 +419,19 @@ const Login = () => {
           const normalizedIdentifier = verifiedPhone ? normalizeIdentifier(String(verifiedPhone)).normalized : null;
           attemptRef.current = { id: attemptId, method, identifier: normalizedIdentifier };
 
-          // ── Re-arm a single 20s "session minting" guard, scoped to this attempt only. ──
           verificationTimer = controllerRef.current.registerTimer(window.setTimeout(async () => {
             if (attemptRef.current?.id !== attemptId) return;
-            // If we reach here, status will already be "authenticated" or "failed"; only fire on a stuck mint.
             if (["authenticated", "failed", "fallback_to_email"].includes(controllerRef.current.getStatus())) return;
-            logAuthEvent("AUTH_TIMEOUT_TRIGGERED", {
-              attemptId, method, identifier: normalizedIdentifier, result: "failed", error: "session_mint_timeout",
-            });
             await finalizeFailure("Session creation took too long. Please retry or use Email login.", "fallback_to_email", true);
             setActiveTab("email");
           }, 20000));
 
           updateStatus("verifying_otp", { result: "started" });
-          logAuthEvent("OTP_REQUEST_SUCCESS", {
-            attemptId, method, identifier: normalizedIdentifier, result: "success",
-          });
-          logAuthEvent("OTP_VERIFY_STARTED", {
-            attemptId, method, identifier: normalizedIdentifier, result: "started",
-          });
-          console.log("OTP_VERIFIED - Starting Session Minting...");
 
           try {
             const { data: verifyRes, error } = await supabase.functions.invoke("msg91-otp", {
               body: { mode: "verify_widget", accessToken, phone: verifiedPhone },
             });
-
-            console.info("[auth] verify_widget frontend request", sanitizeAuthDebugPayload({
-              mode: "verify_widget",
-              accessToken,
-              phone: verifiedPhone,
-            }));
-            console.info("[auth] verify_widget frontend response", sanitizeAuthDebugPayload({
-              error: error?.message ?? null,
-              data: verifyRes ?? null,
-            }));
 
             if (error) {
               throw new Error(`edge_verify_failed:${error.message}`);
@@ -487,23 +453,8 @@ const Login = () => {
             const normalizedResolvedIdentifier = normalizeIdentifier(String(resolvedIdentifier)).normalized;
             attemptRef.current = { id: attemptId, method, identifier: normalizedResolvedIdentifier };
 
-            logAuthEvent("OTP_VERIFY_SUCCESS", {
-              attemptId,
-              method,
-              identifier: normalizedResolvedIdentifier,
-              result: "success",
-              details: { userId: verifyRes.user_id },
-            });
-
             updateStatus("verification_success", { result: "success" });
             updateStatus("session_creation_in_progress", { result: "started" });
-            logAuthEvent("SESSION_CREATE_STARTED", {
-              attemptId,
-              method,
-              identifier: normalizedResolvedIdentifier,
-              result: "started",
-              details: { userId: verifyRes.user_id },
-            });
 
             const { data: sessionData, error: sessionError } = await supabase.auth.verifyOtp({
               token_hash: verifyRes.token_hash,
@@ -514,36 +465,18 @@ const Login = () => {
               throw new Error(`supabase_verifyOtp_failed:${sessionError?.message || "session_create_failed"}`);
             }
 
-            logAuthEvent("SESSION_CREATE_SUCCESS", {
-              attemptId,
-              method,
-              identifier: normalizedResolvedIdentifier,
-              result: "success",
-              details: { userId: sessionData.user.id },
-            });
-            console.log("SESSION_CREATED - Redirecting to Dashboard...");
-
             await redirectAfterAuth(normalizedResolvedIdentifier, method, sessionData.user.id, attemptId);
             controllerRef.current.finalize();
             setLoading(false);
           } catch (error) {
-            console.error("[auth] Session minting failed:", error);
             await finalizeFailure("Session creation failed. Please try Email login.", "fallback_to_email", true);
             setActiveTab("email");
           }
         },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         failure: async (error: any) => {
           if (attemptRef.current?.id !== attemptId) return;
           controllerRef.current.clearTimer(verificationTimer);
           const message = error?.message || error?.errorMessage || error?.type || "otp_verify_failed";
-          logAuthEvent("OTP_REQUEST_FAILED", {
-            attemptId,
-            method,
-            identifier: attemptRef.current?.identifier ?? null,
-            result: "failed",
-            error: message,
-          });
           await finalizeFailure(mapOtpErrorMessage(message), /timeout/i.test(message) ? "fallback_to_email" : "failed");
         },
       });
@@ -552,13 +485,6 @@ const Login = () => {
     } catch (error) {
       controllerRef.current.clearTimer(verificationTimer);
       const message = error instanceof Error ? error.message : "otp_request_failed";
-      logAuthEvent("OTP_REQUEST_FAILED", {
-        attemptId,
-        method,
-        identifier: null,
-        result: "failed",
-        error: message,
-      });
       void finalizeFailure(mapOtpErrorMessage(message), "fallback_to_email");
       setActiveTab("email");
     }
@@ -578,42 +504,13 @@ const Login = () => {
     setLoading(true);
     setStatusMessage(null);
 
-    logAuthEvent("AUTH_START", {
-      attemptId,
-      method,
-      identifier,
-      result: "started",
-    });
-    updateStatus("session_creation_in_progress", { result: "started" });
-    logAuthEvent("SESSION_CREATE_STARTED", {
-      attemptId,
-      method,
-      identifier,
-      result: "started",
-    });
-
     const { error, data } = await supabase.auth.signInWithPassword({ email: trimmedEmail, password });
 
     if (error || !data.user) {
       const message = error?.message || "session_create_failed";
-      logAuthEvent("SESSION_CREATE_FAILED", {
-        attemptId,
-        method,
-        identifier,
-        result: "failed",
-        error: message,
-      });
       await finalizeFailure(message.includes("Invalid") ? "Invalid email or password." : getCustomerAuthUserMessage(error), "failed");
       return;
     }
-
-    logAuthEvent("SESSION_CREATE_SUCCESS", {
-      attemptId,
-      method,
-      identifier,
-      result: "success",
-      details: { userId: data.user.id },
-    });
 
     try {
       await redirectAfterAuth(trimmedEmail, method, data.user.id, attemptId);
@@ -764,7 +661,7 @@ const Login = () => {
                 <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
                 <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
                 <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
-                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 5.84 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
               </svg>
               Google — Coming soon
             </button>
@@ -774,7 +671,7 @@ const Login = () => {
         <div className="text-center">
           <p className="text-sm text-muted-foreground">
             New to Oasis Baklawa?{" "}
-            <button onClick={() => navigate("/register")} className="text-primary font-semibold hover:underline">
+            <button onClick={handleApplyForB2BAccess} className="text-primary font-semibold hover:underline">
               Apply for B2B Access
             </button>
           </p>

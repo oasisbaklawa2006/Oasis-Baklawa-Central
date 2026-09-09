@@ -1,9 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import {
   AuthFlowError,
   createAuthStateController,
   getCustomerAuthUserMessage,
   getAuthUserMessage,
+  getMissingProfileResolution,
   getPostLoginRedirectOnError,
   readAuthCache,
   writeAuthCache,
@@ -116,12 +119,50 @@ describe("auth-flow / errors", () => {
   });
 });
 
-// Invariant: an authenticated-but-unresolved account (no role assigned, or
-// pending approval) must never strand the user on a dead-end failure screen —
-// it converges on the same customer-app gate that RoleProtectedRoute and
-// getRoleDestination already use for unresolved/unknown roles. A genuine
-// authentication failure (bad OTP, network error, blocked account, etc.) must
-// remain a failure and must never be silently redirected.
+describe("auth-flow / getMissingProfileResolution", () => {
+  it("classifies a PENDING role as pending onboarding", () => {
+    expect(getMissingProfileResolution("PENDING")).toBe("ACCOUNT_PENDING");
+  });
+
+  it("normalizes casing and surrounding whitespace before classifying", () => {
+    expect(getMissingProfileResolution("pending")).toBe("ACCOUNT_PENDING");
+    expect(getMissingProfileResolution("Pending")).toBe("ACCOUNT_PENDING");
+    expect(getMissingProfileResolution("  pending  ")).toBe("ACCOUNT_PENDING");
+  });
+
+  it("stays fail-closed for buyer roles that are not PENDING", () => {
+    expect(getMissingProfileResolution("CUSTOMER_USER")).toBe("PROFILE_MISSING");
+    expect(getMissingProfileResolution("CUSTOMER_ADMIN")).toBe("PROFILE_MISSING");
+    expect(getMissingProfileResolution("APPROVED")).toBe("PROFILE_MISSING");
+  });
+
+  it("stays fail-closed for internal staff roles", () => {
+    expect(getMissingProfileResolution("SUPER_ADMIN")).toBe("PROFILE_MISSING");
+    expect(getMissingProfileResolution("ADMIN")).toBe("PROFILE_MISSING");
+    expect(getMissingProfileResolution("SALES_EXECUTIVE")).toBe("PROFILE_MISSING");
+  });
+
+  it("stays fail-closed for absent or empty roles", () => {
+    expect(getMissingProfileResolution(null)).toBe("PROFILE_MISSING");
+    expect(getMissingProfileResolution(undefined)).toBe("PROFILE_MISSING");
+    expect(getMissingProfileResolution("")).toBe("PROFILE_MISSING");
+    expect(getMissingProfileResolution("   ")).toBe("PROFILE_MISSING");
+  });
+});
+
+describe("auth-flow / missing-profile branch wiring", () => {
+  const source = readFileSync(resolve(__dirname, "../auth-flow.ts"), "utf8");
+
+  it("consults getMissingProfileResolution inside the missing profile+company branch", () => {
+    const branch = source.slice(source.indexOf("if (!profileRow && !matchedUser.company_id)"));
+    expect(branch).toContain("getMissingProfileResolution(matchedUser.role)");
+  });
+
+  it("still throws PROFILE_MISSING for the fail-closed path", () => {
+    expect(source).toContain('throw new AuthFlowError("PROFILE_MISSING", USER_MESSAGE_BY_CODE.PROFILE_MISSING)');
+  });
+});
+
 describe("auth-flow / post-login redirect for unresolved accounts", () => {
   it("routes ROLE_NOT_ASSIGNED to the customer-app gate", () => {
     const error = new AuthFlowError("ROLE_NOT_ASSIGNED", "Role not assigned. Please contact an administrator.");
