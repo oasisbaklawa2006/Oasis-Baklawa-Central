@@ -119,6 +119,18 @@ describe("auth-flow / errors", () => {
   });
 });
 
+// Invariant: an authenticated-but-unresolved account (no role assigned, or
+// pending approval) must never strand the user on a dead-end failure screen —
+// it converges on the same customer-app gate that RoleProtectedRoute and
+// getRoleDestination already use for unresolved/unknown roles. A genuine
+// authentication failure (bad OTP, network error, blocked account, etc.) must
+// remain a failure and must never be silently redirected.
+// Issue #561 — physical UAT, fresh B2B buyer.
+// msg91-otp creates a verified auth user and inserts public.users.role='PENDING'
+// with no profiles row and no company. That is legitimate onboarding, not a
+// corrupt account, and must classify as ACCOUNT_PENDING so the verified session
+// survives and lands on /customer-app-redirect. Every other role with a missing
+// profile AND missing company stays fail-closed on PROFILE_MISSING.
 describe("auth-flow / getMissingProfileResolution", () => {
   it("classifies a PENDING role as pending onboarding", () => {
     expect(getMissingProfileResolution("PENDING")).toBe("ACCOUNT_PENDING");
@@ -150,6 +162,8 @@ describe("auth-flow / getMissingProfileResolution", () => {
   });
 });
 
+// Issue #561 — the missing-profile branch of resolveUserByIdentifier must route
+// through the helper above, not throw PROFILE_MISSING unconditionally.
 describe("auth-flow / missing-profile branch wiring", () => {
   const source = readFileSync(resolve(__dirname, "../auth-flow.ts"), "utf8");
 
