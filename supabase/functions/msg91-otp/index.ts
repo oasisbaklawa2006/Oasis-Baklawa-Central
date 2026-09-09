@@ -57,28 +57,10 @@ function last10(raw: string): string {
   return d.length >= 10 ? d.slice(-10) : d;
 }
 
-/** Lookup-only: never creates or mutates an auth identity. */
-async function findAuthUserByPhone(e164: string, normalized: string): Promise<AuthUserRef | null | { error: string }> {
-  if (!supabaseAdmin) return { error: "service_role_unavailable" };
-  const internalEmail = internalEmailFor(normalized);
-  for (let page = 1; page <= 20; page++) {
-    const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage: 500 });
-    if (error) {
-      // Fail closed: an unreadable auth directory must never look like "no identity",
-      // which would allow a duplicate identity to be created below.
-      console.error("[msg91] auth identity lookup error:", maskSecret(error.message ?? null) ?? "unknown");
-      return { error: "auth_identity_lookup_failed" };
-    }
-    const users = data?.users || [];
-    if (!users.length) break;
-    const match = users.find((u) => u.phone === e164 || u.phone === normalized || u.phone === `+${normalized}` || u.email === internalEmail);
-    if (match) return { userId: match.id, email: match.email || "" };
-    if (users.length < 500) return null;
-  }
-  // Ceiling reached with every page full: the directory scan may be incomplete,
-  // so never report "no identity" (which would allow a duplicate identity).
-  console.error("[msg91] auth_identity_lookup_incomplete");
-  return { error: "auth_identity_lookup_incomplete" };
+function phoneVariants(normalized: string): string[] {
+  const tail = last10(normalized);
+  if (tail.length < 10) return [];
+  return [...new Set([tail, `91${tail}`, `+91${tail}`, `0${tail}`])];
 }
 
 type EmailBindResult = { email: string } | { error: string };
@@ -113,54 +95,32 @@ async function createAuthUserForPhone(e164: string, normalized: string): Promise
 }
 
 /**
- * Fail-closed identity collision guard. Matches public.users rows by normalized
- * last-10 digits across phone, mobile_number and secondary_phones. More than one
- * distinct public user id is an unresolvable collision and must never mint.
+ * Fail-closed identity collision guard. Current production phone data is stored
+ * in one of four canonical forms (10-digit, 91..., +91..., or 0...). Query those
+ * variants directly instead of enumerating the entire users directory.
  */
-interface PublicIdentityRow {
-  id: string;
-  phone?: string | null;
-  mobile_number?: string | null;
-  secondary_phones?: unknown;
-}
-
-const IDENTITY_PAGE_SIZE = 1000;
-const IDENTITY_SCAN_CEILING = 20000;
-
 async function findPublicIdentityMatches(normalized: string): Promise<{ ids: string[] } | { error: string }> {
   if (!supabaseAdmin) return { error: "service_role_unavailable" };
-  const tail = last10(normalized);
-  if (tail.length < 10) return { error: "phone_invalid" };
+  const variants = phoneVariants(normalized);
+  if (!variants.length) return { error: "phone_invalid" };
 
-  const ids = new Set<string>();
-  let scanned = 0;
+  const [phoneResult, mobileResult, secondaryResult] = await Promise.all([
+    supabaseAdmin.from("users").select("id").in("phone", variants),
+    supabaseAdmin.from("users").select("id").in("mobile_number", variants),
+    supabaseAdmin.from("users").select("id").overlaps("secondary_phones", variants),
+  ]);
 
-  while (scanned < IDENTITY_SCAN_CEILING) {
-    const from = scanned;
-    const to = scanned + IDENTITY_PAGE_SIZE - 1;
-    const { data, error } = await supabaseAdmin
-      .from("users")
-      .select("id, phone, mobile_number, secondary_phones")
-      .order("id", { ascending: true })
-      .range(from, to);
-    if (error) {
-      console.error("[msg91] identity scan error:", maskSecret(error.message ?? null) ?? "unknown");
-      return { error: "identity_lookup_failed" };
-    }
-    const rows = (data || []) as PublicIdentityRow[];
-    for (const row of rows) {
-      const secondary = Array.isArray(row.secondary_phones) ? row.secondary_phones : [];
-      const candidates: unknown[] = [row.phone, row.mobile_number, ...secondary];
-      if (candidates.some((c) => typeof c === "string" && last10(c) === tail)) ids.add(String(row.id));
-    }
-    scanned += rows.length;
-    if (rows.length < IDENTITY_PAGE_SIZE) return { ids: [...ids] };
+  const lookupError = phoneResult.error || mobileResult.error || secondaryResult.error;
+  if (lookupError) {
+    console.error("[msg91] identity lookup error:", maskSecret(lookupError.message ?? null) ?? "unknown");
+    return { error: "identity_lookup_failed" };
   }
 
-  // Ceiling reached on a full page: the scan may be incomplete, so fail closed
-  // rather than reporting a possibly partial collision result.
-  console.error("[msg91] identity_lookup_incomplete", JSON.stringify({ scanned }));
-  return { error: "identity_lookup_incomplete" };
+  const ids = new Set<string>();
+  for (const row of [...(phoneResult.data || []), ...(mobileResult.data || []), ...(secondaryResult.data || [])]) {
+    if (row?.id) ids.add(String(row.id));
+  }
+  return { ids: [...ids] };
 }
 
 type MintResult = { tokenHash: string } | { error: string };
@@ -419,7 +379,7 @@ serve(async (req) => {
       console.log("[msg91-otp] verify_widget request", JSON.stringify({
         mode: body.mode,
         accessToken: maskSecret(body.accessToken ?? null),
-        phone: body.phone ?? null,
+        phone: maskSecret(body.phone ?? null),
       }));
       if (!body.accessToken) {
         return new Response(JSON.stringify({ ok: false, error: "accessToken required" }), {
@@ -429,7 +389,11 @@ serve(async (req) => {
       const result = await verifyAccessToken(body.accessToken);
       if (!result.ok) {
         return new Response(
-          JSON.stringify({ ok: false, type: result.raw.type ?? null, raw: result.raw }),
+          JSON.stringify({
+            ok: false,
+            type: typeof result.raw.type === "string" ? result.raw.type : null,
+            error: "provider_verification_failed",
+          }),
           { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }
@@ -467,31 +431,24 @@ serve(async (req) => {
         return fail("duplicate_phone_identity", 409);
       }
 
-      const existingAuth = await findAuthUserByPhone(e164, normalized);
-      if (existingAuth && "error" in existingAuth) return fail(existingAuth.error, 500);
-
       let authRef: AuthUserRef;
       let isNew = false;
 
       if (publicMatches.ids.length === 1) {
         const publicId = publicMatches.ids[0];
-        if (!existingAuth || existingAuth.userId !== publicId) {
-          // Never mint a second identity for an already-claimed phone.
-          console.error("[msg91-otp] phone_already_linked_to_other_identity");
+        const { data: authLookup, error: authLookupError } = await supabaseAdmin!.auth.admin.getUserById(publicId);
+        if (authLookupError || !authLookup?.user) {
+          console.error("[msg91-otp] auth identity lookup failed:", maskSecret(authLookupError?.message ?? null) ?? "missing");
           return fail("phone_already_linked_to_other_identity", 409);
         }
-        const bound = await ensureInternalEmail(existingAuth.userId, existingAuth.email, normalized);
+        const bound = await ensureInternalEmail(authLookup.user.id, authLookup.user.email || "", normalized);
         if ("error" in bound) return fail(bound.error, 500);
-        authRef = { userId: existingAuth.userId, email: bound.email };
-      } else if (existingAuth) {
-        const bound = await ensureInternalEmail(existingAuth.userId, existingAuth.email, normalized);
-        if ("error" in bound) return fail(bound.error, 500);
-        authRef = { userId: existingAuth.userId, email: bound.email };
-        // Orphaned auth identity with zero public rows: repair via governed
-        // PENDING upsert before minting. No merge, no delete.
-        const repaired = await ensurePendingProfile(authRef.userId, e164);
-        if ("error" in repaired) return fail(repaired.error, 500);
+        authRef = { userId: authLookup.user.id, email: bound.email };
       } else {
+        // A zero-public-row phone must create exactly one new Auth identity. If an
+        // orphaned Auth row already owns this phone, Auth's uniqueness constraint
+        // rejects creation and we fail closed for manual reconciliation rather
+        // than enumerating the entire Auth directory or guessing ownership.
         const created = await createAuthUserForPhone(e164, normalized);
         if ("error" in created) return fail(created.error, 500);
         authRef = created;
@@ -510,8 +467,6 @@ serve(async (req) => {
         ok: true,
         type: "success",
         user_id: authRef.userId,
-        email: authRef.email,
-        phone: e164,
         is_new: isNew,
         token_hash: maskSecret(mint.tokenHash),
       }));
