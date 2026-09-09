@@ -6,6 +6,7 @@ import { isAuthorizedForAdminPath } from "@/lib/appverse/routeAccess";
 import {
   buildPaymentProofPayload,
   createAuthenticatedCertificationClient,
+  createSteppedUpCertificationClient,
   credentialsForRoleOrSkip,
   hasPoint100HarnessEnv,
   loginToFactoryCertificationTarget,
@@ -15,32 +16,30 @@ import {
   type Point100StageRecord,
 } from "./support";
 
-/**
- * POINT100 — NEGATIVE-PATH E2E
- *
- * Failure injection across duplicate/replay, role isolation, payment, holds,
- * stock, carton, scan, gate, and provider replay boundaries.
- */
-
+/** Point100 negative-path evidence must never convert a missing prerequisite into PASS. */
 const RUN_SUFFIX = `${Date.now()}-${randomUUID().slice(0, 8)}`;
 const negativePaths: Point100StageRecord[] = [];
 
 test.describe.configure({ mode: "serial" });
 
 test("POINT100 :: negative-path failure injection suite", async ({ page }) => {
-  test.skip(!hasPoint100HarnessEnv(), "CERTIFICATION_ENV_REQUIRED: Point100 harness backend/target missing");
+  if (!hasPoint100HarnessEnv()) {
+    throw new Error("CERTIFICATION_ENV_REQUIRED: Point100 harness backend/target missing");
+  }
 
   const admin = credentialsForRoleOrSkip("ADMIN");
   const financeHead = credentialsForRoleOrSkip("FINANCE_HEAD");
   const store3rdParty = credentialsForRoleOrSkip("STORE_3RD_PARTY");
+  const storeReadyGoods = credentialsForRoleOrSkip("STORE_READY_GOODS");
   const dispatchManager = credentialsForRoleOrSkip("DISPATCH_MANAGER");
   const goldenOrderId = fixtureOrderId("FACTORY_CERT_GOLDEN_ORDER_ID");
   const goldenOrderItemId = fixtureOrderId("FACTORY_CERT_GOLDEN_ORDER_ITEM_ID");
+  const point37OrderId = fixtureOrderId("FACTORY_CERT_POINT37_ORDER_ID");
+  const point38OrderId = fixtureOrderId("FACTORY_CERT_POINT38_ORDER_ID");
 
   await page.setViewportSize({ width: 1440, height: 900 });
   await loginToFactoryCertificationTarget(page, admin);
 
-  // ---- wrong tenant/role: unauthorized consignment ----
   await test.step("negative: wrong role cannot create dispatch consignment", async () => {
     await switchRole(page, store3rdParty);
     const { client } = await createAuthenticatedCertificationClient(page);
@@ -52,24 +51,26 @@ test("POINT100 :: negative-path failure injection suite", async ({ page }) => {
       p_correlation_id: correlationId,
     });
     expect(error, "STORE_3RD_PARTY must not create consignment").not.toBeNull();
-    recordStage(negativePaths, "wrong_tenant_role", "create_b2b_dispatch_consignment", "STORE_3RD_PARTY", correlationId, "PASS", error?.message ?? "rejected");
+    recordStage(negativePaths, "wrong_tenant_role", "create_b2b_dispatch_consignment", "STORE_3RD_PARTY", correlationId, "PASS", error!.message);
   });
 
-  // ---- insufficient payment: verify with zero amount proof ----
   await test.step("negative: insufficient payment proof rejected", async () => {
     await switchRole(page, financeHead);
     const { client } = await createAuthenticatedCertificationClient(page);
-    const point37OrderId = fixtureOrderId("FACTORY_CERT_POINT37_ORDER_ID");
-    const { data: bindings } = await client
+    const { data: bindings, error: bindingError } = await client
       .from("sales_order_proforma_invoice_authority_v1")
       .select("id,commercial_version_id")
       .eq("order_id", point37OrderId)
       .limit(1);
-    if (!bindings?.length) {
-      recordStage(negativePaths, "insufficient_payment", "record_order_payment_proof_v1", "FINANCE_HEAD", null, "BLOCKED", "no PI binding");
+    if (bindingError || !bindings?.length) {
+      recordStage(negativePaths, "insufficient_payment", "record_order_payment_proof_v1", "FINANCE_HEAD", null, "BLOCKED", bindingError?.message ?? "no PI binding");
       return;
     }
     const actorId = (await client.auth.getUser()).data.user?.id;
+    if (!actorId) {
+      recordStage(negativePaths, "insufficient_payment", "record_order_payment_proof_v1", "FINANCE_HEAD", null, "BLOCKED", "finance actor id missing");
+      return;
+    }
     const correlationId = `p100-neg-${RUN_SUFFIX}-zero-payment`;
     const { error } = await client.rpc(
       "record_order_payment_proof_v1",
@@ -78,50 +79,53 @@ test("POINT100 :: negative-path failure injection suite", async ({ page }) => {
         piId: String(bindings[0].id),
         commercialVersionId: String(bindings[0].commercial_version_id),
         amount: 0,
-        actorId: actorId!,
+        actorId,
         runSuffix: `${RUN_SUFFIX}-zero`,
         scope: "neg-insufficient",
       }),
     );
-    const rejected = Boolean(error);
-    expect(rejected, "zero-amount payment proof must be rejected").toBe(true);
-    recordStage(negativePaths, "insufficient_payment", "record_order_payment_proof_v1", "FINANCE_HEAD", correlationId, "PASS", error?.message ?? "rejected");
+    expect(error, "zero-amount payment proof must be rejected").not.toBeNull();
+    recordStage(negativePaths, "insufficient_payment", "record_order_payment_proof_v1", "FINANCE_HEAD", correlationId, "PASS", error!.message);
   });
 
-  // ---- duplicate/replay: idempotent payment proof ----
-  await test.step("negative: provider replay idempotent on same idempotency key", async () => {
+  await test.step("negative: provider replay is idempotent only after a successful first call", async () => {
     await switchRole(page, financeHead);
     const { client } = await createAuthenticatedCertificationClient(page);
-    const point37OrderId = fixtureOrderId("FACTORY_CERT_POINT37_ORDER_ID");
-    const { data: bindings } = await client
+    const { data: bindings, error: bindingError } = await client
       .from("sales_order_proforma_invoice_authority_v1")
       .select("id,commercial_version_id")
       .eq("order_id", point37OrderId)
       .limit(1);
-    if (!bindings?.length) {
-      recordStage(negativePaths, "provider_replay", "record_order_payment_proof_v1", "FINANCE_HEAD", null, "BLOCKED", "no PI binding");
+    if (bindingError || !bindings?.length) {
+      recordStage(negativePaths, "provider_replay", "record_order_payment_proof_v1", "FINANCE_HEAD", null, "BLOCKED", bindingError?.message ?? "no PI binding");
       return;
     }
     const actorId = (await client.auth.getUser()).data.user?.id;
+    if (!actorId) {
+      recordStage(negativePaths, "provider_replay", "record_order_payment_proof_v1", "FINANCE_HEAD", null, "BLOCKED", "finance actor id missing");
+      return;
+    }
     const payload = buildPaymentProofPayload({
       orderId: point37OrderId,
       piId: String(bindings[0].id),
       commercialVersionId: String(bindings[0].commercial_version_id),
       amount: 1,
-      actorId: actorId!,
+      actorId,
       runSuffix: `${RUN_SUFFIX}-replay`,
       scope: "neg-replay",
     });
     const first = await client.rpc("record_order_payment_proof_v1", payload);
+    expect(first.error, first.error?.message).toBeNull();
     const second = await client.rpc("record_order_payment_proof_v1", payload);
-    const replaySafe = !second.error || second.error.message.toLowerCase().includes("duplicate") || second.error.message.toLowerCase().includes("idempot");
-    expect(replaySafe || !first.error, "replay must not create duplicate authority").toBe(true);
-    recordStage(negativePaths, "provider_replay", "record_order_payment_proof_v1", "FINANCE_HEAD", payload.p_correlation_id, "PASS", second.error?.message ?? "idempotent");
+    const replaySafe =
+      !second.error ||
+      second.error.message.toLowerCase().includes("duplicate") ||
+      second.error.message.toLowerCase().includes("idempot");
+    expect(replaySafe, second.error?.message ?? "provider replay must be idempotent").toBe(true);
+    recordStage(negativePaths, "provider_replay", "record_order_payment_proof_v1", "FINANCE_HEAD", payload.p_correlation_id, "PASS", second.error?.message ?? "idempotent replay");
   });
 
-  // ---- stock shortage: reserve beyond available ----
   await test.step("negative: stock shortage on RGS reserve", async () => {
-    const storeReadyGoods = credentialsForRoleOrSkip("STORE_READY_GOODS");
     await switchRole(page, storeReadyGoods);
     const { client } = await createAuthenticatedCertificationClient(page);
     const correlationId = `p100-neg-${RUN_SUFFIX}-stock-shortage`;
@@ -133,12 +137,10 @@ test("POINT100 :: negative-path failure injection suite", async ({ page }) => {
       p_quantity: 99999,
       p_correlation_id: correlationId,
     });
-    const rejected = Boolean(error);
-    expect(rejected, "excessive reserve must fail closed").toBe(true);
-    recordStage(negativePaths, "stock_shortage", "reserve_rgs_stock", "STORE_READY_GOODS", correlationId, "PASS", error?.message ?? "rejected");
+    expect(error, "excessive reserve must fail closed").not.toBeNull();
+    recordStage(negativePaths, "stock_shortage", "reserve_rgs_stock", "STORE_READY_GOODS", correlationId, "PASS", error!.message);
   });
 
-  // ---- invalid carton: open with missing consignment ----
   await test.step("negative: invalid carton open rejected", async () => {
     await switchRole(page, dispatchManager);
     const { client } = await createAuthenticatedCertificationClient(page);
@@ -148,25 +150,27 @@ test("POINT100 :: negative-path failure injection suite", async ({ page }) => {
       p_carton_code: `INVALID-${RUN_SUFFIX}`,
     });
     expect(error, "invalid consignment must reject carton open").not.toBeNull();
-    recordStage(negativePaths, "invalid_carton", "open_b2b_dispatch_carton", "DISPATCH_MANAGER", correlationId, "PASS", error?.message ?? "rejected");
+    recordStage(negativePaths, "invalid_carton", "open_b2b_dispatch_carton", "DISPATCH_MANAGER", correlationId, "PASS", error!.message);
   });
 
-  // ---- duplicate/replay: idempotent production release retry (after dress-rehearsal may have released Point37) ----
-  await test.step("negative: duplicate production release idempotent", async () => {
+  await test.step("negative: duplicate production release is idempotent", async () => {
     await switchRole(page, admin);
     const { client } = await createAuthenticatedCertificationClient(page);
-    const point37OrderId = fixtureOrderId("FACTORY_CERT_POINT37_ORDER_ID");
-    const { data: orderRow } = await client.from("orders").select("status").eq("id", point37OrderId).maybeSingle();
-    if (String(orderRow?.status) !== "in_production") {
-      recordStage(
-        negativePaths,
-        "duplicate_replay",
-        "release_order_to_in_production_v1",
-        "ADMIN",
-        null,
-        "PASS",
-        `order status=${orderRow?.status ?? "missing"} — idempotent retry deferred until dress-rehearsal release stage passes`,
-      );
+    let { data: orderRow, error: orderError } = await client.from("orders").select("status").eq("id", point37OrderId).maybeSingle();
+    if (orderError || !orderRow) {
+      recordStage(negativePaths, "duplicate_replay", "release_order_to_in_production_v1", "ADMIN", null, "BLOCKED", orderError?.message ?? "Point37 order missing");
+      return;
+    }
+    if (String(orderRow.status) === "confirmed") {
+      const setup = await client.rpc("release_order_to_in_production_v1", { p_order_id: point37OrderId });
+      if (setup.error || (setup.data as { ok?: boolean } | null)?.ok === false) {
+        recordStage(negativePaths, "duplicate_replay", "release_order_to_in_production_v1", "ADMIN", null, "BLOCKED", setup.error?.message ?? "could not establish in_production prerequisite");
+        return;
+      }
+      ({ data: orderRow, error: orderError } = await client.from("orders").select("status").eq("id", point37OrderId).maybeSingle());
+    }
+    if (orderError || String(orderRow?.status) !== "in_production") {
+      recordStage(negativePaths, "duplicate_replay", "release_order_to_in_production_v1", "ADMIN", null, "BLOCKED", `order status=${orderRow?.status ?? "missing"}`);
       return;
     }
     const { data: historyBefore } = await client
@@ -176,30 +180,25 @@ test("POINT100 :: negative-path failure injection suite", async ({ page }) => {
       .eq("old_status", "confirmed")
       .eq("new_status", "in_production");
     const countBefore = historyBefore?.length ?? 0;
-
-    const { data: retryData, error: retryError } = await client.rpc("release_order_to_in_production_v1", {
-      p_order_id: point37OrderId,
-    });
+    const { data: retryData, error: retryError } = await client.rpc("release_order_to_in_production_v1", { p_order_id: point37OrderId });
     expect(retryError, retryError?.message).toBeNull();
     const retryResult = Array.isArray(retryData) ? retryData[0] : retryData;
-    expect((retryResult as { ok?: boolean })?.ok, JSON.stringify(retryResult)).toBe(true);
+    expect((retryResult as { ok?: boolean } | null)?.ok, JSON.stringify(retryResult)).toBe(true);
     expect(
-      (retryResult as { already_applied?: boolean })?.already_applied === true
-      || (retryResult as { new_status?: string })?.new_status === "in_production",
+      (retryResult as { already_applied?: boolean } | null)?.already_applied === true ||
+        (retryResult as { new_status?: string } | null)?.new_status === "in_production",
       "retry must be idempotent",
     ).toBe(true);
-
     const { data: historyAfter } = await client
       .from("order_status_history")
       .select("id")
       .eq("order_id", point37OrderId)
       .eq("old_status", "confirmed")
       .eq("new_status", "in_production");
-    expect(historyAfter?.length ?? 0, "no duplicate confirmed→in_production history on retry").toBe(countBefore);
+    expect(historyAfter?.length ?? 0, "retry must not add duplicate transition history").toBe(countBefore);
     recordStage(negativePaths, "duplicate_replay", "release_order_to_in_production_v1", "ADMIN", null, "PASS", `history_rows=${countBefore}`);
   });
 
-  // ---- dispatch least privilege: finance cannot open dispatch consignment ----
   await test.step("negative: finance role blocked from dispatch consignment create", async () => {
     await switchRole(page, financeHead);
     const { client } = await createAuthenticatedCertificationClient(page);
@@ -210,27 +209,18 @@ test("POINT100 :: negative-path failure injection suite", async ({ page }) => {
       p_lines: [{ order_item_id: goldenOrderItemId, selected_qty: 1 }],
       p_correlation_id: correlationId,
     });
-    expect(error, "FINANCE_HEAD must not create dispatch consignment (Dispatch least privilege)").not.toBeNull();
-    recordStage(negativePaths, "wrong_tenant_role", "create_b2b_dispatch_consignment", "FINANCE_HEAD", correlationId, "PASS", error?.message ?? "rejected");
+    expect(error, "FINANCE_HEAD must not create dispatch consignment").not.toBeNull();
+    recordStage(negativePaths, "wrong_tenant_role", "create_b2b_dispatch_consignment", "FINANCE_HEAD", correlationId, "PASS", error!.message);
   });
 
-  // ---- gate independence: dispatch manager cannot access security gate surface ----
   await test.step("negative: dispatch manager denied independent security gate route", async () => {
     expect(canAccessSecurityGate("DISPATCH_MANAGER")).toBe(false);
     expect(isAuthorizedForAdminPath("/security-gate", "DISPATCH_MANAGER")).toBe(false);
-    recordStage(
-      negativePaths,
-      "gate_mismatch",
-      null,
-      "DISPATCH_MANAGER",
-      `p100-neg-${RUN_SUFFIX}-gate-route`,
-      "PASS",
-      "independent gate route denied for dispatch roles (#556 least-privilege)",
-    );
+    recordStage(negativePaths, "gate_mismatch", null, "DISPATCH_MANAGER", `p100-neg-${RUN_SUFFIX}-gate-route`, "PASS", "independent gate route denied for dispatch roles (#556 least privilege)");
   });
 
-  // ---- gate independence: dispatch manager cannot substitute gate scan evidence ----
-  await test.step("negative: gate mismatch without scan evidence", async () => {
+  await test.step("negative: dispatch manager cannot substitute gate evidence", async () => {
+    await switchRole(page, dispatchManager);
     const { client } = await createAuthenticatedCertificationClient(page);
     const correlationId = `p100-neg-${RUN_SUFFIX}-gate-mismatch`;
     const { data, error } = await client.rpc("release_b2b_dispatch_carton_at_gate_v1", {
@@ -238,88 +228,115 @@ test("POINT100 :: negative-path failure injection suite", async ({ page }) => {
       p_scan_evidence_id: "00000000-0000-4000-8000-000000000098",
     });
     const rejected = Boolean(error) || (data as { ok?: boolean } | null)?.ok === false;
-    expect(rejected, "gate release on unknown carton must fail").toBe(true);
-    recordStage(negativePaths, "gate_mismatch", "release_b2b_dispatch_carton_at_gate_v1", "DISPATCH_MANAGER", correlationId, "PASS", error?.message ?? `ok=${(data as { ok?: boolean })?.ok}`);
+    expect(rejected, "dispatch role/unknown carton gate release must fail").toBe(true);
+    recordStage(negativePaths, "gate_mismatch", "release_b2b_dispatch_carton_at_gate_v1", "DISPATCH_MANAGER", correlationId, "PASS", error?.message ?? `ok=${String((data as { ok?: boolean } | null)?.ok)}`);
   });
 
-  // ---- duplicate scan: idempotent scan correlation on existing golden consignment if present ----
-  await test.step("negative: duplicate scan correlation idempotent when consignment exists", async () => {
+  await test.step("negative: duplicate scan correlation returns the existing event", async () => {
+    await switchRole(page, dispatchManager);
     const { client } = await createAuthenticatedCertificationClient(page);
-    const { data: consignment } = await client
+    const { data: consignment, error: consignmentError } = await client
       .from("b2b_dispatch_consignments")
       .select("id")
-      .eq("order_id", goldenOrderId)
+      .eq("order_id", point38OrderId)
       .limit(1)
       .maybeSingle();
-    if (!consignment?.id) {
-      recordStage(
-        negativePaths,
-        "duplicate_scan",
-        "record_b2b_dispatch_carton_item_scan",
-        "DISPATCH_MANAGER",
-        null,
-        "PASS",
-        "no pre-existing consignment on golden order; duplicate-scan proof in factory-operations-golden-order.cert.spec.ts",
-      );
+    if (consignmentError || !consignment?.id) {
+      recordStage(negativePaths, "duplicate_scan", "record_b2b_dispatch_carton_item_scan", "DISPATCH_MANAGER", null, "BLOCKED", consignmentError?.message ?? "Point38 consignment missing");
       return;
     }
-    const { data: line } = await client
-      .from("b2b_dispatch_consignment_lines")
-      .select("id")
-      .eq("consignment_id", consignment.id)
-      .limit(1)
-      .maybeSingle();
-    const { data: carton } = await client
+    const { data: carton, error: cartonError } = await client
       .from("b2b_dispatch_cartons")
       .select("id")
       .eq("consignment_id", consignment.id)
       .limit(1)
       .maybeSingle();
-    if (!line?.id || !carton?.id) {
-      recordStage(negativePaths, "duplicate_scan", "record_b2b_dispatch_carton_item_scan", "DISPATCH_MANAGER", null, "PASS", "consignment without open carton — delegated to FACT-E2E golden order cert");
+    if (cartonError || !carton?.id) {
+      recordStage(negativePaths, "duplicate_scan", "record_b2b_dispatch_carton_item_scan", "DISPATCH_MANAGER", null, "BLOCKED", cartonError?.message ?? "Point38 carton missing");
       return;
     }
-    const correlationId = `p100-neg-${RUN_SUFFIX}-dup-scan`;
-    const payload = {
+    const { data: event, error: eventError } = await client
+      .from("b2b_dispatch_product_scan_events")
+      .select("id,barcode_value,correlation_id")
+      .eq("carton_id", carton.id)
+      .eq("scan_result", "verified")
+      .limit(1)
+      .maybeSingle();
+    if (eventError || !event?.id || !event.barcode_value || !event.correlation_id) {
+      recordStage(negativePaths, "duplicate_scan", "record_b2b_dispatch_carton_item_scan", "DISPATCH_MANAGER", null, "BLOCKED", eventError?.message ?? "verified Point38 scan event missing");
+      return;
+    }
+    const { data: item, error: itemError } = await client
+      .from("b2b_dispatch_carton_items")
+      .select("consignment_line_id,batch_lot,quantity,expiry_date")
+      .eq("carton_id", carton.id)
+      .eq("barcode_value", event.barcode_value)
+      .limit(1)
+      .maybeSingle();
+    if (itemError || !item?.consignment_line_id || !item.batch_lot) {
+      recordStage(negativePaths, "duplicate_scan", "record_b2b_dispatch_carton_item_scan", "DISPATCH_MANAGER", null, "BLOCKED", itemError?.message ?? "verified Point38 carton item missing");
+      return;
+    }
+    const replay = await client.rpc("record_b2b_dispatch_carton_item_scan", {
       p_carton_id: carton.id,
-      p_consignment_line_id: line.id,
-      p_barcode_value: "CERT-ARABIC-001",
-      p_batch_lot: `BATCH-${RUN_SUFFIX}`,
-      p_quantity: 1,
-      p_correlation_id: correlationId,
-    };
-    const first = await client.rpc("record_b2b_dispatch_carton_item_scan", payload);
-    const second = await client.rpc("record_b2b_dispatch_carton_item_scan", payload);
-    const replaySafe = !second.error;
-    expect(replaySafe, "duplicate scan correlation must be idempotent").toBe(true);
-    recordStage(negativePaths, "duplicate_scan", "record_b2b_dispatch_carton_item_scan", "DISPATCH_MANAGER", correlationId, "PASS", "idempotent correlation");
-  });
-
-  // ---- active finance hold: deny operations clearance without payment evidence ----
-  await test.step("negative: active finance hold blocks operations clearance", async () => {
-    await switchRole(page, financeHead);
-    const { client } = await createAuthenticatedCertificationClient(page);
-    const orphanOrderId = "30000000-0000-4000-8000-000000000099";
-    const correlationId = `p100-neg-${RUN_SUFFIX}-finance-hold`;
-    const { error } = await client.rpc("decide_finance_operations_clearance_v1", {
-      p_order_id: orphanOrderId,
-      p_pi_id: "00000000-0000-4000-8000-000000000099",
-      p_commercial_version_id: "00000000-0000-4000-8000-000000000098",
-      p_decision: "GRANTED",
-      p_reason: "POINT100 negative hold probe",
-      p_evidence_reference: correlationId,
-      p_correlation_id: correlationId,
-      p_idempotency_key: correlationId,
-      p_actor_id: (await client.auth.getUser()).data.user?.id,
+      p_consignment_line_id: item.consignment_line_id,
+      p_barcode_value: event.barcode_value,
+      p_batch_lot: item.batch_lot,
+      p_quantity: Number(item.quantity ?? 1),
+      p_correlation_id: event.correlation_id,
+      p_expiry_date: item.expiry_date ?? null,
+      p_device_id: "point100-replay",
     });
-    const rejected = Boolean(error);
-    expect(rejected, "operations clearance on unknown order must fail closed").toBe(true);
-    recordStage(negativePaths, "active_finance_hold", "decide_finance_operations_clearance_v1", "FINANCE_HEAD", correlationId, "PASS", error?.message ?? "rejected");
+    expect(replay.error, replay.error?.message).toBeNull();
+    const replayRow = Array.isArray(replay.data) ? replay.data[0] : replay.data;
+    expect((replayRow as { id?: string } | null)?.id, "same correlation must return existing scan event").toBe(String(event.id));
+    recordStage(negativePaths, "duplicate_scan", "record_b2b_dispatch_carton_item_scan", "DISPATCH_MANAGER", String(event.correlation_id), "PASS", `replayed_event_id=${event.id}`);
   });
 
-  // ---- quarantined lot: Core#259 record_inventory_lot_exception fail-closed ----
+  await test.step("negative: a real active Finance hold is blocking and then released", async () => {
+    await switchRole(page, financeHead);
+    const client = await createSteppedUpCertificationClient(page, "FINANCE_HEAD");
+    const actorId = (await client.auth.getUser()).data.user?.id;
+    const { data: order, error: orderError } = await client.from("orders").select("company_id").eq("id", point37OrderId).maybeSingle();
+    if (!actorId || orderError || !order?.company_id) {
+      recordStage(negativePaths, "active_finance_hold", "apply_finance_hold_v1", "FINANCE_HEAD", null, "BLOCKED", orderError?.message ?? "finance actor/company prerequisite missing");
+      return;
+    }
+    const correlationId = `p100-neg-${RUN_SUFFIX}-finance-hold`;
+    const applied = await client.rpc("apply_finance_hold_v1", {
+      p_company_id: order.company_id,
+      p_order_id: point37OrderId,
+      p_final_invoice_id: null,
+      p_scope: "ORDER",
+      p_amount: 1,
+      p_reason: "POINT100 blocking finance hold proof",
+      p_evidence_reference: `point100-hold:${RUN_SUFFIX}`,
+      p_correlation_id: correlationId,
+      p_idempotency_key: `${correlationId}:apply`,
+      p_actor_id: actorId,
+    });
+    expect(applied.error, applied.error?.message).toBeNull();
+    const appliedRow = Array.isArray(applied.data) ? applied.data[0] : applied.data;
+    const holdEventId = String((appliedRow as { control_event_id?: string } | null)?.control_event_id ?? "");
+    expect(holdEventId, "apply_finance_hold_v1 must return control_event_id").not.toBe("");
+    try {
+      const guard = await client.rpc("assert_no_blocking_finance_hold_v1", { p_order_id: point37OrderId });
+      expect(guard.error, "active Finance hold must block the canonical guard").not.toBeNull();
+      recordStage(negativePaths, "active_finance_hold", "assert_no_blocking_finance_hold_v1", "FINANCE_HEAD", correlationId, "PASS", guard.error!.message);
+    } finally {
+      const released = await client.rpc("release_finance_hold_v1", {
+        p_hold_event_id: holdEventId,
+        p_reason: "POINT100 cleanup after blocking-hold proof",
+        p_evidence_reference: `point100-hold-release:${RUN_SUFFIX}`,
+        p_correlation_id: `${correlationId}:release`,
+        p_idempotency_key: `${correlationId}:release`,
+        p_actor_id: actorId,
+      });
+      expect(released.error, released.error?.message).toBeNull();
+    }
+  });
+
   await test.step("negative: quarantined lot exception rejects unknown lot position", async () => {
-    const storeReadyGoods = credentialsForRoleOrSkip("STORE_READY_GOODS");
     await switchRole(page, storeReadyGoods);
     const { client } = await createAuthenticatedCertificationClient(page);
     const correlationId = `p100-neg-${RUN_SUFFIX}-quarantine`;
@@ -331,20 +348,10 @@ test("POINT100 :: negative-path failure injection suite", async ({ page }) => {
       p_correlation_id: correlationId,
     });
     expect(error, "unknown lot position must fail closed").not.toBeNull();
-    recordStage(
-      negativePaths,
-      "quarantined_expired_lot",
-      "record_inventory_lot_exception",
-      "STORE_READY_GOODS",
-      correlationId,
-      "PASS",
-      error?.message ?? "rejected",
-    );
+    recordStage(negativePaths, "quarantined_expired_lot", "record_inventory_lot_exception", "STORE_READY_GOODS", correlationId, "PASS", error!.message);
   });
 
-  // ---- trace handover: invalid evidence rejected (Core#259 software contract) ----
   await test.step("negative: trace handover verify rejects invalid evidence", async () => {
-    const storeReadyGoods = credentialsForRoleOrSkip("STORE_READY_GOODS");
     await switchRole(page, storeReadyGoods);
     const { client } = await createAuthenticatedCertificationClient(page);
     const correlationId = `p100-neg-${RUN_SUFFIX}-trace-invalid`;
@@ -354,32 +361,23 @@ test("POINT100 :: negative-path failure injection suite", async ({ page }) => {
       p_expected_action: "TRACE_INVALID_PROBE",
       p_enforce_consumption: false,
     });
-    expect(error, "trace verify RPC must be callable on Core #259").toBeNull();
-    const rejected = data === false;
-    expect(rejected, "invalid trace handover evidence must fail closed (returns false)").toBe(true);
-    recordStage(
-      negativePaths,
-      "duplicate_scan",
-      "trace_verify_handover_evidence_v1",
-      "STORE_READY_GOODS",
-      correlationId,
-      "PASS",
-      error?.message ?? (rejected ? "returned false" : "unexpected pass"),
-    );
+    expect(error, "trace verify RPC must be callable on production-certified Core #260").toBeNull();
+    expect(data === false, "invalid trace handover evidence must fail closed").toBe(true);
+    recordStage(negativePaths, "invalid_trace_evidence", "trace_verify_handover_evidence_v1", "STORE_READY_GOODS", correlationId, "PASS", "invalid evidence returned false");
   });
 
   await test.step("Write Point100 negative-path ledger", async () => {
+    const nonPass = negativePaths.filter((entry) => entry.status !== "PASS");
     const summary = {
       schema_version: 1,
       harness: "point100-negative-paths",
-      status: negativePaths.every((p) => p.status === "PASS") ? "PASS" : "FAIL",
+      status: nonPass.length === 0 ? "PASS" : "FAIL",
       run_token: RUN_SUFFIX,
       generated_at: new Date().toISOString(),
       total_negative_paths: negativePaths.length,
       negative_paths: negativePaths,
     };
     writeFileSync("point100-negative-paths-ledger.json", `${JSON.stringify(summary, null, 2)}\n`, "utf8");
-    const failures = negativePaths.filter((p) => p.status === "FAIL");
-    expect(failures, JSON.stringify(failures)).toHaveLength(0);
+    expect(nonPass, JSON.stringify(nonPass)).toHaveLength(0);
   });
 });
