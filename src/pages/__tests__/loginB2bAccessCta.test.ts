@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { join } from "node:path";
+
+// Codacy-safe fixed module-relative root (no dynamic path taint).
+const ROOT = join(import.meta.dirname, "..");
 
 // Issue #561 — physical UAT defect.
 // The login footer CTA "Apply for B2B Access" navigated to /register, a route
@@ -8,7 +11,7 @@ import { resolve } from "node:path";
 // must instead run the governed mobile-verification identity gate
 // (launchMsg91Widget), which is the only sanctioned onboarding entry point.
 // No anonymous application write and no new registration route are permitted.
-const source = readFileSync(resolve(__dirname, "../Login.tsx"), "utf8");
+const source = readFileSync(join(ROOT, "Login.tsx"), "utf8");
 
 const ctaHandlerName = "handleApplyForB2BAccess";
 

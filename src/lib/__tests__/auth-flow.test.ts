@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { join } from "node:path";
+
+// Codacy-safe fixed module-relative root (no dynamic path taint).
+const ROOT = join(import.meta.dirname, "..");
 import {
   AuthFlowError,
   createAuthStateController,
@@ -188,7 +191,7 @@ describe("auth-flow / getMissingProfileResolution", () => {
 // Issue #561 — the missing-profile branch of resolveUserByIdentifier must route
 // through the helper above, not throw PROFILE_MISSING unconditionally.
 describe("auth-flow / missing-profile branch wiring", () => {
-  const source = readFileSync(resolve(__dirname, "../auth-flow.ts"), "utf8");
+  const source = readFileSync(join(ROOT, "auth-flow.ts"), "utf8");
 
   it("consults getMissingProfileResolution inside the missing profile+company branch", () => {
     const branch = source.slice(source.indexOf("if (!profileRow && !matchedUser.company_id)"));
