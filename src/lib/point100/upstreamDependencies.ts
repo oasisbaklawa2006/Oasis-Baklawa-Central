@@ -23,33 +23,34 @@ export type Point100UpstreamDependency = {
   disposableRehearsalBypass?: boolean;
 };
 
-/** Production-certified Core boundary — Macro Trace Core #259 via Release #161. */
-export const POINT100_CORE_PRODUCTION_VERIFIED_SHA = "c89c538c83eeefcd116c67f06bf86869ff63b2e3";
+/** Production-certified Core boundary — Macro Dispatch Finalize #260 via protected Release #163. */
+export const POINT100_CORE_PRODUCTION_VERIFIED_SHA = "da7506ad4b8f566f19bf40188ba4415a38361ba6";
 
-export const POINT100_PRODUCTION_MIGRATION_GATE = "oasis-supabase-core#161";
+export const POINT100_PRODUCTION_MIGRATION_GATE = "oasis-supabase-core#163";
 
-/** GitHub Actions run certifying semantic parity + production contract smoke for #161. */
-export const POINT100_PRODUCTION_MIGRATION_RUN_ID = "34188983863";
+/** GitHub Actions run certifying exact-SHA deploy, semantic parity and production contract smoke for #163. */
+export const POINT100_PRODUCTION_MIGRATION_RUN_ID = "34271047926";
 
-/** Governed Trace software contracts shipped on Core #259 (software only — not physical device PASS). */
+/** Governed Trace software contracts shipped on Core #259 and consumed by merged Trace #37. */
 export const POINT100_TRACE_SOFTWARE_RPCS = [
   "trace_verify_handover_evidence_v1",
   "trace_sign_handover_evidence_v1",
   "trace_allocate_identity_v1",
 ] as const;
 
-/** Core dispatch-finalize authority — approval-held on #260, not on certified pin #259. */
+/** Canonical Core dispatch-finalize authority delivered by #260. */
 export const POINT100_DISPATCH_FINALIZE_RPC = "release_order_to_dispatched_v1";
 
+/** Retained as provenance for capability-matrix compatibility; #260 is merged and production-certified. */
 export const POINT100_CORE_PENDING_DISPATCH_PR = "#260";
 
 /**
- * Set after Core #260 protected Production Migration Release + semantic/runtime verification.
- * Triggers full lifecycle recertification via scripts/point100-certification/recert-after-core-260.sh
+ * Optional explicit recertification run override. The canonical default is Release #163.
  */
 export const POINT100_RECERT_AFTER_CORE_MIGRATION_RUN_ID_ENV = "POINT100_RECERT_AFTER_CORE_MIGRATION_RUN_ID";
 
-const POINT100_PENDING_CORE_RPCS = new Set<string>([POINT100_DISPATCH_FINALIZE_RPC]);
+/** No Core RPC remains pending on the certified production pin. */
+const POINT100_PENDING_CORE_RPCS = new Set<string>();
 
 /** Rebind state here when Mission Control clears an upstream macro PR. */
 export const POINT100_UPSTREAM_DEPENDENCIES: readonly Point100UpstreamDependency[] = [
@@ -67,7 +68,17 @@ export const POINT100_UPSTREAM_DEPENDENCIES: readonly Point100UpstreamDependency
       "customer_dispatch_proof",
     ],
     blockerDetail:
-      "Central Order→Factory→Packing→Dispatch→Gate journey merged to main (#556). Point100 binds disposable rehearsal to canonical dispatch workflow routes and clients.",
+      "Central Order→Factory→Packing→Dispatch→Gate journey merged to main (#556). Point100 binds canonical dispatch workflow routes and clients.",
+    failClosedStatus: "implemented",
+  },
+  {
+    id: "central-macro-management-558",
+    repository: "Oasis-Baklawa-Central",
+    pr: "#558",
+    state: "merged",
+    affectedStageIds: ["finance_verification_reconciliation", "final_invoice_balance", "finance_dispatch_clearance"],
+    blockerDetail:
+      "Management / Tally / compliance macro #558 merged to Central main at a619a7a2; Point100 consumes the canonical read/reporting surface without shadow authority.",
     failClosedStatus: "implemented",
   },
   {
@@ -77,7 +88,7 @@ export const POINT100_UPSTREAM_DEPENDENCIES: readonly Point100UpstreamDependency
     state: "merged",
     affectedStageIds: ["inventory_lot_allocation", "production_qc"],
     blockerDetail:
-      "Macro Inventory #256 merged (ancestor of production pin #259). Lot/putaway/exception/factory RPCs consumed on disposable Core replay at SHA c89c538c.",
+      "Macro Inventory #256 merged and remains an ancestor of the production-certified #260 pin. Lot/putaway/exception/factory RPCs are consumed from Core SHA da7506ad.",
     failClosedStatus: "implemented",
   },
   {
@@ -87,7 +98,7 @@ export const POINT100_UPSTREAM_DEPENDENCIES: readonly Point100UpstreamDependency
     state: "merged",
     affectedStageIds: ["inventory_lot_allocation", "production_qc"],
     blockerDetail:
-      "Core Production Migration Release #159 deployed Macro Inventory #256 (superseded as production pin by Release #161 / SHA c89c538c).",
+      "Core Production Migration Release #159 deployed Macro Inventory #256 and is superseded as the current production pin by Release #163 / SHA da7506ad.",
     failClosedStatus: "implemented",
   },
   {
@@ -97,7 +108,7 @@ export const POINT100_UPSTREAM_DEPENDENCIES: readonly Point100UpstreamDependency
     state: "merged",
     affectedStageIds: ["trace_handover"],
     blockerDetail:
-      "Macro Trace Core #259 server identity + authenticated handover authority merged. Point100 consumes trace_*_v1 software contracts on disposable Core replay — not physical scanner/device PASS.",
+      "Macro Trace Core #259 server identity + authenticated handover authority is an ancestor of production-certified Core #260.",
     failClosedStatus: "implemented",
   },
   {
@@ -114,28 +125,44 @@ export const POINT100_UPSTREAM_DEPENDENCIES: readonly Point100UpstreamDependency
       "order_complete",
     ],
     blockerDetail:
-      "Core Production Migration Release #161 run 34188983863 SUCCESS — semantic parity + production contract smoke on SHA c89c538c (#259 Trace Core authority).",
+      "Core Production Migration Release #161 certified Trace Core #259 and is superseded by the current Release #163 production boundary.",
     failClosedStatus: "implemented",
   },
   {
     id: "oasis-trace-macro-37",
     repository: "oasis-trace",
     pr: "#37",
-    state: "open_pr",
+    state: "merged",
     affectedStageIds: ["trace_handover"],
     blockerDetail:
-      "Trace #37 device/runtime recertification remains open. Core #259 trace_*_v1 software contracts are consumed; physical scanner/TV handover evidence is fail-closed (Leap 13).",
-    failClosedStatus: "physical_uat_only",
+      "Trace #37 software recertification merged at 894f27327381ce168d168530eba3c3722d71eaee. Physical scanner/printer/TV handover evidence remains a separate Leap 13 UAT gate and is not claimed here.",
+    failClosedStatus: "implemented",
   },
   {
     id: "core-macro-dispatch-260",
     repository: "oasis-supabase-core",
     pr: POINT100_CORE_PENDING_DISPATCH_PR,
-    state: "open_pr",
+    state: "merged",
     affectedStageIds: ["dispatch_consignment", "order_complete"],
     blockerDetail:
-      "Core #260 release_order_to_dispatched_v1 is approval-held and NOT production-deployed on certified pin c89c538c. Disposable bootstrap substitutes are not certified; rebind after protected Production Migration Release + semantic/runtime verification.",
-    failClosedStatus: "upstream_contract_missing",
+      "Core #260 canonical release_order_to_dispatched_v1 merged at da7506ad4b8f566f19bf40188ba4415a38361ba6 and is protected-production-certified by Release #163 run 34271047926.",
+    failClosedStatus: "implemented",
+  },
+  {
+    id: "core-production-migration-163",
+    repository: "oasis-supabase-core",
+    pr: "#163",
+    state: "merged",
+    affectedStageIds: [
+      "finance_dispatch_clearance",
+      "dispatch_consignment",
+      "security_gate",
+      "customer_dispatch_proof",
+      "order_complete",
+    ],
+    blockerDetail:
+      "Protected Production Migration Release #163 run 34271047926 passed exact-commit binding, deployment, post-deploy ledger verification, semantic schema parity, production contract smoke and provenance on Core SHA da7506ad.",
+    failClosedStatus: "implemented",
   },
 ] as const;
 
@@ -149,23 +176,21 @@ export function resolveProductionMigrationRunId(): string | null {
 
 export function isCoreProductionVerified(): boolean {
   const sha = resolveCoreVerifiedSha();
-  return sha === POINT100_CORE_PRODUCTION_VERIFIED_SHA || sha?.startsWith("c89c538c") === true;
+  return sha === POINT100_CORE_PRODUCTION_VERIFIED_SHA || sha?.startsWith("da7506ad") === true;
 }
 
-/** True only after Core #260 is protected-deployed and Mission Control clears dispatch recert. */
+/** Dispatch authority is part of the current production-certified Core pin. */
 export function isCoreDispatchProductionVerified(): boolean {
-  return process.env.POINT100_DISPATCH_PRODUCTION_VERIFIED === "true";
+  return isCoreProductionVerified();
 }
 
 export function resolveRecertAfterCoreMigrationRunId(): string | null {
-  return process.env.POINT100_RECERT_AFTER_CORE_MIGRATION_RUN_ID?.trim() ?? null;
+  return process.env.POINT100_RECERT_AFTER_CORE_MIGRATION_RUN_ID?.trim() ?? POINT100_PRODUCTION_MIGRATION_RUN_ID;
 }
 
 /** RPCs injected by disposable cert bootstrap must not satisfy certified-pin probes. */
 export function isRpcOnCertifiedCorePin(rpcName: string): boolean {
-  if (POINT100_PENDING_CORE_RPCS.has(rpcName) && !isCoreDispatchProductionVerified()) {
-    return false;
-  }
+  if (POINT100_PENDING_CORE_RPCS.has(rpcName)) return false;
   return true;
 }
 
