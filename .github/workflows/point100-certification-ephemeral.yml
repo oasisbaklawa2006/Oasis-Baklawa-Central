@@ -98,7 +98,7 @@ jobs:
           } >> "${GITHUB_ENV}"
 
           while IFS= read -r cred_line; do
-            if [[ "${cred_line}" =~ ^export\ ([A-Z0-9_]+)_PASSWORD=\'([^\']*)\'$ ]]; then
+            if [[ "${cred_line}" =~ ^export\ ([A-Z0-9_]+)=\'([^\']*)\'$ ]]; then
               echo "::add-mask::${BASH_REMATCH[2]}"
             fi
           done < "${FACTORY_CERT_CREDENTIAL_FILE}"
@@ -142,6 +142,7 @@ jobs:
           name: point100-certification-${{ github.run_id }}
           path: |
             point100-capability-matrix.json
+            point100-capability-matrix-ledger.json
             point100-dress-rehearsal-ledger.json
             point100-negative-paths-ledger.json
             point100-certification-results.json
