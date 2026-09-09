@@ -1,9 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-
-// Codacy-safe fixed module-relative root (no dynamic path taint).
-const ROOT = join(import.meta.dirname, "..");
 import {
   AuthFlowError,
   createAuthStateController,
@@ -18,6 +15,9 @@ import {
   type AuthStatus,
 } from "@/lib/auth-flow";
 import { getRoleDestination } from "@/lib/auth-routing";
+
+// Codacy-safe fixed module-relative root (no dynamic path taint).
+const ROOT = join(import.meta.dirname, "..");
 
 describe("auth-flow / state controller", () => {
   beforeEach(() => {
