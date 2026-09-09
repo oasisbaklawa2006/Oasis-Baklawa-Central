@@ -20,6 +20,7 @@ bash "${SCRIPT_DIR}/../factory-certification/start-ephemeral.sh"
 # function definition before any Point100 probe runs.
 if [[ "${POINT100_ALLOW_DISPOSABLE_BOOTSTRAP:-false}" != "true" ]]; then
   STATUS_FILE="$(mktemp)"
+  trap 'rm -f "${STATUS_FILE}"' EXIT
   pushd "${POINT100_CORE_REPO}" >/dev/null
   supabase status -o env > "${STATUS_FILE}"
   popd >/dev/null
@@ -28,7 +29,6 @@ if [[ "${POINT100_ALLOW_DISPOSABLE_BOOTSTRAP:-false}" != "true" ]]; then
   : "${DB_URL:?Supabase CLI status did not expose DB_URL}"
   POINT100_LOCAL_DB_URL="${DB_URL}" \
     node "${SCRIPT_DIR}/restore-canonical-dispatch-authority.mjs"
-  rm -f "${STATUS_FILE}"
 fi
 
 cat <<EOF
