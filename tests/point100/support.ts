@@ -4,7 +4,7 @@
  */
 
 import { writeFileSync } from "node:fs";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 import { buildCapabilityMatrix, type Point100ProbeOutcome } from "../../src/lib/point100/capabilityStatus";
 import { POINT100_LIFECYCLE_STAGES } from "../../src/lib/point100/lifecycleStages";
 import {
@@ -65,8 +65,10 @@ export function requirePoint100HarnessEnv(): void {
 export function credentialsForRoleOrSkip(role: string): FactoryCertificationCredentials {
   const spec = factoryCertificationCredentialSpec(role);
   const credentials = readFactoryCertificationCredentials(role);
-  test.skip(!credentials, `CREDENTIAL_REQUIRED: ${spec.emailEnv} + ${spec.passwordEnv}`);
-  return credentials!;
+  if (!credentials) {
+    throw new Error(`CREDENTIAL_REQUIRED: ${role} requires ${spec.emailEnv} + ${spec.passwordEnv}`);
+  }
+  return credentials;
 }
 
 export function fixtureOrderId(envKey: string): string {
@@ -134,12 +136,14 @@ export function writeDressRehearsalLedger(
   ledger: Omit<Point100DressRehearsalLedger, "generated_at" | "status" | "certification_mode" | "production_certification_permitted" | "production_migration_gate" | "core_verified_sha" | "inventory_production_verified" | "production_migration_run_id" | "production_gate_blockers"> & {
     production_gate_blockers?: string[];
   },
+  outputFile = "point100-dress-rehearsal-ledger.json",
 ): Point100DressRehearsalLedger {
   const failedStages = ledger.stages.filter((s) => s.status === "FAIL");
   const failedNegative = ledger.negative_paths.filter((s) => s.status === "FAIL");
   const productionGateBlockers = ledger.production_gate_blockers ?? [];
   const blocked =
     ledger.stages.some((s) => s.status === "BLOCKED") ||
+    ledger.negative_paths.some((s) => s.status === "BLOCKED") ||
     ledger.upstream_blockers.length > 0 ||
     productionGateBlockers.length > 0;
   const summary: Point100DressRehearsalLedger = {
@@ -158,7 +162,7 @@ export function writeDressRehearsalLedger(
         ? "PASS"
         : "FAIL",
   };
-  writeFileSync("point100-dress-rehearsal-ledger.json", `${JSON.stringify(summary, null, 2)}\n`, "utf8");
+  writeFileSync(outputFile, `${JSON.stringify(summary, null, 2)}\n`, "utf8");
   return summary;
 }
 
@@ -193,7 +197,7 @@ export async function probeRpcExists(rpcName: string): Promise<{ exists: boolean
 }
 
 export function assertNoSilentSkips(ledger: Point100DressRehearsalLedger): void {
-  const skipped = ledger.stages.filter((s) => s.status === "SKIPPED");
+  const skipped = [...ledger.stages, ...ledger.negative_paths].filter((s) => s.status === "SKIPPED");
   expect(skipped, `fail-closed: silent skips are forbidden — ${JSON.stringify(skipped)}`).toHaveLength(0);
 }
 
