@@ -1,4 +1,4 @@
-name: Point100 Ephemeral Dress Rehearsal
+name: Point100 Final Software Dress Rehearsal
 
 on:
   pull_request:
@@ -21,15 +21,17 @@ concurrency:
 
 jobs:
   point100-dress-rehearsal:
-    name: Point100 disposable dress rehearsal
+    name: Point100 production-bound software rehearsal
     runs-on: ubuntu-latest
     timeout-minutes: 120
     env:
       POINT100_CORE_REPO: ${{ github.workspace }}/oasis-supabase-core
       POINT100_ALLOW_LOCAL_RESET: "true"
-      POINT100_ALLOW_DISPOSABLE_BOOTSTRAP: "true"
-      POINT100_CORE_VERIFIED_SHA: c89c538c83eeefcd116c67f06bf86869ff63b2e3
-      POINT100_PRODUCTION_MIGRATION_RUN_ID: "34188983863"
+      POINT100_ALLOW_DISPOSABLE_BOOTSTRAP: "false"
+      POINT100_DISPATCH_PRODUCTION_VERIFIED: "true"
+      POINT100_CORE_VERIFIED_SHA: da7506ad4b8f566f19bf40188ba4415a38361ba6
+      POINT100_PRODUCTION_MIGRATION_RUN_ID: "34271047926"
+      POINT100_RECERT_AFTER_CORE_MIGRATION_RUN_ID: "34271047926"
       FACTORY_CERT_CORE_REPO: ${{ github.workspace }}/oasis-supabase-core
       FACTORY_CERT_ALLOW_LOCAL_RESET: "true"
       FACTORY_CERT_CREDENTIAL_FILE: /tmp/oasis-factory-certification.env
@@ -41,12 +43,12 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Checkout canonical Core schema authority
+      - name: Checkout production-certified Core schema authority
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
           repository: oasisbaklawa2006/oasis-supabase-core
-          ref: c89c538c83eeefcd116c67f06bf86869ff63b2e3
+          ref: da7506ad4b8f566f19bf40188ba4415a38361ba6
           path: oasis-supabase-core
 
       - name: Set up pinned Supabase CLI
@@ -63,17 +65,20 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Validate Point100 scripts
+      - name: Validate Point100 scripts and exact production pin
         run: |
           bash -n scripts/point100-certification/start-ephemeral.sh
           bash -n scripts/point100-certification/stop-ephemeral.sh
           bash -n scripts/point100-certification/run-dress-rehearsal.sh
           bash -n scripts/point100-certification/recert-after-core-260.sh
+          test "${POINT100_CORE_VERIFIED_SHA}" = "da7506ad4b8f566f19bf40188ba4415a38361ba6"
+          test "${POINT100_PRODUCTION_MIGRATION_RUN_ID}" = "34271047926"
+          test "${POINT100_ALLOW_DISPOSABLE_BOOTSTRAP}" = "false"
 
       - name: Unit tests (Point100 harness library)
         run: npm run test -- src/lib/point100
 
-      - name: Start disposable Core + fixtures
+      - name: Start disposable database from exact production-certified Core source
         run: bash scripts/point100-certification/start-ephemeral.sh
 
       - name: Export local backend and disposable identities to this job only
@@ -127,7 +132,7 @@ jobs:
           cat "${RUNNER_TEMP}/point100-preview.log"
           exit 1
 
-      - name: Run Point100 dress rehearsal suite
+      - name: Run Point100 full lifecycle and negative-path suite
         run: npx playwright test -c playwright.point100.config.ts
 
       - name: Upload Point100 artifacts
