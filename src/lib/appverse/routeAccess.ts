@@ -20,6 +20,7 @@ const ADMIN_ROUTE_MODULES: Array<{ prefix: string; moduleKey: AppVerseModuleKey 
   { prefix: "/admin/execution/third-party", moduleKey: "orders" },
   { prefix: "/admin/execution/retail", moduleKey: "inventory" },
   { prefix: "/admin/execution/complaints", moduleKey: "support" },
+  { prefix: "/admin/management-command-center", moduleKey: "management_reporting" },
   { prefix: "/admin/execution-command-center", moduleKey: "cmd_war_room" },
   { prefix: "/admin/execution-risk", moduleKey: "cmd_war_room" },
   { prefix: "/admin/execution-bottlenecks", moduleKey: "cmd_war_room" },
