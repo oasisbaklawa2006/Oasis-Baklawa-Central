@@ -175,8 +175,8 @@ export function resolveProductionMigrationRunId(): string | null {
 }
 
 export function isCoreProductionVerified(): boolean {
-  const sha = resolveCoreVerifiedSha();
-  return sha === POINT100_CORE_PRODUCTION_VERIFIED_SHA || sha?.startsWith("da7506ad") === true;
+  const sha = resolveCoreVerifiedSha()?.toLowerCase();
+  return sha === POINT100_CORE_PRODUCTION_VERIFIED_SHA;
 }
 
 /** Dispatch authority is part of the current production-certified Core pin. */
