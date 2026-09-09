@@ -7,8 +7,8 @@
  * replace that shortcut with canonical software authority facts before any
  * dress-rehearsal assertion runs:
  *   operations clearance -> source/Dispatch custody -> carton truth -> DPL ->
- *   Finance DPL receipt -> final invoice -> final settlement -> e-way decision
- *   -> Finance Dispatch Clearance.
+ *   Finance DPL receipt -> final-payment PI request/settlement -> final invoice
+ *   -> final settlement -> e-way decision -> Finance Dispatch Clearance.
  *
  * This script is disposable-local only. It uses distinct authenticated roles
  * and real Core RPCs; it never inserts/updates final invoice, clearance, DPL,
@@ -250,6 +250,87 @@ async function ensureOperationsClearance(finance, financeActorId, piId, commerci
   }
 }
 
+async function ensureFinalPaymentCoverage(finance, financeActorId, piId, commercialVersionId, financeDplReceiptId) {
+  const requestCorrelation = `${RUN_TOKEN}:final-payment-request`;
+  const requestResult = await finance.rpc("issue_sales_order_pi_final_payment_request_v1", {
+    p_order_id: point38OrderId,
+    p_pi_id: piId,
+    p_commercial_version_id: commercialVersionId,
+    p_finance_dpl_receipt_id: financeDplReceiptId,
+    p_document_reference: "point100://final-payment-pi/p38",
+    p_payment_action: "BANK_TRANSFER",
+    p_payment_link: null,
+    p_payment_instructions: "Point100 synthetic certification bank-transfer settlement",
+    p_reason: "Point100 governed final-payment PI revision",
+    p_source_channel: "CENTRAL",
+    p_source_reference: `point100:${point38OrderId}`,
+    p_correlation_id: requestCorrelation,
+    p_idempotency_key: requestCorrelation,
+    p_actor_id: financeActorId,
+  });
+  assertNoError(requestResult.error, "Point38 final-payment PI request");
+  const request = firstRow(requestResult.data);
+  const finalPaymentRequestId = String(request?.final_payment_request_id ?? "");
+  if (!finalPaymentRequestId) throw new Error("POINT100_POINT38_FINAL_PAYMENT_REQUEST_ID_MISSING");
+
+  const balanceDue = Number(request?.balance_due ?? 0);
+  if (!Number.isFinite(balanceDue) || balanceDue < -0.01) {
+    throw new Error(`POINT100_POINT38_FINAL_PAYMENT_BALANCE_INVALID: ${String(request?.balance_due)}`);
+  }
+  if (balanceDue > 0.01) {
+    const correlation = `${RUN_TOKEN}:balance-proof`;
+    const proof = await finance.rpc("record_order_payment_proof_v1", {
+      p_order_id: point38OrderId,
+      p_pi_id: piId,
+      p_commercial_version_id: commercialVersionId,
+      p_payment_type: "balance",
+      p_submitted_amount: balanceDue,
+      p_currency: "INR",
+      p_payment_mode: "bank_transfer",
+      p_external_reference: "POINT100-P38-BALANCE",
+      p_payer_reference: null,
+      p_proof_evidence_reference: "point100:p38:balance-proof",
+      p_source_channel: "CENTRAL",
+      p_source_reference: `point100:${point38OrderId}`,
+      p_correlation_id: correlation,
+      p_idempotency_key: correlation,
+      p_actor_id: financeActorId,
+    });
+    assertNoError(proof.error, "Point38 final-payment balance proof");
+    const paymentId = String(firstRow(proof.data)?.payment_id ?? "");
+    if (!paymentId) throw new Error("POINT100_POINT38_BALANCE_PAYMENT_ID_MISSING");
+
+    const verifyCorrelation = `${RUN_TOKEN}:balance-verify`;
+    const verified = await finance.rpc("verify_order_payment_v1", {
+      p_payment_id: paymentId,
+      p_verified_amount: balanceDue,
+      p_verified_reference: "POINT100-P38-BALANCE-VERIFIED",
+      p_verification_evidence_reference: "point100:p38:balance-verified",
+      p_reason: "Point100 governed final balance verification",
+      p_correlation_id: verifyCorrelation,
+      p_idempotency_key: verifyCorrelation,
+      p_actor_id: financeActorId,
+    });
+    assertNoError(verified.error, "Point38 final-payment balance verification");
+  }
+
+  const factsResult = await finance.rpc("get_sales_order_pi_final_payment_request_v1", {
+    p_order_id: point38OrderId,
+  });
+  assertNoError(factsResult.error, "Point38 final-payment PI facts");
+  const facts = firstRow(factsResult.data);
+  if (
+    !facts ||
+    facts.available !== true ||
+    String(facts.final_payment_request_id ?? "") !== finalPaymentRequestId ||
+    String(facts.finance_dpl_receipt_id ?? "") !== financeDplReceiptId ||
+    facts.settled !== true ||
+    Number(facts.balance_due ?? Number.NaN) > 0.01
+  ) {
+    throw new Error(`POINT100_POINT38_FINAL_PAYMENT_NOT_SETTLED: ${JSON.stringify(facts)}`);
+  }
+}
+
 async function ensureFinalSettlement(finance, financeActorId, piId, commercialVersionId, finalInvoiceId) {
   let settlementResult = await finance.rpc("get_final_settlement_facts_v1", { p_final_invoice_id: finalInvoiceId });
   assertNoError(settlementResult.error, "Point38 final settlement facts");
@@ -479,6 +560,14 @@ try {
   assertNoError(dplReceiptResult.error, "Point38 Finance DPL receipt");
   const financeDplReceiptId = String(firstRow(dplReceiptResult.data)?.receipt_id ?? "");
   if (!financeDplReceiptId) throw new Error("POINT100_POINT38_FINANCE_DPL_RECEIPT_ID_MISSING");
+
+  await ensureFinalPaymentCoverage(
+    financeRole.client,
+    financeRole.actorId,
+    piId,
+    commercialVersionId,
+    financeDplReceiptId,
+  );
 
   const invoiceResult = await financeRole.client.rpc("issue_final_invoice_v1", {
     p_order_id: point38OrderId,
