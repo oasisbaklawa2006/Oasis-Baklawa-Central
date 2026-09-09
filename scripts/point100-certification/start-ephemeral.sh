@@ -18,7 +18,8 @@ bash "${SCRIPT_DIR}/../factory-certification/start-ephemeral.sh"
 # fixture for older certification lanes. Final Point100 recertification must
 # never certify those substitutes. Reapply the exact production-certified #260
 # migration, verify its live function definition, repair/verify the disposable
-# ADMIN auth identity exposed by rehearsal #42, then advance Point38 through
+# ADMIN auth identity exposed by rehearsal #42, issue the original PI through
+# the current customer-visible Finance authority, then advance Point38 through
 # the real governed Core authority chain before any Point100 probe runs.
 if [[ "${POINT100_ALLOW_DISPOSABLE_BOOTSTRAP:-false}" != "true" ]]; then
   STATUS_FILE="$(mktemp)"
@@ -40,6 +41,10 @@ if [[ "${POINT100_ALLOW_DISPOSABLE_BOOTSTRAP:-false}" != "true" ]]; then
   FACTORY_CERT_SUPABASE_ANON_KEY="${ANON_KEY}" \
   FACTORY_CERT_LOCAL_SERVICE_ROLE_KEY="${SERVICE_ROLE_KEY}" \
     node "${SCRIPT_DIR}/ensure-point38-admin-auth.mjs"
+
+  FACTORY_CERT_SUPABASE_URL="${API_URL}" \
+  FACTORY_CERT_SUPABASE_ANON_KEY="${ANON_KEY}" \
+    node "${SCRIPT_DIR}/ensure-point38-pi-issued.mjs"
 
   FACTORY_CERT_SUPABASE_URL="${API_URL}" \
   FACTORY_CERT_SUPABASE_ANON_KEY="${ANON_KEY}" \
