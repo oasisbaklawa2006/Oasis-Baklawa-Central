@@ -160,6 +160,29 @@ describe("auth-flow / getMissingProfileResolution", () => {
     expect(getMissingProfileResolution("")).toBe("PROFILE_MISSING");
     expect(getMissingProfileResolution("   ")).toBe("PROFILE_MISSING");
   });
+
+  // PR #562 security regression: a deliberately deactivated PENDING account must
+  // never reach the ACCOUNT_PENDING path (which keeps the verified session and
+  // enters /customer-app-redirect). It has to stay blocked, fail-closed.
+  it("blocks a PENDING account that is explicitly inactive", () => {
+    expect(getMissingProfileResolution("PENDING", false)).toBe("ACCOUNT_BLOCKED");
+    expect(getMissingProfileResolution("pending", false)).toBe("ACCOUNT_BLOCKED");
+    expect(getMissingProfileResolution("  Pending  ", false)).toBe("ACCOUNT_BLOCKED");
+  });
+
+  it("keeps fresh onboarding when is_active is true, null or absent", () => {
+    expect(getMissingProfileResolution("PENDING", true)).toBe("ACCOUNT_PENDING");
+    expect(getMissingProfileResolution("PENDING", null)).toBe("ACCOUNT_PENDING");
+    expect(getMissingProfileResolution("PENDING", undefined)).toBe("ACCOUNT_PENDING");
+    expect(getMissingProfileResolution("PENDING")).toBe("ACCOUNT_PENDING");
+  });
+
+  it("does not change non-PENDING classification for any is_active value", () => {
+    expect(getMissingProfileResolution("CUSTOMER_USER", false)).toBe("PROFILE_MISSING");
+    expect(getMissingProfileResolution("SUPER_ADMIN", false)).toBe("PROFILE_MISSING");
+    expect(getMissingProfileResolution(null, false)).toBe("PROFILE_MISSING");
+    expect(getMissingProfileResolution("APPROVED", true)).toBe("PROFILE_MISSING");
+  });
 });
 
 // Issue #561 — the missing-profile branch of resolveUserByIdentifier must route
@@ -169,7 +192,17 @@ describe("auth-flow / missing-profile branch wiring", () => {
 
   it("consults getMissingProfileResolution inside the missing profile+company branch", () => {
     const branch = source.slice(source.indexOf("if (!profileRow && !matchedUser.company_id)"));
-    expect(branch).toContain("getMissingProfileResolution(matchedUser.role)");
+    expect(branch).toContain("getMissingProfileResolution(matchedUser.role, matchedUser.is_active)");
+  });
+
+  it("throws ACCOUNT_BLOCKED before the pending path when the helper says blocked", () => {
+    const branch = source.slice(source.indexOf("if (!profileRow && !matchedUser.company_id)"));
+    const blockedAt = branch.indexOf('throw new AuthFlowError("ACCOUNT_BLOCKED"');
+    const pendingAt = branch.indexOf('throw new AuthFlowError("ACCOUNT_PENDING"');
+    expect(blockedAt).toBeGreaterThan(-1);
+    expect(pendingAt).toBeGreaterThan(-1);
+    expect(blockedAt).toBeLessThan(pendingAt);
+    expect(branch).toContain('missingProfileResolution === "ACCOUNT_BLOCKED"');
   });
 
   it("still throws PROFILE_MISSING for the fail-closed path", () => {

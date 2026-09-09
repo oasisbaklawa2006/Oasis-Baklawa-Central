@@ -140,8 +140,14 @@ export function getPostLoginRedirectOnError(error: unknown): string | null {
  *
  * Every other role with a missing profile AND missing company stays fail-closed.
  */
-export function getMissingProfileResolution(role: string | null | undefined): "ACCOUNT_PENDING" | "PROFILE_MISSING" {
-  return normalizeRole(role) === "PENDING" ? "ACCOUNT_PENDING" : "PROFILE_MISSING";
+export function getMissingProfileResolution(
+  role: string | null | undefined,
+  isActive?: boolean | null,
+): "ACCOUNT_BLOCKED" | "ACCOUNT_PENDING" | "PROFILE_MISSING" {
+  if (normalizeRole(role) !== "PENDING") return "PROFILE_MISSING";
+  // A deliberately deactivated pending account must never keep a session.
+  // `is_active` may be null/undefined on freshly MSG91-created rows: that is onboarding, not a block.
+  return isActive === false ? "ACCOUNT_BLOCKED" : "ACCOUNT_PENDING";
 }
 
 export function readAuthCache(): AuthCache | null {
@@ -446,7 +452,21 @@ async function resolveUserByIdentifier(identifierInput: string, attemptId: strin
   }
 
   if (!profileRow && !matchedUser.company_id) {
-    if (getMissingProfileResolution(matchedUser.role) === "ACCOUNT_PENDING") {
+    const missingProfileResolution = getMissingProfileResolution(matchedUser.role, matchedUser.is_active);
+
+    if (missingProfileResolution === "ACCOUNT_BLOCKED") {
+      logAuthEvent("PROFILE_FETCH_FAILED", {
+        attemptId,
+        method,
+        identifier: normalized.normalized,
+        result: "failed",
+        error: "pending_onboarding_blocked",
+        details: { userId: matchedUser.id, role: normalizeRole(matchedUser.role) },
+      });
+      throw new AuthFlowError("ACCOUNT_BLOCKED", USER_MESSAGE_BY_CODE.ACCOUNT_BLOCKED, "failed");
+    }
+
+    if (missingProfileResolution === "ACCOUNT_PENDING") {
       logAuthEvent("PROFILE_FETCH_FAILED", {
         attemptId,
         method,
