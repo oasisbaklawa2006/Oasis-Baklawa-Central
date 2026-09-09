@@ -55,7 +55,7 @@ describe("point100 probe runner", () => {
     expect(isRpcMissingError("permission denied")).toBe(false);
   });
 
-  it("marks trace handover as physical_uat_only when Trace #37 recert is open", () => {
+  it("keeps trace handover physical_uat_only while software contracts remain executable", () => {
     const stage = POINT100_LIFECYCLE_STAGES.find((s) => s.id === "trace_handover")!;
     const outcome = buildProbeOutcome({
       stage,
@@ -110,10 +110,10 @@ describe("point100 probe runner", () => {
     if (original) process.env.FACTORY_CERT_GOLDEN_ORDER_ID = original;
   });
 
-  it("consumes Core#259 inventory authority without upstream blockers", () => {
+  it("consumes merged inventory and Trace software authority without upstream blockers", () => {
     expect(POINT100_UPSTREAM_DEPENDENCIES.some((dep) => dep.pr === "#256" && dep.state === "merged")).toBe(true);
     expect(POINT100_UPSTREAM_DEPENDENCIES.some((dep) => dep.pr === "#259" && dep.state === "merged")).toBe(true);
-    expect(POINT100_UPSTREAM_DEPENDENCIES.some((dep) => dep.pr === "#37")).toBe(true);
+    expect(POINT100_UPSTREAM_DEPENDENCIES.some((dep) => dep.pr === "#37" && dep.state === "merged")).toBe(true);
     const inventoryStage = POINT100_LIFECYCLE_STAGES.find((s) => s.id === "inventory_lot_allocation")!;
     const outcome = buildProbeOutcome({
       stage: inventoryStage,
@@ -127,18 +127,20 @@ describe("point100 probe runner", () => {
       executed: false,
     });
     expect(outcome.status).toBe("implemented");
-    expect(upstreamBlockersForStage("trace_handover")[0]?.failClosedStatus).toBe("physical_uat_only");
+    expect(upstreamBlockersForStage("trace_handover")).toHaveLength(0);
   });
 
-  it("records #259 and #161 as production-certified Core authority", () => {
-    const merged259 = POINT100_UPSTREAM_DEPENDENCIES.find((dep) => dep.id === "core-macro-trace-259");
-    const merged161 = POINT100_UPSTREAM_DEPENDENCIES.find((dep) => dep.id === "core-production-migration-161");
-    expect(merged259?.state).toBe("merged");
-    expect(merged161?.state).toBe("merged");
+  it("records #260 and #163 as the current production-certified Core authority", () => {
+    const merged260 = POINT100_UPSTREAM_DEPENDENCIES.find((dep) => dep.id === "core-macro-dispatch-260");
+    const merged163 = POINT100_UPSTREAM_DEPENDENCIES.find((dep) => dep.id === "core-production-migration-163");
+    expect(merged260?.state).toBe("merged");
+    expect(merged163?.state).toBe("merged");
     const originalSha = process.env.POINT100_CORE_VERIFIED_SHA;
     process.env.POINT100_CORE_VERIFIED_SHA = POINT100_CORE_PRODUCTION_VERIFIED_SHA;
     expect(isCoreProductionVerified()).toBe(true);
+    expect(isCoreDispatchProductionVerified()).toBe(true);
     expect(upstreamBlockersForStage("inventory_lot_allocation")).toHaveLength(0);
+    expect(upstreamBlockersForStage("dispatch_consignment")).toHaveLength(0);
     if (originalSha === undefined) delete process.env.POINT100_CORE_VERIFIED_SHA;
     else process.env.POINT100_CORE_VERIFIED_SHA = originalSha;
   });
@@ -150,19 +152,22 @@ describe("point100 probe runner", () => {
     expect(merged556?.affectedStageIds).toContain("dispatch_consignment");
   });
 
-  it("keeps dispatch finalize blocked pending Core #260 even in disposable rehearsal", () => {
+  it("treats dispatch finalize as certified after Core #260 protected deployment", () => {
+    const originalSha = process.env.POINT100_CORE_VERIFIED_SHA;
     const originalBootstrap = process.env.POINT100_ALLOW_DISPOSABLE_BOOTSTRAP;
     const originalProduction = process.env.POINT100_PRODUCTION_CERTIFICATION_PERMITTED;
     const originalDispatch = process.env.POINT100_DISPATCH_PRODUCTION_VERIFIED;
-    process.env.POINT100_ALLOW_DISPOSABLE_BOOTSTRAP = "true";
+    process.env.POINT100_CORE_VERIFIED_SHA = POINT100_CORE_PRODUCTION_VERIFIED_SHA;
+    process.env.POINT100_ALLOW_DISPOSABLE_BOOTSTRAP = "false";
     delete process.env.POINT100_PRODUCTION_CERTIFICATION_PERMITTED;
     delete process.env.POINT100_DISPATCH_PRODUCTION_VERIFIED;
-    expect(isDisposableRehearsalMode()).toBe(true);
-    expect(upstreamBlockersForStage("dispatch_consignment")).toHaveLength(1);
-    expect(upstreamBlockersForStage("dispatch_consignment")[0]?.id).toBe("core-macro-dispatch-260");
-    expect(productionGateBlockers().some((dep) => dep.id === "core-macro-dispatch-260")).toBe(true);
-    expect(isRpcOnCertifiedCorePin(POINT100_DISPATCH_FINALIZE_RPC)).toBe(false);
-    expect(isCoreDispatchProductionVerified()).toBe(false);
+    expect(isDisposableRehearsalMode()).toBe(false);
+    expect(upstreamBlockersForStage("dispatch_consignment")).toHaveLength(0);
+    expect(productionGateBlockers()).toHaveLength(0);
+    expect(isRpcOnCertifiedCorePin(POINT100_DISPATCH_FINALIZE_RPC)).toBe(true);
+    expect(isCoreDispatchProductionVerified()).toBe(true);
+    if (originalSha === undefined) delete process.env.POINT100_CORE_VERIFIED_SHA;
+    else process.env.POINT100_CORE_VERIFIED_SHA = originalSha;
     if (originalBootstrap === undefined) delete process.env.POINT100_ALLOW_DISPOSABLE_BOOTSTRAP;
     else process.env.POINT100_ALLOW_DISPOSABLE_BOOTSTRAP = originalBootstrap;
     if (originalProduction === undefined) delete process.env.POINT100_PRODUCTION_CERTIFICATION_PERMITTED;
@@ -171,18 +176,19 @@ describe("point100 probe runner", () => {
     else process.env.POINT100_DISPATCH_PRODUCTION_VERIFIED = originalDispatch;
   });
 
-  it("embeds Core #259 provenance in capability matrix", () => {
+  it("embeds Core #260/#163 provenance in capability matrix", () => {
     const originalSha = process.env.POINT100_CORE_VERIFIED_SHA;
     process.env.POINT100_CORE_VERIFIED_SHA = POINT100_CORE_PRODUCTION_VERIFIED_SHA;
     const matrix = buildCapabilityMatrix([], "test-env");
     expect(matrix.certification_mode).toBe("disposable_synthetic");
     expect(matrix.inventory_production_verified).toBe(true);
-    expect(matrix.dispatch_production_verified).toBe(false);
-    expect(matrix.pending_core_recert_pr).toBe(POINT100_CORE_PENDING_DISPATCH_PR);
+    expect(matrix.dispatch_production_verified).toBe(true);
+    expect(matrix.pending_core_recert_pr).toBeNull();
     expect(matrix.core_verified_sha).toBe(POINT100_CORE_PRODUCTION_VERIFIED_SHA);
     expect(matrix.production_migration_gate).toBe(POINT100_PRODUCTION_MIGRATION_GATE);
     expect(matrix.production_migration_run_id).toBe(POINT100_PRODUCTION_MIGRATION_RUN_ID);
     expect(resolveProductionMigrationRunId()).toBe(POINT100_PRODUCTION_MIGRATION_RUN_ID);
+    expect(POINT100_CORE_PENDING_DISPATCH_PR).toBe("#260");
     if (originalSha === undefined) delete process.env.POINT100_CORE_VERIFIED_SHA;
     else process.env.POINT100_CORE_VERIFIED_SHA = originalSha;
   });
