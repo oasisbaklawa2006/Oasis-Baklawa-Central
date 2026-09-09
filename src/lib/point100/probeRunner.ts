@@ -2,6 +2,7 @@ import type { Point100CapabilityStatus, Point100ProbeOutcome } from "./capabilit
 import type { Point100LifecycleStage } from "./lifecycleStages";
 import { resolveBoundContract, bindingByKey } from "./contractBindings";
 import {
+  POINT100_CORE_PRODUCTION_VERIFIED_SHA,
   formatUpstreamBlocker,
   isDisposableRehearsalMode,
   upstreamBlockersForStage,
@@ -47,7 +48,7 @@ export function classifyProbeFailure(
   if (stage.domain === "trace" && stage.coreRpcs.length === 0) return "physical_uat_only";
   if (isProviderRuntimeError(errorMessage)) return "provider_runtime_missing";
   if (isRpcMissingError(errorMessage)) return "upstream_contract_missing";
-  return "implemented";
+  return "upstream_contract_missing";
 }
 
 export function probeFixtureKeys(keys: readonly string[]): FixtureProbeResult {
@@ -75,11 +76,11 @@ export function buildProbeOutcome(input: {
     status = upstreamDep.failClosedStatus;
     detail = formatUpstreamBlocker(upstreamDep);
     if (stage.id === "trace_handover" && missingRpcs.length === 0 && upstreamDep.id === "oasis-trace-macro-37") {
-      detail = `${formatUpstreamBlocker(upstreamDep)} Software contracts present on Core #259; physical handover PASS not claimed.`;
+      detail = `${formatUpstreamBlocker(upstreamDep)} Software contracts present on production-certified Core #260 pin ${POINT100_CORE_PRODUCTION_VERIFIED_SHA}; physical handover PASS not claimed.`;
     }
   } else if (stage.id === "trace_handover" && missingRpcs.length > 0) {
     status = "upstream_contract_missing";
-    detail = `Core #259 trace software RPC unavailable: ${missingRpcs.join(", ")}`;
+    detail = `Production-certified Core #260 trace software RPC unavailable: ${missingRpcs.join(", ")}`;
   } else if (stage.domain === "trace" && stage.id === "trace_handover") {
     status = "physical_uat_only";
     detail = "Trace scanner/device handover requires Leap 13 physical UAT; Central scan-timeline projection is software-only.";
@@ -98,8 +99,8 @@ export function buildProbeOutcome(input: {
   } else {
     status = "implemented";
     detail = isDisposableRehearsalMode()
-      ? "Contract present on certified Core pin c89c538c; dispatch finalize blocked pending Core #260"
-      : "Contract present; full journey execution deferred to dress-rehearsal stage";
+      ? `Contract present on production-certified Core #260 pin ${POINT100_CORE_PRODUCTION_VERIFIED_SHA}; execution remains pending in this probe context`
+      : `Contract present on production-certified Core #260 pin ${POINT100_CORE_PRODUCTION_VERIFIED_SHA}; full journey execution is certified by the dress-rehearsal stage`;
   }
 
   const contractReady =
@@ -107,7 +108,7 @@ export function buildProbeOutcome(input: {
 
   const technicalReady = contractReady && stage.domain !== "trace";
 
-  // Trace #37 device recert is fail-closed, but Core #259 trace_*_v1 software contracts remain probeable.
+  // Trace #37 device recert is fail-closed, but production-certified Core #260 includes the #259 trace_*_v1 software contracts.
   const traceSoftwareReady = stage.id === "trace_handover" && contractReady;
 
   const upstreamBlocksExecution = upstream.some(
