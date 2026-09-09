@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Point100ProbeOutcome } from "../../src/lib/point100/capabilityStatus";
 import { POINT100_LIFECYCLE_STAGES } from "../../src/lib/point100/lifecycleStages";
 import { buildProbeOutcome, probeFixtureKeys, resolvedRpcForStage } from "../../src/lib/point100/probeRunner";
-import { isRpcOnCertifiedCorePin, POINT100_CORE_PENDING_DISPATCH_PR } from "../../src/lib/point100/upstreamDependencies";
+import { isRpcOnCertifiedCorePin } from "../../src/lib/point100/upstreamDependencies";
 import { CENTRAL_ADMIN_MODULE_AUTHORITY_MATRIX } from "../../src/lib/appverse/centralAdminModuleAuthorityMatrix";
 import { MACRO_DISPATCH_MANAGER_HOME, MACRO_ORDER_DISPATCH_JOURNEY } from "../../src/lib/macro-order-dispatch/macroOrderDispatchJourney";
 import { probeRpcExists } from "./support";
@@ -46,6 +46,13 @@ function stageCentralBindingsPresent(stage: typeof POINT100_LIFECYCLE_STAGES[num
   return stage.centralBindings.every((binding) => centralBindingPresent(binding));
 }
 
+function isPostgrestFunctionResolutionError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const code = String((error as { code?: unknown }).code ?? "");
+  const message = String((error as { message?: unknown }).message ?? "").toLowerCase();
+  return code === "PGRST202" || message.includes("could not find the function");
+}
+
 export function macro556DispatchRoutesPresent(): { ok: boolean; detail: string } {
   const required = [
     MACRO_DISPATCH_MANAGER_HOME,
@@ -76,7 +83,7 @@ export async function runLifecycleProbes(): Promise<Point100ProbeOutcome[]> {
       rpcResults.push({
         rpc,
         exists: probe.exists && onCertifiedPin,
-        detail: onCertifiedPin ? probe.detail : `${rpc} not on certified Core pin (pending ${POINT100_CORE_PENDING_DISPATCH_PR})`,
+        detail: onCertifiedPin ? probe.detail : `${rpc} is not bound to the certified Core pin`,
       });
     }
 
@@ -133,12 +140,34 @@ export async function executeStageProbe(
       const { data, error } = await client.rpc("get_finance_exit_facts_v1", { p_order_id: orderId });
       if (error) return { ok: false, detail: error.message };
       const row = Array.isArray(data) ? data[0] : data;
-      const open = row && typeof row === "object" ? (row as { complaint_window_open?: boolean }).complaint_window_open : null;
-      return { ok: true, detail: `complaint_window_open=${String(open)}` };
+      const facts = row && typeof row === "object"
+        ? row as {
+            complaint_window_open?: boolean | null;
+            complaint_clock_basis?: string | null;
+            complaint_deadline?: string | null;
+          }
+        : null;
+      const open = facts?.complaint_window_open ?? null;
+      const basis = facts?.complaint_clock_basis ?? null;
+      const deadline = facts?.complaint_deadline ?? null;
+      const anchored = basis === "FINAL_INVOICE_DATE" && Boolean(deadline) && typeof open === "boolean";
+      return {
+        ok: anchored,
+        detail: `complaint_clock_basis=${String(basis)} complaint_deadline=${String(deadline)} complaint_window_open=${String(open)}`,
+      };
     }
     case "security_gate": {
-      const probe = await probeRpcExists("release_b2b_dispatch_carton_at_gate_v1");
-      return { ok: probe.exists, detail: probe.detail };
+      const { data, error } = await client.rpc("release_b2b_dispatch_carton_at_gate_v1", {
+        p_carton_id: "00000000-0000-4000-8000-000000000099",
+        p_scan_evidence_id: "00000000-0000-4000-8000-000000000098",
+      });
+      if (isPostgrestFunctionResolutionError(error)) {
+        return { ok: false, detail: String((error as { message?: unknown }).message ?? error) };
+      }
+      if (error) {
+        return { ok: true, detail: `RPC signature resolved; fail-closed probe rejected as expected: ${error.message}` };
+      }
+      return { ok: true, detail: `RPC signature resolved; probe result=${JSON.stringify(data)}` };
     }
     case "trace_handover": {
       const verify = await probeRpcExists("trace_verify_handover_evidence_v1");
