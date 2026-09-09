@@ -50,29 +50,55 @@ function internalEmailFor(phoneDigits: string): string {
   return `${phoneDigits}@phone.oasis.local`;
 }
 
-async function findOrCreateAuthUserByPhone(e164: string, normalized: string): Promise<{ userId: string; email: string; isNew: boolean } | { error: string }> {
+type AuthUserRef = { userId: string; email: string };
+
+function last10(raw: string): string {
+  const d = (raw || "").replace(/\D/g, "");
+  return d.length >= 10 ? d.slice(-10) : d;
+}
+
+/** Lookup-only: never creates or mutates an auth identity. */
+async function findAuthUserByPhone(e164: string, normalized: string): Promise<AuthUserRef | null | { error: string }> {
   if (!supabaseAdmin) return { error: "service_role_unavailable" };
   const internalEmail = internalEmailFor(normalized);
-
-  // Find existing user across pages
   for (let page = 1; page <= 20; page++) {
     const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage: 500 });
-    if (error) break;
+    if (error) {
+      // Fail closed: an unreadable auth directory must never look like "no identity",
+      // which would allow a duplicate identity to be created below.
+      console.error("[msg91] auth identity lookup error:", maskSecret(error.message ?? null) ?? "unknown");
+      return { error: "auth_identity_lookup_failed" };
+    }
     const users = data?.users || [];
     if (!users.length) break;
     const match = users.find((u: any) => u.phone === e164 || u.phone === normalized || u.phone === `+${normalized}` || u.email === internalEmail);
-    if (match) {
-      let email = match.email || internalEmail;
-      if (!match.email) {
-        await supabaseAdmin.auth.admin.updateUserById(match.id, { email: internalEmail, email_confirm: true });
-        email = internalEmail;
-      }
-      return { userId: match.id, email, isNew: false };
-    }
-    if (users.length < 500) break;
+    if (match) return { userId: match.id, email: match.email || "" };
+    if (users.length < 500) return null;
   }
+  // Ceiling reached with every page full: the directory scan may be incomplete,
+  // so never report "no identity" (which would allow a duplicate identity).
+  console.error("[msg91] auth_identity_lookup_incomplete");
+  return { error: "auth_identity_lookup_incomplete" };
+}
 
-  // Create
+type EmailBindResult = { email: string } | { error: string };
+
+/** Ensure the matched auth user has the internal email required by the hash exchange. */
+async function ensureInternalEmail(userId: string, currentEmail: string, normalized: string): Promise<EmailBindResult> {
+  const internalEmail = internalEmailFor(normalized);
+  if (currentEmail) return { email: currentEmail };
+  if (!supabaseAdmin) return { error: "auth_email_bind_failed" };
+  const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, { email: internalEmail, email_confirm: true });
+  if (error) {
+    console.error("[msg91] auth_email_bind_failed:", maskSecret(error.message ?? null) ?? "unknown");
+    return { error: "auth_email_bind_failed" };
+  }
+  return { email: internalEmail };
+}
+
+async function createAuthUserForPhone(e164: string, normalized: string): Promise<AuthUserRef | { error: string }> {
+  if (!supabaseAdmin) return { error: "service_role_unavailable" };
+  const internalEmail = internalEmailFor(normalized);
   const { data: created, error: createErr } = await supabaseAdmin.auth.admin.createUser({
     phone: e164,
     phone_confirm: true,
@@ -80,41 +106,117 @@ async function findOrCreateAuthUserByPhone(e164: string, normalized: string): Pr
     email_confirm: true,
   });
   if (createErr || !created?.user) {
-    return { error: createErr?.message || "create_user_failed" };
+    console.error("[msg91] auth_user_create_failed:", maskSecret(createErr?.message ?? null) ?? "unknown");
+    return { error: "auth_user_create_failed" };
   }
-  return { userId: created.user.id, email: internalEmail, isNew: true };
+  return { userId: created.user.id, email: internalEmail };
 }
 
-async function mintMagicTokenHash(email: string): Promise<string | null> {
-  if (!supabaseAdmin) return null;
+/**
+ * Fail-closed identity collision guard. Matches public.users rows by normalized
+ * last-10 digits across phone, mobile_number and secondary_phones. More than one
+ * distinct public user id is an unresolvable collision and must never mint.
+ */
+interface PublicIdentityRow {
+  id: string;
+  phone?: string | null;
+  mobile_number?: string | null;
+  secondary_phones?: unknown;
+}
+
+const IDENTITY_PAGE_SIZE = 1000;
+const IDENTITY_SCAN_CEILING = 20000;
+
+async function findPublicIdentityMatches(normalized: string): Promise<{ ids: string[] } | { error: string }> {
+  if (!supabaseAdmin) return { error: "service_role_unavailable" };
+  const tail = last10(normalized);
+  if (tail.length < 10) return { error: "phone_invalid" };
+
+  const ids = new Set<string>();
+  let scanned = 0;
+
+  while (scanned < IDENTITY_SCAN_CEILING) {
+    const from = scanned;
+    const to = scanned + IDENTITY_PAGE_SIZE - 1;
+    const { data, error } = await supabaseAdmin
+      .from("users")
+      .select("id, phone, mobile_number, secondary_phones")
+      .order("id", { ascending: true })
+      .range(from, to);
+    if (error) {
+      console.error("[msg91] identity scan error:", maskSecret(error.message ?? null) ?? "unknown");
+      return { error: "identity_lookup_failed" };
+    }
+    const rows = (data || []) as PublicIdentityRow[];
+    for (const row of rows) {
+      const secondary = Array.isArray(row.secondary_phones) ? row.secondary_phones : [];
+      const candidates: unknown[] = [row.phone, row.mobile_number, ...secondary];
+      if (candidates.some((c) => typeof c === "string" && last10(c) === tail)) ids.add(String(row.id));
+    }
+    scanned += rows.length;
+    if (rows.length < IDENTITY_PAGE_SIZE) return { ids: [...ids] };
+  }
+
+  // Ceiling reached on a full page: the scan may be incomplete, so fail closed
+  // rather than reporting a possibly partial collision result.
+  console.error("[msg91] identity_lookup_incomplete", JSON.stringify({ scanned }));
+  return { error: "identity_lookup_incomplete" };
+}
+
+type MintResult = { tokenHash: string } | { error: string };
+
+/**
+ * The hash is consumed programmatically by supabase.auth.verifyOtp on the client,
+ * so no redirect target is requested here and the flow must not depend on any
+ * site allow-list. Mint failures are propagated explicitly; a null hash is never
+ * returned as a success.
+ */
+async function mintMagicTokenHash(email: string): Promise<MintResult> {
+  if (!supabaseAdmin) return { error: "session_token_mint_failed" };
   try {
     const { data, error } = await supabaseAdmin.auth.admin.generateLink({
       type: "magiclink",
       email,
-      options: { redirectTo: "https://b2b.oasisbaklawa.com/welcome" },
     });
-    if (error || !data) return null;
+    if (error || !data) {
+      console.error("[msg91] token mint provider error:", maskSecret(error?.message ?? null) ?? "unknown");
+      return { error: "session_token_mint_failed" };
+    }
     const props: any = data.properties || {};
-    if (props.hashed_token) return props.hashed_token as string;
+    if (typeof props.hashed_token === "string" && props.hashed_token) {
+      return { tokenHash: props.hashed_token as string };
+    }
     const link: string = props.action_link || "";
     const m = link.match(/token_hash=([^&]+)/) || link.match(/[?#&]token=([^&]+)/);
-    return m ? decodeURIComponent(m[1]) : null;
+    if (m) return { tokenHash: decodeURIComponent(m[1]) };
+    return { error: "session_token_mint_failed" };
   } catch (e) {
-    console.error("[msg91] generateLink failed:", e);
-    return null;
+    console.error("[msg91] token mint threw:", e instanceof Error ? e.name : "unknown");
+    return { error: "session_token_mint_failed" };
   }
 }
 
-async function ensurePendingProfile(userId: string, phoneE164: string): Promise<void> {
-  if (!supabaseAdmin) return;
+type PendingProfileResult = { ok: true } | { error: string };
+
+/**
+ * Governed PENDING row creation. Never soft-fails: the caller must not mint a
+ * session for a phone identity without a confirmed public.users PENDING row.
+ */
+async function ensurePendingProfile(userId: string, phoneE164: string): Promise<PendingProfileResult> {
+  if (!supabaseAdmin) return { error: "pending_profile_create_failed" };
   try {
-    // Insert a PENDING users row if none exists. Approval flow handles the rest.
-    await supabaseAdmin.from("users").upsert(
+    const { error } = await supabaseAdmin.from("users").upsert(
       { id: userId, role: "PENDING", phone: phoneE164 } as any,
       { onConflict: "id", ignoreDuplicates: true } as any,
     );
+    if (error) {
+      console.error("[msg91] pending_profile_create_failed:", maskSecret(error.message ?? null) ?? "unknown");
+      return { error: "pending_profile_create_failed" };
+    }
+    return { ok: true };
   } catch (e) {
-    console.warn("[msg91] ensurePendingProfile soft-failed:", e);
+    console.error("[msg91] pending_profile_create_failed threw:", e instanceof Error ? e.name : "unknown");
+    return { error: "pending_profile_create_failed" };
   }
 }
 
@@ -151,14 +253,18 @@ function maskSecret(value?: string | null): string | null {
   return `${value.slice(0, 4)}***${value.slice(-4)}`;
 }
 
-function extractVerifiedPhone(raw: any, requestPhone?: string | null): string | null {
+/**
+ * Provider authority: the verified phone used for identity/session minting comes
+ * ONLY from the server-side verifyAccessToken response. Client-supplied phone is
+ * never accepted here (it may only corroborate, never establish, identity).
+ */
+function extractProviderVerifiedPhone(raw: any): string | null {
   // MSG91 verifyAccessToken commonly returns: { type: "success", message: "919891162212" }
   // where `message` is the verified phone as a STRING. Handle that first, then fall back
   // to nested object shapes from older/alternate widget versions.
   const messageAsString = typeof raw?.message === "string" ? raw.message : null;
   const dataAsString = typeof raw?.data === "string" ? raw.data : null;
   return firstString(
-    requestPhone,
     messageAsString,
     dataAsString,
     raw?.message?.mobile,
@@ -316,58 +422,98 @@ serve(async (req) => {
         );
       }
 
-      // ── Mint a Supabase session for the verified phone ──
-      // Phone may come from request body OR from MSG91's verifyAccessToken response.
-      const rawPhone = extractVerifiedPhone(result.raw, body.phone ?? null) || "";
+      const jsonHeaders = { ...corsHeaders, "Content-Type": "application/json" };
+      const fail = (error: string, status: number) =>
+        new Response(JSON.stringify({ ok: false, error }), { status, headers: jsonHeaders });
+
+      // ── Provider phone authority ──
+      // Only the MSG91 verifyAccessToken response may establish the verified phone.
+      const rawPhone = extractProviderVerifiedPhone(result.raw) || "";
       const normalized = to91(String(rawPhone));
       if (!normalized || normalized.length < 10) {
-        // Verification succeeded but no phone available — return ok without session.
-        console.log("[msg91-otp] verify_widget response", JSON.stringify({
-          ok: true,
-          type: "success",
-          session: null,
-          reason: "phone_missing",
-          raw: result.raw,
-        }));
-        return new Response(
-          JSON.stringify({ ok: true, type: "success", session: null, reason: "phone_missing", raw: result.raw }),
-          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-        );
+        console.error("[msg91-otp] verified_phone_missing");
+        return fail("verified_phone_missing", 401);
+      }
+      // A client-supplied phone may only corroborate the provider phone.
+      if (body.phone) {
+        const claimed = to91(String(body.phone));
+        if (last10(claimed) !== last10(normalized)) {
+          console.error("[msg91-otp] phone_verification_mismatch");
+          return fail("phone_verification_mismatch", 409);
+        }
       }
       const e164 = `+${normalized}`;
 
-      const upsertRes = await findOrCreateAuthUserByPhone(e164, normalized);
-      if ("error" in upsertRes) {
-        return new Response(
-          JSON.stringify({ ok: true, type: "success", session: null, error: upsertRes.error }),
-          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-        );
+      // ── Fail-closed identity collision guard (runs before any identity write) ──
+      const publicMatches = await findPublicIdentityMatches(normalized);
+      if ("error" in publicMatches) {
+        console.error("[msg91-otp] identity lookup failed:", publicMatches.error);
+        return fail(publicMatches.error, 500);
       }
-      if (upsertRes.isNew) {
-        await ensurePendingProfile(upsertRes.userId, e164);
+      if (publicMatches.ids.length > 1) {
+        console.error("[msg91-otp] duplicate_phone_identity", JSON.stringify({ matches: publicMatches.ids.length }));
+        return fail("duplicate_phone_identity", 409);
       }
 
-      const tokenHash = await mintMagicTokenHash(upsertRes.email);
+      const existingAuth = await findAuthUserByPhone(e164, normalized);
+      if (existingAuth && "error" in existingAuth) return fail(existingAuth.error, 500);
+
+      let authRef: AuthUserRef;
+      let isNew = false;
+
+      if (publicMatches.ids.length === 1) {
+        const publicId = publicMatches.ids[0];
+        if (!existingAuth || existingAuth.userId !== publicId) {
+          // Never mint a second identity for an already-claimed phone.
+          console.error("[msg91-otp] phone_already_linked_to_other_identity");
+          return fail("phone_already_linked_to_other_identity", 409);
+        }
+        const bound = await ensureInternalEmail(existingAuth.userId, existingAuth.email, normalized);
+        if ("error" in bound) return fail(bound.error, 500);
+        authRef = { userId: existingAuth.userId, email: bound.email };
+      } else if (existingAuth) {
+        const bound = await ensureInternalEmail(existingAuth.userId, existingAuth.email, normalized);
+        if ("error" in bound) return fail(bound.error, 500);
+        authRef = { userId: existingAuth.userId, email: bound.email };
+        // Orphaned auth identity with zero public rows: repair via governed
+        // PENDING upsert before minting. No merge, no delete.
+        const repaired = await ensurePendingProfile(authRef.userId, e164);
+        if ("error" in repaired) return fail(repaired.error, 500);
+      } else {
+        const created = await createAuthUserForPhone(e164, normalized);
+        if ("error" in created) return fail(created.error, 500);
+        authRef = created;
+        isNew = true;
+        const pending = await ensurePendingProfile(authRef.userId, e164);
+        if ("error" in pending) return fail(pending.error, 500);
+      }
+
+      const mint = await mintMagicTokenHash(authRef.email);
+      if ("error" in mint) {
+        console.error("[msg91-otp] verify_widget mint failure", JSON.stringify({ user_id: authRef.userId, error: mint.error }));
+        return fail(mint.error, 502);
+      }
+
       console.log("[msg91-otp] verify_widget response", JSON.stringify({
         ok: true,
         type: "success",
-        user_id: upsertRes.userId,
-        email: upsertRes.email,
+        user_id: authRef.userId,
+        email: authRef.email,
         phone: e164,
-        is_new: upsertRes.isNew,
-        token_hash: maskSecret(tokenHash),
+        is_new: isNew,
+        token_hash: maskSecret(mint.tokenHash),
       }));
       return new Response(
         JSON.stringify({
           ok: true,
           type: "success",
-          user_id: upsertRes.userId,
-          email: upsertRes.email,
+          user_id: authRef.userId,
+          email: authRef.email,
           phone: e164,
-          is_new: upsertRes.isNew,
-          token_hash: tokenHash,
+          is_new: isNew,
+          token_hash: mint.tokenHash,
         }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        { status: 200, headers: jsonHeaders },
       );
     }
 
