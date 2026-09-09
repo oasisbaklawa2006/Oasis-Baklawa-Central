@@ -71,7 +71,7 @@ async function findAuthUserByPhone(e164: string, normalized: string): Promise<Au
     }
     const users = data?.users || [];
     if (!users.length) break;
-    const match = users.find((u: any) => u.phone === e164 || u.phone === normalized || u.phone === `+${normalized}` || u.email === internalEmail);
+    const match = users.find((u) => u.phone === e164 || u.phone === normalized || u.phone === `+${normalized}` || u.email === internalEmail);
     if (match) return { userId: match.id, email: match.email || "" };
     if (users.length < 500) return null;
   }
@@ -182,11 +182,11 @@ async function mintMagicTokenHash(email: string): Promise<MintResult> {
       console.error("[msg91] token mint provider error:", maskSecret(error?.message ?? null) ?? "unknown");
       return { error: "session_token_mint_failed" };
     }
-    const props: any = data.properties || {};
+    const props = data.properties || {};
     if (typeof props.hashed_token === "string" && props.hashed_token) {
-      return { tokenHash: props.hashed_token as string };
+      return { tokenHash: props.hashed_token };
     }
-    const link: string = props.action_link || "";
+    const link = typeof props.action_link === "string" ? props.action_link : "";
     const m = link.match(/token_hash=([^&]+)/) || link.match(/[?#&]token=([^&]+)/);
     if (m) return { tokenHash: decodeURIComponent(m[1]) };
     return { error: "session_token_mint_failed" };
@@ -206,8 +206,8 @@ async function ensurePendingProfile(userId: string, phoneE164: string): Promise<
   if (!supabaseAdmin) return { error: "pending_profile_create_failed" };
   try {
     const { error } = await supabaseAdmin.from("users").upsert(
-      { id: userId, role: "PENDING", phone: phoneE164 } as any,
-      { onConflict: "id", ignoreDuplicates: true } as any,
+      { id: userId, role: "PENDING", phone: phoneE164 },
+      { onConflict: "id", ignoreDuplicates: true },
     );
     if (error) {
       console.error("[msg91] pending_profile_create_failed:", maskSecret(error.message ?? null) ?? "unknown");
@@ -253,32 +253,44 @@ function maskSecret(value?: string | null): string | null {
   return `${value.slice(0, 4)}***${value.slice(-4)}`;
 }
 
+type UnknownRecord = Record<string, unknown>;
+
+function asRecord(value: unknown): UnknownRecord | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as UnknownRecord;
+}
+
 /**
  * Provider authority: the verified phone used for identity/session minting comes
  * ONLY from the server-side verifyAccessToken response. Client-supplied phone is
  * never accepted here (it may only corroborate, never establish, identity).
  */
-function extractProviderVerifiedPhone(raw: any): string | null {
+function extractProviderVerifiedPhone(raw: UnknownRecord): string | null {
   // MSG91 verifyAccessToken commonly returns: { type: "success", message: "919891162212" }
   // where `message` is the verified phone as a STRING. Handle that first, then fall back
   // to nested object shapes from older/alternate widget versions.
-  const messageAsString = typeof raw?.message === "string" ? raw.message : null;
-  const dataAsString = typeof raw?.data === "string" ? raw.data : null;
+  const message = asRecord(raw.message);
+  const data = asRecord(raw.data);
+  const dataUser = asRecord(data?.user);
+  const messageAsString = typeof raw.message === "string" ? raw.message : null;
+  const dataAsString = typeof raw.data === "string" ? raw.data : null;
   return firstString(
     messageAsString,
     dataAsString,
-    raw?.message?.mobile,
-    raw?.message?.phone,
-    raw?.message?.identifier,
-    raw?.message?.number,
-    raw?.data?.mobile,
-    raw?.data?.phone,
-    raw?.data?.identifier,
-    raw?.data?.number,
-    raw?.mobile,
-    raw?.phone,
-    raw?.identifier,
-    raw?.number,
+    message?.mobile,
+    message?.phone,
+    message?.identifier,
+    message?.number,
+    data?.mobile,
+    data?.phone,
+    data?.identifier,
+    data?.number,
+    raw.mobile,
+    raw.phone,
+    raw.identifier,
+    raw.number,
+    dataUser?.mobile,
+    dataUser?.phone,
   );
 }
 
@@ -287,14 +299,14 @@ function extractProviderVerifiedPhone(raw: any): string | null {
 //   Headers: Content-Type: application/json, Accept: application/json
 //   Body:    { authkey, "access-token" }
 //   Success: { type: "success", message: "...", ... }
-async function verifyAccessToken(accessToken: string): Promise<{ ok: boolean; raw: any }> {
+async function verifyAccessToken(accessToken: string): Promise<{ ok: boolean; raw: UnknownRecord }> {
   try {
     const res = await fetch("https://control.msg91.com/api/v5/widget/verifyAccessToken", {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify({ authkey: AUTH_KEY, "access-token": accessToken }),
     });
-    const raw = await res.json().catch(() => ({}));
+    const raw = (await res.json().catch(() => ({}))) as UnknownRecord;
     console.log("[msg91-otp] verifyAccessToken response", JSON.stringify({
       ok: res.ok,
       status: res.status,
@@ -302,7 +314,7 @@ async function verifyAccessToken(accessToken: string): Promise<{ ok: boolean; ra
       accessToken: maskSecret(accessToken),
       raw,
     }));
-    const ok = res.ok && (raw?.type === "success");
+    const ok = res.ok && (raw.type === "success");
     return { ok, raw };
   } catch (e) {
     console.error("[msg91] verifyAccessToken failed:", e);
@@ -417,7 +429,7 @@ serve(async (req) => {
       const result = await verifyAccessToken(body.accessToken);
       if (!result.ok) {
         return new Response(
-          JSON.stringify({ ok: false, type: result.raw?.type ?? null, raw: result.raw }),
+          JSON.stringify({ ok: false, type: result.raw.type ?? null, raw: result.raw }),
           { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }
