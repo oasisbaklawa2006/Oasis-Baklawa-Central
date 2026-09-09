@@ -32,13 +32,19 @@ const CENTRAL_CLIENT_BINDINGS = new Set([
   "productionJobsDatabase",
 ]);
 
+/** Explicit dotted member bindings exercised by the Point100 lifecycle. */
+const CENTRAL_DOTTED_BINDINGS = new Set([
+  "customerAppClient.submitOrder",
+  "customerAppClient.complaint_window_status",
+]);
+
 function centralBindingPresent(binding: string): boolean {
   if (binding.startsWith("/")) {
     if (CENTRAL_ROUTE_BINDINGS.has(binding)) return true;
     // Wildcard census entries such as /buyer/* cover nested buyer routes.
     return CENTRAL_ROUTE_BINDINGS.has(`${binding.split("/").slice(0, 2).join("/")}/*`);
   }
-  if (binding.includes(".")) return true;
+  if (binding.includes(".")) return CENTRAL_DOTTED_BINDINGS.has(binding);
   return CENTRAL_CLIENT_BINDINGS.has(binding);
 }
 
@@ -132,7 +138,8 @@ export async function executeStageProbe(
       if (!orderId) return { ok: false, detail: "FACTORY_CERT_POINT37_ORDER_ID missing" };
       const { data, error } = await client.from("orders").select("status").eq("id", orderId).maybeSingle();
       if (error) return { ok: false, detail: error.message };
-      return { ok: true, detail: `point37 status=${data?.status ?? "missing"}` };
+      if (!data) return { ok: false, detail: "Point37 order fixture not found" };
+      return { ok: true, detail: `point37 status=${data.status}` };
     }
     case "complaint_window": {
       const orderId = process.env.FACTORY_CERT_POINT38_ORDER_ID?.trim();
@@ -175,10 +182,10 @@ export async function executeStageProbe(
       const ok = verify.exists && sign.exists;
       return {
         ok,
-        detail: `trace_verify=${verify.exists} trace_sign=${sign.exists}; Core#259 software contract only — Trace#37 physical recert open`,
+        detail: `trace_verify=${verify.exists} trace_sign=${sign.exists}; Core#260 production-certified software contract — Trace#37 software merged; physical device evidence remains UAT`,
       };
     }
     default:
-      return { ok: true, detail: `stage ${stageId} contract probe only (${correlationId})` };
+      return { ok: false, detail: `unsupported Point100 stage probe: ${stageId} (${correlationId})` };
   }
 }
