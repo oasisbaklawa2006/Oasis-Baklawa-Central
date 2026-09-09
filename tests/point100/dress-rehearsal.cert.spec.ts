@@ -30,9 +30,9 @@ import { executeStageProbe, runLifecycleProbes, macro556DispatchRoutesPresent } 
  * POINT100 — DRESS REHEARSAL
  *
  * Deterministic synthetic lifecycle orchestration across Buyer intent → finance
- * → production → factory → dispatch tail → complaint window. Composes factory
- * certification fixtures (golden order, Point37, Point38) with fail-closed
- * ledger reporting. Physical scanner/gate PASS is never claimed.
+ * → production → factory → dispatch tail → complaint window. Every software PASS
+ * is derived from an executed assertion or observed canonical fact. Physical
+ * scanner/gate/provider PASS is never claimed here.
  */
 
 const RUN_SUFFIX = `${Date.now()}-${randomUUID().slice(0, 8)}`;
@@ -43,7 +43,9 @@ const upstreamBlockers: string[] = [];
 test.describe.configure({ mode: "serial" });
 
 test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
-  test.skip(!hasPoint100HarnessEnv(), "CERTIFICATION_ENV_REQUIRED: Point100 harness backend/target missing");
+  if (!hasPoint100HarnessEnv()) {
+    throw new Error("CERTIFICATION_ENV_REQUIRED: Point100 harness backend/target missing");
+  }
 
   const admin = credentialsForRoleOrSkip("ADMIN");
   const financeHead = credentialsForRoleOrSkip("FINANCE_HEAD");
@@ -56,19 +58,19 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
 
   await page.setViewportSize({ width: 1440, height: 900 });
 
-  // ---- Capability matrix (embedded) ----
   await test.step("matrix: probe all lifecycle stages", async () => {
     const probes = await runLifecycleProbes();
     writeCapabilityMatrix(probes);
-    const blockers = probes.filter((p) => p.status === "upstream_contract_missing" || p.status === "physical_uat_only");
-    upstreamBlockers.push(...blockers.map((b) => `${b.stageId}: ${b.detail}`));
-    for (const dep of POINT100_UPSTREAM_DEPENDENCIES.filter((d) => d.state !== "merged")) {
+    const blockers = probes.filter((probe) => probe.status === "upstream_contract_missing" || probe.status === "physical_uat_only");
+    upstreamBlockers.push(...blockers.map((blocker) => `${blocker.stageId}: ${blocker.detail}`));
+    for (const dep of POINT100_UPSTREAM_DEPENDENCIES.filter((candidate) => candidate.state !== "merged")) {
       upstreamBlockers.push(formatUpstreamBlocker(dep));
     }
-    recordStage(stages, "capability_matrix", null, null, null, "PASS", `probes=${probes.length} blockers=${blockers.length}`);
+    const matrixComplete = probes.length === 16 && probes.every((probe) => Boolean(probe.status));
+    recordStage(stages, "capability_matrix", null, null, null, matrixComplete ? "PASS" : "FAIL", `probes=${probes.length} blockers=${blockers.length}`);
+    expect(matrixComplete, "Point100 capability matrix must contain all 16 classified stages").toBe(true);
   });
 
-  // ---- 1–2: Buyer intent / SO fixture ----
   await test.step("buyer: golden order checkout fixture", async () => {
     await loginToFactoryCertificationTarget(page, admin);
     const { client } = await createAuthenticatedCertificationClient(page);
@@ -80,7 +82,6 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
     expect(so.ok, so.detail).toBe(true);
   });
 
-  // ---- 3–4: Finance advance + verification on Point37 fixture ----
   await test.step("finance: advance payment proof + verification", async () => {
     await switchRole(page, financeHead);
     const steppedUp = await createSteppedUpCertificationClient(page, "FINANCE_HEAD");
@@ -90,16 +91,19 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
       .eq("order_id", point37OrderId)
       .in("status", ["READY_FOR_ISSUE", "ISSUED"])
       .limit(1);
-    if (bindingError) {
-      recordStage(stages, "advance_payable_payment", "record_order_payment_proof_v1", "FINANCE_HEAD", null, "BLOCKED", bindingError.message);
-      upstreamBlockers.push(`advance_payable_payment: ${bindingError.message}`);
+    if (bindingError || !bindingRows?.length) {
+      const detail = bindingError?.message ?? "PI binding required but no governed row was returned";
+      recordStage(stages, "advance_payable_payment", "record_order_payment_proof_v1", "FINANCE_HEAD", null, "BLOCKED", detail);
+      upstreamBlockers.push(`advance_payable_payment: ${detail}`);
       return;
     }
-    expect(bindingRows?.length ?? 0, "PI binding required").toBeGreaterThan(0);
-    const piId = String(bindingRows![0].id);
-    const commercialVersionId = String(bindingRows![0].commercial_version_id);
+    const piId = String(bindingRows[0].id);
+    const commercialVersionId = String(bindingRows[0].commercial_version_id);
     const actorId = (await steppedUp.auth.getUser()).data.user?.id;
-    if (!actorId) throw new Error("FINANCE_HEAD actor id missing");
+    if (!actorId) {
+      recordStage(stages, "finance_verification_reconciliation", "get_finance_operations_clearance_facts_v1", "FINANCE_HEAD", null, "BLOCKED", "FINANCE_HEAD actor id missing");
+      return;
+    }
 
     const { data: facts, error: factsError } = await steppedUp.rpc("get_finance_operations_clearance_facts_v1", {
       p_order_id: point37OrderId,
@@ -110,8 +114,15 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
       recordStage(stages, "finance_verification_reconciliation", "get_finance_operations_clearance_facts_v1", "FINANCE_HEAD", null, "FAIL", factsError.message);
       throw factsError;
     }
-    const factsRow = (Array.isArray(facts) ? facts[0] : facts) as { eligible_for_operations_clearance?: boolean; required_advance?: number };
-    if (factsRow.eligible_for_operations_clearance) {
+    const rawFactsRow = Array.isArray(facts) ? facts[0] : facts;
+    if (!rawFactsRow || typeof rawFactsRow !== "object") {
+      const detail = "get_finance_operations_clearance_facts_v1 returned no governed row";
+      recordStage(stages, "finance_verification_reconciliation", "get_finance_operations_clearance_facts_v1", "FINANCE_HEAD", null, "BLOCKED", detail);
+      upstreamBlockers.push(`finance_verification_reconciliation: ${detail}`);
+      return;
+    }
+    const factsRow = rawFactsRow as { eligible_for_operations_clearance?: boolean; required_advance?: number };
+    if (factsRow.eligible_for_operations_clearance === true) {
       recordStage(stages, "advance_payable_payment", "record_order_payment_proof_v1", "FINANCE_HEAD", null, "PASS", "fixture already eligible for operations clearance");
       recordStage(stages, "finance_verification_reconciliation", "verify_order_payment_v1", "FINANCE_HEAD", null, "PASS", "fixture advance already verified");
       return;
@@ -128,13 +139,23 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
       scope: "dress-rehearsal",
     });
     const { data: proofData, error: proofError } = await steppedUp.rpc("record_order_payment_proof_v1", proofPayload);
-    if (proofError) {
-      recordStage(stages, "advance_payable_payment", "record_order_payment_proof_v1", "FINANCE_HEAD", proofPayload.p_correlation_id, "FAIL", proofError.message);
-    } else {
-      recordStage(stages, "advance_payable_payment", "record_order_payment_proof_v1", "FINANCE_HEAD", proofPayload.p_correlation_id, "PASS", "advance proof recorded");
+    recordStage(
+      stages,
+      "advance_payable_payment",
+      "record_order_payment_proof_v1",
+      "FINANCE_HEAD",
+      proofPayload.p_correlation_id,
+      proofError ? "FAIL" : "PASS",
+      proofError?.message ?? "advance proof recorded",
+    );
+    expect(proofError, proofError?.message).toBeNull();
+    const paymentRow = Array.isArray(proofData) ? proofData[0] : proofData;
+    const paymentId = String((paymentRow as { payment_id?: string } | null)?.payment_id ?? "");
+    if (!paymentId) {
+      recordStage(stages, "finance_verification_reconciliation", "verify_order_payment_v1", "FINANCE_HEAD", null, "BLOCKED", "payment proof returned no payment_id");
+      return;
     }
 
-    const paymentId = String((Array.isArray(proofData) ? proofData[0] : proofData as { payment_id?: string })?.payment_id ?? "");
     const verifyIdentity = `p100-${RUN_SUFFIX}-verify`;
     const { error: verifyError } = await steppedUp.rpc("verify_order_payment_v1", {
       p_payment_id: paymentId,
@@ -146,16 +167,7 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
       p_idempotency_key: `central:pf6a:verify:${verifyIdentity}`,
       p_actor_id: actorId,
     });
-    recordStage(
-      stages,
-      "finance_verification_reconciliation",
-      "verify_order_payment_v1",
-      "FINANCE_HEAD",
-      verifyIdentity,
-      verifyError ? "FAIL" : "PASS",
-      verifyError?.message ?? "advance verified",
-    );
-    expect(proofError, proofError?.message).toBeNull();
+    recordStage(stages, "finance_verification_reconciliation", "verify_order_payment_v1", "FINANCE_HEAD", verifyIdentity, verifyError ? "FAIL" : "PASS", verifyError?.message ?? "advance verified");
     expect(verifyError, verifyError?.message).toBeNull();
 
     const { data: refreshedFacts, error: refreshedFactsError } = await steppedUp.rpc("get_finance_operations_clearance_facts_v1", {
@@ -164,10 +176,12 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
       p_commercial_version_id: commercialVersionId,
     });
     if (refreshedFactsError) throw refreshedFactsError;
-    const refreshedRow = (Array.isArray(refreshedFacts) ? refreshedFacts[0] : refreshedFacts) as {
-      latest_clearance_decision?: string | null;
-      eligible_for_operations_clearance?: boolean;
-    };
+    const rawRefreshedRow = Array.isArray(refreshedFacts) ? refreshedFacts[0] : refreshedFacts;
+    if (!rawRefreshedRow || typeof rawRefreshedRow !== "object") {
+      recordStage(stages, "finance_verification_reconciliation", "get_finance_operations_clearance_facts_v1", "FINANCE_HEAD", null, "BLOCKED", "refreshed finance facts returned no governed row");
+      return;
+    }
+    const refreshedRow = rawRefreshedRow as { latest_clearance_decision?: string | null; eligible_for_operations_clearance?: boolean };
     if (refreshedRow.latest_clearance_decision !== "GRANTED") {
       const clearanceIdentity = `p100-${RUN_SUFFIX}-clearance`;
       const { error: decideError } = await steppedUp.rpc("decide_finance_operations_clearance_v1", {
@@ -187,31 +201,19 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
     }
   });
 
-  // ---- 5: Production release ----
   await test.step("production: release_order_to_in_production_v1", async () => {
     await switchRole(page, admin);
     const { client } = await createAuthenticatedCertificationClient(page);
     const releaseCorrelation = `p100-${RUN_SUFFIX}-release`;
-    const { data, error } = await client.rpc("release_order_to_in_production_v1", {
-      p_order_id: point37OrderId,
-    });
+    const { data, error } = await client.rpc("release_order_to_in_production_v1", { p_order_id: point37OrderId });
     const ok = !error && (data as { ok?: boolean } | null)?.ok !== false;
-    recordStage(
-      stages,
-      "production_release",
-      "release_order_to_in_production_v1",
-      "ADMIN",
-      releaseCorrelation,
-      ok ? "PASS" : "FAIL",
-      error?.message ?? `status transition ok=${String((data as { ok?: boolean })?.ok)}`,
-    );
+    recordStage(stages, "production_release", "release_order_to_in_production_v1", "ADMIN", releaseCorrelation, ok ? "PASS" : "FAIL", error?.message ?? `status transition ok=${String((data as { ok?: boolean } | null)?.ok)}`);
     expect(error, error?.message).toBeNull();
-
-    const { data: orderRow } = await client.from("orders").select("status").eq("id", point37OrderId).maybeSingle();
-    expect(String(orderRow?.status)).toMatch(/in_production|confirmed/);
+    const { data: orderRow, error: orderError } = await client.from("orders").select("status").eq("id", point37OrderId).maybeSingle();
+    expect(orderError, orderError?.message).toBeNull();
+    expect(String(orderRow?.status), "production release must leave Point37 in_production").toBe("in_production");
   });
 
-  // ---- 6–8: Factory chain entry + certified Core inventory/factory RPC probes ----
   await test.step("factory: assembly job bootstrap on golden order", async () => {
     const hodAssembly = credentialsForRoleOrSkip("HOD_ASSEMBLY");
     await switchRole(page, hodAssembly);
@@ -223,19 +225,16 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
       p_output_product_id: "20000000-0000-4000-8000-000000000101",
       p_output_sku: "CERT-ARABIC-001",
       p_planned_qty: 2,
-      p_components: [
-        {
-          product_id: "20000000-0000-4000-8000-000000000101",
-          sku: "CERT-ARABIC-001",
-          source_store_code: "FINISHED_GOODS",
-          required_qty: 2,
-        },
-      ],
+      p_components: [{
+        product_id: "20000000-0000-4000-8000-000000000101",
+        sku: "CERT-ARABIC-001",
+        source_store_code: "FINISHED_GOODS",
+        required_qty: 2,
+      }],
       p_correlation_id: correlationId,
     });
-    recordStage(stages, "inventory_lot_allocation", "create_assembly_job", "HOD_ASSEMBLY", correlationId, error ? "FAIL" : "PASS", error?.message ?? `job_id=${(data as { id?: string })?.id}; production_core_sha=da7506ad; migration_run=34271047926`);
-    recordStage(stages, "production_qc", null, "HOD_ASSEMBLY", correlationId, error ? "FAIL" : "PASS", "assembly job created — QC stages delegated to FACT-E2E golden order cert");
-    recordStage(stages, "packing_cartons_dpl", null, "HOD_ASSEMBLY", correlationId, error ? "FAIL" : "PASS", "packing/DPL chain covered by factory-operations-golden-order.cert.spec.ts");
+    recordStage(stages, "inventory_lot_allocation", "create_assembly_job", "HOD_ASSEMBLY", correlationId, error ? "FAIL" : "PASS", error?.message ?? `job_id=${String((data as { id?: string } | null)?.id)}; production_core_sha=da7506ad; migration_run=34271047926`);
+    recordStage(stages, "production_qc", null, "HOD_ASSEMBLY", correlationId, error ? "FAIL" : "PASS", error?.message ?? "assembly job created; QC contract is separately probed below");
     expect(error, error?.message).toBeNull();
   });
 
@@ -243,15 +242,7 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
     const putawayProbe = await probeRpcExists("allocate_b2b_inventory_putaway");
     const lotExceptionProbe = await probeRpcExists("record_inventory_lot_exception");
     const ok = putawayProbe.exists && lotExceptionProbe.exists;
-    recordStage(
-      stages,
-      "inventory_lot_allocation",
-      "record_inventory_lot_exception",
-      "STORE_READY_GOODS",
-      `p100-${RUN_SUFFIX}-lot-rpc`,
-      ok ? "PASS" : "FAIL",
-      `allocate_b2b_inventory_putaway=${putawayProbe.exists}; record_inventory_lot_exception=${lotExceptionProbe.exists}; core_sha=da7506ad; migration_run=34271047926`,
-    );
+    recordStage(stages, "inventory_lot_allocation", "record_inventory_lot_exception", "STORE_READY_GOODS", `p100-${RUN_SUFFIX}-lot-rpc`, ok ? "PASS" : "FAIL", `allocate_b2b_inventory_putaway=${putawayProbe.exists}; record_inventory_lot_exception=${lotExceptionProbe.exists}; core_sha=da7506ad; migration_run=34271047926`);
     expect(ok, `${putawayProbe.detail}; ${lotExceptionProbe.detail}`).toBe(true);
   });
 
@@ -259,40 +250,50 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
     const acceptProbe = await probeRpcExists("accept_production_job");
     const outputProbe = await probeRpcExists("record_production_output");
     const ok = acceptProbe.exists && outputProbe.exists;
-    recordStage(
-      stages,
-      "production_qc",
-      "accept_production_job",
-      "PROD_ARABIC_SWEETS",
-      `p100-${RUN_SUFFIX}-factory-rpc`,
-      ok ? "PASS" : "FAIL",
-      `accept_production_job=${acceptProbe.exists}; record_production_output=${outputProbe.exists}; core_sha=da7506ad; migration_run=34271047926`,
-    );
+    recordStage(stages, "production_qc", "accept_production_job", "PROD_ARABIC_SWEETS", `p100-${RUN_SUFFIX}-factory-rpc`, ok ? "PASS" : "FAIL", `accept_production_job=${acceptProbe.exists}; record_production_output=${outputProbe.exists}; core_sha=da7506ad; migration_run=34271047926`);
     expect(ok, `${acceptProbe.detail}; ${outputProbe.detail}`).toBe(true);
   });
 
-  // ---- 9–11: Point38 golden pipeline tail + #556 dispatch bindings ----
   await test.step("macro-556: Central dispatch workflow route census", async () => {
     const routeCensus = macro556DispatchRoutesPresent();
-    recordStage(
-      stages,
-      "packing_cartons_dpl",
-      null,
-      "DISPATCH_MANAGER",
-      `p100-${RUN_SUFFIX}-routes`,
-      routeCensus.ok ? "PASS" : "FAIL",
-      routeCensus.detail,
-    );
+    recordStage(stages, "packing_cartons_dpl", null, "DISPATCH_MANAGER", `p100-${RUN_SUFFIX}-routes`, routeCensus.ok ? "PASS" : "FAIL", routeCensus.detail);
     expect(routeCensus.ok, routeCensus.detail).toBe(true);
   });
 
-  await test.step("finance/dispatch: Point38 golden chain state", async () => {
+  await test.step("finance/dispatch: Point38 canonical finance-exit and dispatch state", async () => {
     await switchRole(page, dispatchManager);
     const { client } = await createAuthenticatedCertificationClient(page);
     const state = await loadGoldenChainOrderState(client, point38OrderId);
-    expect(state, "Point38 golden chain state must load").toBeTruthy();
-    recordStage(stages, "final_invoice_balance", "get_finance_exit_facts_v1", "DISPATCH_MANAGER", null, "PASS", `stage=${state!.stage} status=${state!.orderStatus}`);
-    recordStage(stages, "finance_dispatch_clearance", "decide_finance_dispatch_clearance_v1", "DISPATCH_MANAGER", null, "PASS", `blockers=${state!.blockers.length}`);
+    if (!state) {
+      recordStage(stages, "final_invoice_balance", "get_finance_exit_facts_v1", "DISPATCH_MANAGER", null, "BLOCKED", "Point38 golden chain state missing");
+      recordStage(stages, "finance_dispatch_clearance", "get_finance_exit_facts_v1", "DISPATCH_MANAGER", null, "BLOCKED", "Point38 golden chain state missing");
+      return;
+    }
+
+    const exitFactsResult = await client.rpc("get_finance_exit_facts_v1", { p_order_id: point38OrderId });
+    if (exitFactsResult.error) {
+      recordStage(stages, "final_invoice_balance", "get_finance_exit_facts_v1", "DISPATCH_MANAGER", null, "BLOCKED", exitFactsResult.error.message);
+      recordStage(stages, "finance_dispatch_clearance", "get_finance_exit_facts_v1", "DISPATCH_MANAGER", null, "BLOCKED", exitFactsResult.error.message);
+      return;
+    }
+    const rawExitFacts = Array.isArray(exitFactsResult.data) ? exitFactsResult.data[0] : exitFactsResult.data;
+    if (!rawExitFacts || typeof rawExitFacts !== "object") {
+      recordStage(stages, "final_invoice_balance", "get_finance_exit_facts_v1", "DISPATCH_MANAGER", null, "BLOCKED", "Point38 finance-exit facts returned no governed row");
+      recordStage(stages, "finance_dispatch_clearance", "get_finance_exit_facts_v1", "DISPATCH_MANAGER", null, "BLOCKED", "Point38 finance-exit facts returned no governed row");
+      return;
+    }
+    const exitFacts = rawExitFacts as {
+      final_invoice_id?: string | null;
+      dispatch_cleared?: boolean;
+      dispatch_clearance_event_id?: string | null;
+      dispatch_proof_id?: string | null;
+    };
+    const finalInvoiceReady = Boolean(exitFacts.final_invoice_id);
+    const clearanceReady = exitFacts.dispatch_cleared === true && Boolean(exitFacts.dispatch_clearance_event_id);
+    recordStage(stages, "final_invoice_balance", "get_finance_exit_facts_v1", "DISPATCH_MANAGER", null, finalInvoiceReady ? "PASS" : "BLOCKED", `final_invoice_id=${String(exitFacts.final_invoice_id)} stage=${state.stage} status=${state.orderStatus}`);
+    recordStage(stages, "finance_dispatch_clearance", "get_finance_exit_facts_v1", "DISPATCH_MANAGER", null, clearanceReady ? "PASS" : "BLOCKED", `dispatch_cleared=${String(exitFacts.dispatch_cleared)} clearance_event=${String(exitFacts.dispatch_clearance_event_id)} blockers=${state.blockers.length}`);
+    expect(finalInvoiceReady, "Point38 must expose a final invoice before dispatch certification").toBe(true);
+    expect(clearanceReady, "Point38 must expose active Finance Dispatch Clearance").toBe(true);
 
     const dispatchedRpc = await probeRpcExists(POINT100_DISPATCH_FINALIZE_RPC);
     const onCertifiedPin = isRpcOnCertifiedCorePin(POINT100_DISPATCH_FINALIZE_RPC);
@@ -300,67 +301,43 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
     const dispatchNote = dispatchReady
       ? `canonical ${POINT100_DISPATCH_FINALIZE_RPC} present on certified Core pin da7506ad / Release #163`
       : dispatchedRpc.exists
-        ? `dispatch RPC exists but is not recognized on the certified Core pin`
+        ? "dispatch RPC exists but is not recognized on the certified Core pin"
         : `${POINT100_DISPATCH_FINALIZE_RPC} absent from certified Core pin da7506ad`;
-    recordStage(
-      stages,
-      "dispatch_consignment",
-      POINT100_DISPATCH_FINALIZE_RPC,
-      "DISPATCH_MANAGER",
-      null,
-      dispatchReady ? "PASS" : "BLOCKED",
-      `${dispatchNote}; golden_chain_stage=${state!.stage}`,
-    );
+    recordStage(stages, "dispatch_consignment", POINT100_DISPATCH_FINALIZE_RPC, "DISPATCH_MANAGER", null, dispatchReady ? "PASS" : "BLOCKED", `${dispatchNote}; golden_chain_stage=${state.stage}`);
     if (!dispatchReady) {
       const blockers = productionGateBlockers();
-      if (blockers.length > 0) {
-        upstreamBlockers.push(...blockers.map((dep) => `dispatch_consignment: ${formatUpstreamBlocker(dep)}`));
-      } else {
-        upstreamBlockers.push(`dispatch_consignment: ${dispatchNote}`);
-      }
+      upstreamBlockers.push(...(blockers.length > 0 ? blockers.map((dep) => `dispatch_consignment: ${formatUpstreamBlocker(dep)}`) : [`dispatch_consignment: ${dispatchNote}`]));
     }
     expect(dispatchReady, dispatchNote).toBe(true);
   });
 
-  // ---- 12: Gate RPC probe + independent gate route (#556) ----
   await test.step("gate: release_b2b_dispatch_carton_at_gate_v1 contract probe", async () => {
     const { client } = await createAuthenticatedCertificationClient(page);
     const gate = await executeStageProbe(client, "security_gate", `p100-${RUN_SUFFIX}-gate`);
-    recordStage(
-      stages,
-      "security_gate",
-      "release_b2b_dispatch_carton_at_gate_v1",
-      "DISPATCH_MANAGER",
-      `p100-${RUN_SUFFIX}-gate`,
-      gate.ok ? "PASS" : "BLOCKED",
-      `${gate.detail} — independent gate RPC contract probe only; physical scanner evidence remains Leap 13`,
-    );
-    if (!gate.ok) {
-      upstreamBlockers.push(`security_gate: ${gate.detail}`);
-    }
+    recordStage(stages, "security_gate", "release_b2b_dispatch_carton_at_gate_v1", "DISPATCH_MANAGER", `p100-${RUN_SUFFIX}-gate`, gate.ok ? "PASS" : "BLOCKED", `${gate.detail} — independent gate RPC contract probe only; physical scanner evidence remains Leap 13`);
+    if (!gate.ok) upstreamBlockers.push(`security_gate: ${gate.detail}`);
+    expect(gate.ok, gate.detail).toBe(true);
   });
 
-  // ---- 13: Trace software contract (Core#259) — physical UAT fail-closed ----
-  await test.step("trace: Core#259 software handover contract probe — physical UAT fail-closed", async () => {
+  await test.step("trace: Core#260 software handover contract probe — physical UAT remains separate", async () => {
     const { client } = await createAuthenticatedCertificationClient(page);
     const trace = await executeStageProbe(client, "trace_handover", `p100-${RUN_SUFFIX}-trace`);
-    recordStage(
-      stages,
-      "trace_handover",
-      "trace_verify_handover_evidence_v1",
-      null,
-      `p100-${RUN_SUFFIX}-trace`,
-      trace.ok ? "PASS" : "FAIL",
-      `${trace.detail}; Trace#37 software merged — scanner/printer/TV physical PASS not claimed`,
-    );
+    recordStage(stages, "trace_handover", "trace_verify_handover_evidence_v1", null, `p100-${RUN_SUFFIX}-trace`, trace.ok ? "PASS" : "FAIL", `${trace.detail}; Trace#37 software merged — scanner/printer/TV physical PASS not claimed`);
     expect(trace.ok, trace.detail).toBe(true);
     upstreamBlockers.push("trace_handover: scanner/printer/TV/physical handover remains physical_uat_only");
   });
 
-  // ---- 14–16: Completion + complaint window ----
-  await test.step("completion: dispatch proof facts + complaint window probe", async () => {
+  await test.step("completion: dispatch proof authority + complaint window probe", async () => {
     const { client } = await createAuthenticatedCertificationClient(page);
-    recordStage(stages, "customer_dispatch_proof", "record_dispatch_proof_packet_v1", "DISPATCH_MANAGER", null, "PASS", "dispatch proof authority bound in financeExitAuthorityClient");
+    const proofRpc = await probeRpcExists("record_dispatch_proof_packet_v1");
+    const exitFactsResult = await client.rpc("get_finance_exit_facts_v1", { p_order_id: point38OrderId });
+    const rawExitFacts = Array.isArray(exitFactsResult.data) ? exitFactsResult.data[0] : exitFactsResult.data;
+    const dispatchProofId = rawExitFacts && typeof rawExitFacts === "object"
+      ? (rawExitFacts as { dispatch_proof_id?: string | null }).dispatch_proof_id
+      : null;
+    const proofReady = !exitFactsResult.error && proofRpc.exists && Boolean(dispatchProofId);
+    recordStage(stages, "customer_dispatch_proof", "record_dispatch_proof_packet_v1", "DISPATCH_MANAGER", null, proofReady ? "PASS" : "BLOCKED", exitFactsResult.error?.message ?? `rpc_exists=${proofRpc.exists} dispatch_proof_id=${String(dispatchProofId)}`);
+    expect(proofReady, "Point38 must expose immutable dispatch proof and the canonical proof RPC").toBe(true);
 
     const dispatchedRpc = await probeRpcExists(POINT100_DISPATCH_FINALIZE_RPC);
     const onCertifiedPin = isRpcOnCertifiedCorePin(POINT100_DISPATCH_FINALIZE_RPC);
@@ -368,51 +345,26 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
     const orderCompleteNote = orderCompleteReady
       ? `canonical ${POINT100_DISPATCH_FINALIZE_RPC} present on certified Core pin da7506ad / Release #163`
       : dispatchedRpc.exists
-        ? `dispatch-finalize RPC exists but is not recognized on the certified Core pin`
+        ? "dispatch-finalize RPC exists but is not recognized on the certified Core pin"
         : `${POINT100_DISPATCH_FINALIZE_RPC} absent from certified Core pin da7506ad`;
-    recordStage(
-      stages,
-      "order_complete",
-      POINT100_DISPATCH_FINALIZE_RPC,
-      "DISPATCH_MANAGER",
-      null,
-      orderCompleteReady ? "PASS" : "BLOCKED",
-      orderCompleteNote,
-    );
+    recordStage(stages, "order_complete", POINT100_DISPATCH_FINALIZE_RPC, "DISPATCH_MANAGER", null, orderCompleteReady ? "PASS" : "BLOCKED", orderCompleteNote);
     if (!orderCompleteReady) {
       const blockers = productionGateBlockers();
-      if (blockers.length > 0) {
-        upstreamBlockers.push(...blockers.map((dep) => `order_complete: ${formatUpstreamBlocker(dep)}`));
-      } else {
-        upstreamBlockers.push(`order_complete: ${orderCompleteNote}`);
-      }
+      upstreamBlockers.push(...(blockers.length > 0 ? blockers.map((dep) => `order_complete: ${formatUpstreamBlocker(dep)}`) : [`order_complete: ${orderCompleteNote}`]));
     }
     expect(orderCompleteReady, orderCompleteNote).toBe(true);
 
     const complaint = await executeStageProbe(client, "complaint_window", `p100-${RUN_SUFFIX}-complaint`);
-    const complaintRow = complaint.detail;
-    const complaintAnchored =
-      complaint.ok &&
-      (complaintRow.includes("complaint_window_open=") || complaintRow.includes("complaint_clock_basis"));
-    recordStage(
-      stages,
-      "complaint_window",
-      "get_finance_exit_facts_v1",
-      "DISPATCH_MANAGER",
-      `p100-${RUN_SUFFIX}-complaint`,
-      complaintAnchored ? "PASS" : "BLOCKED",
-      `${complaint.detail}; 10-day window must anchor to FINAL_INVOICE_DATE when final invoice exists`,
-    );
+    const complaintAnchored = complaint.ok && (complaint.detail.includes("complaint_window_open=") || complaint.detail.includes("complaint_clock_basis"));
+    recordStage(stages, "complaint_window", "get_finance_exit_facts_v1", "DISPATCH_MANAGER", `p100-${RUN_SUFFIX}-complaint`, complaintAnchored ? "PASS" : "BLOCKED", `${complaint.detail}; 10-day window must anchor to FINAL_INVOICE_DATE when final invoice exists`);
+    expect(complaintAnchored, complaint.detail).toBe(true);
   });
 
-  // ---- Unauthorized production release (inline negative) ----
   await test.step("negative: unauthorized production release rejected", async () => {
     await switchRole(page, prodArabic);
     const { client } = await createAuthenticatedCertificationClient(page);
     const correlationId = `p100-${RUN_SUFFIX}-unauth-release`;
-    const { data, error } = await client.rpc("release_order_to_in_production_v1", {
-      p_order_id: goldenOrderId,
-    });
+    const { data, error } = await client.rpc("release_order_to_in_production_v1", { p_order_id: goldenOrderId });
     const rejected = Boolean(error) || (data as { ok?: boolean } | null)?.ok === false;
     expect(rejected).toBe(true);
     recordStage(negativePaths, "wrong_tenant_role", "release_order_to_in_production_v1", "PROD_ARABIC_SWEETS", correlationId, "PASS", error?.message ?? "ok=false");
@@ -436,7 +388,7 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
       ],
     });
     assertNoSilentSkips(ledger);
-    const hardFailures = stages.filter((s) => s.status === "FAIL");
-    expect(hardFailures, `dress rehearsal failures: ${JSON.stringify(hardFailures)}`).toHaveLength(0);
+    const nonPass = [...stages, ...negativePaths].filter((entry) => entry.status !== "PASS");
+    expect(nonPass, `dress rehearsal non-PASS evidence: ${JSON.stringify(nonPass)}`).toHaveLength(0);
   });
 });
