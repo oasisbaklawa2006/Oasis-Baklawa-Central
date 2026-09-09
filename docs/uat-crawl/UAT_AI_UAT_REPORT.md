@@ -1,6 +1,6 @@
 # APPVERSE AI UAT — Tranche 1
 
-Generated: 2026-09-08T20:43:36.551Z  
+Generated: 2026-09-09T04:46:09.279Z  
 Target: https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app/  
 AI planner: disabled  
 Visual model input: disabled
@@ -60,8 +60,6 @@ Visual model input: disabled
 - **Expected:** Dispatch must not remain on any Finance/Accounts route after direct navigation and must not be offered Finance controls in permitted navigation.
 - **Actual:** Finance navigation absent; direct probes: /admin/finance -> /admin/dispatch-mgmt; /admin/finance-governance -> /admin/dispatch-mgmt; /admin/accounts-release -> /admin/dispatch-mgmt
 - **Final URL:** https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app/admin/dispatch-mgmt
-- **Console errors:** 2
-- **Failed requests:** 2
 
 ### UAT-006 — PASS
 

@@ -1,20 +1,20 @@
 {
-  "generatedAt": "2026-09-08T21:02:39.479Z",
+  "generatedAt": "2026-09-09T05:10:51.574Z",
   "runId": "34242121280",
   "resolvedDeploySha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
   "currentMainHoldSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
   "crawlBaseUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
   "deployProvenance": "Current-main authority @ a619a7a2 (#558) — prior 6c7de2a/15c59a3f/e2f123b0 evidence preserved append-only.",
-  "authenticatedComplete": 97,
+  "authenticatedComplete": 95,
   "publicContinuationComplete": 5,
-  "remainingWithoutAuthEvidence": 29,
-  "verifiedBlocked": 18,
-  "credentialsAvailableAwaitingEvidence": 12,
+  "remainingWithoutAuthEvidence": 31,
+  "verifiedBlocked": 0,
+  "credentialsAvailableAwaitingEvidence": 32,
   "counts": {
-    "authenticated": 97,
+    "authenticated": 95,
     "publicFunctionObserved": 5,
-    "blocked": 18,
-    "credsAvailableNoEvidence": 12,
+    "blocked": 0,
+    "credsAvailableNoEvidence": 32,
     "totalCensus": 131
   },
   "policy": "No fabricated PASS. FAIL-493 pre-fix + preview + current-main cert evidence preserved append-only."
