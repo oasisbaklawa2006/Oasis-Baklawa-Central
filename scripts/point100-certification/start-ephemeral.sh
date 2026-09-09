@@ -17,7 +17,8 @@ bash "${SCRIPT_DIR}/../factory-certification/start-ephemeral.sh"
 # release_order_to_dispatched_v1 shim and status-shaped commercial/dispatch
 # fixture for older certification lanes. Final Point100 recertification must
 # never certify those substitutes. Reapply the exact production-certified #260
-# migration, verify its live function definition, then advance Point38 through
+# migration, verify its live function definition, repair/verify the disposable
+# ADMIN auth identity exposed by rehearsal #42, then advance Point38 through
 # the real governed Core authority chain before any Point100 probe runs.
 if [[ "${POINT100_ALLOW_DISPOSABLE_BOOTSTRAP:-false}" != "true" ]]; then
   STATUS_FILE="$(mktemp)"
@@ -29,10 +30,16 @@ if [[ "${POINT100_ALLOW_DISPOSABLE_BOOTSTRAP:-false}" != "true" ]]; then
   source "${STATUS_FILE}"
   : "${API_URL:?Supabase CLI status did not expose API_URL}"
   : "${ANON_KEY:?Supabase CLI status did not expose ANON_KEY}"
+  : "${SERVICE_ROLE_KEY:?Supabase CLI status did not expose SERVICE_ROLE_KEY}"
   : "${DB_URL:?Supabase CLI status did not expose DB_URL}"
 
   POINT100_LOCAL_DB_URL="${DB_URL}" \
     node "${SCRIPT_DIR}/restore-canonical-dispatch-authority.mjs"
+
+  FACTORY_CERT_SUPABASE_URL="${API_URL}" \
+  FACTORY_CERT_SUPABASE_ANON_KEY="${ANON_KEY}" \
+  FACTORY_CERT_LOCAL_SERVICE_ROLE_KEY="${SERVICE_ROLE_KEY}" \
+    node "${SCRIPT_DIR}/ensure-point38-admin-auth.mjs"
 
   FACTORY_CERT_SUPABASE_URL="${API_URL}" \
   FACTORY_CERT_SUPABASE_ANON_KEY="${ANON_KEY}" \
