@@ -130,6 +130,26 @@ export function getPostLoginRedirectOnError(error: unknown): string | null {
   return null;
 }
 
+/**
+ * Issue #561 — new-buyer onboarding.
+ *
+ * A freshly OTP-verified buyer legitimately has no `profiles` row and no company yet:
+ * `msg91-otp` creates the verified auth user and inserts `public.users.role = 'PENDING'`.
+ * That state is onboarding, not corruption, and must keep the verified session so the
+ * existing unresolved-account redirect can send it to /customer-app-redirect.
+ *
+ * Every other role with a missing profile AND missing company stays fail-closed.
+ */
+export function getMissingProfileResolution(
+  role: string | null | undefined,
+  isActive?: boolean | null,
+): "ACCOUNT_BLOCKED" | "ACCOUNT_PENDING" | "PROFILE_MISSING" {
+  if (normalizeRole(role) !== "PENDING") return "PROFILE_MISSING";
+  // A deliberately deactivated pending account must never keep a session.
+  // `is_active` may be null/undefined on freshly MSG91-created rows: that is onboarding, not a block.
+  return isActive === false ? "ACCOUNT_BLOCKED" : "ACCOUNT_PENDING";
+}
+
 export function readAuthCache(): AuthCache | null {
   try {
     const raw = localStorage.getItem(AUTH_CACHE_KEY);
@@ -432,6 +452,32 @@ async function resolveUserByIdentifier(identifierInput: string, attemptId: strin
   }
 
   if (!profileRow && !matchedUser.company_id) {
+    const missingProfileResolution = getMissingProfileResolution(matchedUser.role, matchedUser.is_active);
+
+    if (missingProfileResolution === "ACCOUNT_BLOCKED") {
+      logAuthEvent("PROFILE_FETCH_FAILED", {
+        attemptId,
+        method,
+        identifier: normalized.normalized,
+        result: "failed",
+        error: "pending_onboarding_blocked",
+        details: { userId: matchedUser.id, role: normalizeRole(matchedUser.role) },
+      });
+      throw new AuthFlowError("ACCOUNT_BLOCKED", USER_MESSAGE_BY_CODE.ACCOUNT_BLOCKED, "failed");
+    }
+
+    if (missingProfileResolution === "ACCOUNT_PENDING") {
+      logAuthEvent("PROFILE_FETCH_FAILED", {
+        attemptId,
+        method,
+        identifier: normalized.normalized,
+        result: "failed",
+        error: "pending_onboarding_profile_absent",
+        details: { userId: matchedUser.id, role: normalizeRole(matchedUser.role) },
+      });
+      throw new AuthFlowError("ACCOUNT_PENDING", USER_MESSAGE_BY_CODE.ACCOUNT_PENDING, "failed");
+    }
+
     logAuthEvent("PROFILE_FETCH_FAILED", {
       attemptId,
       method,
