@@ -95,6 +95,7 @@ const STATIC_ROUTES: string[] = [
   '/admin/execution/retail',
   '/admin/execution/complaints',
   '/admin/execution-command-center',
+  '/admin/management-command-center',
   '/admin/operational-search',
   '/admin/customer-timeline-preview',
   '/tv/arabic-sweets',

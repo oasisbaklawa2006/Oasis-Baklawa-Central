@@ -48,6 +48,7 @@ const AdminLayout = () => {
       title: "Command",
       items: [
         { to: "/admin", icon: LayoutDashboard, label: "App-Verse Home", end: true, moduleKey: "dashboard" },
+        { to: "/admin/management-command-center", icon: BarChart3, label: "Management CMD", end: false, moduleKey: "management_reporting" },
         { to: "/admin/heartbeat", icon: Gauge, label: "Executive Dashboard", end: false, moduleKey: "cmd_war_room" },
         { to: "/admin/execution-command-center", icon: Gauge, label: "Execution CMD", end: false, moduleKey: "cmd_war_room" },
         { to: "/operations-controller", icon: LayoutGrid, label: "Production board", end: false, moduleKey: "production" },

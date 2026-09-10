@@ -1,6 +1,7 @@
 export type AppVerseModuleKey =
   | "dashboard"
   | "cmd_war_room"
+  | "management_reporting"
   | "orders"
   | "clients"
   | "products"
@@ -27,14 +28,14 @@ export type AppVerseGrantedModule = AppVerseModuleKey | "*";
 export const ROLE_MODULE_ACCESS: Record<string, AppVerseGrantedModule[]> = {
   SUPER_ADMIN: ["*"],
   ADMIN: [
-    "dashboard", "cmd_war_room", "orders", "clients", "products", "pricing", "finance", "finance_audit",
+    "dashboard", "cmd_war_room", "management_reporting", "orders", "clients", "products", "pricing", "finance", "finance_audit",
     "users", "moq", "currency", "support", "settings", "audit", "inventory", "inventory_audit", "packing",
     "production", "accounts", "exceptions", "dispatch", "dispatch_audit",
   ],
-  FINANCE_HEAD: ["dashboard", "cmd_war_room", "finance", "finance_audit", "accounts", "orders", "audit"],
-  FINANCE_EXEC: ["dashboard", "cmd_war_room", "finance", "finance_audit", "accounts", "orders"],
+  FINANCE_HEAD: ["dashboard", "cmd_war_room", "management_reporting", "finance", "finance_audit", "accounts", "orders", "audit"],
+  FINANCE_EXEC: ["dashboard", "cmd_war_room", "management_reporting", "finance", "finance_audit", "accounts", "orders"],
   OPERATIONS_MANAGER: [
-    "dashboard", "cmd_war_room", "orders", "production", "packing", "dispatch", "dispatch_audit", "inventory",
+    "dashboard", "cmd_war_room", "management_reporting", "orders", "production", "packing", "dispatch", "dispatch_audit", "inventory",
     "inventory_audit",
   ],
   PRODUCTION_MANAGER: ["dashboard", "orders", "production"],
@@ -48,7 +49,7 @@ export const ROLE_MODULE_ACCESS: Record<string, AppVerseGrantedModule[]> = {
   STORE_INCHARGE: ["dashboard", "cmd_war_room", "inventory", "orders", "production"],
   STORE_READY_GOODS: ["dashboard", "cmd_war_room", "inventory", "orders", "production"],
   STORE_3RD_PARTY: ["dashboard", "inventory", "orders"],
-  RGS_ADMIN: ["dashboard", "cmd_war_room", "inventory", "orders", "production"],
+  RGS_ADMIN: ["dashboard", "cmd_war_room", "management_reporting", "inventory", "orders", "production"],
   // P0 least-privilege: Dispatch roles see only the five-stage dispatch workflow
   // (queue, pickup alarm, packing detail/scan/DPL, dispatch recording). No
   // cmd_war_room, unrestricted orders, or broad inventory administration.

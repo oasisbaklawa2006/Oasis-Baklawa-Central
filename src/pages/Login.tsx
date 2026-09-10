@@ -370,6 +370,14 @@ const Login = () => {
     teardownMsg91Widget();
   };
 
+  // Issue #561: the B2B access CTA routed to a nonexistent /register (404).
+  // It now runs the governed mobile-verification identity gate instead of any
+  // anonymous application write.
+  const handleApplyForB2BAccess = () => {
+    setActiveTab("msg91");
+    launchMsg91Widget();
+  };
+
   const launchMsg91Widget = () => {
     if (typeof window === "undefined") return;
     if (!isMsg91Ready || typeof window.initSendOTP !== "function") {
@@ -774,7 +782,7 @@ const Login = () => {
         <div className="text-center">
           <p className="text-sm text-muted-foreground">
             New to Oasis Baklawa?{" "}
-            <button onClick={() => navigate("/register")} className="text-primary font-semibold hover:underline">
+            <button onClick={handleApplyForB2BAccess} className="text-primary font-semibold hover:underline">
               Apply for B2B Access
             </button>
           </p>
