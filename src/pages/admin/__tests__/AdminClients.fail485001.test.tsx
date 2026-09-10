@@ -208,7 +208,7 @@ describe("FAIL-485-001 Admin Clients KPI convergence", () => {
       expect(screen.getByText("No pending applications")).toBeInTheDocument();
     });
 
-    expect(governanceCountFetches).toBeGreaterThan(mountTimeCountFetches);
+    expect(governanceCountFetches).toBeGreaterThanOrEqual(mountTimeCountFetches + 3);
   });
 
   it("does not refetch governance counters when approval RPC fails", async () => {
@@ -236,6 +236,7 @@ describe("FAIL-485-001 Admin Clients KPI convergence", () => {
     await waitFor(() => expect(rpcMock).toHaveBeenCalled());
 
     expect(screen.getByText("Pending Review").previousElementSibling).toHaveTextContent("1");
+    expect(screen.getByText("Recently Approved").previousElementSibling).toHaveTextContent("4");
     expect(governanceCountFetches).toBe(countFetchesAfterMount);
     expect(screen.queryByText("No pending applications")).not.toBeInTheDocument();
   });
