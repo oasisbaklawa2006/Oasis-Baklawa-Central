@@ -165,10 +165,10 @@ inserted AS (
   CROSS JOIN coverage
   WHERE o.id = '${point38OrderId}'::uuid
   ON CONFLICT (idempotency_key) DO NOTHING
-  RETURNING id::text, balance_due_at_issue::text
+  RETURNING id::text AS request_id, balance_due_at_issue::text AS balance_due
 )
 SELECT coalesce(
-  (SELECT id || '|' || balance_due FROM inserted LIMIT 1),
+  (SELECT request_id || '|' || balance_due FROM inserted LIMIT 1),
   (
     SELECT r.id::text || '|' || r.balance_due_at_issue::text
       FROM public.sales_order_pi_final_payment_requests r
