@@ -18,8 +18,10 @@ describe("B2B pre-login access contract", () => {
     const block = clientSource.slice(start, end);
     expect(block).toContain('rpc("submit_b2b_access_request_v2"');
     expect(block).not.toContain("submit_b2b_trade_application_v1");
-    expect(block).toContain("p_trade_declaration: true");
-    expect(block).toContain("p_data_consent: true");
+    expect(block).toContain("p_trade_declaration: input.tradeDeclaration");
+    expect(block).toContain("p_data_consent: input.dataConsent");
+    expect(block).toContain("tradeDeclaration: boolean");
+    expect(block).toContain("dataConsent: boolean");
   });
 
   it("types the deployed v2 Core functions in Central", () => {
@@ -31,4 +33,14 @@ describe("B2B pre-login access contract", () => {
     expect(adminClientsSource).toContain('supabase.rpc("approve_b2b_access_request_v2"');
     expect(adminClientsSource).not.toContain('supabase.rpc("approve_b2b_trade_application_v1"');
   });
+
+  it("requires explicit applicant declaration and consent in the public form", () => {
+    const buyerSource = readFileSync("src/pages/customer/BuyerApp.tsx", "utf8");
+    expect(buyerSource).toContain('name="tradeDeclaration"');
+    expect(buyerSource).toContain('name="dataConsent"');
+    expect(buyerSource).toContain("checked={tradeDeclaration}");
+    expect(buyerSource).toContain("checked={dataConsent}");
+    expect(buyerSource).toContain("if (!tradeDeclaration || !dataConsent)");
+  });
+
 });
