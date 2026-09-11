@@ -284,7 +284,7 @@ const AdminClients = () => {
       const approvalNotification = await notifyEvent({
         event: "approval_granted",
         applicationId: app.id,
-      });
+      }, { timeoutMs: 10_000 });
       if (!approvalNotification.success) {
         console.warn("[AdminClients] Approval notification failed after approval commit:", approvalNotification.error);
         toast.warning("Client approved, but the approval notification requires retry.");

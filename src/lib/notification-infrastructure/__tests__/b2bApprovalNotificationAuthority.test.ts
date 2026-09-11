@@ -25,5 +25,6 @@ describe("B2B approval notification authority", () => {
     expect(adminSource).toContain("applicationId: app.id");
     expect(adminSource).not.toContain('subject: "Welcome to Oasis B2B! Your account is active"');
     expect(adminSource).not.toContain("email: app.contact_email");
+    expect(adminSource).toContain("{ timeoutMs: 10_000 }");
   });
 });
