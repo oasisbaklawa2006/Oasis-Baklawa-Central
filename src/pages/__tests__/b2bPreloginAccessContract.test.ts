@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 const appSource = readFileSync("src/App.tsx", "utf8");
 const clientSource = readFileSync("src/lib/customerApp/customerAppClient.ts", "utf8");
 const typeSource = readFileSync("src/integrations/supabase/database.types.ts", "utf8");
+const adminClientsSource = readFileSync("src/pages/admin/AdminClients.tsx", "utf8");
 
 describe("B2B pre-login access contract", () => {
   it("keeps /buyer/access-request public while leaving the form on a named route", () => {
@@ -21,7 +22,13 @@ describe("B2B pre-login access contract", () => {
     expect(block).toContain("p_data_consent: true");
   });
 
-  it("types the deployed v2 Core function in Central", () => {
+  it("types the deployed v2 Core functions in Central", () => {
     expect(typeSource).toContain("submit_b2b_access_request_v2:");
+    expect(typeSource).toContain("approve_b2b_access_request_v2:");
+  });
+
+  it("approves pending requests through the v2 pre-login lifecycle authority", () => {
+    expect(adminClientsSource).toContain('supabase.rpc("approve_b2b_access_request_v2"');
+    expect(adminClientsSource).not.toContain('supabase.rpc("approve_b2b_trade_application_v1"');
   });
 });

@@ -247,7 +247,7 @@ const AdminClients = () => {
     setActionLoading(app.id);
 
     try {
-      const { data, error } = await supabase.rpc("approve_b2b_trade_application_v1", {
+      const { data, error } = await supabase.rpc("approve_b2b_access_request_v2", {
         p_application_id: app.id,
         p_assigned_price_tier: priceTier[app.id],
         p_admin_notes: notes[app.id]?.trim() || null,
