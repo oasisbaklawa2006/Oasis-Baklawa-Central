@@ -18,7 +18,10 @@ import {
   type Point100StageRecord,
 } from "./support";
 import {
+  POINT100_CORE_PRODUCTION_VERIFIED_SHA,
   POINT100_DISPATCH_FINALIZE_RPC,
+  POINT100_PRODUCTION_MIGRATION_GATE,
+  POINT100_PRODUCTION_MIGRATION_RUN_ID,
   POINT100_UPSTREAM_DEPENDENCIES,
   formatUpstreamBlocker,
   isRpcOnCertifiedCorePin,
@@ -233,7 +236,7 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
       }],
       p_correlation_id: correlationId,
     });
-    recordStage(stages, "inventory_lot_allocation", "create_assembly_job", "HOD_ASSEMBLY", correlationId, error ? "FAIL" : "PASS", error?.message ?? `job_id=${String((data as { id?: string } | null)?.id)}; production_core_sha=da7506ad; migration_run=34271047926`);
+    recordStage(stages, "inventory_lot_allocation", "create_assembly_job", "HOD_ASSEMBLY", correlationId, error ? "FAIL" : "PASS", error?.message ?? `job_id=${String((data as { id?: string } | null)?.id)}; production_core_sha=${POINT100_CORE_PRODUCTION_VERIFIED_SHA.slice(0, 8)}; migration_run=${POINT100_PRODUCTION_MIGRATION_RUN_ID}`);
     recordStage(stages, "production_qc", null, "HOD_ASSEMBLY", correlationId, error ? "FAIL" : "PASS", error?.message ?? "assembly job created; QC contract is separately probed below");
     expect(error, error?.message).toBeNull();
   });
@@ -242,7 +245,7 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
     const putawayProbe = await probeRpcExists("allocate_b2b_inventory_putaway");
     const lotExceptionProbe = await probeRpcExists("record_inventory_lot_exception");
     const ok = putawayProbe.exists && lotExceptionProbe.exists;
-    recordStage(stages, "inventory_lot_allocation", "record_inventory_lot_exception", "STORE_READY_GOODS", `p100-${RUN_SUFFIX}-lot-rpc`, ok ? "PASS" : "FAIL", `allocate_b2b_inventory_putaway=${putawayProbe.exists}; record_inventory_lot_exception=${lotExceptionProbe.exists}; core_sha=da7506ad; migration_run=34271047926`);
+    recordStage(stages, "inventory_lot_allocation", "record_inventory_lot_exception", "STORE_READY_GOODS", `p100-${RUN_SUFFIX}-lot-rpc`, ok ? "PASS" : "FAIL", `allocate_b2b_inventory_putaway=${putawayProbe.exists}; record_inventory_lot_exception=${lotExceptionProbe.exists}; core_sha=${POINT100_CORE_PRODUCTION_VERIFIED_SHA.slice(0, 8)}; migration_run=${POINT100_PRODUCTION_MIGRATION_RUN_ID}`);
     expect(ok, `${putawayProbe.detail}; ${lotExceptionProbe.detail}`).toBe(true);
   });
 
@@ -250,7 +253,7 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
     const acceptProbe = await probeRpcExists("accept_production_job");
     const outputProbe = await probeRpcExists("record_production_output");
     const ok = acceptProbe.exists && outputProbe.exists;
-    recordStage(stages, "production_qc", "accept_production_job", "PROD_ARABIC_SWEETS", `p100-${RUN_SUFFIX}-factory-rpc`, ok ? "PASS" : "FAIL", `accept_production_job=${acceptProbe.exists}; record_production_output=${outputProbe.exists}; core_sha=da7506ad; migration_run=34271047926`);
+    recordStage(stages, "production_qc", "accept_production_job", "PROD_ARABIC_SWEETS", `p100-${RUN_SUFFIX}-factory-rpc`, ok ? "PASS" : "FAIL", `accept_production_job=${acceptProbe.exists}; record_production_output=${outputProbe.exists}; core_sha=${POINT100_CORE_PRODUCTION_VERIFIED_SHA.slice(0, 8)}; migration_run=${POINT100_PRODUCTION_MIGRATION_RUN_ID}`);
     expect(ok, `${acceptProbe.detail}; ${outputProbe.detail}`).toBe(true);
   });
 
@@ -299,10 +302,10 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
     const onCertifiedPin = isRpcOnCertifiedCorePin(POINT100_DISPATCH_FINALIZE_RPC);
     const dispatchReady = onCertifiedPin && dispatchedRpc.exists;
     const dispatchNote = dispatchReady
-      ? `canonical ${POINT100_DISPATCH_FINALIZE_RPC} present on certified Core pin da7506ad / Release #163`
+      ? `canonical ${POINT100_DISPATCH_FINALIZE_RPC} present on certified Core pin ${POINT100_CORE_PRODUCTION_VERIFIED_SHA.slice(0, 8)} / ${POINT100_PRODUCTION_MIGRATION_GATE}`
       : dispatchedRpc.exists
         ? "dispatch RPC exists but is not recognized on the certified Core pin"
-        : `${POINT100_DISPATCH_FINALIZE_RPC} absent from certified Core pin da7506ad`;
+        : `${POINT100_DISPATCH_FINALIZE_RPC} absent from certified Core pin ${POINT100_CORE_PRODUCTION_VERIFIED_SHA.slice(0, 8)}`;
     recordStage(stages, "dispatch_consignment", POINT100_DISPATCH_FINALIZE_RPC, "DISPATCH_MANAGER", null, dispatchReady ? "PASS" : "BLOCKED", `${dispatchNote}; golden_chain_stage=${state.stage}`);
     if (!dispatchReady) {
       const blockers = productionGateBlockers();
@@ -343,10 +346,10 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
     const onCertifiedPin = isRpcOnCertifiedCorePin(POINT100_DISPATCH_FINALIZE_RPC);
     const orderCompleteReady = onCertifiedPin && dispatchedRpc.exists;
     const orderCompleteNote = orderCompleteReady
-      ? `canonical ${POINT100_DISPATCH_FINALIZE_RPC} present on certified Core pin da7506ad / Release #163`
+      ? `canonical ${POINT100_DISPATCH_FINALIZE_RPC} present on certified Core pin ${POINT100_CORE_PRODUCTION_VERIFIED_SHA.slice(0, 8)} / ${POINT100_PRODUCTION_MIGRATION_GATE}`
       : dispatchedRpc.exists
         ? "dispatch-finalize RPC exists but is not recognized on the certified Core pin"
-        : `${POINT100_DISPATCH_FINALIZE_RPC} absent from certified Core pin da7506ad`;
+        : `${POINT100_DISPATCH_FINALIZE_RPC} absent from certified Core pin ${POINT100_CORE_PRODUCTION_VERIFIED_SHA.slice(0, 8)}`;
     recordStage(stages, "order_complete", POINT100_DISPATCH_FINALIZE_RPC, "DISPATCH_MANAGER", null, orderCompleteReady ? "PASS" : "BLOCKED", orderCompleteNote);
     if (!orderCompleteReady) {
       const blockers = productionGateBlockers();

@@ -74,6 +74,11 @@ function assertNoError(error, operation) {
   throw new Error(`${operation}: ${error.message ?? String(error)}`);
 }
 
+/** Align invoice_date with Core's Asia/Kolkata final-payment request calendar gate. */
+function kolkataCalendarDate(isoTimestamp) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date(isoTimestamp));
+}
+
 const backendUrl = assertLoopbackHttp(requireEnv("FACTORY_CERT_SUPABASE_URL"));
 const anonKey = requireEnv("FACTORY_CERT_SUPABASE_ANON_KEY");
 const localDbUrl = requireEnv("FACTORY_CERT_LOCAL_DB_URL");
@@ -329,6 +334,10 @@ async function ensureFinalPaymentCoverage(finance, financeActorId, piId, commerc
   ) {
     throw new Error(`POINT100_POINT38_FINAL_PAYMENT_NOT_SETTLED: ${JSON.stringify(facts)}`);
   }
+
+  const issuedAt = facts.issued_at;
+  if (!issuedAt) throw new Error("POINT100_POINT38_FINAL_PAYMENT_ISSUED_AT_MISSING");
+  return kolkataCalendarDate(issuedAt);
 }
 
 async function ensureFinalSettlement(finance, financeActorId, piId, commercialVersionId, finalInvoiceId) {
@@ -561,7 +570,7 @@ try {
   const financeDplReceiptId = String(firstRow(dplReceiptResult.data)?.receipt_id ?? "");
   if (!financeDplReceiptId) throw new Error("POINT100_POINT38_FINANCE_DPL_RECEIPT_ID_MISSING");
 
-  await ensureFinalPaymentCoverage(
+  const invoiceDate = await ensureFinalPaymentCoverage(
     financeRole.client,
     financeRole.actorId,
     piId,
@@ -575,7 +584,7 @@ try {
     p_commercial_version_id: commercialVersionId,
     p_finance_dpl_receipt_id: financeDplReceiptId,
     p_invoice_number: "POINT100-P38-FINAL-001",
-    p_invoice_date: new Date().toISOString().slice(0, 10),
+    p_invoice_date: invoiceDate,
     p_document_reference: "point100://final-invoice/p38",
     p_reason: "Point100 canonical final invoice certification",
     p_correlation_id: `${RUN_TOKEN}:final-invoice`,

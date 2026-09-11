@@ -29,9 +29,9 @@ jobs:
       POINT100_ALLOW_LOCAL_RESET: "true"
       POINT100_ALLOW_DISPOSABLE_BOOTSTRAP: "false"
       POINT100_DISPATCH_PRODUCTION_VERIFIED: "true"
-      POINT100_CORE_VERIFIED_SHA: b9b690abe166fec1aec547d37c749eda9783fbcb
-      POINT100_PRODUCTION_MIGRATION_RUN_ID: "34346404335"
-      POINT100_RECERT_AFTER_CORE_MIGRATION_RUN_ID: "34346404335"
+      POINT100_CORE_VERIFIED_SHA: 1503d6c5f0dcc04890190e00587fcdbf9abb5b20
+      POINT100_PRODUCTION_MIGRATION_RUN_ID: "34653753066"
+      POINT100_RECERT_AFTER_CORE_MIGRATION_RUN_ID: "34653753066"
       FACTORY_CERT_CORE_REPO: ${{ github.workspace }}/oasis-supabase-core
       FACTORY_CERT_ALLOW_LOCAL_RESET: "true"
       FACTORY_CERT_CREDENTIAL_FILE: /tmp/oasis-factory-certification.env
@@ -48,7 +48,7 @@ jobs:
         with:
           persist-credentials: false
           repository: oasisbaklawa2006/oasis-supabase-core
-          ref: b9b690abe166fec1aec547d37c749eda9783fbcb
+          ref: 1503d6c5f0dcc04890190e00587fcdbf9abb5b20
           path: oasis-supabase-core
 
       - name: Set up pinned Supabase CLI
@@ -71,8 +71,8 @@ jobs:
           bash -n scripts/point100-certification/stop-ephemeral.sh
           bash -n scripts/point100-certification/run-dress-rehearsal.sh
           bash -n scripts/point100-certification/recert-after-core-260.sh
-          test "${POINT100_CORE_VERIFIED_SHA}" = "b9b690abe166fec1aec547d37c749eda9783fbcb"
-          test "${POINT100_PRODUCTION_MIGRATION_RUN_ID}" = "34346404335"
+          test "${POINT100_CORE_VERIFIED_SHA}" = "1503d6c5f0dcc04890190e00587fcdbf9abb5b20"
+          test "${POINT100_PRODUCTION_MIGRATION_RUN_ID}" = "34653753066"
           test "${POINT100_ALLOW_DISPOSABLE_BOOTSTRAP}" = "false"
 
       - name: Unit tests (Point100 harness library)
@@ -150,4 +150,10 @@ jobs:
 
       - name: Stop disposable backend
         if: always()
-        run: bash scripts/point100-certification/stop-ephemeral.sh
+        run: |
+          if [[ -f "${RUNNER_TEMP}/point100-preview.pid" ]]; then
+            preview_pid="$(cat "${RUNNER_TEMP}/point100-preview.pid")"
+            kill "${preview_pid}" 2>/dev/null || true
+            wait "${preview_pid}" 2>/dev/null || true
+          fi
+          bash scripts/point100-certification/stop-ephemeral.sh
