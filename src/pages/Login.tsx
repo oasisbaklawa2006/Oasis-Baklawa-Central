@@ -370,6 +370,12 @@ const Login = () => {
     teardownMsg91Widget();
   };
 
+  // Issue #561: B2B application is a governed pre-login intake.
+  // Prospects may open the form directly; Core owns the anonymous write boundary.
+  const handleApplyForB2BAccess = () => {
+    navigate("/buyer/access-request");
+  };
+
   const launchMsg91Widget = () => {
     if (typeof window === "undefined") return;
     if (!isMsg91Ready || typeof window.initSendOTP !== "function") {
@@ -603,7 +609,8 @@ const Login = () => {
         result: "failed",
         error: message,
       });
-      await finalizeFailure(message.includes("Invalid") ? "Invalid email or password." : getCustomerAuthUserMessage(error), "failed");
+      await finalizeFailure(message.includes("Invalid") ? "Login was not available for this account. You can request B2B access." : getCustomerAuthUserMessage(error), "failed");
+      navigate("/buyer/access-request");
       return;
     }
 
@@ -774,7 +781,7 @@ const Login = () => {
         <div className="text-center">
           <p className="text-sm text-muted-foreground">
             New to Oasis Baklawa?{" "}
-            <button onClick={() => navigate("/register")} className="text-primary font-semibold hover:underline">
+            <button onClick={handleApplyForB2BAccess} className="text-primary font-semibold hover:underline">
               Apply for B2B Access
             </button>
           </p>
