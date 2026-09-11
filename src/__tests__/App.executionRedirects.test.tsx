@@ -90,8 +90,8 @@ describe("Execution board redirects (dead operational_queue_items surfaces)", ()
     await verifyRedirect("/admin/execution/dispatch", "/admin/dispatch-mgmt");
   });
 
-  it("redirects retail execution to governed Reservation Board", async () => {
-    await verifyRedirect("/admin/execution/retail", "/admin/reservation-board");
+  it("redirects retail execution to governed Store Coordination (Point58 quarantine)", async () => {
+    await verifyRedirect("/admin/execution/retail", "/admin/store-coordination");
   });
 
   it("redirects complaints execution to governed Support", async () => {
