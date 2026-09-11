@@ -14,7 +14,6 @@ import {
   AUTH_CACHE_KEY,
   type AuthStatus,
 } from "@/lib/auth-flow";
-import { getRoleDestination } from "@/lib/auth-routing";
 
 // Codacy-safe fixed module-relative root (no dynamic path taint).
 const ROOT = join(import.meta.dirname, "..");
@@ -132,7 +131,7 @@ describe("auth-flow / errors", () => {
 // msg91-otp creates a verified auth user and inserts public.users.role='PENDING'
 // with no profiles row and no company. That is legitimate onboarding, not a
 // corrupt account, and must classify as ACCOUNT_PENDING so the verified session
-// survives and lands on /customer-app-redirect. Every other role with a missing
+// survives and lands on /buyer/access-request. Every other role with a missing
 // profile AND missing company stays fail-closed on PROFILE_MISSING.
 describe("auth-flow / getMissingProfileResolution", () => {
   it("classifies a PENDING role as pending onboarding", () => {
@@ -166,7 +165,7 @@ describe("auth-flow / getMissingProfileResolution", () => {
 
   // PR #562 security regression: a deliberately deactivated PENDING account must
   // never reach the ACCOUNT_PENDING path (which keeps the verified session and
-  // enters /customer-app-redirect). It has to stay blocked, fail-closed.
+  // enters /buyer/access-request). It has to stay blocked, fail-closed.
   it("blocks a PENDING account that is explicitly inactive", () => {
     expect(getMissingProfileResolution("PENDING", false)).toBe("ACCOUNT_BLOCKED");
     expect(getMissingProfileResolution("pending", false)).toBe("ACCOUNT_BLOCKED");
@@ -216,17 +215,17 @@ describe("auth-flow / missing-profile branch wiring", () => {
 describe("auth-flow / post-login redirect for unresolved accounts", () => {
   it("routes ROLE_NOT_ASSIGNED to the customer-app gate", () => {
     const error = new AuthFlowError("ROLE_NOT_ASSIGNED", "Role not assigned. Please contact an administrator.");
-    expect(getPostLoginRedirectOnError(error)).toBe("/customer-app-redirect");
+    expect(getPostLoginRedirectOnError(error)).toBe("/buyer/access-request");
   });
 
   it("routes ACCOUNT_PENDING to the customer-app gate", () => {
     const error = new AuthFlowError("ACCOUNT_PENDING", "Account pending approval.");
-    expect(getPostLoginRedirectOnError(error)).toBe("/customer-app-redirect");
+    expect(getPostLoginRedirectOnError(error)).toBe("/buyer/access-request");
   });
 
-  it("matches the destination used for unresolved/unknown staff roles", () => {
-    expect(getPostLoginRedirectOnError(new AuthFlowError("ROLE_NOT_ASSIGNED", "x"))).toBe(getRoleDestination(null));
-    expect(getPostLoginRedirectOnError(new AuthFlowError("ACCOUNT_PENDING", "x"))).toBe(getRoleDestination("PENDING"));
+  it("converges unresolved Buyer onboarding on the public access-request surface", () => {
+    expect(getPostLoginRedirectOnError(new AuthFlowError("ROLE_NOT_ASSIGNED", "x"))).toBe("/buyer/access-request");
+    expect(getPostLoginRedirectOnError(new AuthFlowError("ACCOUNT_PENDING", "x"))).toBe("/buyer/access-request");
   });
 
   it("never redirects a genuine authentication failure — it stays a failure", () => {
@@ -242,6 +241,6 @@ describe("auth-flow / post-login redirect for unresolved accounts", () => {
     const deletedRoutes = ["/welcome", "/approval-pending", "/home", "/catalogue", "/cart", "/orders", "/account"];
     const destination = getPostLoginRedirectOnError(new AuthFlowError("ACCOUNT_PENDING", "x"));
     expect(deletedRoutes).not.toContain(destination);
-    expect(destination).toBe("/customer-app-redirect");
+    expect(destination).toBe("/buyer/access-request");
   });
 });

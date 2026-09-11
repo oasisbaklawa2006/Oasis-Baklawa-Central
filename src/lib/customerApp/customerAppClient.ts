@@ -431,12 +431,11 @@ export const customerAppClient = {
     address?: string;
     preferredDispatch?: string | null;
     preferredDispatchOtherName?: string | null;
-  }) => rpc("submit_b2b_trade_application_v1", {
+  }) => rpc("submit_b2b_access_request_v2", {
     p_business_name: input.businessName,
     p_contact_name: input.contactName,
     p_contact_email: input.contactEmail,
     p_contact_phone: input.contactPhone,
-    p_mobile_number: input.contactPhone,
     p_gst_number: input.gstNumber || null,
     p_registered_address: input.address || null,
     p_preferred_dispatch: input.preferredDispatch || null,

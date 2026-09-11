@@ -180,8 +180,8 @@ function getUnresolvedDestination(_opts: {
   hasAppliedB2B: boolean;
   profileStatus: string | null;
   role: string | null;
-}): "/customer-app-redirect" {
-  return "/customer-app-redirect";
+}): "/buyer/access-request" {
+  return "/buyer/access-request";
 }
 
 const ADMIN_EXPRESS_EMAILS = new Set(["admin@oasisbaklawa.com"]);
@@ -253,7 +253,7 @@ const App = () => (
                   <Route path="/security-gate" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={[...SECURITY_GATE_ALLOWED_ROLES]}><AdminSecurityGate /></RoleProtectedRoute></ProtectedRoute>} />
                   <Route path="/" element={<RootGate />} />
                   <Route path="/customer-app-redirect" element={<CustomerAppRedirect />} />
-                  <Route path="/buyer/access-request" element={<ProtectedRoute><BuyerAccessRequest /></ProtectedRoute>} />
+                  <Route path="/buyer/access-request" element={<BuyerAccessRequest />} />
                   <Route
                     path="/buyer/*"
                     element={

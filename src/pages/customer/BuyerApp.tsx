@@ -945,7 +945,7 @@ export function BuyerAccessRequest() {
       setSubmitting(false);
     }
   };
-  if (submitted) return <main className="appverse-shell flex min-h-screen items-center px-6"><div className="mx-auto w-full max-w-lg rounded-3xl border bg-card p-8 text-center shadow-[var(--card-shadow)]"><CheckCircle2 size={32} className="mx-auto text-primary" aria-hidden /><h1 className="mt-3 font-display text-2xl font-semibold">Request received</h1><p className="mt-2 text-sm text-muted-foreground">Our team will review your company details and activate Buyer access when approved.</p></div></main>;
+  if (submitted) return <main className="appverse-shell flex min-h-screen items-center px-6"><div className="mx-auto w-full max-w-lg rounded-3xl border bg-card p-8 text-center shadow-[var(--card-shadow)]"><CheckCircle2 size={32} className="mx-auto text-primary" aria-hidden /><h1 className="mt-3 font-display text-2xl font-semibold">Request received</h1><p className="mt-2 text-sm text-muted-foreground">Your B2B application is pending internal approval. We will notify you through an available WhatsApp, SMS, or email channel after approval. Buyer login becomes available only after approval.</p></div></main>;
   const fields = [
     { key: "businessName", label: "Business name", type: "text", required: true, autoComplete: "organization" },
     { key: "contactName", label: "Contact name", type: "text", required: true, autoComplete: "name" },

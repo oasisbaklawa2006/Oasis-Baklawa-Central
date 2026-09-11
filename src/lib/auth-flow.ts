@@ -125,7 +125,7 @@ const UNRESOLVED_ACCOUNT_REDIRECT_CODES = new Set(["ROLE_NOT_ASSIGNED", "ACCOUNT
 
 export function getPostLoginRedirectOnError(error: unknown): string | null {
   if (error instanceof AuthFlowError && UNRESOLVED_ACCOUNT_REDIRECT_CODES.has(error.code)) {
-    return "/customer-app-redirect";
+    return "/buyer/access-request";
   }
   return null;
 }
@@ -136,7 +136,7 @@ export function getPostLoginRedirectOnError(error: unknown): string | null {
  * A freshly OTP-verified buyer legitimately has no `profiles` row and no company yet:
  * `msg91-otp` creates the verified auth user and inserts `public.users.role = 'PENDING'`.
  * That state is onboarding, not corruption, and must keep the verified session so the
- * existing unresolved-account redirect can send it to /customer-app-redirect.
+ * unresolved-account redirect can send it to /buyer/access-request.
  *
  * Every other role with a missing profile AND missing company stays fail-closed.
  */
