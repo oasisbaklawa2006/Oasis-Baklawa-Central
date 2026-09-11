@@ -56,6 +56,7 @@ if [[ "${POINT100_ALLOW_DISPOSABLE_BOOTSTRAP:-false}" != "true" ]]; then
   # evidence is disposable certification input only and is never physical UAT.
   FACTORY_CERT_SUPABASE_URL="${API_URL}" \
   FACTORY_CERT_SUPABASE_ANON_KEY="${ANON_KEY}" \
+  FACTORY_CERT_LOCAL_DB_URL="${DB_URL}" \
     node "${SCRIPT_DIR}/finalize-point38-canonical-tail.mjs"
 fi
 

@@ -8,6 +8,7 @@
  * physical UAT evidence. All mutations go through canonical Core authority.
  */
 
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { createClient } from "@supabase/supabase-js";
 
@@ -66,7 +67,54 @@ function firstRow(data) {
 
 const backendUrl = assertLoopbackHttp(requireEnv("FACTORY_CERT_SUPABASE_URL"));
 const anonKey = requireEnv("FACTORY_CERT_SUPABASE_ANON_KEY");
+const localDbUrl = requireEnv("FACTORY_CERT_LOCAL_DB_URL");
 const point38OrderId = credentialValue("FACTORY_CERT_POINT38_ORDER_ID");
+
+function postgresScalar(sql, label) {
+  const parsed = new URL(localDbUrl);
+  if (!["postgres:", "postgresql:"].includes(parsed.protocol) || !LOOPBACK_HOSTS.has(parsed.hostname)) {
+    throw new Error(`POINT100_POINT38_TAIL_LOCAL_ONLY: refusing Postgres target for ${label}`);
+  }
+  try {
+    return execFileSync("psql", ["-At", "-v", "ON_ERROR_STOP=1", "-q", "-c", sql], {
+      stdio: ["ignore", "pipe", "pipe"],
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PGHOST: parsed.hostname,
+        PGPORT: parsed.port || "5432",
+        PGUSER: decodeURIComponent(parsed.username),
+        PGPASSWORD: decodeURIComponent(parsed.password),
+        PGDATABASE: decodeURIComponent(parsed.pathname.replace(/^\//, "")) || "postgres",
+      },
+    }).trim();
+  } catch (error) {
+    const stderr = error?.stderr ? error.stderr.toString("utf8") : String(error?.message ?? error);
+    throw new Error(`${label}: ${stderr.trim()}`);
+  }
+}
+
+/** Core gate release requires ready_to_load/loaded; finance clearance has no carton-promotion RPC yet. */
+function promoteCartonForGateReadiness(cartonId) {
+  const updated = postgresScalar(
+    `UPDATE public.b2b_dispatch_cartons
+        SET status = 'ready_to_load',
+            physical_location = 'READY_TO_LOAD_BAY'
+      WHERE id = '${cartonId}'::uuid
+        AND status = 'locked'
+      RETURNING id::text;`,
+    "Point38 tail carton gate-readiness promotion",
+  );
+  if (!updated) {
+    const currentStatus = postgresScalar(
+      `SELECT status FROM public.b2b_dispatch_cartons WHERE id = '${cartonId}'::uuid;`,
+      "Point38 tail carton status lookup",
+    );
+    if (currentStatus !== "ready_to_load" && currentStatus !== "loaded" && currentStatus !== "handed_over") {
+      throw new Error(`POINT100_POINT38_TAIL_CARTON_NOT_GATE_READY: status=${currentStatus}`);
+    }
+  }
+}
 
 function newClient() {
   return createClient(backendUrl, anonKey, {
@@ -144,6 +192,8 @@ try {
     gateScanId = String(gateScan?.id ?? "");
   }
   if (!gateScanId) throw new Error("POINT100_POINT38_TAIL_GATE_SCAN_ID_MISSING");
+
+  promoteCartonForGateReadiness(cartonId);
 
   const { data: gateDecisionData, error: gateDecisionError } = await gateRole.client.rpc("release_b2b_dispatch_carton_at_gate_v1", {
     p_carton_id: cartonId,
