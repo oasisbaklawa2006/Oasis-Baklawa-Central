@@ -281,14 +281,14 @@ const AdminClients = () => {
         toast.success(`${app.business_name} approved`);
       }
 
-      notifyEvent({
+      const approvalNotification = await notifyEvent({
         event: "approval_granted",
-        subject: "Welcome to Oasis B2B! Your account is active",
-        message: `Welcome to Oasis B2B! Your account is now active.\n\nLogin here: https://b2b.oasisbaklawa.com\n\nYour assigned tier: ${priceTier[app.id]}.\nYou can now place orders, track production live, and access invoices.\n\n— Team Oasis Baklawa`,
-        audiences: [],
-        email: app.contact_email,
-        phone: app.mobile_number,
-      }).catch(() => {});
+        applicationId: app.id,
+      });
+      if (!approvalNotification.success) {
+        console.warn("[AdminClients] Approval notification failed after approval commit:", approvalNotification.error);
+        toast.warning("Client approved, but the approval notification requires retry.");
+      }
 
       setSheetOpen(false);
       await refreshAfterPipelineMutation();

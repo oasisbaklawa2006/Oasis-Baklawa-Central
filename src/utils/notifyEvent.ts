@@ -10,9 +10,10 @@ export type NotifyAudience = "buyer" | "sales_exec" | "admin";
 
 export interface NotifyEventParams {
   event: string;
-  subject: string;
-  message: string;
+  subject?: string;
+  message?: string;
   audiences?: NotifyAudience[];
+  applicationId?: string | null;
   orderId?: string | null;
   companyId?: string | null;
   email?: string | null;
@@ -33,6 +34,13 @@ export const notifyEvent = async (params: NotifyEventParams) => {
     if (error) {
       console.error("[notifyEvent] failed:", error.message);
       return { success: false, error: error.message };
+    }
+    const reportedSuccess =
+      typeof data === "object" && data !== null && "success" in data && typeof data.success === "boolean"
+        ? data.success
+        : true;
+    if (!reportedSuccess) {
+      return { success: false, data, error: "notification_delivery_failed" };
     }
     return { success: true, data };
   } catch (e: unknown) {
