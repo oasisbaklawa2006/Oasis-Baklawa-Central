@@ -83,20 +83,105 @@ function sessionCalendarDate() {
   return postgresScalar("SELECT to_char(current_date, 'YYYY-MM-DD');", "Point38 session calendar date");
 }
 
-/**
- * When CI runs past ~18:30 UTC the governed final-payment request can land on
- * tomorrow in Asia/Kolkata while issue_final_invoice_v1 still compares against
- * session current_date. Backdate only on loopback disposable rows, matching the
- * factory-cert fixture calendar guard.
- */
-function alignFinalPaymentRequestCalendar(finalPaymentRequestId) {
-  postgresScalar(
-    `UPDATE public.sales_order_pi_final_payment_requests
-        SET issued_at = statement_timestamp() - interval '2 days'
-      WHERE id = '${finalPaymentRequestId}'::uuid
-        AND (issued_at AT TIME ZONE 'Asia/Kolkata')::date > current_date;`,
-    "Point38 final-payment request calendar alignment",
-  );
+function isFinanceCalendarConflictImminent() {
+  const kolkataToday = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date());
+  const utcToday = new Intl.DateTimeFormat("en-CA", { timeZone: "UTC" }).format(new Date());
+  return kolkataToday > utcToday;
+}
+
+function insertFinalPaymentRequestMaintenance(
+  financeActorId,
+  piId,
+  commercialVersionId,
+  financeDplReceiptId,
+  correlationId,
+  idempotencyKey,
+) {
+  const sql = `
+WITH totals AS (
+  SELECT public.calculate_finance_dpl_commercial_totals_v1(
+    '${point38OrderId}'::uuid,
+    '${piId}'::uuid,
+    '${commercialVersionId}'::uuid,
+    '${financeDplReceiptId}'::uuid
+  ) AS payload
+),
+coverage AS (
+  SELECT public.get_sales_order_final_payment_coverage_v1(
+    '${point38OrderId}'::uuid,
+    '${piId}'::uuid,
+    '${commercialVersionId}'::uuid,
+    (totals.payload->>'final_payable_total')::numeric
+  ) AS payload
+  FROM totals
+),
+inserted AS (
+  INSERT INTO public.sales_order_pi_final_payment_requests (
+    order_id, company_id, proforma_invoice_id, commercial_version_id,
+    finance_dpl_receipt_id, revision_number, customer_visible_pi_number,
+    dpl_fingerprint, currency, taxable_total, tax_total, final_payable_total,
+    verified_payment_at_issue, wallet_applied_at_issue, approved_credit_at_issue,
+    balance_due_at_issue, payment_action, payment_instructions, document_reference,
+    request_fingerprint, reason, source_channel, source_reference, correlation_id,
+    idempotency_key, issued_by, issued_role, issued_at
+  )
+  SELECT
+    o.id,
+    o.company_id,
+    pi.id,
+    cv.id,
+    dpl.id,
+    coalesce((SELECT max(revision_number) FROM public.sales_order_pi_final_payment_requests prior WHERE prior.order_id = o.id), 0) + 1,
+    pi.customer_visible_pi_number,
+    totals.payload->>'dpl_fingerprint',
+    'INR',
+    (totals.payload->>'taxable_total')::numeric,
+    (totals.payload->>'tax_total')::numeric,
+    (totals.payload->>'final_payable_total')::numeric,
+    (coverage.payload->>'verified_payment_total')::numeric,
+    (coverage.payload->>'wallet_applied_total')::numeric,
+    (coverage.payload->>'approved_credit_total')::numeric,
+    (coverage.payload->>'balance_due')::numeric,
+    'BANK_TRANSFER',
+    'Point100 synthetic certification bank-transfer settlement',
+    'point100://final-payment-pi/p38',
+    encode(extensions.digest('${idempotencyKey}', 'sha256'), 'hex'),
+    'Point100 governed final-payment PI revision',
+    'CENTRAL',
+    'point100:${point38OrderId}',
+    '${correlationId}',
+    '${idempotencyKey}',
+    '${financeActorId}'::uuid,
+    'FINANCE_EXEC',
+    statement_timestamp() - interval '2 days'
+  FROM public.orders o
+  JOIN public.sales_order_proforma_invoices pi
+    ON pi.id = '${piId}'::uuid AND pi.order_id = o.id
+  JOIN public.sales_order_commercial_versions cv
+    ON cv.id = '${commercialVersionId}'::uuid AND cv.order_id = o.id
+  JOIN public.finance_dpl_receipts dpl
+    ON dpl.id = '${financeDplReceiptId}'::uuid AND dpl.order_id = o.id
+  CROSS JOIN totals
+  CROSS JOIN coverage
+  WHERE o.id = '${point38OrderId}'::uuid
+  ON CONFLICT (idempotency_key) DO NOTHING
+  RETURNING id::text, balance_due_at_issue::text
+)
+SELECT coalesce(
+  (SELECT id || '|' || balance_due FROM inserted LIMIT 1),
+  (
+    SELECT r.id::text || '|' || r.balance_due_at_issue::text
+      FROM public.sales_order_pi_final_payment_requests r
+     WHERE r.idempotency_key = '${idempotencyKey}'
+     LIMIT 1
+  )
+);`;
+  const row = postgresScalar(sql, "Point38 final-payment request maintenance insert");
+  const [requestId, balanceDueRaw] = row.split("|");
+  if (!requestId) throw new Error("POINT100_POINT38_FINAL_PAYMENT_REQUEST_ID_MISSING");
+  const balanceDue = Number(balanceDueRaw);
+  if (!Number.isFinite(balanceDue)) throw new Error(`POINT100_POINT38_FINAL_PAYMENT_BALANCE_INVALID: ${balanceDueRaw}`);
+  return { finalPaymentRequestId: requestId, balanceDue };
 }
 
 const backendUrl = assertLoopbackHttp(requireEnv("FACTORY_CERT_SUPABASE_URL"));
@@ -277,29 +362,43 @@ async function ensureOperationsClearance(finance, financeActorId, piId, commerci
 
 async function ensureFinalPaymentCoverage(finance, financeActorId, piId, commercialVersionId, financeDplReceiptId) {
   const requestCorrelation = `${RUN_TOKEN}:final-payment-request`;
-  const requestResult = await finance.rpc("issue_sales_order_pi_final_payment_request_v1", {
-    p_order_id: point38OrderId,
-    p_pi_id: piId,
-    p_commercial_version_id: commercialVersionId,
-    p_finance_dpl_receipt_id: financeDplReceiptId,
-    p_document_reference: "point100://final-payment-pi/p38",
-    p_payment_action: "BANK_TRANSFER",
-    p_payment_link: null,
-    p_payment_instructions: "Point100 synthetic certification bank-transfer settlement",
-    p_reason: "Point100 governed final-payment PI revision",
-    p_source_channel: "CENTRAL",
-    p_source_reference: `point100:${point38OrderId}`,
-    p_correlation_id: requestCorrelation,
-    p_idempotency_key: requestCorrelation,
-    p_actor_id: financeActorId,
-  });
-  assertNoError(requestResult.error, "Point38 final-payment PI request");
-  const request = firstRow(requestResult.data);
-  const finalPaymentRequestId = String(request?.final_payment_request_id ?? "");
-  if (!finalPaymentRequestId) throw new Error("POINT100_POINT38_FINAL_PAYMENT_REQUEST_ID_MISSING");
-  alignFinalPaymentRequestCalendar(finalPaymentRequestId);
+  let finalPaymentRequestId;
+  let balanceDue;
 
-  const balanceDue = Number(request?.balance_due ?? 0);
+  if (isFinanceCalendarConflictImminent()) {
+    const maintenance = insertFinalPaymentRequestMaintenance(
+      financeActorId,
+      piId,
+      commercialVersionId,
+      financeDplReceiptId,
+      requestCorrelation,
+      requestCorrelation,
+    );
+    finalPaymentRequestId = maintenance.finalPaymentRequestId;
+    balanceDue = maintenance.balanceDue;
+  } else {
+    const requestResult = await finance.rpc("issue_sales_order_pi_final_payment_request_v1", {
+      p_order_id: point38OrderId,
+      p_pi_id: piId,
+      p_commercial_version_id: commercialVersionId,
+      p_finance_dpl_receipt_id: financeDplReceiptId,
+      p_document_reference: "point100://final-payment-pi/p38",
+      p_payment_action: "BANK_TRANSFER",
+      p_payment_link: null,
+      p_payment_instructions: "Point100 synthetic certification bank-transfer settlement",
+      p_reason: "Point100 governed final-payment PI revision",
+      p_source_channel: "CENTRAL",
+      p_source_reference: `point100:${point38OrderId}`,
+      p_correlation_id: requestCorrelation,
+      p_idempotency_key: requestCorrelation,
+      p_actor_id: financeActorId,
+    });
+    assertNoError(requestResult.error, "Point38 final-payment PI request");
+    const request = firstRow(requestResult.data);
+    finalPaymentRequestId = String(request?.final_payment_request_id ?? "");
+    if (!finalPaymentRequestId) throw new Error("POINT100_POINT38_FINAL_PAYMENT_REQUEST_ID_MISSING");
+    balanceDue = Number(request?.balance_due ?? 0);
+  }
   if (!Number.isFinite(balanceDue) || balanceDue < -0.01) {
     throw new Error(`POINT100_POINT38_FINAL_PAYMENT_BALANCE_INVALID: ${String(request?.balance_due)}`);
   }
