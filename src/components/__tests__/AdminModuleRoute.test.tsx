@@ -1,11 +1,24 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, beforeEach, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { getRoleDestination } from "@/lib/auth-routing";
 import AdminModuleRoute from "../AdminModuleRoute";
 
-let mockRole = "STORE_READY_GOODS";
-vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ role: mockRole }) }));
+let mockRole: string | null = "STORE_READY_GOODS";
+let mockAuthLoading = false;
+let mockProfileReady = true;
+vi.mock("@/hooks/useAuth", () => ({
+  useAuth: () => ({
+    role: mockRole,
+    loading: mockAuthLoading,
+    profileReady: mockProfileReady,
+  }),
+}));
+
+beforeEach(() => {
+  mockAuthLoading = false;
+  mockProfileReady = true;
+});
 
 function renderAt(pathname: string) {
   return render(
@@ -255,10 +268,27 @@ describe("AdminModuleRoute finance surface gate (UAT-005)", () => {
     expect(screen.getByText("Finance workspace")).toBeTruthy();
   });
 
-  it("preserves customer-app-redirect for unknown roles denied finance access", () => {
+  it("preserves governed /admin fallback for unknown roles denied finance access", () => {
     mockRole = "UNKNOWN_ROLE";
     renderFinanceAt("/admin/finance");
     expect(screen.queryByText("Finance workspace")).not.toBeInTheDocument();
-    expect(screen.getByText("Customer redirect")).toBeInTheDocument();
+    expect(screen.getByText("Admin landing")).toBeInTheDocument();
+  });
+
+  it("redirects DISPATCH_MANAGER off /admin/finance before profileReady when cached role is known", () => {
+    mockRole = "DISPATCH_MANAGER";
+    mockProfileReady = false;
+    renderFinanceAt("/admin/finance");
+    expect(screen.queryByText("Finance workspace")).not.toBeInTheDocument();
+    expect(screen.getByText("Dispatch landing")).toBeInTheDocument();
+  });
+
+  it("suppresses finance content while role is unknown during hydration", () => {
+    mockRole = null;
+    mockProfileReady = false;
+    renderFinanceAt("/admin/finance");
+    expect(screen.queryByText("Finance workspace")).not.toBeInTheDocument();
+    expect(screen.queryByText("Admin landing")).not.toBeInTheDocument();
+    expect(screen.queryByText("Dispatch landing")).not.toBeInTheDocument();
   });
 });

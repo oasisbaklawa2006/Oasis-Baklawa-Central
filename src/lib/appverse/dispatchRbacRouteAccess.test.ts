@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { canAccessSecurityGate } from "@/lib/auth/securityGatePolicy";
 import { getAllowedModulesForRole } from "./roleAccess";
-import { getRequiredModuleForAdminPath, isAuthorizedForAdminPath } from "./routeAccess";
+import { getRequiredModuleForAdminPath, getUnauthorizedAdminRedirect, isAuthorizedForAdminPath } from "./routeAccess";
 
 const DISPATCH_ROLES = ["DISPATCH_MANAGER", "DISPATCH_INCHARGE", "DISPATCH_HEAD"] as const;
 
@@ -140,6 +140,10 @@ describe("Dispatch RBAC — UAT-005 finance surface regression", () => {
     "/admin/finance-governance",
     "/admin/accounts-release",
   ] as const;
+
+  it.each(DISPATCH_ROLES)("UAT-005: denied finance routes redirect $role to governed dispatch landing", (role) => {
+    expect(getUnauthorizedAdminRedirect(role)).toBe("/admin/dispatch-mgmt");
+  });
 
   it.each(
     DISPATCH_ROLES.flatMap((role) =>

@@ -1,5 +1,6 @@
 import { isDispatchRole } from "@/lib/auth/securityGatePolicy";
 import { canAccessCentralOrderPool } from "@/lib/centralOrderPool/centralOrderPoolAccess";
+import { getRoleDestination } from "@/lib/auth-routing";
 import {
   getAllowedModulesForRole,
   hasModuleAccess,
@@ -138,6 +139,14 @@ export function canAccessGoldenChainOperatorRoute(role: string | null | undefine
 
 function isCentralOrderPoolPath(pathname: string): boolean {
   return pathname === "/admin/central-pool" || pathname.startsWith("/admin/central-pool/");
+}
+
+/** Resolve the governed redirect target when an admin route is denied for the current role. */
+export function getUnauthorizedAdminRedirect(role: string | null | undefined): string {
+  const normalizedRole = role?.trim().toUpperCase();
+  if (normalizedRole === "SALES_EXECUTIVE") return "/sales/dashboard";
+  const destination = getRoleDestination(role);
+  return destination === "/customer-app-redirect" ? "/admin" : destination;
 }
 
 /** Complete AdminRouteGuard authorization for a concrete /admin path and role. */
