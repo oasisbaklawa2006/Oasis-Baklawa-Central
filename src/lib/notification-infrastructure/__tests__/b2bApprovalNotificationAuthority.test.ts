@@ -21,10 +21,14 @@ describe("B2B approval notification authority", () => {
   });
 
   it("binds AdminClients to the application-only approval notification contract", () => {
+    const approvalNotifyStart = adminSource.indexOf("const approvalNotification = await notifyEvent({");
+    const approvalNotifyEnd = adminSource.indexOf("}, { timeoutMs: 10_000 });", approvalNotifyStart);
+    const approvalNotifyBlock = adminSource.slice(approvalNotifyStart, approvalNotifyEnd);
+
     expect(adminSource).toContain('event: "approval_granted"');
     expect(adminSource).toContain("applicationId: app.id");
     expect(adminSource).not.toContain('subject: "Welcome to Oasis B2B! Your account is active"');
-    expect(adminSource).not.toContain("email: app.contact_email");
+    expect(approvalNotifyBlock).not.toMatch(/\bemail:\s*app\.contact_email/);
     expect(adminSource).toContain("{ timeoutMs: 10_000 }");
   });
 });

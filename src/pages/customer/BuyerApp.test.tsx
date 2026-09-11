@@ -760,6 +760,8 @@ describe("Buyer App governed commercial handoff", () => {
     fireEvent.change(screen.getByLabelText("Phone number"), { target: { value: "9999999999" } });
     fireEvent.change(screen.getByLabelText("Dispatch preference (optional)"), { target: { value: "OTHER" } });
     fireEvent.change(screen.getByLabelText("Preferred transporter name"), { target: { value: "Blue Dart" } });
+    fireEvent.click(screen.getByRole("checkbox", { name: /confirm that the business and trade details/i }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /consent to Oasis Baklawa using the submitted contact/i }));
     fireEvent.click(screen.getByRole("button", { name: "Submit access request" }));
     await waitFor(() => expect(buyerMock.submitApplication).toHaveBeenCalledWith(expect.objectContaining({
       preferredDispatch: "OTHER",
@@ -825,6 +827,8 @@ describe("Buyer App governed commercial handoff", () => {
     fireEvent.change(screen.getByLabelText("Contact name"), { target: { value: "Buyer Contact" } });
     fireEvent.change(screen.getByLabelText("Work email"), { target: { value: "buyer@example.com" } });
     fireEvent.change(screen.getByLabelText("Phone number"), { target: { value: "9999999999" } });
+    fireEvent.click(screen.getByRole("checkbox", { name: /confirm that the business and trade details/i }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /consent to Oasis Baklawa using the submitted contact/i }));
     fireEvent.click(screen.getByRole("button", { name: "Submit access request" }));
     await waitFor(() => expect(buyerMock.submitApplication).toHaveBeenCalled());
     expect(await screen.findByText("Request received")).toBeTruthy();
