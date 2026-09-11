@@ -1,0 +1,81 @@
+name: Apply 568 consent review repairs
+
+on:
+  push:
+    branches:
+      - fix/561-prelogin-b2b-apply-v2
+    paths:
+      - .github/workflows/apply-568-consent-review-repairs.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/561-prelogin-b2b-apply-v2
+          fetch-depth: 0
+      - name: Apply verified CodeRabbit repairs
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          client = Path('src/lib/customerApp/customerAppClient.ts')
+          text = client.read_text()
+          old = '''    preferredDispatch?: string | null;\n    preferredDispatchOtherName?: string | null;\n  }) => rpc("submit_b2b_access_request_v2", {\n'''
+          new = '''    preferredDispatch?: string | null;\n    preferredDispatchOtherName?: string | null;\n    tradeDeclaration: boolean;\n    dataConsent: boolean;\n  }) => rpc("submit_b2b_access_request_v2", {\n'''
+          if old not in text:
+              raise SystemExit('client input marker not found')
+          text = text.replace(old, new, 1)
+          text = text.replace('    p_trade_declaration: true,\n    p_data_consent: true,', '    p_trade_declaration: input.tradeDeclaration,\n    p_data_consent: input.dataConsent,', 1)
+          client.write_text(text)
+
+          types = Path('src/integrations/supabase/database.types.ts')
+          text = types.read_text()
+          old = 'p_trade_declaration?: boolean; p_data_consent?: boolean }; Returns: { application_id: string; application_status: string; duplicate: boolean }[] }'
+          new = 'p_trade_declaration: boolean; p_data_consent: boolean }; Returns: { application_id: string; application_status: string; duplicate: boolean }[] }'
+          if old not in text:
+              raise SystemExit('type consent marker not found')
+          types.write_text(text.replace(old, new, 1))
+
+          buyer = Path('src/pages/customer/BuyerApp.tsx')
+          text = buyer.read_text()
+          old = '''  const [submitting, setSubmitting] = useState(false);\n  const [submitted, setSubmitted] = useState(false);\n  const submit = async () => {\n    if (!form.businessName.trim() || !form.contactName.trim() || !form.contactEmail.trim() || !form.contactPhone.trim() || submitting) return;\n'''
+          new = '''  const [tradeDeclaration, setTradeDeclaration] = useState(false);\n  const [dataConsent, setDataConsent] = useState(false);\n  const [submitting, setSubmitting] = useState(false);\n  const [submitted, setSubmitted] = useState(false);\n  const submit = async () => {\n    if (!form.businessName.trim() || !form.contactName.trim() || !form.contactEmail.trim() || !form.contactPhone.trim() || submitting) return;\n    if (!tradeDeclaration || !dataConsent) {\n      toast.error("Please accept the trade declaration and data consent before submitting.");\n      return;\n    }\n'''
+          if old not in text:
+              raise SystemExit('buyer state marker not found')
+          text = text.replace(old, new, 1)
+          old = '''        preferredDispatch: form.preferredDispatch || null,\n        preferredDispatchOtherName: form.preferredDispatch === "OTHER" ? form.preferredDispatchOtherName || null : null,\n      });\n'''
+          new = '''        preferredDispatch: form.preferredDispatch || null,\n        preferredDispatchOtherName: form.preferredDispatch === "OTHER" ? form.preferredDispatchOtherName || null : null,\n        tradeDeclaration,\n        dataConsent,\n      });\n'''
+          if old not in text:
+              raise SystemExit('buyer submit marker not found')
+          text = text.replace(old, new, 1)
+          old = '''Your B2B application is pending internal approval. We will notify you through an available WhatsApp, SMS, or email channel after approval. Buyer login becomes available only after approval.'''
+          new = '''Your B2B application is pending internal approval. Buyer login becomes available only after approval. You can return to the Buyer login page after your application has been approved.'''
+          if old not in text:
+              raise SystemExit('submitted copy marker not found')
+          text = text.replace(old, new, 1)
+          old = '''{form.preferredDispatch === "OTHER" && <label htmlFor="buyer-access-preferred-dispatch-other" className="block text-sm font-medium">Preferred transporter name<input id="buyer-access-preferred-dispatch-other" name="preferredDispatchOtherName" value={form.preferredDispatchOtherName} onChange={(event) => { setForm((current) => ({ ...current, preferredDispatchOtherName: event.target.value })); }} className="mt-1 w-full rounded-xl border bg-card px-3 py-3" /></label>}<button type="submit" disabled={submitting}'''
+          new = '''{form.preferredDispatch === "OTHER" && <label htmlFor="buyer-access-preferred-dispatch-other" className="block text-sm font-medium">Preferred transporter name<input id="buyer-access-preferred-dispatch-other" name="preferredDispatchOtherName" value={form.preferredDispatchOtherName} onChange={(event) => { setForm((current) => ({ ...current, preferredDispatchOtherName: event.target.value })); }} className="mt-1 w-full rounded-xl border bg-card px-3 py-3" /></label>}<label className="flex items-start gap-3 rounded-xl border bg-card p-3 text-sm"><input type="checkbox" name="tradeDeclaration" required checked={tradeDeclaration} onChange={(event) => { setTradeDeclaration(event.target.checked); }} className="mt-1 h-4 w-4" /><span>I confirm that the business and trade details provided in this application are accurate and may be reviewed by Oasis Baklawa for B2B access approval.</span></label><label className="flex items-start gap-3 rounded-xl border bg-card p-3 text-sm"><input type="checkbox" name="dataConsent" required checked={dataConsent} onChange={(event) => { setDataConsent(event.target.checked); }} className="mt-1 h-4 w-4" /><span>I consent to Oasis Baklawa using the submitted contact and business information to review this application and communicate about B2B access.</span></label><button type="submit" disabled={submitting}'''
+          if old not in text:
+              raise SystemExit('consent UI insertion marker not found')
+          buyer.write_text(text.replace(old, new, 1))
+
+          test = Path('src/pages/__tests__/b2bPreloginAccessContract.test.ts')
+          t = test.read_text()
+          t = t.replace('expect(block).toContain("p_trade_declaration: true");\n    expect(block).toContain("p_data_consent: true");', 'expect(block).toContain("p_trade_declaration: input.tradeDeclaration");\n    expect(block).toContain("p_data_consent: input.dataConsent");\n    expect(block).toContain("tradeDeclaration: boolean");\n    expect(block).toContain("dataConsent: boolean");')
+          extra = '''\n\n  it("requires explicit applicant declaration and consent in the public form", () => {\n    const buyerSource = readFileSync("src/pages/customer/BuyerApp.tsx", "utf8");\n    expect(buyerSource).toContain('name="tradeDeclaration"');\n    expect(buyerSource).toContain('name="dataConsent"');\n    expect(buyerSource).toContain("checked={tradeDeclaration}");\n    expect(buyerSource).toContain("checked={dataConsent}");\n    expect(buyerSource).toContain("if (!tradeDeclaration || !dataConsent)");\n  });\n'''
+          t = t.replace('\n});\n', extra + '\n});\n')
+          test.write_text(t)
+          PY
+
+          rm .github/workflows/apply-568-consent-review-repairs.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/lib/customerApp/customerAppClient.ts src/integrations/supabase/database.types.ts src/pages/customer/BuyerApp.tsx src/pages/__tests__/b2bPreloginAccessContract.test.ts .github/workflows/apply-568-consent-review-repairs.yml
+          git commit -m "fix(b2b): require explicit applicant consent"
+          git push origin HEAD:fix/561-prelogin-b2b-apply-v2
