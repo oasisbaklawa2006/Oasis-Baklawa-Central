@@ -98,6 +98,9 @@ function insertFinalPaymentRequestMaintenance(
   idempotencyKey,
 ) {
   const sql = `
+BEGIN;
+SET LOCAL request.jwt.claim.sub = '${financeActorId}';
+SET LOCAL request.jwt.claim.role = 'authenticated';
 WITH totals AS (
   SELECT public.calculate_finance_dpl_commercial_totals_v1(
     '${point38OrderId}'::uuid,
@@ -175,7 +178,8 @@ SELECT coalesce(
      WHERE r.idempotency_key = '${idempotencyKey}'
      LIMIT 1
   )
-);`;
+);
+COMMIT;`;
   const row = postgresScalar(sql, "Point38 final-payment request maintenance insert");
   const [requestId, balanceDueRaw] = row.split("|");
   if (!requestId) throw new Error("POINT100_POINT38_FINAL_PAYMENT_REQUEST_ID_MISSING");
