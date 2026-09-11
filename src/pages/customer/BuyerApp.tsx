@@ -926,16 +926,24 @@ export function BuyerAccessRequest() {
     preferredDispatch: "",
     preferredDispatchOtherName: "",
   });
+  const [tradeDeclaration, setTradeDeclaration] = useState(false);
+  const [dataConsent, setDataConsent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const submit = async () => {
     if (!form.businessName.trim() || !form.contactName.trim() || !form.contactEmail.trim() || !form.contactPhone.trim() || submitting) return;
+    if (!tradeDeclaration || !dataConsent) {
+      toast.error("Please accept the trade declaration and data consent before submitting.");
+      return;
+    }
     setSubmitting(true);
     try {
       await customerAppClient.submitApplication({
         ...form,
         preferredDispatch: form.preferredDispatch || null,
         preferredDispatchOtherName: form.preferredDispatch === "OTHER" ? form.preferredDispatchOtherName || null : null,
+        tradeDeclaration,
+        dataConsent,
       });
       setSubmitted(true);
       toast.success("Access request submitted");
@@ -945,7 +953,7 @@ export function BuyerAccessRequest() {
       setSubmitting(false);
     }
   };
-  if (submitted) return <main className="appverse-shell flex min-h-screen items-center px-6"><div className="mx-auto w-full max-w-lg rounded-3xl border bg-card p-8 text-center shadow-[var(--card-shadow)]"><CheckCircle2 size={32} className="mx-auto text-primary" aria-hidden /><h1 className="mt-3 font-display text-2xl font-semibold">Request received</h1><p className="mt-2 text-sm text-muted-foreground">Our team will review your company details and activate Buyer access when approved.</p></div></main>;
+  if (submitted) return <main className="appverse-shell flex min-h-screen items-center px-6"><div className="mx-auto w-full max-w-lg rounded-3xl border bg-card p-8 text-center shadow-[var(--card-shadow)]"><CheckCircle2 size={32} className="mx-auto text-primary" aria-hidden /><h1 className="mt-3 font-display text-2xl font-semibold">Request received</h1><p className="mt-2 text-sm text-muted-foreground">Your B2B application is pending internal approval. Buyer login becomes available only after approval. You can return to the Buyer login page after your application has been approved.</p></div></main>;
   const fields = [
     { key: "businessName", label: "Business name", type: "text", required: true, autoComplete: "organization" },
     { key: "contactName", label: "Contact name", type: "text", required: true, autoComplete: "name" },
@@ -960,7 +968,7 @@ export function BuyerAccessRequest() {
     { value: "OASIS_ARRANGED", label: "Oasis arranged delivery" },
     { value: "OTHER", label: "Preferred transporter (specify below)" },
   ] as const;
-  return <main className="appverse-shell min-h-screen px-6 py-10"><div className="mx-auto max-w-lg"><p className="text-sm text-muted-foreground">Oasis Baklawa B2B</p><h1 className="mt-1 font-display text-3xl font-semibold">Request Buyer access</h1><p className="mt-2 text-sm text-muted-foreground">Tell us about your company. Approval is required before catalogue pricing and checkout are available.</p><form className="mt-6 space-y-3" onSubmit={(event) => { event.preventDefault(); void submit(); }}>{fields.map((field) => <label key={field.key} htmlFor={`buyer-access-${field.key}`} className="block text-sm font-medium">{field.label}<input id={`buyer-access-${field.key}`} name={field.key} type={field.type} autoComplete={field.autoComplete} required={field.required} value={form[field.key]} onChange={(event) => { setForm((current) => ({ ...current, [field.key]: event.target.value })); }} className="mt-1 w-full rounded-xl border bg-card px-3 py-3" /></label>)}<label htmlFor="buyer-access-preferred-dispatch" className="block text-sm font-medium">Dispatch preference (optional)<select id="buyer-access-preferred-dispatch" name="preferredDispatch" value={form.preferredDispatch} onChange={(event) => { setForm((current) => ({ ...current, preferredDispatch: event.target.value })); }} className="mt-1 w-full rounded-xl border bg-card px-3 py-3">{dispatchOptions.map((option) => <option key={option.value || "none"} value={option.value}>{option.label}</option>)}</select></label>{form.preferredDispatch === "OTHER" && <label htmlFor="buyer-access-preferred-dispatch-other" className="block text-sm font-medium">Preferred transporter name<input id="buyer-access-preferred-dispatch-other" name="preferredDispatchOtherName" value={form.preferredDispatchOtherName} onChange={(event) => { setForm((current) => ({ ...current, preferredDispatchOtherName: event.target.value })); }} className="mt-1 w-full rounded-xl border bg-card px-3 py-3" /></label>}<button type="submit" disabled={submitting} className="min-h-12 w-full rounded-xl bg-primary py-3 font-bold text-primary-foreground disabled:opacity-50">{submitting ? "Submitting…" : "Submit access request"}</button></form></div></main>;
+  return <main className="appverse-shell min-h-screen px-6 py-10"><div className="mx-auto max-w-lg"><p className="text-sm text-muted-foreground">Oasis Baklawa B2B</p><h1 className="mt-1 font-display text-3xl font-semibold">Request Buyer access</h1><p className="mt-2 text-sm text-muted-foreground">Tell us about your company. Approval is required before catalogue pricing and checkout are available.</p><form className="mt-6 space-y-3" onSubmit={(event) => { event.preventDefault(); void submit(); }}>{fields.map((field) => <label key={field.key} htmlFor={`buyer-access-${field.key}`} className="block text-sm font-medium">{field.label}<input id={`buyer-access-${field.key}`} name={field.key} type={field.type} autoComplete={field.autoComplete} required={field.required} value={form[field.key]} onChange={(event) => { setForm((current) => ({ ...current, [field.key]: event.target.value })); }} className="mt-1 w-full rounded-xl border bg-card px-3 py-3" /></label>)}<label htmlFor="buyer-access-preferred-dispatch" className="block text-sm font-medium">Dispatch preference (optional)<select id="buyer-access-preferred-dispatch" name="preferredDispatch" value={form.preferredDispatch} onChange={(event) => { setForm((current) => ({ ...current, preferredDispatch: event.target.value })); }} className="mt-1 w-full rounded-xl border bg-card px-3 py-3">{dispatchOptions.map((option) => <option key={option.value || "none"} value={option.value}>{option.label}</option>)}</select></label>{form.preferredDispatch === "OTHER" && <label htmlFor="buyer-access-preferred-dispatch-other" className="block text-sm font-medium">Preferred transporter name<input id="buyer-access-preferred-dispatch-other" name="preferredDispatchOtherName" value={form.preferredDispatchOtherName} onChange={(event) => { setForm((current) => ({ ...current, preferredDispatchOtherName: event.target.value })); }} className="mt-1 w-full rounded-xl border bg-card px-3 py-3" /></label>}<label className="flex items-start gap-3 rounded-xl border bg-card p-3 text-sm"><input type="checkbox" name="tradeDeclaration" required checked={tradeDeclaration} onChange={(event) => { setTradeDeclaration(event.target.checked); }} className="mt-1 h-4 w-4" /><span>I confirm that the business and trade details provided in this application are accurate and may be reviewed by Oasis Baklawa for B2B access approval.</span></label><label className="flex items-start gap-3 rounded-xl border bg-card p-3 text-sm"><input type="checkbox" name="dataConsent" required checked={dataConsent} onChange={(event) => { setDataConsent(event.target.checked); }} className="mt-1 h-4 w-4" /><span>I consent to Oasis Baklawa using the submitted contact and business information to review this application and communicate about B2B access.</span></label><button type="submit" disabled={submitting} className="min-h-12 w-full rounded-xl bg-primary py-3 font-bold text-primary-foreground disabled:opacity-50">{submitting ? "Submitting…" : "Submit access request"}</button></form></div></main>;
 }
 
 /** Routes the authenticated Buyer through the complete customer-facing journey. */

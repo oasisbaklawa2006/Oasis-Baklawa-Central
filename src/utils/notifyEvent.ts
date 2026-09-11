@@ -10,16 +10,21 @@ export type NotifyAudience = "buyer" | "sales_exec" | "admin";
 
 export interface NotifyEventParams {
   event: string;
-  subject: string;
-  message: string;
+  subject?: string;
+  message?: string;
   audiences?: NotifyAudience[];
+  applicationId?: string | null;
   orderId?: string | null;
   companyId?: string | null;
   email?: string | null;
   phone?: string | null;
 }
 
-export const notifyEvent = async (params: NotifyEventParams) => {
+export interface NotifyEventOptions {
+  timeoutMs?: number;
+}
+
+export const notifyEvent = async (params: NotifyEventParams, options: NotifyEventOptions = {}) => {
   const validation = validateNotifyEventParams(params);
   if (validation.ok === false) {
     console.error("[notifyEvent] validation failed:", validation.reason);
@@ -27,12 +32,21 @@ export const notifyEvent = async (params: NotifyEventParams) => {
   }
 
   try {
+    const timeout = options.timeoutMs ?? 10_000;
     const { data, error } = await supabase.functions.invoke("notify-event", {
       body: params,
+      timeout,
     });
     if (error) {
       console.error("[notifyEvent] failed:", error.message);
       return { success: false, error: error.message };
+    }
+    const reportedSuccess =
+      typeof data === "object" && data !== null && "success" in data && typeof data.success === "boolean"
+        ? data.success
+        : true;
+    if (!reportedSuccess) {
+      return { success: false, data, error: "notification_delivery_failed" };
     }
     return { success: true, data };
   } catch (e: unknown) {

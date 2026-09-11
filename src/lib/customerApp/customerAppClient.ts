@@ -431,18 +431,19 @@ export const customerAppClient = {
     address?: string;
     preferredDispatch?: string | null;
     preferredDispatchOtherName?: string | null;
-  }) => rpc("submit_b2b_trade_application_v1", {
+    tradeDeclaration: boolean;
+    dataConsent: boolean;
+  }) => rpc("submit_b2b_access_request_v2", {
     p_business_name: input.businessName,
     p_contact_name: input.contactName,
     p_contact_email: input.contactEmail,
     p_contact_phone: input.contactPhone,
-    p_mobile_number: input.contactPhone,
     p_gst_number: input.gstNumber || null,
     p_registered_address: input.address || null,
     p_preferred_dispatch: input.preferredDispatch || null,
     p_preferred_dispatch_other_name: input.preferredDispatchOtherName || null,
-    p_trade_declaration: true,
-    p_data_consent: true,
+    p_trade_declaration: input.tradeDeclaration,
+    p_data_consent: input.dataConsent,
   }),
   submitTicket: (orderId: string, issueType: string, description: string, sku?: string, quantity?: number) => rpc("submit_customer_support_ticket_v1", {
     p_order_id: orderId,

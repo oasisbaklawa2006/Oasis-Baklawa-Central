@@ -370,12 +370,10 @@ const Login = () => {
     teardownMsg91Widget();
   };
 
-  // Issue #561: the B2B access CTA routed to a nonexistent /register (404).
-  // It now runs the governed mobile-verification identity gate instead of any
-  // anonymous application write.
+  // Issue #561: B2B application is a governed pre-login intake.
+  // Prospects may open the form directly; Core owns the anonymous write boundary.
   const handleApplyForB2BAccess = () => {
-    setActiveTab("msg91");
-    launchMsg91Widget();
+    navigate("/buyer/access-request");
   };
 
   const launchMsg91Widget = () => {
@@ -611,7 +609,8 @@ const Login = () => {
         result: "failed",
         error: message,
       });
-      await finalizeFailure(message.includes("Invalid") ? "Invalid email or password." : getCustomerAuthUserMessage(error), "failed");
+      await finalizeFailure(message.includes("Invalid") ? "Login was not available for this account. You can request B2B access." : getCustomerAuthUserMessage(error), "failed");
+      navigate("/buyer/access-request");
       return;
     }
 
