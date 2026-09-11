@@ -79,6 +79,26 @@ function kolkataCalendarDate(isoTimestamp) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date(isoTimestamp));
 }
 
+function sessionCalendarDate() {
+  return postgresScalar("SELECT to_char(current_date, 'YYYY-MM-DD');", "Point38 session calendar date");
+}
+
+/**
+ * When CI runs past ~18:30 UTC the governed final-payment request can land on
+ * tomorrow in Asia/Kolkata while issue_final_invoice_v1 still compares against
+ * session current_date. Backdate only on loopback disposable rows, matching the
+ * factory-cert fixture calendar guard.
+ */
+function alignFinalPaymentRequestCalendar(finalPaymentRequestId) {
+  postgresScalar(
+    `UPDATE public.sales_order_pi_final_payment_requests
+        SET issued_at = statement_timestamp() - interval '2 days'
+      WHERE id = '${finalPaymentRequestId}'::uuid
+        AND (issued_at AT TIME ZONE 'Asia/Kolkata')::date > current_date;`,
+    "Point38 final-payment request calendar alignment",
+  );
+}
+
 const backendUrl = assertLoopbackHttp(requireEnv("FACTORY_CERT_SUPABASE_URL"));
 const anonKey = requireEnv("FACTORY_CERT_SUPABASE_ANON_KEY");
 const localDbUrl = requireEnv("FACTORY_CERT_LOCAL_DB_URL");
@@ -277,6 +297,7 @@ async function ensureFinalPaymentCoverage(finance, financeActorId, piId, commerc
   const request = firstRow(requestResult.data);
   const finalPaymentRequestId = String(request?.final_payment_request_id ?? "");
   if (!finalPaymentRequestId) throw new Error("POINT100_POINT38_FINAL_PAYMENT_REQUEST_ID_MISSING");
+  alignFinalPaymentRequestCalendar(finalPaymentRequestId);
 
   const balanceDue = Number(request?.balance_due ?? 0);
   if (!Number.isFinite(balanceDue) || balanceDue < -0.01) {
@@ -337,7 +358,14 @@ async function ensureFinalPaymentCoverage(finance, financeActorId, piId, commerc
 
   const issuedAt = facts.issued_at;
   if (!issuedAt) throw new Error("POINT100_POINT38_FINAL_PAYMENT_ISSUED_AT_MISSING");
-  return kolkataCalendarDate(issuedAt);
+  const requestCalendarDate = kolkataCalendarDate(issuedAt);
+  const invoiceDate = sessionCalendarDate();
+  if (invoiceDate < requestCalendarDate) {
+    throw new Error(
+      `POINT100_POINT38_FINAL_INVOICE_DATE_UNRESOLVABLE: request=${requestCalendarDate} session=${invoiceDate}`,
+    );
+  }
+  return invoiceDate;
 }
 
 async function ensureFinalSettlement(finance, financeActorId, piId, commercialVersionId, finalInvoiceId) {
