@@ -140,7 +140,7 @@ export default function InventoryReceiving() {
     <div className="mx-auto max-w-7xl space-y-6 p-4 pb-24">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
         <div className="flex items-center gap-3">
-          <Button size="icon" variant="ghost" asChild><Link to="/admin/inventory-command-center" aria-label="Back to inventory command center"><ArrowLeft className="h-4 w-4" /></Link></Button>
+          <Button size="icon" variant="ghost" asChild><Link to="/admin/ready-goods" aria-label="Back to ready goods"><ArrowLeft className="h-4 w-4" /></Link></Button>
           <div><h1 className="text-xl font-bold tracking-tight">Receiving & inwarding</h1><p className="text-xs text-muted-foreground">Source-linked receipt evidence · B2B fulfilment stores</p></div>
         </div>
         <Button size="sm" variant="outline" onClick={() => void load()} disabled={loading}><RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />Refresh</Button>

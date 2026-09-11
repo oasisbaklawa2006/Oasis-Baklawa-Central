@@ -20,7 +20,7 @@ describe("App-Verse workspace registry", () => {
   it("maps operational routes into Operations", () => {
     expect(getWorkspaceForPath("/admin/execution/production").key).toBe("operations");
     expect(getWorkspaceForPath("/admin/dispatch-readiness").key).toBe("operations");
-    expect(getWorkspaceForPath("/admin/execution-command-center").key).toBe("operations");
+    expect(getWorkspaceForPath("/admin/live-work-queues").key).toBe("operations");
   });
 
   it("maps customer and finance routes correctly", () => {

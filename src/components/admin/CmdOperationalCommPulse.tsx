@@ -211,16 +211,16 @@ export function CmdOperationalCommPulse({
         </div>
         <div className="mt-2 flex flex-wrap gap-2">
           <Link
-            to="/admin/inventory-command-center"
+            to="/admin/ready-goods"
             className="inline-flex min-h-9 items-center rounded-md border border-border px-3 text-xs font-medium text-foreground outline-none transition hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
-            Inventory command center
+            Ready goods
           </Link>
           <Link
-            to="/admin/inventory-risk-board"
+            to="/admin/inventory"
             className="inline-flex min-h-9 items-center rounded-md border border-border px-3 text-xs font-medium text-foreground outline-none transition hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
-            Risk & variance board
+            Factory stock
           </Link>
           <Link
             to="/admin/scan-timeline"
@@ -282,16 +282,10 @@ export function CmdOperationalCommPulse({
         </div>
         <div className="mt-2 flex flex-wrap gap-2">
           <Link
-            to="/admin/execution-command-center"
+            to="/admin/live-work-queues"
             className="inline-flex min-h-9 items-center rounded-md border border-primary/40 bg-primary/5 px-3 text-xs font-medium text-foreground outline-none transition hover:bg-primary/10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             <Gauge className="mr-1 inline h-3.5 w-3.5" aria-hidden />
-            Execution CMD
-          </Link>
-          <Link
-            to="/admin/live-work-queues"
-            className="inline-flex min-h-9 items-center rounded-md border border-border px-3 text-xs font-medium text-foreground outline-none transition hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-          >
             Live work queues
           </Link>
           <Link
