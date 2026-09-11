@@ -1,0 +1,70 @@
+name: Apply 568 approval v2 binding
+
+on:
+  push:
+    branches:
+      - fix/561-prelogin-b2b-apply-v2
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/561-prelogin-b2b-apply-v2
+          fetch-depth: 0
+      - name: Patch approval binding
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def once(path, old, new):
+              p = Path(path)
+              text = p.read_text()
+              if text.count(old) != 1:
+                  raise SystemExit(f"{path}: expected one match for {old!r}, got {text.count(old)}")
+              p.write_text(text.replace(old, new, 1))
+
+          once(
+              "src/pages/admin/AdminClients.tsx",
+              'supabase.rpc("approve_b2b_trade_application_v1", {',
+              'supabase.rpc("approve_b2b_access_request_v2", {',
+          )
+
+          p = Path("src/integrations/supabase/database.types.ts")
+          text = p.read_text()
+          if "approve_b2b_access_request_v2:" not in text:
+              needle = "  submit_b2b_access_request_v2:"
+              if text.count(needle) != 1:
+                  raise SystemExit(f"database.types.ts: expected one insertion anchor, got {text.count(needle)}")
+              entry = "  approve_b2b_access_request_v2: { Args: { p_application_id: string; p_assigned_price_tier: string; p_admin_notes?: string | null }; Returns: { application_id: string; application_status: string; company_id: string; identity_activation_required: boolean }[] }\n"
+              text = text.replace(needle, entry + needle, 1)
+              p.write_text(text)
+
+          test = Path("src/pages/__tests__/b2bPreloginAccessContract.test.ts")
+          text = test.read_text()
+          if "AdminClients.tsx" not in text:
+              text = text.replace(
+                  'const typeSource = readFileSync("src/integrations/supabase/database.types.ts", "utf8");',
+                  'const typeSource = readFileSync("src/integrations/supabase/database.types.ts", "utf8");\nconst adminClientsSource = readFileSync("src/pages/admin/AdminClients.tsx", "utf8");',
+              )
+              text = text.replace(
+                  '  it("types the deployed v2 Core function in Central", () => {\n    expect(typeSource).toContain("submit_b2b_access_request_v2:");\n  });',
+                  '  it("types the deployed v2 Core functions in Central", () => {\n    expect(typeSource).toContain("submit_b2b_access_request_v2:");\n    expect(typeSource).toContain("approve_b2b_access_request_v2:");\n  });\n\n  it("approves pending requests through the v2 pre-login lifecycle authority", () => {\n    expect(adminClientsSource).toContain(\'supabase.rpc("approve_b2b_access_request_v2"\');\n    expect(adminClientsSource).not.toContain(\'supabase.rpc("approve_b2b_trade_application_v1"\');\n  });',
+              )
+              test.write_text(text)
+
+          Path(".github/workflows/apply-568-approval-v2.yml").unlink()
+          PY
+      - name: Commit bounded patch
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix(b2b): bind staff approval to v2 lifecycle authority"
+          git push origin HEAD:fix/561-prelogin-b2b-apply-v2
