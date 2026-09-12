@@ -127,10 +127,11 @@ describe("point100 probe runner", () => {
     if (original) process.env.FACTORY_CERT_GOLDEN_ORDER_ID = original;
   });
 
-  it("consumes merged inventory and Trace software authority without upstream blockers", () => {
+  it("consumes merged inventory/Trace #37 authority but exposes current Trace #38 as a fail-closed blocker", () => {
     expect(POINT100_UPSTREAM_DEPENDENCIES.some((dep) => dep.pr === "#256" && dep.state === "merged")).toBe(true);
     expect(POINT100_UPSTREAM_DEPENDENCIES.some((dep) => dep.pr === "#259" && dep.state === "merged")).toBe(true);
     expect(POINT100_UPSTREAM_DEPENDENCIES.some((dep) => dep.pr === "#37" && dep.state === "merged")).toBe(true);
+    expect(POINT100_UPSTREAM_DEPENDENCIES.some((dep) => dep.pr === "#38" && dep.state === "open_pr")).toBe(true);
     const inventoryStage = POINT100_LIFECYCLE_STAGES.find((s) => s.id === "inventory_lot_allocation")!;
     const outcome = buildProbeOutcome({
       stage: inventoryStage,
@@ -144,14 +145,16 @@ describe("point100 probe runner", () => {
       executed: false,
     });
     expect(outcome.status).toBe("implemented");
-    expect(upstreamBlockersForStage("trace_handover")).toHaveLength(0);
+    const traceBlockers = upstreamBlockersForStage("trace_handover");
+    expect(traceBlockers).toHaveLength(1);
+    expect(traceBlockers[0]?.id).toBe("oasis-trace-recovery-38");
   });
 
-  it("records #260 and #180 as the current production-certified Core authority", () => {
-    const merged260 = POINT100_UPSTREAM_DEPENDENCIES.find((dep) => dep.id === "core-macro-dispatch-260");
-    const merged180 = POINT100_UPSTREAM_DEPENDENCIES.find((dep) => dep.id === "core-production-migration-180");
-    expect(merged260?.state).toBe("merged");
-    expect(merged180?.state).toBe("merged");
+  it("records Core #290 and Production Migration Release #182 as current production authority", () => {
+    const merged290 = POINT100_UPSTREAM_DEPENDENCIES.find((dep) => dep.id === "core-trace-reprint-290");
+    const merged182 = POINT100_UPSTREAM_DEPENDENCIES.find((dep) => dep.id === "core-production-migration-182");
+    expect(merged290?.state).toBe("merged");
+    expect(merged182?.state).toBe("merged");
     const originalSha = process.env.POINT100_CORE_VERIFIED_SHA;
     process.env.POINT100_CORE_VERIFIED_SHA = POINT100_CORE_PRODUCTION_VERIFIED_SHA;
     expect(isCoreProductionVerified()).toBe(true);
@@ -170,7 +173,7 @@ describe("point100 probe runner", () => {
     expect(merged556?.affectedStageIds).toContain("dispatch_consignment");
   });
 
-  it("treats dispatch finalize as certified after Core #260 protected deployment", () => {
+  it("treats dispatch finalize as certified on the current protected Core deployment", () => {
     const originalSha = process.env.POINT100_CORE_VERIFIED_SHA;
     const originalBootstrap = process.env.POINT100_ALLOW_DISPOSABLE_BOOTSTRAP;
     const originalProduction = process.env.POINT100_PRODUCTION_CERTIFICATION_PERMITTED;
@@ -194,7 +197,7 @@ describe("point100 probe runner", () => {
     else process.env.POINT100_DISPATCH_PRODUCTION_VERIFIED = originalDispatch;
   });
 
-  it("embeds Core #260/#180 provenance in capability matrix", () => {
+  it("embeds Core #290/#182 provenance in capability matrix", () => {
     const originalSha = process.env.POINT100_CORE_VERIFIED_SHA;
     process.env.POINT100_CORE_VERIFIED_SHA = POINT100_CORE_PRODUCTION_VERIFIED_SHA;
     const matrix = buildCapabilityMatrix([], "test-env");
