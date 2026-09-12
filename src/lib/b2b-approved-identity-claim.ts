@@ -1,10 +1,10 @@
 export const APPROVED_B2B_IDENTITY_CLAIM_RPC = "claim_approved_b2b_access_request_v2";
 
 export type ApprovedB2bIdentityClaimRow = {
-  application_id?: string | null;
-  claimed?: boolean | null;
-  company_id?: string | null;
-  already_active?: boolean | null;
+  application_id: string | null;
+  claimed: boolean;
+  company_id: string | null;
+  already_active: boolean;
 };
 
 export type ApprovedB2bIdentityClaimOutcome = {
@@ -30,9 +30,28 @@ export function shouldClaimApprovedB2bIdentityAfterTokenHash(params: unknown): b
     record.token_hash.trim().length > 0;
 }
 
+function isNullableString(value: unknown): value is string | null {
+  return value === null || typeof value === "string";
+}
+
+/** Validates Core's single-row claim contract without converting malformed success into a no-op. */
+export function isApprovedB2bIdentityClaimRow(value: unknown): value is ApprovedB2bIdentityClaimRow {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const row = value as Record<string, unknown>;
+  return Object.prototype.hasOwnProperty.call(row, "application_id") &&
+    Object.prototype.hasOwnProperty.call(row, "claimed") &&
+    Object.prototype.hasOwnProperty.call(row, "company_id") &&
+    Object.prototype.hasOwnProperty.call(row, "already_active") &&
+    isNullableString(row.application_id) &&
+    typeof row.claimed === "boolean" &&
+    isNullableString(row.company_id) &&
+    typeof row.already_active === "boolean";
+}
+
 /**
- * Calls Core's authenticated post-approval identity authority. A no-match row
- * is a valid no-op for a fresh/pending applicant; RPC errors fail closed.
+ * Calls Core's authenticated post-approval identity authority. A structurally
+ * valid null/false row is the deliberate no-match result for fresh/pending
+ * applicants; malformed successful payloads and RPC errors both fail closed.
  */
 export async function claimApprovedB2bIdentity(
   invoke: () => Promise<ClaimRpcResult>,
@@ -42,12 +61,16 @@ export async function claimApprovedB2bIdentity(
     throw new Error("APPROVED_B2B_IDENTITY_CLAIM_FAILED");
   }
 
-  const row = (Array.isArray(data) ? data[0] : data) as ApprovedB2bIdentityClaimRow | null | undefined;
+  const candidate = Array.isArray(data) && data.length === 1 ? data[0] : !Array.isArray(data) ? data : null;
+  if (!isApprovedB2bIdentityClaimRow(candidate)) {
+    throw new Error("APPROVED_B2B_IDENTITY_CLAIM_FAILED");
+  }
+
   return {
-    applicationId: row?.application_id ?? null,
-    companyId: row?.company_id ?? null,
-    claimed: row?.claimed === true,
-    alreadyActive: row?.already_active === true,
+    applicationId: candidate.application_id,
+    companyId: candidate.company_id,
+    claimed: candidate.claimed,
+    alreadyActive: candidate.already_active,
   };
 }
 
