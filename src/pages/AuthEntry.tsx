@@ -41,6 +41,7 @@ const AuthEntry = () => {
               <p className="text-sm font-semibold text-foreground">Preferred Language</p>
               <button
                 type="button"
+                aria-pressed={lang === "en"}
                 onClick={() => setLang("en")}
                 className={`w-full rounded-xl border px-4 py-3 text-left text-sm ${lang === "en" ? "border-primary bg-primary/5 font-semibold" : "border-border"}`}
               >
@@ -48,6 +49,7 @@ const AuthEntry = () => {
               </button>
               <button
                 type="button"
+                aria-pressed={lang === "hi"}
                 onClick={() => setLang("hi")}
                 className={`w-full rounded-xl border px-4 py-3 text-left text-sm ${lang === "hi" ? "border-primary bg-primary/5 font-semibold" : "border-border"}`}
               >
@@ -60,6 +62,7 @@ const AuthEntry = () => {
               <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
+                  aria-pressed={currency === "INR"}
                   onClick={() => setCurrency("INR")}
                   className={`rounded-xl border px-4 py-3 text-sm ${currency === "INR" ? "border-primary bg-primary/5 font-semibold" : "border-border"}`}
                 >
@@ -67,6 +70,7 @@ const AuthEntry = () => {
                 </button>
                 <button
                   type="button"
+                  aria-pressed={currency === "USD"}
                   onClick={() => setCurrency("USD")}
                   className={`rounded-xl border px-4 py-3 text-sm ${currency === "USD" ? "border-primary bg-primary/5 font-semibold" : "border-border"}`}
                 >
