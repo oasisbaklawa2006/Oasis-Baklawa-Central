@@ -3,16 +3,10 @@ import { Navigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-import { isAuthorizedForAdminPath } from "@/lib/appverse/routeAccess";
-import { getRoleDestination } from "@/lib/auth-routing";
-
-/** Resolve the governed redirect target when an admin route is denied for the current role. */
-function getUnauthorizedRedirect(role: string | null | undefined): string {
-  const normalizedRole = role?.trim().toUpperCase();
-  if (normalizedRole === "SALES_EXECUTIVE") return "/sales/dashboard";
-  const destination = getRoleDestination(role);
-  return destination === "/customer-app-redirect" ? "/admin" : destination;
-}
+import {
+  getUnauthorizedAdminRedirect,
+  isAuthorizedForAdminPath,
+} from "@/lib/appverse/routeAccess";
 
 /** Enforce admin-route RBAC after profile hydration; deny with render-time redirect. */
 export default function AdminRouteGuard({ children }: { children: React.ReactNode }) {
@@ -46,9 +40,16 @@ export default function AdminRouteGuard({ children }: { children: React.ReactNod
     }
   }, [enforce, authorized, authLoading, profileReady, user, role, location.pathname]);
 
-  if ((authLoading || !roleReady) && enforce) return null;
+  if ((authLoading || !roleReady) && enforce) {
+    // Cached/stale role may already prove the path is forbidden before profileReady
+    // settles; redirect immediately so direct-route probes do not remain on finance.
+    if (role && !authorized) {
+      return <Navigate to={getUnauthorizedAdminRedirect(role)} replace />;
+    }
+    return null;
+  }
   if (!authorized && enforce) {
-    return <Navigate to={getUnauthorizedRedirect(role)} replace />;
+    return <Navigate to={getUnauthorizedAdminRedirect(role)} replace />;
   }
   return <>{children}</>;
 }
