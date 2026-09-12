@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { BrowserRouter } from "react-router-dom";
 import StaffLogin from "@/pages/StaffLogin";
 import BuyerLogin from "@/pages/BuyerLogin";
@@ -45,6 +45,8 @@ vi.mock("@/integrations/supabase/client", () => ({
     auth: {
       setSession: () => Promise.resolve({ data: { session: { user: state.sessionUser } }, error: null }),
       signInWithPassword: () => Promise.resolve({ data: { user: state.sessionUser }, error: null }),
+      signInWithOtp: () => Promise.resolve({ error: null }),
+      verifyOtp: () => Promise.resolve({ data: { user: state.sessionUser }, error: null }),
       getSession: () => Promise.resolve({ data: { session: null }, error: null }),
       onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
       resetPasswordForEmail: () => Promise.resolve({ error: null }),
@@ -87,6 +89,26 @@ function renderAt(Component: React.ComponentType, path: string) {
       <Component />
     </BrowserRouter>,
   );
+}
+
+// BuyerLogin no longer has a manual_auth/magic-link path (buyers never
+// receive magic-link emails -- only staff invites do, per AdminUsers.tsx).
+// Its post-authentication membership boundary is now driven through the
+// email OTP channel instead: sign in, request the OTP, verify it, and the
+// same runRedirectAfterAuth(... requiredMembership: "buyer") call fires.
+async function driveBuyerEmailOtp(path: string, email = "identity@example.com", otp = "123456") {
+  window.history.pushState({}, "", path);
+  render(
+    <BrowserRouter>
+      <BuyerLogin />
+    </BrowserRouter>,
+  );
+  fireEvent.click(screen.getByText("Email OTP"));
+  fireEvent.change(screen.getByLabelText("Registered email address"), { target: { value: email } });
+  fireEvent.click(screen.getByText("Send email OTP"));
+  await waitFor(() => screen.getByLabelText("6-digit email OTP"));
+  fireEvent.change(screen.getByLabelText("6-digit email OTP"), { target: { value: otp } });
+  fireEvent.click(screen.getByText("Verify and continue"));
 }
 
 beforeEach(() => {
@@ -142,7 +164,7 @@ describe("Requirement 3 — Buyer Login + intended ACCOUNT_PENDING onboarding", 
     };
     state.profileRow = { status: null, is_approved: null, company_id: null, role: null };
 
-    renderAt(BuyerLogin, "/buyer/login");
+    await driveBuyerEmailOtp("/buyer/login");
 
     await waitFor(() => expect(window.location.pathname).toBe("/buyer/access-request"));
     expect(signOutAndClearSessionMock).not.toHaveBeenCalled();
@@ -158,7 +180,7 @@ describe("Requirement 4 — Buyer Login + resolved staff identity", () => {
     state.profileRow = { status: "approved", is_approved: true, company_id: null, role: "ADMIN" };
     state.serverRole = "ADMIN";
 
-    renderAt(BuyerLogin, "/buyer/login");
+    await driveBuyerEmailOtp("/buyer/login");
 
     await waitFor(() => expect(signOutAndClearSessionMock).toHaveBeenCalled());
     expect(window.location.pathname).toBe("/buyer/login");
@@ -202,7 +224,7 @@ describe("Requirement 6 — a failed post-setSession authorization never leaves 
     };
     state.profileRow = { status: "approved", is_approved: true, company_id: null, role: "SUPER_ADMIN" };
     state.serverRole = "SUPER_ADMIN";
-    renderAt(BuyerLogin, "/buyer/login");
+    await driveBuyerEmailOtp("/buyer/login");
     await waitFor(() => expect(signOutAndClearSessionMock).toHaveBeenCalledTimes(1));
   });
 });
