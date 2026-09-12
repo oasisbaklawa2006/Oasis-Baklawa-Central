@@ -1,23 +1,28 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Loader2, ShieldCheck } from "lucide-react";
+import { ArrowLeft, Loader2, Mail, MessageCircle, Phone, PhoneCall, ShieldCheck } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import logoImg from "@/assets/logo-open.png";
 import { createAuthStateController, getCustomerAuthUserMessage, readAuthCache, redirectAfterAuth, type AuthStatus } from "@/lib/auth-flow";
 import { createAuthAttemptId, logAuthEvent, type AuthAttemptMethod } from "@/lib/auth-logging";
-import { normalizeIdentifier } from "@/lib/auth-identity";
+import { isEmailIdentifier, normalizeIdentifier, normalizePhone } from "@/lib/auth-identity";
 import { signOutAndClearSession } from "@/utils/authSession";
 
 // MSG91 "Widget ID" and "Auth Token" are the pair MSG91's own OTP Widget SDK
-// requires in the browser to boot its verification UI (see initSendOTP()
-// below) -- the same public-widget-config model as e.g. a reCAPTCHA site
-// key. They are not the MSG91 account authkey used to call MSG91's REST
-// send APIs; that server-side provider secret lives only in the msg91-otp
-// Edge Function's environment and is never present in this bundle.
+// requires in the browser to boot its verification UI. They are not the MSG91
+// account authkey used to call MSG91 REST send APIs; that server-side provider
+// secret lives only in the msg91-otp Edge Function environment.
 const MSG91_WIDGET_ID = "3664766e464b383030383331";
 const MSG91_TOKEN_AUTH = "509994T6SRbi4LqM69ea72d0P1";
 const MSG91_PROVIDER_SCRIPT_ID = "msg91-otp-provider";
+
+const SUPPORT_EMAIL = "support@oasisbaklawa.com";
+const SUPPORT_WHATSAPP = (import.meta.env.VITE_B2B_SUPPORT_WHATSAPP || "").replace(/\D/g, "");
+const SUPPORT_PHONE = import.meta.env.VITE_B2B_SUPPORT_PHONE || "";
+
+type BuyerLoginChannel = "mobile" | "email" | null;
 
 declare global {
   interface Window {
@@ -32,7 +37,7 @@ function mapOtpErrorMessage(rawMessage?: string | null) {
   if (message.includes("phone_missing_from_widget_and_edge")) return "Phone number was missing after verification. Please retry.";
   if (message.includes("token_hash_missing")) return "Verification succeeded, but session token generation failed. Please retry.";
   if (message.includes("user_id_missing")) return "Verification succeeded, but account binding failed. Please retry.";
-  if (message.includes("provider_not_linked") || message.includes("phone_not_linked")) return "This phone number is not linked to an approved account.";
+  if (message.includes("provider_not_linked") || message.includes("phone_not_linked")) return "This mobile number is not linked to an approved B2B account.";
   if (message.includes("expired")) return "OTP expired. Please request a new code.";
   if (message.includes("invalid")) return "OTP invalid. Please enter the correct code and try again.";
   if (message.includes("network")) return "Network error. Please check your connection and try again.";
@@ -46,8 +51,6 @@ function firstNonEmptyString(...values: unknown[]) {
   return null;
 }
 
-// MSG91 widget SDK payload shape is undocumented and varies by verification
-// channel (SMS/WhatsApp/voice); the callers below probe every known variant.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function extractMsg91AccessToken(payload: any) {
   return firstNonEmptyString(
@@ -112,6 +115,11 @@ function sanitizeAuthDebugPayload(value: unknown): unknown {
 
 const BuyerLogin = () => {
   const navigate = useNavigate();
+  const [channel, setChannel] = useState<BuyerLoginChannel>(null);
+  const [mobile, setMobile] = useState("");
+  const [email, setEmail] = useState("");
+  const [emailOtp, setEmailOtp] = useState("");
+  const [emailOtpSent, setEmailOtpSent] = useState(false);
   const [authStatus, setAuthStatus] = useState<AuthStatus>("idle");
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -120,16 +128,12 @@ const BuyerLogin = () => {
   const attemptRef = useRef<{ id: string; method: AuthAttemptMethod; identifier: string | null } | null>(null);
   const providerLoadRef = useRef<Promise<void> | null>(null);
 
-  const isMinting = useMemo(
-    () => {
-      const minting = ["verifying_otp", "verification_success", "session_creation_in_progress", "account_resolution_in_progress", "profile_loading", "role_loading"].includes(authStatus);
-      if (!minting) return false;
-      // Skip the "Securing your Oasis session" overlay when role is already cached locally.
-      const cached = typeof window !== "undefined" ? readAuthCache() : null;
-      return !(cached && cached.role);
-    },
-    [authStatus],
-  );
+  const isMinting = useMemo(() => {
+    const minting = ["verifying_otp", "verification_success", "session_creation_in_progress", "account_resolution_in_progress", "profile_loading", "role_loading"].includes(authStatus);
+    if (!minting) return false;
+    const cached = typeof window !== "undefined" ? readAuthCache() : null;
+    return !(cached && cached.role);
+  }, [authStatus]);
 
   const updateStatus = (
     next: AuthStatus,
@@ -145,12 +149,21 @@ const BuyerLogin = () => {
     setAuthStatus(next);
   };
 
+  const teardownMsg91Widget = () => {
+    if (typeof document === "undefined") return;
+    try {
+      document
+        .querySelectorAll("[id^='msg91'], [class*='msg91'], iframe[src*='msg91']")
+        .forEach((node) => node.parentElement?.removeChild(node));
+    } catch {
+      // Best-effort cleanup only.
+    }
+  };
+
   const finalizeFailure = async (message: string, finalState: AuthStatus = "failed", shouldSignOut = false) => {
     controllerRef.current.clearAllTimers();
     controllerRef.current.finalize();
-    if (shouldSignOut) {
-      await signOutAndClearSession();
-    }
+    if (shouldSignOut) await signOutAndClearSession();
     updateStatus(finalState, { result: "failed", error: message });
     setStatusMessage(message);
     setLoading(false);
@@ -158,9 +171,6 @@ const BuyerLogin = () => {
   };
 
   const runRedirectAfterAuth = async (identity: string, method: AuthAttemptMethod, userId?: string, attemptId?: string) => {
-    // Buyer surface only: a resolved role that isn't a buyer/customer
-    // membership fails closed here rather than silently forwarding an
-    // authenticated staff identity anywhere.
     await redirectAfterAuth({
       identity,
       method,
@@ -225,48 +235,34 @@ const BuyerLogin = () => {
     return providerLoadRef.current;
   }, []);
 
-  // ── Manual Magic-Link bypass ──
-  // When the magic link redirects with ?manual_auth=true, completely bypass
-  // onAuthStateChange and manually extract the access/refresh tokens from the
-  // URL hash, then call supabase.auth.setSession() directly. This sidesteps
-  // the SMTP redirection conflict that was causing "Auth configuration mismatch".
+  // Backward compatibility for an already-issued Supabase magic link. New
+  // buyer logins use OTP only, but an older unexpired link must still fail
+  // closed through the same buyer membership boundary.
   useEffect(() => {
     if (typeof window === "undefined") return;
     const url = new URL(window.location.href);
-    const isManual = url.searchParams.get("manual_auth") === "true";
-    if (!isManual) return;
+    if (url.searchParams.get("manual_auth") !== "true") return;
 
-    // Tokens come back in the URL fragment from Supabase magic-link emails.
     const hash = window.location.hash?.startsWith("#") ? window.location.hash.slice(1) : window.location.hash;
     const params = new URLSearchParams(hash || "");
     const access_token = params.get("access_token");
     const refresh_token = params.get("refresh_token");
-
-    if (!access_token || !refresh_token) {
-      // Nothing to do — fall back to normal flow silently.
-      return;
-    }
+    if (!access_token || !refresh_token) return;
 
     (async () => {
       setLoading(true);
-      setStatusMessage("Authenticating via secure magic link…");
+      setStatusMessage("Authenticating secure link…");
       try {
         const { data, error } = await supabase.auth.setSession({ access_token, refresh_token });
         if (error || !data.session) {
-          toast.error("Magic link session failed. Please request a new link.");
+          toast.error("This sign-in link is no longer valid. Please request a new OTP.");
           setLoading(false);
           return;
         }
-        // Clear sensitive tokens from URL
         window.history.replaceState({}, "", url.pathname);
         const identity = data.session.user.email || data.session.user.phone || data.session.user.id;
         await runRedirectAfterAuth(identity, "session_restore", data.session.user.id);
       } catch (err) {
-        // setSession() above already established a real Supabase session before
-        // this failure (e.g. a resolved staff identity failing the buyer
-        // membership boundary) — a session this restore never earned buyer
-        // access for must not be left reusable. The intended ACCOUNT_PENDING
-        // buyer-onboarding path does not throw, so it never reaches this catch.
         await signOutAndClearSession();
         toast.error(getCustomerAuthUserMessage(err));
         setLoading(false);
@@ -277,66 +273,51 @@ const BuyerLogin = () => {
 
   useEffect(() => {
     void ensureMsg91Provider().catch(() => {
-      setStatusMessage("Mobile verification is unavailable right now. Please try again shortly.");
+      setIsMsg91Ready(false);
     });
-
-    return () => {
-      controllerRef.current.finalize();
-    };
+    updateStatus("entering_identifier", { result: "info" });
+    return () => controllerRef.current.finalize();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ensureMsg91Provider]);
 
-  useEffect(() => {
-    updateStatus("entering_identifier", { result: "info" });
-    setStatusMessage(null);
-  }, []);
-
-  const teardownMsg91Widget = () => {
-    if (typeof document === "undefined") return;
-    try {
-      document
-        .querySelectorAll(
-          "[id^='msg91'], [class*='msg91'], iframe[src*='msg91']",
-        )
-        .forEach((node) => node.parentElement?.removeChild(node));
-    } catch {
-      // DOM cleanup is best-effort — nothing to do if nodes are already gone.
-    }
-  };
-
-  // Issue #561: B2B application is a governed pre-login intake.
-  // Prospects may open the form directly; Core owns the anonymous write boundary.
   const handleApplyForB2BAccess = () => {
     navigate("/buyer/access-request");
   };
 
-  const launchMsg91Widget = () => {
+  const launchMsg91Widget = async () => {
     if (typeof window === "undefined") return;
-    if (!isMsg91Ready || typeof window.initSendOTP !== "function") {
-      void ensureMsg91Provider();
-      setStatusMessage("Verification is still loading. Please wait a moment.");
+
+    const phone = normalizePhone(mobile);
+    if (!phone.last10 || phone.last10.length !== 10) {
+      setStatusMessage("Enter a valid registered mobile number.");
+      setAuthStatus("failed");
       return;
     }
 
+    try {
+      await ensureMsg91Provider();
+    } catch {
+      setStatusMessage("Mobile verification is unavailable right now. Please use Email OTP or try again shortly.");
+      setAuthStatus("failed");
+      return;
+    }
+
+    if (!isMsg91Ready && typeof window.initSendOTP !== "function") {
+      setStatusMessage("Mobile verification is still loading. Please try again in a moment.");
+      return;
+    }
+    if (typeof window.initSendOTP !== "function") return;
+
     const attemptId = createAuthAttemptId();
     const method: AuthAttemptMethod = "mobile_otp";
-    attemptRef.current = { id: attemptId, method, identifier: null };
+    const identifier = phone.e164 || mobile.trim();
+    attemptRef.current = { id: attemptId, method, identifier };
     setLoading(true);
     setStatusMessage(null);
 
-    logAuthEvent("AUTH_START", {
-      attemptId,
-      method,
-      identifier: null,
-      result: "started",
-    });
-
+    logAuthEvent("AUTH_START", { attemptId, method, identifier, result: "started" });
     updateStatus("sending_otp", { result: "started" });
-    logAuthEvent("OTP_REQUEST_STARTED", {
-      attemptId,
-      method,
-      identifier: null,
-      result: "started",
-    });
+    logAuthEvent("OTP_REQUEST_STARTED", { attemptId, method, identifier, result: "started" });
 
     let verificationTimer: number | ReturnType<typeof setTimeout> | null = null;
 
@@ -345,15 +326,13 @@ const BuyerLogin = () => {
         widgetId: MSG91_WIDGET_ID,
         tokenAuth: MSG91_TOKEN_AUTH,
         exposeMethods: false,
-        identifier: "",
+        identifier,
         "country-code": "91",
         "auto-country": false,
         captchaRenderId: "",
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         success: async (payload: any) => {
-          // ── HARD GUARD #1: Stale attempt → ignore. ──
           if (attemptRef.current?.id !== attemptId) return;
-          // ── HARD GUARD #2: Cancel ALL armed timers IMMEDIATELY. No path can show "timed out" + "verified". ──
           controllerRef.current.clearAllTimers();
 
           const accessToken = extractMsg91AccessToken(payload);
@@ -367,56 +346,46 @@ const BuyerLogin = () => {
             await finalizeFailure("Verification did not return a valid token. Please retry.", "failed", false);
             return;
           }
-          const normalizedIdentifier = verifiedPhone ? normalizeIdentifier(String(verifiedPhone)).normalized : null;
+
+          const normalizedIdentifier = verifiedPhone
+            ? normalizeIdentifier(String(verifiedPhone)).normalized
+            : identifier;
           attemptRef.current = { id: attemptId, method, identifier: normalizedIdentifier };
 
-          // ── Re-arm a single 20s "session minting" guard, scoped to this attempt only. ──
           verificationTimer = controllerRef.current.registerTimer(window.setTimeout(async () => {
             if (attemptRef.current?.id !== attemptId) return;
-            // If we reach here, status will already be "authenticated" or "failed"; only fire on a stuck mint.
             if (["authenticated", "failed", "fallback_to_email"].includes(controllerRef.current.getStatus())) return;
             logAuthEvent("AUTH_TIMEOUT_TRIGGERED", {
-              attemptId, method, identifier: normalizedIdentifier, result: "failed", error: "session_mint_timeout",
+              attemptId,
+              method,
+              identifier: normalizedIdentifier,
+              result: "failed",
+              error: "session_mint_timeout",
             });
             await finalizeFailure("Session creation took too long. Please retry.", "failed", true);
           }, 20000));
 
           updateStatus("verifying_otp", { result: "started" });
-          logAuthEvent("OTP_REQUEST_SUCCESS", {
-            attemptId, method, identifier: normalizedIdentifier, result: "success",
-          });
-          logAuthEvent("OTP_VERIFY_STARTED", {
-            attemptId, method, identifier: normalizedIdentifier, result: "started",
-          });
+          logAuthEvent("OTP_REQUEST_SUCCESS", { attemptId, method, identifier: normalizedIdentifier, result: "success" });
+          logAuthEvent("OTP_VERIFY_STARTED", { attemptId, method, identifier: normalizedIdentifier, result: "started" });
 
           try {
             const { data: verifyRes, error } = await supabase.functions.invoke("msg91-otp", {
-              body: { mode: "verify_widget", accessToken, phone: verifiedPhone },
+              body: { mode: "verify_widget", accessToken, phone: verifiedPhone || identifier },
             });
 
-            console.info("[auth] verify_widget frontend request", sanitizeAuthDebugPayload({
-              mode: "verify_widget",
-              accessToken,
-              phone: verifiedPhone,
-            }));
             console.info("[auth] verify_widget frontend response", sanitizeAuthDebugPayload({
               error: error?.message ?? null,
               data: verifyRes ?? null,
             }));
 
-            if (error) {
-              throw new Error(`edge_verify_failed:${error.message}`);
-            }
-
+            if (error) throw new Error(`edge_verify_failed:${error.message}`);
             if (!verifyRes?.ok) {
               throw new Error(`edge_verify_failed:${verifyRes?.error || verifyRes?.reason || "verification_rejected"}`);
             }
 
-            const resolvedIdentifier = firstNonEmptyString(verifyRes?.phone, verifiedPhone);
-            if (!resolvedIdentifier) {
-              throw new Error("edge_verify_failed:phone_missing_from_widget_and_edge");
-            }
-
+            const resolvedIdentifier = firstNonEmptyString(verifyRes?.phone, verifiedPhone, identifier);
+            if (!resolvedIdentifier) throw new Error("edge_verify_failed:phone_missing_from_widget_and_edge");
             if (!verifyRes?.token_hash || !verifyRes?.user_id) {
               throw new Error(`edge_verify_failed:${!verifyRes?.token_hash ? "token_hash_missing" : "user_id_missing"}`);
             }
@@ -475,7 +444,7 @@ const BuyerLogin = () => {
           logAuthEvent("OTP_REQUEST_FAILED", {
             attemptId,
             method,
-            identifier: attemptRef.current?.identifier ?? null,
+            identifier,
             result: "failed",
             error: message,
           });
@@ -487,15 +456,133 @@ const BuyerLogin = () => {
     } catch (error) {
       controllerRef.current.clearTimer(verificationTimer);
       const message = error instanceof Error ? error.message : "otp_request_failed";
+      logAuthEvent("OTP_REQUEST_FAILED", { attemptId, method, identifier, result: "failed", error: message });
+      void finalizeFailure(mapOtpErrorMessage(message), "failed");
+    }
+  };
+
+  const sendEmailOtp = async () => {
+    const trimmedEmail = email.trim().toLowerCase();
+    if (!isEmailIdentifier(trimmedEmail)) {
+      setAuthStatus("failed");
+      setStatusMessage("Enter a valid registered email address.");
+      return;
+    }
+
+    const attemptId = createAuthAttemptId();
+    const method: AuthAttemptMethod = "email_otp";
+    const identifier = normalizeIdentifier(trimmedEmail).normalized;
+    attemptRef.current = { id: attemptId, method, identifier };
+    setLoading(true);
+    setStatusMessage(null);
+    updateStatus("sending_otp", { result: "started" });
+    logAuthEvent("AUTH_START", { attemptId, method, identifier, result: "started" });
+    logAuthEvent("OTP_REQUEST_STARTED", { attemptId, method, identifier, result: "started" });
+
+    const { error } = await supabase.auth.signInWithOtp({
+      email: trimmedEmail,
+      options: { shouldCreateUser: false },
+    });
+
+    if (error) {
       logAuthEvent("OTP_REQUEST_FAILED", {
         attemptId,
         method,
-        identifier: null,
+        identifier,
         result: "failed",
-        error: message,
+        error: error.message,
       });
-      void finalizeFailure(mapOtpErrorMessage(message), "failed");
+      await finalizeFailure("We couldn't send an email OTP. Please check the address or use Mobile OTP.");
+      return;
     }
+
+    logAuthEvent("OTP_REQUEST_SUCCESS", { attemptId, method, identifier, result: "success" });
+    updateStatus("otp_sent", { result: "success" });
+    setEmailOtpSent(true);
+    setStatusMessage("A 6-digit OTP has been sent to your registered email address.");
+    setLoading(false);
+  };
+
+  const verifyEmailOtp = async () => {
+    const trimmedEmail = email.trim().toLowerCase();
+    const token = emailOtp.replace(/\D/g, "");
+    if (!isEmailIdentifier(trimmedEmail) || token.length !== 6) {
+      setAuthStatus("failed");
+      setStatusMessage("Enter the 6-digit OTP sent to your email.");
+      return;
+    }
+
+    const attemptId = attemptRef.current?.id || createAuthAttemptId();
+    const method: AuthAttemptMethod = "email_otp";
+    const identifier = normalizeIdentifier(trimmedEmail).normalized;
+    attemptRef.current = { id: attemptId, method, identifier };
+    setLoading(true);
+    setStatusMessage(null);
+    updateStatus("verifying_otp", { result: "started" });
+    logAuthEvent("OTP_VERIFY_STARTED", { attemptId, method, identifier, result: "started" });
+
+    const { data, error } = await supabase.auth.verifyOtp({
+      email: trimmedEmail,
+      token,
+      type: "email",
+    });
+
+    if (error || !data.user) {
+      logAuthEvent("OTP_VERIFY_FAILED", {
+        attemptId,
+        method,
+        identifier,
+        result: "failed",
+        error: error?.message || "email_otp_verify_failed",
+      });
+      await finalizeFailure("The email OTP is invalid or expired. Please request a new code.", "failed", true);
+      return;
+    }
+
+    logAuthEvent("OTP_VERIFY_SUCCESS", {
+      attemptId,
+      method,
+      identifier,
+      result: "success",
+      details: { userId: data.user.id },
+    });
+    updateStatus("verification_success", { result: "success" });
+    logAuthEvent("SESSION_CREATE_SUCCESS", {
+      attemptId,
+      method,
+      identifier,
+      result: "success",
+      details: { userId: data.user.id },
+    });
+
+    try {
+      await runRedirectAfterAuth(identifier, method, data.user.id, attemptId);
+      controllerRef.current.finalize();
+      setLoading(false);
+    } catch (authError) {
+      await finalizeFailure(getCustomerAuthUserMessage(authError), "failed", true);
+    }
+  };
+
+  const goBackToChannelChoice = () => {
+    setChannel(null);
+    setEmailOtpSent(false);
+    setEmailOtp("");
+    setStatusMessage(null);
+    setAuthStatus("entering_identifier");
+    setLoading(false);
+  };
+
+  const openSupport = (kind: "whatsapp" | "call") => {
+    if (kind === "whatsapp" && SUPPORT_WHATSAPP) {
+      window.open(`https://wa.me/${SUPPORT_WHATSAPP}`, "_blank", "noopener,noreferrer");
+      return;
+    }
+    if (kind === "call" && SUPPORT_PHONE) {
+      window.location.href = `tel:${SUPPORT_PHONE}`;
+      return;
+    }
+    toast.info(`Support contact is not configured on this preview. Email ${SUPPORT_EMAIL}.`);
   };
 
   return (
@@ -507,67 +594,179 @@ const BuyerLogin = () => {
         </div>
       )}
 
-      <div className="w-full max-w-sm space-y-8">
+      <div className="w-full max-w-sm space-y-7 py-8">
         <div className="text-center space-y-3">
-          <img src={logoImg} alt="Oasis Baklawa" width={134} height={96} fetchPriority="high" decoding="async" className="h-10 sm:h-12 w-auto mx-auto object-contain" />
-          <h1 className="text-3xl text-foreground">Oasis Buyer</h1>
-          <p className="text-sm text-muted-foreground">Sign in to your B2B account</p>
+          <img src={logoImg} alt="Oasis Baklawa" width={134} height={96} fetchPriority="high" decoding="async" className="h-12 w-auto mx-auto object-contain" />
+          <h1 className="text-3xl text-foreground">Log in to your account</h1>
+          <p className="text-sm text-muted-foreground">Use your registered mobile number or registered email. No password is required.</p>
         </div>
 
-        <div className="bg-card rounded-2xl p-6 space-y-5 border border-border shadow-sm">
-          <div className="space-y-4">
+        {channel === null && (
+          <div className="space-y-3">
+            <button
+              type="button"
+              onClick={() => { setChannel("mobile"); setStatusMessage(null); }}
+              className="w-full rounded-2xl border border-border bg-card p-5 text-left shadow-sm hover:border-primary/40"
+            >
+              <span className="flex items-center gap-4">
+                <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary"><Phone size={21} /></span>
+                <span>
+                  <span className="block text-sm font-bold text-foreground">Mobile OTP</span>
+                  <span className="mt-1 block text-xs text-muted-foreground">Verify your registered mobile through MSG91.</span>
+                </span>
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => { setChannel("email"); setStatusMessage(null); }}
+              className="w-full rounded-2xl border border-border bg-card p-5 text-left shadow-sm hover:border-primary/40"
+            >
+              <span className="flex items-center gap-4">
+                <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary"><Mail size={21} /></span>
+                <span>
+                  <span className="block text-sm font-bold text-foreground">Email OTP</span>
+                  <span className="mt-1 block text-xs text-muted-foreground">Receive a 6-digit code on your registered email.</span>
+                </span>
+              </span>
+            </button>
+          </div>
+        )}
+
+        {channel === "mobile" && (
+          <div className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-5">
+            <button type="button" onClick={goBackToChannelChoice} className="inline-flex items-center gap-2 text-xs font-semibold text-muted-foreground hover:text-foreground">
+              <ArrowLeft size={15} /> Change login method
+            </button>
             <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-center space-y-2">
               <ShieldCheck size={28} className="mx-auto text-primary" />
               <p className="text-sm font-bold text-foreground">Secure Mobile Verification</p>
-              <p className="text-xs text-muted-foreground">Verification via SMS, WhatsApp, or Voice.</p>
+              <p className="text-xs text-muted-foreground">OTP may be delivered by SMS, WhatsApp or voice according to MSG91 policy.</p>
             </div>
-            <button
-              onClick={launchMsg91Widget}
-              disabled={loading || !isMsg91Ready}
-              className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-sm hover:brightness-110 disabled:opacity-60"
-            >
-              {(loading || !isMsg91Ready) ? <Loader2 size={18} className="animate-spin" /> : <ShieldCheck size={18} />}
-              {!isMsg91Ready ? "Preparing verification…" : loading ? "Opening verification…" : "Continue with mobile verification"}
-            </button>
-          </div>
-
-          {statusMessage && !isMinting && (
-            <div className={`rounded-xl border px-4 py-3 text-sm ${authStatus === "failed" ? "border-destructive/30 bg-destructive/5 text-destructive" : "border-border bg-muted/50 text-muted-foreground"}`}>
-              {statusMessage}
+            <div className="space-y-2">
+              <label htmlFor="buyer-mobile" className="text-xs font-semibold text-foreground">Registered mobile number</label>
+              <Input
+                id="buyer-mobile"
+                inputMode="tel"
+                autoComplete="tel"
+                placeholder="+91 98765 43210"
+                value={mobile}
+                onChange={(event) => setMobile(event.target.value)}
+                className="rounded-xl"
+              />
             </div>
-          )}
-        </div>
-
-        <div className="space-y-3">
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-border" /></div>
-            <div className="relative flex justify-center text-xs"><span className="bg-background px-3 text-muted-foreground font-medium">or continue with</span></div>
-          </div>
-          <div className="flex gap-3">
             <button
               type="button"
-              disabled
-              title="Additional sign-in options will be available in a future release."
-              className="flex-1 py-3 rounded-xl border border-border bg-muted/50 text-muted-foreground font-bold text-sm flex items-center justify-center gap-2 cursor-not-allowed opacity-80"
+              onClick={() => void launchMsg91Widget()}
+              disabled={loading}
+              className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm flex items-center justify-center gap-2 shadow-sm disabled:opacity-60"
             >
-              <svg className="w-4 h-4 shrink-0 opacity-60" viewBox="0 0 24 24" aria-hidden>
-                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
-                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
-                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
-              </svg>
-              Google — Coming soon
+              {loading ? <Loader2 size={18} className="animate-spin" /> : <ShieldCheck size={18} />}
+              {loading ? "Opening verification…" : "Send mobile OTP"}
             </button>
           </div>
-        </div>
+        )}
 
-        <div className="text-center">
+        {channel === "email" && (
+          <div className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-5">
+            <button type="button" onClick={goBackToChannelChoice} className="inline-flex items-center gap-2 text-xs font-semibold text-muted-foreground hover:text-foreground">
+              <ArrowLeft size={15} /> Change login method
+            </button>
+            <div className="space-y-2">
+              <label htmlFor="buyer-email" className="text-xs font-semibold text-foreground">Registered email address</label>
+              <Input
+                id="buyer-email"
+                type="email"
+                autoComplete="email"
+                placeholder="buyer@company.com"
+                value={email}
+                disabled={emailOtpSent}
+                onChange={(event) => setEmail(event.target.value)}
+                className="rounded-xl"
+              />
+            </div>
+
+            {!emailOtpSent ? (
+              <button
+                type="button"
+                onClick={() => void sendEmailOtp()}
+                disabled={loading}
+                className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm flex items-center justify-center gap-2 shadow-sm disabled:opacity-60"
+              >
+                {loading ? <Loader2 size={18} className="animate-spin" /> : <Mail size={18} />}
+                {loading ? "Sending OTP…" : "Send email OTP"}
+              </button>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <label htmlFor="buyer-email-otp" className="text-xs font-semibold text-foreground">6-digit email OTP</label>
+                  <Input
+                    id="buyer-email-otp"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    maxLength={6}
+                    placeholder="000000"
+                    value={emailOtp}
+                    onChange={(event) => setEmailOtp(event.target.value.replace(/\D/g, "").slice(0, 6))}
+                    onKeyDown={(event) => event.key === "Enter" && void verifyEmailOtp()}
+                    className="rounded-xl text-center tracking-[0.35em]"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void verifyEmailOtp()}
+                  disabled={loading || emailOtp.length !== 6}
+                  className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm flex items-center justify-center gap-2 shadow-sm disabled:opacity-60"
+                >
+                  {loading ? <Loader2 size={18} className="animate-spin" /> : <ShieldCheck size={18} />}
+                  {loading ? "Verifying…" : "Verify and continue"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void sendEmailOtp()}
+                  disabled={loading}
+                  className="w-full text-xs font-semibold text-primary hover:underline disabled:opacity-60"
+                >
+                  Resend email OTP
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
+        {statusMessage && !isMinting && (
+          <div className={`rounded-xl border px-4 py-3 text-sm ${authStatus === "failed" ? "border-destructive/30 bg-destructive/5 text-destructive" : "border-border bg-muted/50 text-muted-foreground"}`}>
+            {statusMessage}
+          </div>
+        )}
+
+        <div className="space-y-4 border-t border-border pt-5 text-center">
           <p className="text-sm text-muted-foreground">
-            New to Oasis Baklawa?{" "}
+            New distributor?{" "}
             <button onClick={handleApplyForB2BAccess} className="text-primary font-semibold hover:underline">
-              Apply for B2B Access
+              Request B2B Access
             </button>
           </p>
+
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground">Need assistance?</p>
+            <div className="grid grid-cols-2 gap-3">
+              <button type="button" onClick={() => openSupport("whatsapp")} className="inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-card py-3 text-xs font-semibold">
+                <MessageCircle size={16} /> WhatsApp Oasis
+              </button>
+              <button type="button" onClick={() => openSupport("call")} className="inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-card py-3 text-xs font-semibold">
+                <PhoneCall size={16} /> Call Oasis
+              </button>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => navigate("/staff/login")}
+            className="w-full py-2 text-xs font-semibold text-muted-foreground hover:text-foreground"
+          >
+            Admin Access
+          </button>
         </div>
       </div>
     </div>
