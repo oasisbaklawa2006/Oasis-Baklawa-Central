@@ -1,0 +1,34 @@
+{
+  "generatedAt": "2026-09-09T04:48:34.034Z",
+  "postFixDeploySha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
+  "crawlBaseUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
+  "targets": [
+    "UAT-0018",
+    "UAT-0020"
+  ],
+  "preFixFailIds": [
+    "FAIL-481-001",
+    "FAIL-481-002",
+    "FAIL-UX-481-001",
+    "FAIL-UX-481-002"
+  ],
+  "authenticatedComplete": [],
+  "blockedTargets": [],
+  "closedFailIds": [],
+  "retestDispositionByUatId": {
+    "UAT-0018": {
+      "FAIL-481-001": "BLOCKED",
+      "FAIL-481-002": "BLOCKED",
+      "FAIL-UX-481-001": "BLOCKED",
+      "FAIL-UX-481-002": "BLOCKED"
+    },
+    "UAT-0020": {
+      "FAIL-481-001": "BLOCKED",
+      "FAIL-481-002": "BLOCKED",
+      "FAIL-UX-481-001": "BLOCKED",
+      "FAIL-UX-481-002": "BLOCKED"
+    }
+  },
+  "humanGated": true,
+  "remainingUntested": 111
+}

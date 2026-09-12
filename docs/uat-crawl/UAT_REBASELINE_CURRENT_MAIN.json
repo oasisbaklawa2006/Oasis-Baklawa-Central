@@ -1,0 +1,802 @@
+{
+  "generatedAt": "2026-09-08T15:26:13.250Z",
+  "runId": "audit-continue-local",
+  "currentMainSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
+  "priorHoldSha": "6c7de2a69cec960f709a66fb85d25049dfcc2ae0",
+  "deployProvenance": "Current-main authority @ a619a7a2 (#558) — prior 6c7de2a/15c59a3f/e2f123b0 evidence preserved append-only.",
+  "policy": "No PR preview substitution. No screenshot = NOT-TESTED; no action/result = function NOT-TESTED.",
+  "counts": {
+    "censusTotal": 131,
+    "passAuthS0S3": 96,
+    "blocked": 28,
+    "publicS0": 5,
+    "notTested": 2
+  },
+  "rows": [
+    {
+      "uatId": "UAT-0001",
+      "disposition": "PUBLIC_S0",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0002",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0003",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0004",
+      "disposition": "PUBLIC_S0",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0005",
+      "disposition": "PUBLIC_S0",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0006",
+      "disposition": "BLOCKED",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
+      "missingSecretNames": [
+        "TEST_BUYER_EMAIL",
+        "TEST_BUYER_PASSWORD"
+      ],
+      "failId": "FAIL-AUTH-CRED-0006"
+    },
+    {
+      "uatId": "UAT-0007",
+      "disposition": "BLOCKED",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
+      "missingSecretNames": [
+        "TEST_BUYER_EMAIL",
+        "TEST_BUYER_PASSWORD"
+      ],
+      "failId": "FAIL-AUTH-CRED-0007"
+    },
+    {
+      "uatId": "UAT-0008",
+      "disposition": "PUBLIC_S0",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0009",
+      "disposition": "PUBLIC_S0",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0010",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0011",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0012",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0013",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0014",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0015",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0016",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0017",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0018",
+      "disposition": "NOT-TESTED",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0019",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0020",
+      "disposition": "NOT-TESTED",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0021",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0022",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0023",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0024",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0025",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0026",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0027",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0028",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0029",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0030",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0031",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0032",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0033",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0034",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0035",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0036",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0037",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0038",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0039",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0040",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0041",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0042",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0043",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0044",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0045",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0046",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0047",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0048",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0049",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0050",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0051",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0052",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0053",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0054",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0055",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0056",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0057",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0058",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0059",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0060",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0061",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0062",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0063",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0064",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0065",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0066",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0067",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0068",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0069",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0070",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0071",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0072",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0073",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0074",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0075",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0076",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0077",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0078",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0079",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0080",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0081",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0082",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0083",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0084",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0085",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0086",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0087",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0088",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0089",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0090",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0091",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0092",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0093",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0094",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0095",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0096",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0097",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0098",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0099",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0100",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0101",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0102",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0103",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0104",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0105",
+      "disposition": "PASS",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "uatId": "UAT-0106",
+      "disposition": "BLOCKED",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
+      "missingSecretNames": [
+        "TEST_TV_RGS_EMAIL",
+        "TEST_TV_RGS_PASSWORD"
+      ],
+      "failId": "FAIL-AUTH-CRED-0106"
+    },
+    {
+      "uatId": "UAT-0107",
+      "disposition": "BLOCKED",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
+      "missingSecretNames": [
+        "TEST_TV_RGS_EMAIL",
+        "TEST_TV_RGS_PASSWORD"
+      ],
+      "failId": "FAIL-AUTH-CRED-0107"
+    },
+    {
+      "uatId": "UAT-0108",
+      "disposition": "BLOCKED",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
+      "missingSecretNames": [
+        "TEST_TV_RGS_EMAIL",
+        "TEST_TV_RGS_PASSWORD"
+      ],
+      "failId": "FAIL-AUTH-CRED-0108"
+    },
+    {
+      "uatId": "UAT-0109",
+      "disposition": "BLOCKED",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
+      "missingSecretNames": [
+        "TEST_TV_RGS_EMAIL",
+        "TEST_TV_RGS_PASSWORD"
+      ],
+      "failId": "FAIL-AUTH-CRED-0109"
+    },
+    {
+      "uatId": "UAT-0110",
+      "disposition": "BLOCKED",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
+      "missingSecretNames": [
+        "TEST_TV_RGS_EMAIL",
+        "TEST_TV_RGS_PASSWORD"
+      ],
+      "failId": "FAIL-AUTH-CRED-0110"
+    },
+    {
+      "uatId": "UAT-0111",
+      "disposition": "BLOCKED",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
+      "missingSecretNames": [
+        "TEST_TV_RGS_EMAIL",
+        "TEST_TV_RGS_PASSWORD"
+      ],
+      "failId": "FAIL-AUTH-CRED-0111"
+    },
+    {
+      "uatId": "UAT-0112",
+      "disposition": "BLOCKED",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
+      "missingSecretNames": [
+        "TEST_TV_RGS_EMAIL",
+        "TEST_TV_RGS_PASSWORD"
+      ],
+      "failId": "FAIL-AUTH-CRED-0112"
+    },
+    {
+      "uatId": "UAT-0113",
+      "disposition": "BLOCKED",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
+      "missingSecretNames": [
+        "TEST_TV_PRODUCTION_EMAIL",
+        "TEST_TV_PRODUCTION_PASSWORD"
+      ],
+      "failId": "FAIL-AUTH-CRED-0113"
+    },
+    {
+      "uatId": "UAT-0114",
+      "disposition": "BLOCKED",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
+      "missingSecretNames": [
+        "TEST_BUYER_EMAIL",
+        "TEST_BUYER_PASSWORD"
+      ],
+      "failId": "FAIL-AUTH-CRED-0114"
+    },
+    {
+      "uatId": "UAT-0115",
+      "disposition": "BLOCKED",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
+      "missingSecretNames": [
+        "TEST_BUYER_EMAIL",
+        "TEST_BUYER_PASSWORD"
+      ],
+      "failId": "FAIL-AUTH-CRED-0115"
+    },
+    {
+      "uatId": "UAT-0116",
+      "disposition": "BLOCKED",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
+      "missingSecretNames": [
+        "TEST_BUYER_EMAIL",
+        "TEST_BUYER_PASSWORD"
+      ],
+      "failId": "FAIL-AUTH-CRED-0116"
+    },
+    {
+      "uatId": "UAT-0117",
+      "disposition": "BLOCKED",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
+      "missingSecretNames": [
+        "TEST_BUYER_EMAIL",
+        "TEST_BUYER_PASSWORD"
+      ],
+      "failId": "FAIL-AUTH-CRED-0117"
+    },
+    {
+      "uatId": "UAT-0118",
+      "disposition": "BLOCKED",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
+      "missingSecretNames": [
+        "TEST_BUYER_EMAIL",
+        "TEST_BUYER_PASSWORD"
+      ],
+      "failId": "FAIL-AUTH-CRED-0118"
+    },
+    {
+      "uatId": "UAT-0119",
+      "disposition": "BLOCKED",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
+      "missingSecretNames": [
+        "TEST_BUYER_EMAIL",
+        "TEST_BUYER_PASSWORD"
+      ],
+      "failId": "FAIL-AUTH-CRED-0119"
+    },
+    {
+      "uatId": "UAT-0120",
+      "disposition": "BLOCKED",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
+      "missingSecretNames": [
+        "TEST_BUYER_EMAIL",
+        "TEST_BUYER_PASSWORD"
+      ],
+      "failId": "FAIL-AUTH-CRED-0120"
+    },
+    {
+      "uatId": "UAT-0121",
+      "disposition": "BLOCKED",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
+      "missingSecretNames": [
+        "TEST_BUYER_EMAIL",
+        "TEST_BUYER_PASSWORD"
+      ],
+      "failId": "FAIL-AUTH-CRED-0121"
+    },
+    {
+      "uatId": "UAT-0122",
+      "disposition": "BLOCKED",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
+      "missingSecretNames": [
+        "TEST_AI_STUDIO_PREVIEW_URL"
+      ],
+      "failId": "FAIL-AUTH-DEPLOY-0122"
+    },
+    {
+      "uatId": "UAT-0123",
+      "disposition": "BLOCKED",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
+      "missingSecretNames": [
+        "TEST_AI_STUDIO_PREVIEW_URL"
+      ],
+      "failId": "FAIL-AUTH-DEPLOY-0123"
+    },
+    {
+      "uatId": "UAT-0124",
+      "disposition": "BLOCKED",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
+      "missingSecretNames": [
+        "TEST_AI_STUDIO_PREVIEW_URL"
+      ],
+      "failId": "FAIL-AUTH-DEPLOY-0124"
+    },
+    {
+      "uatId": "UAT-0125",
+      "disposition": "BLOCKED",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
+      "missingSecretNames": [
+        "TEST_AI_STUDIO_PREVIEW_URL"
+      ],
+      "failId": "FAIL-AUTH-DEPLOY-0125"
+    },
+    {
+      "uatId": "UAT-0126",
+      "disposition": "BLOCKED",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
+      "missingSecretNames": [
+        "TEST_AI_STUDIO_PREVIEW_URL"
+      ],
+      "failId": "FAIL-AUTH-DEPLOY-0126"
+    },
+    {
+      "uatId": "UAT-0127",
+      "disposition": "BLOCKED",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
+      "missingSecretNames": [
+        "TEST_AI_STUDIO_PREVIEW_URL"
+      ],
+      "failId": "FAIL-AUTH-DEPLOY-0127"
+    },
+    {
+      "uatId": "UAT-0128",
+      "disposition": "BLOCKED",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
+      "missingSecretNames": [
+        "TEST_TRACE_PREVIEW_URL"
+      ],
+      "failId": "FAIL-AUTH-DEPLOY-0128"
+    },
+    {
+      "uatId": "UAT-0129",
+      "disposition": "BLOCKED",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
+      "missingSecretNames": [
+        "TEST_TRACE_PREVIEW_URL"
+      ],
+      "failId": "FAIL-AUTH-DEPLOY-0129"
+    },
+    {
+      "uatId": "UAT-0130",
+      "disposition": "BLOCKED",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
+      "missingSecretNames": [
+        "TEST_TRACE_PREVIEW_URL"
+      ],
+      "failId": "FAIL-AUTH-DEPLOY-0130"
+    },
+    {
+      "uatId": "UAT-0131",
+      "disposition": "BLOCKED",
+      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
+      "missingSecretNames": [
+        "TEST_TRACE_PREVIEW_URL"
+      ],
+      "failId": "FAIL-AUTH-DEPLOY-0131"
+    }
+  ]
+}

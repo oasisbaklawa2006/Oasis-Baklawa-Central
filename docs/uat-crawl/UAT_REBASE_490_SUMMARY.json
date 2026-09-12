@@ -1,0 +1,50 @@
+{
+  "generatedAt": "2026-09-05T23:48:15Z",
+  "runId": "33999620404",
+  "rebasedMainSha": "67b3d1cc0baf7d494cb7a00ce55a74f16b6af43b",
+  "branchHeadSha": "b2566f3275f2260b663ac883f02c4fa07d616f7c",
+  "deployStatus": "BLOCKED",
+  "deployUrl": "",
+  "deployProvenance": "No successful Vercel deployment for 67b3d1cc (Vercel rate limit); ace340fe not substituted as post-#490 evidence.",
+  "artifact": "uat-crawl-evidence-33999620404-1",
+  "tranchesAttempted": ["ai-uat", "post-fix-483", "auth-rerun", "tranche-03..08", "buyer-mobile"],
+  "tranchesExecuted": ["deploy-blocked-record"],
+  "counts": {
+    "aiUat": { "PASS": 0, "FAIL": 0, "BLOCKED": 10 },
+    "census131": { "PASS": 0, "FAIL": 0, "BLOCKED": 0, "NOT_RERUN": 131, "priorAuthenticatedS0S3": 80 },
+    "newScreenshots": 0
+  },
+  "secretsPresentInGha": [
+    "TEST_ADMIN_EMAIL",
+    "TEST_ADMIN_PASSWORD",
+    "TEST_ASSEMBLY_EMAIL",
+    "TEST_ASSEMBLY_PASSWORD",
+    "TEST_DISPATCH_EMAIL",
+    "TEST_DISPATCH_PASSWORD",
+    "TEST_FINANCE_EMAIL",
+    "TEST_FINANCE_PASSWORD",
+    "TEST_OPERATIONS_EMAIL",
+    "TEST_OPERATIONS_PASSWORD"
+  ],
+  "secretsMissingInGha": [
+    "TEST_PREVIEW_URL",
+    "TEST_BUYER_EMAIL",
+    "TEST_BUYER_PASSWORD",
+    "TEST_SALES_EMAIL",
+    "TEST_SALES_PASSWORD",
+    "TEST_GATE_SECURITY_EMAIL",
+    "TEST_GATE_SECURITY_PASSWORD",
+    "TEST_RGS_EMAIL",
+    "TEST_RGS_PASSWORD",
+    "TEST_PRODUCTION_EMAIL",
+    "TEST_PRODUCTION_PASSWORD",
+    "TEST_TV_RGS_EMAIL",
+    "TEST_TV_RGS_PASSWORD",
+    "TEST_TV_PRODUCTION_EMAIL",
+    "TEST_TV_PRODUCTION_PASSWORD",
+    "TEST_AI_STUDIO_PREVIEW_URL",
+    "TEST_TRACE_PREVIEW_URL"
+  ],
+  "newFailIds": [],
+  "preservedEvidence": "All ace340fe-era screenshots/checksums preserved (append-only). No overwrite."
+}

@@ -1,0 +1,26 @@
+{
+  "generatedAt": "2026-09-06T13:53:45.140Z",
+  "runId": "34037424554",
+  "mergeSha": "e2f123b0fe257b8a1f39ec40d5f544fff1ebe313",
+  "crawlBaseUrl": "https://oasis-baklawa-central-8lkgmf1q2-oasisbaklawa2006-6222s-projects.vercel.app",
+  "uatId": "UAT-005",
+  "failId": "FAIL-493-001",
+  "disposition": "PASS",
+  "probes": [
+    "/admin/finance -> /admin/dispatch-mgmt",
+    "/admin/finance-governance -> /admin/dispatch-mgmt",
+    "/admin/accounts-release -> /admin/dispatch-mgmt"
+  ],
+  "screenshots": {
+    "s0": "uat-evidence/screenshots/post-merge-497-main/UAT-005_central_dispatch_manager_fail-493-001_S0-dispatch-default-settled.png",
+    "s1": "uat-evidence/screenshots/post-merge-497-main/UAT-005_central_dispatch_manager_fail-493-001_S1-all-tools-no-finance.png",
+    "s2": "uat-evidence/screenshots/post-merge-497-main/UAT-005_central_dispatch_manager_fail-493-001_S2-forbidden-finance-probe.png",
+    "s3": "uat-evidence/screenshots/post-merge-497-main/UAT-005_central_dispatch_manager_fail-493-001_S3-forbidden-routes-settled.png"
+  },
+  "checksums": {
+    "s0": "bd8ffef6747486aa27b1fb453aa328eb82476e1a9309ba42f012e17a68b9ed47",
+    "s1": "7d22c3096c613d625f148f51b993f5c78306f3ba7fb7e25bc663987f79e18187",
+    "s2": "fae028cb85ea06ff32d9d54e39e573057c17057eb3319cd0da30cda972db7318",
+    "s3": "0819f998e89f70765adad5f0bf84a8549be47fdb82b8016dce91debe548ef045"
+  }
+}

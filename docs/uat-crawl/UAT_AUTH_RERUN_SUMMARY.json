@@ -1,0 +1,13 @@
+{
+  "generatedAt": "2026-09-09T04:51:17.989Z",
+  "crawlBaseUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
+  "totalTargets": 2,
+  "authenticatedComplete": [
+    "UAT-0002",
+    "UAT-0003"
+  ],
+  "blockedTargets": [],
+  "blockedSecretNames": [],
+  "newFailIds": [],
+  "remainingUntested": 111
+}
