@@ -20,14 +20,17 @@ import {
 import {
   POINT100_CORE_PRODUCTION_VERIFIED_SHA,
   POINT100_DISPATCH_FINALIZE_RPC,
-  POINT100_PRODUCTION_MIGRATION_GATE,
   POINT100_PRODUCTION_MIGRATION_RUN_ID,
   POINT100_UPSTREAM_DEPENDENCIES,
   formatUpstreamBlocker,
-  isRpcOnCertifiedCorePin,
   productionGateBlockers,
 } from "../../src/lib/point100/upstreamDependencies";
-import { executeStageProbe, runLifecycleProbes, macro556DispatchRoutesPresent } from "./probes";
+import {
+  certifiedDispatchFinalizeProbe,
+  executeStageProbe,
+  macro556DispatchRoutesPresent,
+  runLifecycleProbes,
+} from "./probes";
 
 /**
  * POINT100 — DRESS REHEARSAL
@@ -298,20 +301,22 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
     expect(finalInvoiceReady, "Point38 must expose a final invoice before dispatch certification").toBe(true);
     expect(clearanceReady, "Point38 must expose active Finance Dispatch Clearance").toBe(true);
 
-    const dispatchedRpc = await probeRpcExists(POINT100_DISPATCH_FINALIZE_RPC);
-    const onCertifiedPin = isRpcOnCertifiedCorePin(POINT100_DISPATCH_FINALIZE_RPC);
-    const dispatchReady = onCertifiedPin && dispatchedRpc.exists;
-    const dispatchNote = dispatchReady
-      ? `canonical ${POINT100_DISPATCH_FINALIZE_RPC} present on certified Core pin ${POINT100_CORE_PRODUCTION_VERIFIED_SHA.slice(0, 8)} / ${POINT100_PRODUCTION_MIGRATION_GATE}`
-      : dispatchedRpc.exists
-        ? "dispatch RPC exists but is not recognized on the certified Core pin"
-        : `${POINT100_DISPATCH_FINALIZE_RPC} absent from certified Core pin ${POINT100_CORE_PRODUCTION_VERIFIED_SHA.slice(0, 8)}`;
-    recordStage(stages, "dispatch_consignment", POINT100_DISPATCH_FINALIZE_RPC, "DISPATCH_MANAGER", null, dispatchReady ? "PASS" : "BLOCKED", `${dispatchNote}; golden_chain_stage=${state.stage}`);
-    if (!dispatchReady) {
-      const blockers = productionGateBlockers();
-      upstreamBlockers.push(...(blockers.length > 0 ? blockers.map((dep) => `dispatch_consignment: ${formatUpstreamBlocker(dep)}`) : [`dispatch_consignment: ${dispatchNote}`]));
+    const dispatchProbe = await certifiedDispatchFinalizeProbe();
+    recordStage(
+      stages,
+      "dispatch_consignment",
+      POINT100_DISPATCH_FINALIZE_RPC,
+      "DISPATCH_MANAGER",
+      null,
+      dispatchProbe.ready ? "PASS" : "BLOCKED",
+      `${dispatchProbe.note}; golden_chain_stage=${state.stage}`,
+    );
+    if (!dispatchProbe.ready) {
+      upstreamBlockers.push(
+        ...dispatchProbe.upstreamNotes.map((note) => `dispatch_consignment: ${note}`),
+      );
     }
-    expect(dispatchReady, dispatchNote).toBe(true);
+    expect(dispatchProbe.ready, dispatchProbe.note).toBe(true);
   });
 
   await test.step("gate: release_b2b_dispatch_carton_at_gate_v1 contract probe", async () => {
@@ -342,20 +347,22 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
     recordStage(stages, "customer_dispatch_proof", "record_dispatch_proof_packet_v1", "DISPATCH_MANAGER", null, proofReady ? "PASS" : "BLOCKED", exitFactsResult.error?.message ?? `rpc_exists=${proofRpc.exists} dispatch_proof_id=${String(dispatchProofId)}`);
     expect(proofReady, "Point38 must expose immutable dispatch proof and the canonical proof RPC").toBe(true);
 
-    const dispatchedRpc = await probeRpcExists(POINT100_DISPATCH_FINALIZE_RPC);
-    const onCertifiedPin = isRpcOnCertifiedCorePin(POINT100_DISPATCH_FINALIZE_RPC);
-    const orderCompleteReady = onCertifiedPin && dispatchedRpc.exists;
-    const orderCompleteNote = orderCompleteReady
-      ? `canonical ${POINT100_DISPATCH_FINALIZE_RPC} present on certified Core pin ${POINT100_CORE_PRODUCTION_VERIFIED_SHA.slice(0, 8)} / ${POINT100_PRODUCTION_MIGRATION_GATE}`
-      : dispatchedRpc.exists
-        ? "dispatch-finalize RPC exists but is not recognized on the certified Core pin"
-        : `${POINT100_DISPATCH_FINALIZE_RPC} absent from certified Core pin ${POINT100_CORE_PRODUCTION_VERIFIED_SHA.slice(0, 8)}`;
-    recordStage(stages, "order_complete", POINT100_DISPATCH_FINALIZE_RPC, "DISPATCH_MANAGER", null, orderCompleteReady ? "PASS" : "BLOCKED", orderCompleteNote);
-    if (!orderCompleteReady) {
-      const blockers = productionGateBlockers();
-      upstreamBlockers.push(...(blockers.length > 0 ? blockers.map((dep) => `order_complete: ${formatUpstreamBlocker(dep)}`) : [`order_complete: ${orderCompleteNote}`]));
+    const orderCompleteProbe = await certifiedDispatchFinalizeProbe();
+    recordStage(
+      stages,
+      "order_complete",
+      POINT100_DISPATCH_FINALIZE_RPC,
+      "DISPATCH_MANAGER",
+      null,
+      orderCompleteProbe.ready ? "PASS" : "BLOCKED",
+      orderCompleteProbe.note,
+    );
+    if (!orderCompleteProbe.ready) {
+      upstreamBlockers.push(
+        ...orderCompleteProbe.upstreamNotes.map((note) => `order_complete: ${note}`),
+      );
     }
-    expect(orderCompleteReady, orderCompleteNote).toBe(true);
+    expect(orderCompleteProbe.ready, orderCompleteProbe.note).toBe(true);
 
     const complaint = await executeStageProbe(client, "complaint_window", `p100-${RUN_SUFFIX}-complaint`);
     const complaintAnchored = complaint.ok && (complaint.detail.includes("complaint_window_open=") || complaint.detail.includes("complaint_clock_basis"));

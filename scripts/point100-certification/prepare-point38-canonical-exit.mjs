@@ -15,49 +15,25 @@
  * carton, handoff or payment authority tables directly.
  */
 
-import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
 import { createClient } from "@supabase/supabase-js";
 import { computeTotpCode } from "../factory-certification/totp.mjs";
+import {
+  RUN_TOKEN,
+  assertLoopbackHttpOrigin,
+  assertNoError,
+  firstRow,
+  parseCredentialFile,
+  queryLocalPostgresScalar,
+  readCredential,
+  requireBootstrapEnv,
+} from "./point38-bootstrap-common.mjs";
 
-const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
-const CREDENTIAL_FILE = "/tmp/oasis-factory-certification.env";
-const RUN_TOKEN = "point100-point38-canonical-v1";
+const LOCAL_LABEL = "POINT100_POINT38";
 const BATCH_LOT = "POINT100-P38-LOT-001";
-
-function requireEnv(name) {
-  const value = process.env[name]?.trim();
-  if (!value) throw new Error(`POINT100_POINT38_ENV_REQUIRED: ${name}`);
-  return value;
-}
-
-function assertLoopbackHttp(rawUrl) {
-  const parsed = new URL(rawUrl);
-  if (parsed.protocol !== "http:" || !LOOPBACK_HOSTS.has(parsed.hostname)) {
-    throw new Error(`POINT100_POINT38_LOCAL_ONLY: refusing Supabase target ${parsed.origin}`);
-  }
-  if (parsed.username || parsed.password || parsed.pathname !== "/" || parsed.search || parsed.hash) {
-    throw new Error("POINT100_POINT38_LOCAL_ONLY: Supabase URL must be a canonical loopback origin");
-  }
-  return parsed.origin;
-}
-
-function parseCredentialFile() {
-  const values = new Map();
-  const raw = readFileSync(CREDENTIAL_FILE, "utf8");
-  for (const line of raw.split(/\r?\n/)) {
-    const match = /^export ([A-Z0-9_]+)='([^']*)'$/.exec(line.trim());
-    if (match) values.set(match[1], match[2]);
-  }
-  return values;
-}
-
 const credentialValues = parseCredentialFile();
 
 function credentialValue(name) {
-  const value = credentialValues.get(name)?.trim();
-  if (!value) throw new Error(`POINT100_POINT38_CREDENTIAL_REQUIRED: ${name}`);
-  return value;
+  return readCredential(credentialValues, name, LOCAL_LABEL);
 }
 
 function roleCredentials(role) {
@@ -69,18 +45,18 @@ function roleCredentials(role) {
   };
 }
 
-function assertNoError(error, operation) {
-  if (!error) return;
-  throw new Error(`${operation}: ${error.message ?? String(error)}`);
-}
-
 /** Align invoice_date with Core's Asia/Kolkata final-payment request calendar gate. */
 function kolkataCalendarDate(isoTimestamp) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date(isoTimestamp));
 }
 
-function sessionCalendarDate() {
-  return postgresScalar("SELECT to_char(current_date, 'YYYY-MM-DD');", "Point38 session calendar date");
+function sessionCalendarDate(localDbUrl) {
+  return queryLocalPostgresScalar(
+    localDbUrl,
+    "SELECT to_char(current_date, 'YYYY-MM-DD');",
+    "Point38 session calendar date",
+    LOCAL_LABEL,
+  );
 }
 
 function isFinanceCalendarConflictImminent() {
@@ -90,6 +66,7 @@ function isFinanceCalendarConflictImminent() {
 }
 
 function insertFinalPaymentRequestMaintenance(
+  localDbUrl,
   financeActorId,
   piId,
   commercialVersionId,
@@ -180,7 +157,12 @@ SELECT coalesce(
   )
 );
 COMMIT;`;
-  const row = postgresScalar(sql, "Point38 final-payment request maintenance insert");
+  const row = queryLocalPostgresScalar(
+    localDbUrl,
+    sql,
+    "Point38 final-payment request maintenance insert",
+    LOCAL_LABEL,
+  );
   const [requestId, balanceDueRaw] = row.split("|");
   if (!requestId) throw new Error("POINT100_POINT38_FINAL_PAYMENT_REQUEST_ID_MISSING");
   const balanceDue = Number(balanceDueRaw);
@@ -188,9 +170,9 @@ COMMIT;`;
   return { finalPaymentRequestId: requestId, balanceDue };
 }
 
-const backendUrl = assertLoopbackHttp(requireEnv("FACTORY_CERT_SUPABASE_URL"));
-const anonKey = requireEnv("FACTORY_CERT_SUPABASE_ANON_KEY");
-const localDbUrl = requireEnv("FACTORY_CERT_LOCAL_DB_URL");
+const backendUrl = assertLoopbackHttpOrigin(requireBootstrapEnv("FACTORY_CERT_SUPABASE_URL", LOCAL_LABEL), LOCAL_LABEL);
+const anonKey = requireBootstrapEnv("FACTORY_CERT_SUPABASE_ANON_KEY", LOCAL_LABEL);
+const localDbUrl = requireBootstrapEnv("FACTORY_CERT_LOCAL_DB_URL", LOCAL_LABEL);
 const point38OrderId = credentialValue("FACTORY_CERT_POINT38_ORDER_ID");
 const point38OrderItemId = credentialValue("FACTORY_CERT_POINT38_ORDER_ITEM_ID");
 
@@ -234,129 +216,147 @@ async function authenticatedRole(role, { aal2 = false } = {}) {
   return { client, actorId };
 }
 
-function postgresScalar(sql, label) {
-  const parsed = new URL(localDbUrl);
-  if (!["postgres:", "postgresql:"].includes(parsed.protocol) || !LOOPBACK_HOSTS.has(parsed.hostname)) {
-    throw new Error(`POINT100_POINT38_LOCAL_ONLY: refusing Postgres target for ${label}`);
-  }
-  try {
-    return execFileSync("psql", ["-At", "-v", "ON_ERROR_STOP=1", "-q", "-c", sql], {
-      stdio: ["ignore", "pipe", "pipe"],
-      encoding: "utf8",
-      env: {
-        ...process.env,
-        PGHOST: parsed.hostname,
-        PGPORT: parsed.port || "5432",
-        PGUSER: decodeURIComponent(parsed.username),
-        PGPASSWORD: decodeURIComponent(parsed.password),
-        PGDATABASE: decodeURIComponent(parsed.pathname.replace(/^\//, "")) || "postgres",
-      },
-    }).trim();
-  } catch (error) {
-    const stderr = error?.stderr ? error.stderr.toString("utf8") : String(error?.message ?? error);
-    throw new Error(`${label}: ${stderr.trim()}`);
-  }
+async function recordAndVerifyPayment(
+  finance,
+  financeActorId,
+  piId,
+  commercialVersionId,
+  paymentType,
+  amount,
+  identityPrefix,
+  labels,
+) {
+  const proofCorrelation = `${identityPrefix}:proof`;
+  const proof = await finance.rpc("record_order_payment_proof_v1", {
+    p_order_id: point38OrderId,
+    p_pi_id: piId,
+    p_commercial_version_id: commercialVersionId,
+    p_payment_type: paymentType,
+    p_submitted_amount: amount,
+    p_currency: "INR",
+    p_payment_mode: "bank_transfer",
+    p_external_reference: labels.externalReference,
+    p_payer_reference: null,
+    p_proof_evidence_reference: labels.proofEvidenceRef,
+    p_source_channel: "CENTRAL",
+    p_source_reference: `point100:${point38OrderId}`,
+    p_correlation_id: proofCorrelation,
+    p_idempotency_key: proofCorrelation,
+    p_actor_id: financeActorId,
+  });
+  assertNoError(proof.error, labels.proofLabel);
+  const paymentId = String(firstRow(proof.data)?.payment_id ?? "");
+  if (!paymentId) throw new Error(labels.missingPaymentIdError);
+
+  const verifyCorrelation = `${identityPrefix}:verify`;
+  const verified = await finance.rpc("verify_order_payment_v1", {
+    p_payment_id: paymentId,
+    p_verified_amount: amount,
+    p_verified_reference: labels.verifyReference,
+    p_verification_evidence_reference: labels.verifyEvidenceRef,
+    p_reason: labels.verifyReason,
+    p_correlation_id: verifyCorrelation,
+    p_idempotency_key: verifyCorrelation,
+    p_actor_id: financeActorId,
+  });
+  assertNoError(verified.error, labels.verifyLabel);
 }
 
-function firstRow(data) {
-  return Array.isArray(data) ? data[0] : data;
+async function loadOperationsClearanceFacts(finance, piId, commercialVersionId, label) {
+  const factsResult = await finance.rpc("get_finance_operations_clearance_facts_v1", {
+    p_order_id: point38OrderId,
+    p_pi_id: piId,
+    p_commercial_version_id: commercialVersionId,
+  });
+  assertNoError(factsResult.error, label);
+  const facts = firstRow(factsResult.data);
+  if (!facts || typeof facts !== "object") throw new Error("POINT100_POINT38_OPERATIONS_FACTS_MISSING");
+  return facts;
+}
+
+async function ensureRequiredAdvanceVerified(finance, financeActorId, piId, commercialVersionId, requiredAdvance) {
+  if (requiredAdvance <= 0.01) return;
+  await recordAndVerifyPayment(
+    finance,
+    financeActorId,
+    piId,
+    commercialVersionId,
+    "advance",
+    requiredAdvance,
+    `${RUN_TOKEN}:advance`,
+    {
+      externalReference: "POINT100-P38-ADVANCE",
+      proofEvidenceRef: "point100:p38:advance-proof",
+      verifyReference: "POINT100-P38-ADVANCE-VERIFIED",
+      verifyEvidenceRef: "point100:p38:advance-verified",
+      verifyReason: "Point100 governed advance verification",
+      proofLabel: "Point38 advance proof",
+      verifyLabel: "Point38 advance verification",
+      missingPaymentIdError: "POINT100_POINT38_ADVANCE_PAYMENT_ID_MISSING",
+    },
+  );
+}
+
+async function grantOperationsClearanceDecision(finance, financeActorId, piId, commercialVersionId) {
+  const correlation = `${RUN_TOKEN}:operations-clearance`;
+  const decision = await finance.rpc("decide_finance_operations_clearance_v1", {
+    p_order_id: point38OrderId,
+    p_pi_id: piId,
+    p_commercial_version_id: commercialVersionId,
+    p_decision: "GRANTED",
+    p_reason: "Point100 governed operations clearance",
+    p_evidence_reference: "point100:p38:operations-clearance",
+    p_source_channel: "CENTRAL",
+    p_source_reference: `point100:${point38OrderId}`,
+    p_correlation_id: correlation,
+    p_idempotency_key: correlation,
+    p_actor_id: financeActorId,
+  });
+  assertNoError(decision.error, "Point38 operations clearance decision");
 }
 
 async function ensureOperationsClearance(finance, financeActorId, piId, commercialVersionId) {
-  let factsResult = await finance.rpc("get_finance_operations_clearance_facts_v1", {
-    p_order_id: point38OrderId,
-    p_pi_id: piId,
-    p_commercial_version_id: commercialVersionId,
-  });
-  assertNoError(factsResult.error, "Point38 finance operations facts");
-  let facts = firstRow(factsResult.data);
-  if (!facts || typeof facts !== "object") throw new Error("POINT100_POINT38_OPERATIONS_FACTS_MISSING");
-
+  let facts = await loadOperationsClearanceFacts(finance, piId, commercialVersionId, "Point38 finance operations facts");
   if (facts.eligible_for_operations_clearance !== true) {
-    const requiredAdvance = Number(facts.required_advance ?? 0);
-    if (requiredAdvance > 0.01) {
-      const proofCorrelation = `${RUN_TOKEN}:advance-proof`;
-      const proof = await finance.rpc("record_order_payment_proof_v1", {
-        p_order_id: point38OrderId,
-        p_pi_id: piId,
-        p_commercial_version_id: commercialVersionId,
-        p_payment_type: "advance",
-        p_submitted_amount: requiredAdvance,
-        p_currency: "INR",
-        p_payment_mode: "bank_transfer",
-        p_external_reference: "POINT100-P38-ADVANCE",
-        p_payer_reference: null,
-        p_proof_evidence_reference: "point100:p38:advance-proof",
-        p_source_channel: "CENTRAL",
-        p_source_reference: `point100:${point38OrderId}`,
-        p_correlation_id: proofCorrelation,
-        p_idempotency_key: proofCorrelation,
-        p_actor_id: financeActorId,
-      });
-      assertNoError(proof.error, "Point38 advance proof");
-      const paymentId = String(firstRow(proof.data)?.payment_id ?? "");
-      if (!paymentId) throw new Error("POINT100_POINT38_ADVANCE_PAYMENT_ID_MISSING");
-      const verifyCorrelation = `${RUN_TOKEN}:advance-verify`;
-      const verified = await finance.rpc("verify_order_payment_v1", {
-        p_payment_id: paymentId,
-        p_verified_amount: requiredAdvance,
-        p_verified_reference: "POINT100-P38-ADVANCE-VERIFIED",
-        p_verification_evidence_reference: "point100:p38:advance-verified",
-        p_reason: "Point100 governed advance verification",
-        p_correlation_id: verifyCorrelation,
-        p_idempotency_key: verifyCorrelation,
-        p_actor_id: financeActorId,
-      });
-      assertNoError(verified.error, "Point38 advance verification");
-    }
-
-    factsResult = await finance.rpc("get_finance_operations_clearance_facts_v1", {
-      p_order_id: point38OrderId,
-      p_pi_id: piId,
-      p_commercial_version_id: commercialVersionId,
-    });
-    assertNoError(factsResult.error, "Point38 refreshed finance operations facts");
-    facts = firstRow(factsResult.data);
-    if (!facts || typeof facts !== "object") throw new Error("POINT100_POINT38_REFRESHED_OPERATIONS_FACTS_MISSING");
+    await ensureRequiredAdvanceVerified(
+      finance,
+      financeActorId,
+      piId,
+      commercialVersionId,
+      Number(facts.required_advance ?? 0),
+    );
+    facts = await loadOperationsClearanceFacts(
+      finance,
+      piId,
+      commercialVersionId,
+      "Point38 refreshed finance operations facts",
+    );
   }
-
   if (facts.latest_clearance_decision !== "GRANTED") {
-    const correlation = `${RUN_TOKEN}:operations-clearance`;
-    const decision = await finance.rpc("decide_finance_operations_clearance_v1", {
-      p_order_id: point38OrderId,
-      p_pi_id: piId,
-      p_commercial_version_id: commercialVersionId,
-      p_decision: "GRANTED",
-      p_reason: "Point100 governed operations clearance",
-      p_evidence_reference: "point100:p38:operations-clearance",
-      p_source_channel: "CENTRAL",
-      p_source_reference: `point100:${point38OrderId}`,
-      p_correlation_id: correlation,
-      p_idempotency_key: correlation,
-      p_actor_id: financeActorId,
-    });
-    assertNoError(decision.error, "Point38 operations clearance decision");
+    await grantOperationsClearanceDecision(finance, financeActorId, piId, commercialVersionId);
   }
-
-  const finalFacts = await finance.rpc("get_finance_operations_clearance_facts_v1", {
-    p_order_id: point38OrderId,
-    p_pi_id: piId,
-    p_commercial_version_id: commercialVersionId,
-  });
-  assertNoError(finalFacts.error, "Point38 final finance operations facts");
-  const finalRow = firstRow(finalFacts.data);
-  if (!finalRow || finalRow.eligible_for_operations_clearance !== true || finalRow.latest_clearance_decision !== "GRANTED") {
+  const finalRow = await loadOperationsClearanceFacts(
+    finance,
+    piId,
+    commercialVersionId,
+    "Point38 final finance operations facts",
+  );
+  if (finalRow.eligible_for_operations_clearance !== true || finalRow.latest_clearance_decision !== "GRANTED") {
     throw new Error(`POINT100_POINT38_OPERATIONS_CLEARANCE_NOT_ACTIVE: ${JSON.stringify(finalRow)}`);
   }
 }
 
-async function ensureFinalPaymentCoverage(finance, financeActorId, piId, commercialVersionId, financeDplReceiptId) {
+async function issueFinalPaymentRequest(
+  finance,
+  financeActorId,
+  piId,
+  commercialVersionId,
+  financeDplReceiptId,
+) {
   const requestCorrelation = `${RUN_TOKEN}:final-payment-request`;
-  let finalPaymentRequestId;
-  let balanceDue;
-
   if (isFinanceCalendarConflictImminent()) {
     const maintenance = insertFinalPaymentRequestMaintenance(
+      localDbUrl,
       financeActorId,
       piId,
       commercialVersionId,
@@ -364,71 +364,68 @@ async function ensureFinalPaymentCoverage(finance, financeActorId, piId, commerc
       requestCorrelation,
       requestCorrelation,
     );
-    finalPaymentRequestId = maintenance.finalPaymentRequestId;
-    balanceDue = maintenance.balanceDue;
-  } else {
-    const requestResult = await finance.rpc("issue_sales_order_pi_final_payment_request_v1", {
-      p_order_id: point38OrderId,
-      p_pi_id: piId,
-      p_commercial_version_id: commercialVersionId,
-      p_finance_dpl_receipt_id: financeDplReceiptId,
-      p_document_reference: "point100://final-payment-pi/p38",
-      p_payment_action: "BANK_TRANSFER",
-      p_payment_link: null,
-      p_payment_instructions: "Point100 synthetic certification bank-transfer settlement",
-      p_reason: "Point100 governed final-payment PI revision",
-      p_source_channel: "CENTRAL",
-      p_source_reference: `point100:${point38OrderId}`,
-      p_correlation_id: requestCorrelation,
-      p_idempotency_key: requestCorrelation,
-      p_actor_id: financeActorId,
-    });
-    assertNoError(requestResult.error, "Point38 final-payment PI request");
-    const request = firstRow(requestResult.data);
-    finalPaymentRequestId = String(request?.final_payment_request_id ?? "");
-    if (!finalPaymentRequestId) throw new Error("POINT100_POINT38_FINAL_PAYMENT_REQUEST_ID_MISSING");
-    balanceDue = Number(request?.balance_due ?? 0);
+    return maintenance;
   }
-  if (!Number.isFinite(balanceDue) || balanceDue < -0.01) {
-    throw new Error(`POINT100_POINT38_FINAL_PAYMENT_BALANCE_INVALID: ${String(request?.balance_due)}`);
-  }
-  if (balanceDue > 0.01) {
-    const correlation = `${RUN_TOKEN}:balance-proof`;
-    const proof = await finance.rpc("record_order_payment_proof_v1", {
-      p_order_id: point38OrderId,
-      p_pi_id: piId,
-      p_commercial_version_id: commercialVersionId,
-      p_payment_type: "balance",
-      p_submitted_amount: balanceDue,
-      p_currency: "INR",
-      p_payment_mode: "bank_transfer",
-      p_external_reference: "POINT100-P38-BALANCE",
-      p_payer_reference: null,
-      p_proof_evidence_reference: "point100:p38:balance-proof",
-      p_source_channel: "CENTRAL",
-      p_source_reference: `point100:${point38OrderId}`,
-      p_correlation_id: correlation,
-      p_idempotency_key: correlation,
-      p_actor_id: financeActorId,
-    });
-    assertNoError(proof.error, "Point38 final-payment balance proof");
-    const paymentId = String(firstRow(proof.data)?.payment_id ?? "");
-    if (!paymentId) throw new Error("POINT100_POINT38_BALANCE_PAYMENT_ID_MISSING");
+  const requestResult = await finance.rpc("issue_sales_order_pi_final_payment_request_v1", {
+    p_order_id: point38OrderId,
+    p_pi_id: piId,
+    p_commercial_version_id: commercialVersionId,
+    p_finance_dpl_receipt_id: financeDplReceiptId,
+    p_document_reference: "point100://final-payment-pi/p38",
+    p_payment_action: "BANK_TRANSFER",
+    p_payment_link: null,
+    p_payment_instructions: "Point100 synthetic certification bank-transfer settlement",
+    p_reason: "Point100 governed final-payment PI revision",
+    p_source_channel: "CENTRAL",
+    p_source_reference: `point100:${point38OrderId}`,
+    p_correlation_id: requestCorrelation,
+    p_idempotency_key: requestCorrelation,
+    p_actor_id: financeActorId,
+  });
+  assertNoError(requestResult.error, "Point38 final-payment PI request");
+  const request = firstRow(requestResult.data);
+  const finalPaymentRequestId = String(request?.final_payment_request_id ?? "");
+  if (!finalPaymentRequestId) throw new Error("POINT100_POINT38_FINAL_PAYMENT_REQUEST_ID_MISSING");
+  return { finalPaymentRequestId, balanceDue: Number(request?.balance_due ?? 0) };
+}
 
-    const verifyCorrelation = `${RUN_TOKEN}:balance-verify`;
-    const verified = await finance.rpc("verify_order_payment_v1", {
-      p_payment_id: paymentId,
-      p_verified_amount: balanceDue,
-      p_verified_reference: "POINT100-P38-BALANCE-VERIFIED",
-      p_verification_evidence_reference: "point100:p38:balance-verified",
-      p_reason: "Point100 governed final balance verification",
-      p_correlation_id: verifyCorrelation,
-      p_idempotency_key: verifyCorrelation,
-      p_actor_id: financeActorId,
-    });
-    assertNoError(verified.error, "Point38 final-payment balance verification");
-  }
+async function settleFinalPaymentBalance(finance, financeActorId, piId, commercialVersionId, balanceDue) {
+  if (balanceDue <= 0.01) return;
+  await recordAndVerifyPayment(
+    finance,
+    financeActorId,
+    piId,
+    commercialVersionId,
+    "balance",
+    balanceDue,
+    `${RUN_TOKEN}:final-payment-balance`,
+    {
+      externalReference: "POINT100-P38-BALANCE",
+      proofEvidenceRef: "point100:p38:balance-proof",
+      verifyReference: "POINT100-P38-BALANCE-VERIFIED",
+      verifyEvidenceRef: "point100:p38:balance-verified",
+      verifyReason: "Point100 governed final balance verification",
+      proofLabel: "Point38 final-payment balance proof",
+      verifyLabel: "Point38 final-payment balance verification",
+      missingPaymentIdError: "POINT100_POINT38_BALANCE_PAYMENT_ID_MISSING",
+    },
+  );
+}
 
+function resolveFinalInvoiceDate(facts) {
+  const issuedAt = facts.issued_at;
+  if (!issuedAt) throw new Error("POINT100_POINT38_FINAL_PAYMENT_ISSUED_AT_MISSING");
+  const requestCalendarDate = kolkataCalendarDate(issuedAt);
+  const invoiceDate = sessionCalendarDate(localDbUrl);
+  if (invoiceDate < requestCalendarDate) {
+    throw new Error(
+      `POINT100_POINT38_FINAL_INVOICE_DATE_UNRESOLVABLE: request=${requestCalendarDate} session=${invoiceDate}`,
+    );
+  }
+  return invoiceDate;
+}
+
+async function assertFinalPaymentSettled(finance, finalPaymentRequestId, financeDplReceiptId) {
   const factsResult = await finance.rpc("get_sales_order_pi_final_payment_request_v1", {
     p_order_id: point38OrderId,
   });
@@ -444,17 +441,23 @@ async function ensureFinalPaymentCoverage(finance, financeActorId, piId, commerc
   ) {
     throw new Error(`POINT100_POINT38_FINAL_PAYMENT_NOT_SETTLED: ${JSON.stringify(facts)}`);
   }
+  return facts;
+}
 
-  const issuedAt = facts.issued_at;
-  if (!issuedAt) throw new Error("POINT100_POINT38_FINAL_PAYMENT_ISSUED_AT_MISSING");
-  const requestCalendarDate = kolkataCalendarDate(issuedAt);
-  const invoiceDate = sessionCalendarDate();
-  if (invoiceDate < requestCalendarDate) {
-    throw new Error(
-      `POINT100_POINT38_FINAL_INVOICE_DATE_UNRESOLVABLE: request=${requestCalendarDate} session=${invoiceDate}`,
-    );
+async function ensureFinalPaymentCoverage(finance, financeActorId, piId, commercialVersionId, financeDplReceiptId) {
+  const { finalPaymentRequestId, balanceDue } = await issueFinalPaymentRequest(
+    finance,
+    financeActorId,
+    piId,
+    commercialVersionId,
+    financeDplReceiptId,
+  );
+  if (!Number.isFinite(balanceDue) || balanceDue < -0.01) {
+    throw new Error(`POINT100_POINT38_FINAL_PAYMENT_BALANCE_INVALID: ${String(balanceDue)}`);
   }
-  return invoiceDate;
+  await settleFinalPaymentBalance(finance, financeActorId, piId, commercialVersionId, balanceDue);
+  const facts = await assertFinalPaymentSettled(finance, finalPaymentRequestId, financeDplReceiptId);
+  return resolveFinalInvoiceDate(facts);
 }
 
 async function ensureFinalSettlement(finance, financeActorId, piId, commercialVersionId, finalInvoiceId) {
@@ -465,39 +468,25 @@ async function ensureFinalSettlement(finance, financeActorId, piId, commercialVe
 
   const netDue = Number(settlement.net_due ?? 0);
   if (netDue > 0.01) {
-    const correlation = `${RUN_TOKEN}:balance-proof`;
-    const proof = await finance.rpc("record_order_payment_proof_v1", {
-      p_order_id: point38OrderId,
-      p_pi_id: piId,
-      p_commercial_version_id: commercialVersionId,
-      p_payment_type: "balance",
-      p_submitted_amount: netDue,
-      p_currency: "INR",
-      p_payment_mode: "bank_transfer",
-      p_external_reference: "POINT100-P38-BALANCE",
-      p_payer_reference: null,
-      p_proof_evidence_reference: "point100:p38:balance-proof",
-      p_source_channel: "CENTRAL",
-      p_source_reference: `point100:${point38OrderId}`,
-      p_correlation_id: correlation,
-      p_idempotency_key: correlation,
-      p_actor_id: financeActorId,
-    });
-    assertNoError(proof.error, "Point38 balance proof");
-    const paymentId = String(firstRow(proof.data)?.payment_id ?? "");
-    if (!paymentId) throw new Error("POINT100_POINT38_BALANCE_PAYMENT_ID_MISSING");
-    const verifyCorrelation = `${RUN_TOKEN}:balance-verify`;
-    const verified = await finance.rpc("verify_order_payment_v1", {
-      p_payment_id: paymentId,
-      p_verified_amount: netDue,
-      p_verified_reference: "POINT100-P38-BALANCE-VERIFIED",
-      p_verification_evidence_reference: "point100:p38:balance-verified",
-      p_reason: "Point100 governed final balance verification",
-      p_correlation_id: verifyCorrelation,
-      p_idempotency_key: verifyCorrelation,
-      p_actor_id: financeActorId,
-    });
-    assertNoError(verified.error, "Point38 balance verification");
+    await recordAndVerifyPayment(
+      finance,
+      financeActorId,
+      piId,
+      commercialVersionId,
+      "balance",
+      netDue,
+      `${RUN_TOKEN}:settlement-balance`,
+      {
+        externalReference: "POINT100-P38-BALANCE",
+        proofEvidenceRef: "point100:p38:balance-proof",
+        verifyReference: "POINT100-P38-BALANCE-VERIFIED",
+        verifyEvidenceRef: "point100:p38:balance-verified",
+        verifyReason: "Point100 governed final balance verification",
+        proofLabel: "Point38 balance proof",
+        verifyLabel: "Point38 balance verification",
+        missingPaymentIdError: "POINT100_POINT38_BALANCE_PAYMENT_ID_MISSING",
+      },
+    );
   }
 
   settlementResult = await finance.rpc("get_final_settlement_facts_v1", { p_final_invoice_id: finalInvoiceId });

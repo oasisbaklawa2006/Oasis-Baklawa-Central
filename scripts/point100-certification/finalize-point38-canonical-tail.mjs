@@ -8,45 +8,23 @@
  * physical UAT evidence. All mutations go through canonical Core authority.
  */
 
-import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
 import { createClient } from "@supabase/supabase-js";
+import {
+  RUN_TOKEN,
+  assertLoopbackHttpOrigin,
+  assertNoError,
+  firstRow,
+  parseCredentialFile,
+  queryLocalPostgresScalar,
+  readCredential,
+  requireBootstrapEnv,
+} from "./point38-bootstrap-common.mjs";
 
-const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
-const CREDENTIAL_FILE = "/tmp/oasis-factory-certification.env";
-const RUN_TOKEN = "point100-point38-canonical-v1";
-
-function requireEnv(name) {
-  const value = process.env[name]?.trim();
-  if (!value) throw new Error(`POINT100_POINT38_TAIL_ENV_REQUIRED: ${name}`);
-  return value;
-}
-
-function assertLoopbackHttp(rawUrl) {
-  const parsed = new URL(rawUrl);
-  if (parsed.protocol !== "http:" || !LOOPBACK_HOSTS.has(parsed.hostname)) {
-    throw new Error(`POINT100_POINT38_TAIL_LOCAL_ONLY: refusing ${parsed.origin}`);
-  }
-  if (parsed.username || parsed.password || parsed.pathname !== "/" || parsed.search || parsed.hash) {
-    throw new Error("POINT100_POINT38_TAIL_LOCAL_ONLY: Supabase URL must be a canonical loopback origin");
-  }
-  return parsed.origin;
-}
-
-function parseCredentialFile() {
-  const values = new Map();
-  for (const line of readFileSync(CREDENTIAL_FILE, "utf8").split(/\r?\n/)) {
-    const match = /^export ([A-Z0-9_]+)='([^']*)'$/.exec(line.trim());
-    if (match) values.set(match[1], match[2]);
-  }
-  return values;
-}
-
+const LOCAL_LABEL = "POINT100_POINT38_TAIL";
 const values = parseCredentialFile();
+
 function credentialValue(name) {
-  const value = values.get(name)?.trim();
-  if (!value) throw new Error(`POINT100_POINT38_TAIL_CREDENTIAL_REQUIRED: ${name}`);
-  return value;
+  return readCredential(values, name, LOCAL_LABEL);
 }
 
 function roleCredentials(role) {
@@ -57,46 +35,15 @@ function roleCredentials(role) {
   };
 }
 
-function assertNoError(error, operation) {
-  if (error) throw new Error(`${operation}: ${error.message ?? String(error)}`);
-}
-
-function firstRow(data) {
-  return Array.isArray(data) ? data[0] : data;
-}
-
-const backendUrl = assertLoopbackHttp(requireEnv("FACTORY_CERT_SUPABASE_URL"));
-const anonKey = requireEnv("FACTORY_CERT_SUPABASE_ANON_KEY");
-const localDbUrl = requireEnv("FACTORY_CERT_LOCAL_DB_URL");
+const backendUrl = assertLoopbackHttpOrigin(requireBootstrapEnv("FACTORY_CERT_SUPABASE_URL", LOCAL_LABEL), LOCAL_LABEL);
+const anonKey = requireBootstrapEnv("FACTORY_CERT_SUPABASE_ANON_KEY", LOCAL_LABEL);
+const localDbUrl = requireBootstrapEnv("FACTORY_CERT_LOCAL_DB_URL", LOCAL_LABEL);
 const point38OrderId = credentialValue("FACTORY_CERT_POINT38_ORDER_ID");
-
-function postgresScalar(sql, label) {
-  const parsed = new URL(localDbUrl);
-  if (!["postgres:", "postgresql:"].includes(parsed.protocol) || !LOOPBACK_HOSTS.has(parsed.hostname)) {
-    throw new Error(`POINT100_POINT38_TAIL_LOCAL_ONLY: refusing Postgres target for ${label}`);
-  }
-  try {
-    return execFileSync("psql", ["-At", "-v", "ON_ERROR_STOP=1", "-q", "-c", sql], {
-      stdio: ["ignore", "pipe", "pipe"],
-      encoding: "utf8",
-      env: {
-        ...process.env,
-        PGHOST: parsed.hostname,
-        PGPORT: parsed.port || "5432",
-        PGUSER: decodeURIComponent(parsed.username),
-        PGPASSWORD: decodeURIComponent(parsed.password),
-        PGDATABASE: decodeURIComponent(parsed.pathname.replace(/^\//, "")) || "postgres",
-      },
-    }).trim();
-  } catch (error) {
-    const stderr = error?.stderr ? error.stderr.toString("utf8") : String(error?.message ?? error);
-    throw new Error(`${label}: ${stderr.trim()}`);
-  }
-}
 
 /** Core gate release requires ready_to_load/loaded; finance clearance has no carton-promotion RPC yet. */
 function promoteCartonForGateReadiness(cartonId) {
-  const updated = postgresScalar(
+  const updated = queryLocalPostgresScalar(
+    localDbUrl,
     `UPDATE public.b2b_dispatch_cartons
         SET status = 'ready_to_load',
             physical_location = 'READY_TO_LOAD_BAY'
@@ -104,11 +51,14 @@ function promoteCartonForGateReadiness(cartonId) {
         AND status = 'locked'
       RETURNING id::text;`,
     "Point38 tail carton gate-readiness promotion",
+    LOCAL_LABEL,
   );
   if (!updated) {
-    const currentStatus = postgresScalar(
+    const currentStatus = queryLocalPostgresScalar(
+      localDbUrl,
       `SELECT status FROM public.b2b_dispatch_cartons WHERE id = '${cartonId}'::uuid;`,
       "Point38 tail carton status lookup",
+      LOCAL_LABEL,
     );
     if (currentStatus !== "ready_to_load" && currentStatus !== "loaded" && currentStatus !== "handed_over") {
       throw new Error(`POINT100_POINT38_TAIL_CARTON_NOT_GATE_READY: status=${currentStatus}`);

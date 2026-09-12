@@ -2,7 +2,14 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Point100ProbeOutcome } from "../../src/lib/point100/capabilityStatus";
 import { POINT100_LIFECYCLE_STAGES } from "../../src/lib/point100/lifecycleStages";
 import { buildProbeOutcome, probeFixtureKeys, resolvedRpcForStage } from "../../src/lib/point100/probeRunner";
-import { isRpcOnCertifiedCorePin } from "../../src/lib/point100/upstreamDependencies";
+import {
+  POINT100_CORE_PRODUCTION_VERIFIED_SHA,
+  POINT100_DISPATCH_FINALIZE_RPC,
+  POINT100_PRODUCTION_MIGRATION_GATE,
+  formatUpstreamBlocker,
+  isRpcOnCertifiedCorePin,
+  productionGateBlockers,
+} from "../../src/lib/point100/upstreamDependencies";
 import { CENTRAL_ADMIN_MODULE_AUTHORITY_MATRIX } from "../../src/lib/appverse/centralAdminModuleAuthorityMatrix";
 import { MACRO_DISPATCH_MANAGER_HOME, MACRO_ORDER_DISPATCH_JOURNEY } from "../../src/lib/macro-order-dispatch/macroOrderDispatchJourney";
 import { probeRpcExists } from "./support";
@@ -57,6 +64,24 @@ function isPostgrestFunctionResolutionError(error: unknown): boolean {
   const code = String((error as { code?: unknown }).code ?? "");
   const message = String((error as { message?: unknown }).message ?? "").toLowerCase();
   return code === "PGRST202" || message.includes("could not find the function");
+}
+
+export async function certifiedDispatchFinalizeProbe(): Promise<{
+  ready: boolean;
+  note: string;
+  upstreamNotes: string[];
+}> {
+  const dispatchedRpc = await probeRpcExists(POINT100_DISPATCH_FINALIZE_RPC);
+  const onCertifiedPin = isRpcOnCertifiedCorePin(POINT100_DISPATCH_FINALIZE_RPC);
+  const ready = onCertifiedPin && dispatchedRpc.exists;
+  const note = ready
+    ? `canonical ${POINT100_DISPATCH_FINALIZE_RPC} present on certified Core pin ${POINT100_CORE_PRODUCTION_VERIFIED_SHA.slice(0, 8)} / ${POINT100_PRODUCTION_MIGRATION_GATE}`
+    : dispatchedRpc.exists
+      ? "dispatch-finalize RPC exists but is not recognized on the certified Core pin"
+      : `${POINT100_DISPATCH_FINALIZE_RPC} absent from certified Core pin ${POINT100_CORE_PRODUCTION_VERIFIED_SHA.slice(0, 8)}`;
+  const blockers = productionGateBlockers();
+  const upstreamNotes = blockers.length > 0 ? blockers.map((dep) => formatUpstreamBlocker(dep)) : [note];
+  return { ready, note, upstreamNotes };
 }
 
 export function macro556DispatchRoutesPresent(): { ok: boolean; detail: string } {
