@@ -53,7 +53,8 @@ bash scripts/buyer-certification/stop-ephemeral.sh
 At viewport widths **375**, **390**, and **430**:
 
 login → dashboard → catalogue → product detail → cart → submit order → order detail →
-documents/statement → logout.
+documents/statement → support (governed ticket + general enquiry + unified communication log) →
+dashboard communications count → logout.
 
 Evidence artifacts:
 

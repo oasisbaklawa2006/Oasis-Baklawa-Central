@@ -28,6 +28,7 @@ for (const viewport of BUYER_GOLDEN_PATH_VIEWPORTS) {
       "documents_statement",
       "documents",
       "communication_log",
+      "communication_log_count",
       "logout",
     ]);
   });

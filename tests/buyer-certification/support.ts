@@ -149,8 +149,45 @@ export async function runBuyerGoldenPath(
     await page.goto(`${targetUrl}/buyer/support`, { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { name: /^Support$/i })).toBeVisible({ timeout: 60_000 });
     await expect(page.getByRole("heading", { name: /^Communication log$/i })).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByRole("heading", { name: /^Order support$/i })).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole("heading", { name: /^General enquiry$/i })).toBeVisible({ timeout: 30_000 });
+
+    const ticketDescription = "Certification ticket: carton dented on arrival";
+    const enquiryMessage = "Please confirm the next delivery window for certification.";
+
+    await page.locator("#buyer-support-order").selectOption({ label: "SO-CERT-PRESEED-001" });
+    await page.locator("#buyer-support-description").fill(ticketDescription);
+    await page.getByRole("button", { name: /^Submit ticket$/i }).click();
+    await expect(page.getByText(ticketDescription)).toBeVisible({ timeout: 60_000 });
+
+    // Separate governed write paths must produce distinct timestamps for newest-first ordering.
+    await page.waitForTimeout(1_500);
+
+    await page.locator("#buyer-general-query-subject").fill("Certification enquiry: delivery window");
+    await page.locator("#buyer-general-query-message").fill(enquiryMessage);
+    await page.getByRole("button", { name: /^Submit general enquiry$/i }).click();
+    await expect(page.getByText(enquiryMessage)).toBeVisible({ timeout: 60_000 });
+
+    await expect(page.getByText(/Order ticket · SO-CERT-PRESEED-001/)).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText(/General enquiry · GENERAL/)).toBeVisible({ timeout: 30_000 });
+
+    const logSection = page.locator('[aria-labelledby="buyer-communication-log-heading"]');
+    const logText = await logSection.innerText();
+    const enquiryIndex = logText.indexOf(enquiryMessage);
+    const ticketIndex = logText.indexOf(ticketDescription);
+    if (enquiryIndex < 0 || ticketIndex < 0 || enquiryIndex >= ticketIndex) {
+      throw new Error("COMMUNICATION_LOG_ORDER: expected general enquiry before order ticket (newest first)");
+    }
+
     await shot("06-communication-log");
-    record("communication_log", "PASS");
+    record("communication_log", "PASS", "unified_newest_first_both_kinds_separate_write_paths");
+
+    await page.goto(`${targetUrl}/buyer`, { waitUntil: "domcontentloaded" });
+    await expect(page.locator("#dashboard-heading")).toBeVisible({ timeout: 60_000 });
+    const communicationsCard = page.locator("div.rounded-xl.border").filter({ has: page.getByText("Communications", { exact: true }) });
+    await expect(communicationsCard.getByText("2", { exact: true })).toBeVisible({ timeout: 30_000 });
+    await shot("06b-communication-log-count");
+    record("communication_log_count", "PASS");
 
     await page.goto(`${targetUrl}/buyer/account`, { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { name: /^Account$/i })).toBeVisible({ timeout: 60_000 });
