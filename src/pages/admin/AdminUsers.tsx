@@ -360,8 +360,8 @@ const AdminUsers = () => {
         is_sales_executive: false,
         commission_rate: 0,
       });
-    } catch (err: any) {
-      toast.error(err.message || "Failed to finalize setup.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to finalize setup.");
     } finally {
       setSaving(null);
       void fetchData({ silent: true });
@@ -589,7 +589,7 @@ const AdminUsers = () => {
                               onCheckedChange={async (checked) => {
                                 const { error } = await supabase
                                   .from("users")
-                                  .update({ is_sales_executive: checked } as any)
+                                  .update({ is_sales_executive: checked } as unknown as { is_sales_executive: boolean })
                                   .eq("id", u.id);
                                 if (error) return toast.error("Failed to update flag");
                                 toast.success(
