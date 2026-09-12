@@ -1,0 +1,112 @@
+name: Core Backend Authority
+
+on:
+  pull_request_target:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: core-backend-authority-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  trusted-guard:
+    if: github.event_name == 'pull_request_target'
+    name: Enforce oasis-supabase-core backend authority (trusted)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout trusted base revision
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Fetch PR head commit (comparison data only)
+        run: git fetch --no-tags --depth=1 origin "${{ github.event.pull_request.head.sha }}"
+
+      - name: Enforce Core backend authority from trusted base code
+        shell: bash
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          bash scripts/check-core-backend-authority.sh "$PR_BASE_SHA" "$PR_HEAD_SHA"
+
+  advisory-guard:
+    if: github.event_name == 'pull_request'
+    name: Enforce oasis-supabase-core backend authority (advisory)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout trusted base revision
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Fetch PR head commit (comparison data only)
+        run: git fetch --no-tags --depth=1 origin "${{ github.event.pull_request.head.sha }}"
+
+      - name: Enforce Core backend authority (advisory base-sourced)
+        shell: bash
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [[ ! -f scripts/check-core-backend-authority.sh ]]; then
+            mkdir -p scripts
+            git show "$PR_HEAD_SHA:scripts/check-core-backend-authority.sh" > scripts/check-core-backend-authority.sh
+            chmod +x scripts/check-core-backend-authority.sh
+          fi
+          bash scripts/check-core-backend-authority.sh "$PR_BASE_SHA" "$PR_HEAD_SHA"
+
+      - name: Regression-test PR guard scripts without untrusted checkout
+        shell: bash
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p scripts/tests
+          git show "$PR_HEAD_SHA:scripts/check-core-backend-authority.sh" > scripts/check-core-backend-authority.sh
+          git show "$PR_HEAD_SHA:scripts/tests/verify-core-backend-authority.sh" > scripts/tests/verify-core-backend-authority.sh
+          chmod +x scripts/check-core-backend-authority.sh scripts/tests/verify-core-backend-authority.sh
+          bash scripts/tests/verify-core-backend-authority.sh
+
+  push-guard:
+    if: github.event_name == 'push'
+    name: Enforce oasis-supabase-core backend authority
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Resolve auditable base and enforce boundary
+        shell: bash
+        env:
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          bash scripts/check-core-backend-authority.sh "$PUSH_BEFORE"
+
+      - name: Regression-test core backend authority guard
+        run: bash scripts/tests/verify-core-backend-authority.sh
