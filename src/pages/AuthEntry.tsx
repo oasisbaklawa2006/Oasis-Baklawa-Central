@@ -1,63 +1,159 @@
-import { ShieldCheck, Users } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { ChevronLeft, ChevronRight, ShieldCheck } from "lucide-react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import logoImg from "@/assets/logo-open.png";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { useCurrency } from "@/contexts/CurrencyContext";
 
-// /login is a neutral entry selector only. It never renders an OTP or
-// password field itself — see /buyer/login (BuyerLogin.tsx) and
-// /staff/login (StaffLogin.tsx) for the two authentication surfaces.
+// Public Buyer welcome entry. Buyer authentication lives at /buyer/login;
+// employee authentication remains a deliberately secondary restricted entry at
+// /staff/login. No credential field is rendered on this surface.
 const AuthEntry = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { lang, setLang } = useLanguage();
+  const { currency, setCurrency } = useCurrency();
+  const showPreferences = searchParams.get("view") === "preferences";
 
-  // Issue #561: B2B application is a governed pre-login intake.
-  // Prospects may open the form directly; Core owns the anonymous write boundary.
   const handleApplyForB2BAccess = () => {
     navigate("/buyer/access-request");
   };
 
-  return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-5 bg-background">
-      <div className="w-full max-w-sm space-y-8">
-        <div className="text-center space-y-3">
-          <img src={logoImg} alt="Oasis Baklawa" width={134} height={96} fetchPriority="high" decoding="async" className="h-10 sm:h-12 w-auto mx-auto object-contain" />
-          <h1 className="text-3xl text-foreground">Welcome Back</h1>
-          <p className="text-sm text-muted-foreground">Choose how you'd like to sign in</p>
-        </div>
-
-        <div className="space-y-3">
+  if (showPreferences) {
+    return (
+      <div className="min-h-screen bg-background px-5 py-10">
+        <div className="mx-auto w-full max-w-sm space-y-8">
           <button
-            onClick={() => navigate("/buyer/login")}
-            className="w-full flex items-center gap-4 rounded-2xl border border-border bg-card p-5 text-left shadow-sm transition-all hover:border-primary/40 hover:shadow-md"
+            type="button"
+            onClick={() => setSearchParams({})}
+            className="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground hover:text-foreground"
           >
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-              <Users size={22} />
-            </span>
-            <span className="flex-1">
-              <span className="block text-sm font-bold text-foreground">B2B Client Login</span>
-              <span className="block text-xs text-muted-foreground">Mobile verification for approved buyers</span>
-            </span>
+            <ChevronLeft size={18} />
+            Back
+          </button>
+
+          <div className="space-y-2">
+            <h1 className="text-3xl text-foreground">Language and currency</h1>
+            <p className="text-sm text-muted-foreground">Select your business preferences</p>
+          </div>
+
+          <div className="space-y-6 rounded-2xl border border-border bg-card p-5 shadow-sm">
+            <div className="space-y-3">
+              <p className="text-sm font-semibold text-foreground">Preferred Language</p>
+              <button
+                type="button"
+                onClick={() => setLang("en")}
+                className={`w-full rounded-xl border px-4 py-3 text-left text-sm ${lang === "en" ? "border-primary bg-primary/5 font-semibold" : "border-border"}`}
+              >
+                English
+              </button>
+              <button
+                type="button"
+                onClick={() => setLang("hi")}
+                className={`w-full rounded-xl border px-4 py-3 text-left text-sm ${lang === "hi" ? "border-primary bg-primary/5 font-semibold" : "border-border"}`}
+              >
+                हिन्दी (Hindi)
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <p className="text-sm font-semibold text-foreground">Default Currency</p>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setCurrency("INR")}
+                  className={`rounded-xl border px-4 py-3 text-sm ${currency === "INR" ? "border-primary bg-primary/5 font-semibold" : "border-border"}`}
+                >
+                  ₹ INR
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCurrency("USD")}
+                  className={`rounded-xl border px-4 py-3 text-sm ${currency === "USD" ? "border-primary bg-primary/5 font-semibold" : "border-border"}`}
+                >
+                  $ USD
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setSearchParams({})}
+            className="w-full rounded-xl bg-primary py-3.5 text-sm font-bold text-primary-foreground shadow-sm"
+          >
+            Save and continue
           </button>
 
           <button
+            type="button"
             onClick={() => navigate("/staff/login")}
-            className="w-full flex items-center gap-4 rounded-2xl border border-border bg-card p-5 text-left shadow-sm transition-all hover:border-primary/40 hover:shadow-md"
+            className="w-full py-3 text-center text-xs font-semibold text-muted-foreground hover:text-foreground"
           >
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-              <ShieldCheck size={22} />
-            </span>
-            <span className="flex-1">
-              <span className="block text-sm font-bold text-foreground">Oasis Staff Login</span>
-              <span className="block text-xs text-muted-foreground">Email and password for Oasis employees</span>
-            </span>
+            Admin Access
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-background px-5 py-10">
+      <div className="mx-auto flex min-h-[calc(100vh-5rem)] w-full max-w-sm flex-col">
+        <div className="flex flex-1 flex-col justify-center space-y-8">
+          <div className="space-y-6 text-center">
+            <img
+              src={logoImg}
+              alt="Oasis Baklawa"
+              width={134}
+              height={96}
+              fetchPriority="high"
+              decoding="async"
+              className="mx-auto h-20 w-auto object-contain"
+            />
+            <div className="space-y-3">
+              <h1 className="text-3xl text-foreground">Everything you need from Oasis Baklawa — in one place.</h1>
+              <p className="text-sm leading-6 text-muted-foreground">
+                Explore products, prepare orders, track production, manage payments and access business documents.
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <button
+              type="button"
+              onClick={() => navigate("/buyer/login")}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-sm font-bold text-primary-foreground shadow-sm"
+            >
+              Log in
+              <ChevronRight size={18} />
+            </button>
+            <button
+              type="button"
+              onClick={handleApplyForB2BAccess}
+              className="w-full rounded-xl border border-border bg-card py-3.5 text-sm font-semibold text-foreground"
+            >
+              Request B2B Access
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setSearchParams({ view: "preferences" })}
+            className="text-sm font-semibold text-primary hover:underline"
+          >
+            Language and currency
           </button>
         </div>
 
-        <div className="text-center">
-          <p className="text-sm text-muted-foreground">
-            New to Oasis Baklawa?{" "}
-            <button onClick={handleApplyForB2BAccess} className="text-primary font-semibold hover:underline">
-              Apply for B2B Access
-            </button>
-          </p>
+        <div className="border-t border-border pt-5 text-center">
+          <button
+            type="button"
+            onClick={() => navigate("/staff/login")}
+            className="inline-flex items-center gap-2 text-xs font-semibold text-muted-foreground hover:text-foreground"
+          >
+            <ShieldCheck size={15} />
+            Admin Access
+          </button>
         </div>
       </div>
     </div>
