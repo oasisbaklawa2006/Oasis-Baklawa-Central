@@ -19,8 +19,7 @@ import {
   POINT100_DISPATCH_FINALIZE_RPC,
   resolveProductionMigrationRunId,
 } from "../upstreamDependencies";
-import { CENTRAL_ADMIN_MODULE_AUTHORITY_MATRIX } from "../../appverse/centralAdminModuleAuthorityMatrix";
-import { MACRO_DISPATCH_MANAGER_HOME, MACRO_ORDER_DISPATCH_JOURNEY } from "../../macro-order-dispatch/macroOrderDispatchJourney";
+import { macro556DispatchRoutesPresent } from "../dispatchRouteCensus";
 
 describe("point100 lifecycle stages", () => {
   it("defines 16 sequential stages covering the full operational lifecycle", () => {
@@ -213,17 +212,7 @@ describe("point100 probe runner", () => {
   });
 
   it("binds #556 canonical dispatch workflow routes in Central census", () => {
-    const routes = new Set(CENTRAL_ADMIN_MODULE_AUTHORITY_MATRIX.map((entry) => entry.route));
-    const required = [
-      MACRO_DISPATCH_MANAGER_HOME,
-      ...MACRO_ORDER_DISPATCH_JOURNEY.filter((stage) =>
-        ["dispatch_readiness", "packing_dpl", "golden_chain", "security_gate"].includes(stage.key),
-      ).map((stage) => stage.route),
-      "/admin/dispatch-completion",
-      "/admin/dispatch-finalization",
-    ];
-    for (const route of required) {
-      expect(routes.has(route), `missing route ${route}`).toBe(true);
-    }
+    const census = macro556DispatchRoutesPresent();
+    expect(census.ok, census.detail).toBe(true);
   });
 });

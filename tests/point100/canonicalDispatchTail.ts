@@ -98,29 +98,9 @@ async function recordPayment(
   return requireString(firstRow(data).payment_id, "payment_id");
 }
 
-/**
- * Execute Point100's canonical software-only Finance -> B2B Dispatch -> Gate ->
- * immutable dispatch proof -> final order dispatch tail on the disposable Core
- * stack. Inputs that represent a real-world handoff/scan are explicitly marked
- * synthetic and prove only that the governed software consumes valid evidence;
- * they are never physical UAT evidence.
- */
-export async function executeCanonicalDispatchTail(input: {
-  page: Page;
-  orderId: string;
-  orderItemId: string;
-  runSuffix: string;
-}): Promise<CanonicalDispatchTailResult> {
-  const { page, orderId, orderItemId, runSuffix } = input;
-  const financeHead = credentialsForRoleOrSkip("FINANCE_HEAD");
-  const dispatchManager = credentialsForRoleOrSkip("DISPATCH_MANAGER");
-  const hodAssembly = credentialsForRoleOrSkip("HOD_ASSEMBLY");
-  const gateSecurity = credentialsForRoleOrSkip("GATE_SECURITY");
+type FinanceClient = Awaited<ReturnType<typeof createSteppedUpCertificationClient>>;
 
-  // Finance Operations Clearance is required before Finance may freeze the DPL.
-  await switchRole(page, financeHead);
-  let finance = await createSteppedUpCertificationClient(page, "FINANCE_HEAD");
-  const financeActorId = requireString((await finance.auth.getUser()).data.user?.id, "FINANCE_HEAD actor id");
+async function resolvePiBinding(finance: FinanceClient, orderId: string) {
   const { data: piRows, error: piError } = await finance
     .from("sales_order_proforma_invoice_authority_v1")
     .select("id,commercial_version_id,status")
@@ -129,9 +109,20 @@ export async function executeCanonicalDispatchTail(input: {
     .limit(1);
   expect(piError, piError?.message).toBeNull();
   expect(piRows?.length ?? 0, "Point100 dispatch fixture requires PI binding").toBeGreaterThan(0);
-  const piId = requireString(piRows?.[0]?.id, "PI id");
-  const commercialVersionId = requireString(piRows?.[0]?.commercial_version_id, "commercial version id");
+  return {
+    piId: requireString(piRows?.[0]?.id, "PI id"),
+    commercialVersionId: requireString(piRows?.[0]?.commercial_version_id, "commercial version id"),
+  };
+}
 
+async function ensureOperationsClearanceForTail(
+  finance: FinanceClient,
+  orderId: string,
+  piId: string,
+  commercialVersionId: string,
+  financeActorId: string,
+  runSuffix: string,
+) {
   const { data: opsFactsData, error: opsFactsError } = await finance.rpc("get_finance_operations_clearance_facts_v1", {
     p_order_id: orderId,
     p_pi_id: piId,
@@ -160,7 +151,6 @@ export async function executeCanonicalDispatchTail(input: {
     expect(refreshed.error, refreshed.error?.message).toBeNull();
     opsFacts = firstRow(refreshed.data);
   }
-
   if (opsFacts.latest_clearance_decision !== "GRANTED") {
     const identity = `p100-${runSuffix}-ops-clearance`;
     const { error } = await finance.rpc("decide_finance_operations_clearance_v1", {
@@ -178,9 +168,16 @@ export async function executeCanonicalDispatchTail(input: {
     });
     expect(error, error?.message).toBeNull();
   }
+}
 
-  // Build the canonical FACT-C1/C2 dispatch truth using the same governed RPC
-  // family as the Factory golden-order certification.
+async function buildDispatchCustodyForTail(
+  page: Page,
+  orderId: string,
+  orderItemId: string,
+  runSuffix: string,
+  dispatchManager: ReturnType<typeof credentialsForRoleOrSkip>,
+  hodAssembly: ReturnType<typeof credentialsForRoleOrSkip>,
+) {
   await switchRole(page, dispatchManager);
   let { client: dispatch } = await createAuthenticatedCertificationClient(page);
   const { data: orderItem, error: itemError } = await dispatch
@@ -294,12 +291,17 @@ export async function executeCanonicalDispatchTail(input: {
     p_correlation_id: `point100-${runSuffix}-dpl-submit`,
   });
   expect(submitDplError, submitDplError?.message).toBeNull();
+  return { consignmentId, cartonId, cartonCode };
+}
 
-  // Finance freezes server-composed DPL truth, issues the canonical final invoice,
-  // settles any remaining balance, records E-way policy evidence and explicitly
-  // grants Dispatch Clearance. No legacy payment/order booleans are trusted.
-  await switchRole(page, financeHead);
-  finance = await createSteppedUpCertificationClient(page, "FINANCE_HEAD");
+async function issueFinanceExitForTail(
+  finance: FinanceClient,
+  orderId: string,
+  piId: string,
+  commercialVersionId: string,
+  financeActorId: string,
+  runSuffix: string,
+) {
   const { data: receiptData, error: financeReceiptError } = await finance.rpc("receive_submitted_b2b_dispatch_dpls_v1", {
     p_order_id: orderId,
     p_evidence_reference: `point100:dpl-receipt:${runSuffix}`,
@@ -381,10 +383,22 @@ export async function executeCanonicalDispatchTail(input: {
   });
   expect(clearanceError, clearanceError?.message).toBeNull();
   const financeDispatchClearanceEventId = requireString(firstRow(clearanceData).clearance_event_id, "dispatch clearance event id");
+  return {
+    financeDplReceiptId,
+    finalInvoiceId,
+    finalInvoiceGrossTotal,
+    financeDispatchClearanceEventId,
+  };
+}
 
-  // Gate input is a synthetic scan record in the disposable stack. This proves
-  // Core's gate validation/lineage logic only; physical scanner execution remains
-  // an explicit downstream UAT blocker.
+async function executeGateTailForTail(
+  page: Page,
+  orderId: string,
+  cartonId: string,
+  cartonCode: string,
+  runSuffix: string,
+  gateSecurity: ReturnType<typeof credentialsForRoleOrSkip>,
+) {
   await switchRole(page, gateSecurity);
   const { client: gate } = await createAuthenticatedCertificationClient(page);
   const gateActorId = requireString((await gate.auth.getUser()).data.user?.id, "GATE_SECURITY actor id");
@@ -470,23 +484,85 @@ export async function executeCanonicalDispatchTail(input: {
   expect(typeof complaintWindowOpen).toBe("boolean");
   expect(finalFacts.dispatch_proof_id).toBe(dispatchProofId);
   expect(finalFacts.dispatch_cleared).toBe(true);
-
   return {
-    orderId,
-    orderItemId,
-    consignmentId,
-    cartonId,
-    cartonCode,
-    financeDplReceiptId,
-    finalInvoiceId,
-    finalInvoiceGrossTotal,
-    financeDispatchClearanceEventId,
-    gateDecisionOk: true,
     dispatchProofId,
-    dispatchFinalizationOk: true,
     finalOrderStatus,
     complaintClockBasis,
     complaintDeadline,
     complaintWindowOpen: complaintWindowOpen as boolean,
+  };
+}
+
+/**
+ * Execute Point100's canonical software-only Finance -> B2B Dispatch -> Gate ->
+ * immutable dispatch proof -> final order dispatch tail on the disposable Core
+ * stack. Inputs that represent a real-world handoff/scan are explicitly marked
+ * synthetic and prove only that the governed software consumes valid evidence;
+ * they are never physical UAT evidence.
+ */
+export async function executeCanonicalDispatchTail(input: {
+  page: Page;
+  orderId: string;
+  orderItemId: string;
+  runSuffix: string;
+}): Promise<CanonicalDispatchTailResult> {
+  const { page, orderId, orderItemId, runSuffix } = input;
+  const financeHead = credentialsForRoleOrSkip("FINANCE_HEAD");
+  const dispatchManager = credentialsForRoleOrSkip("DISPATCH_MANAGER");
+  const hodAssembly = credentialsForRoleOrSkip("HOD_ASSEMBLY");
+  const gateSecurity = credentialsForRoleOrSkip("GATE_SECURITY");
+
+  await switchRole(page, financeHead);
+  const finance = await createSteppedUpCertificationClient(page, "FINANCE_HEAD");
+  const financeActorId = requireString((await finance.auth.getUser()).data.user?.id, "FINANCE_HEAD actor id");
+  const { piId, commercialVersionId } = await resolvePiBinding(finance, orderId);
+  await ensureOperationsClearanceForTail(finance, orderId, piId, commercialVersionId, financeActorId, runSuffix);
+
+  const custody = await buildDispatchCustodyForTail(
+    page,
+    orderId,
+    orderItemId,
+    runSuffix,
+    dispatchManager,
+    hodAssembly,
+  );
+
+  await switchRole(page, financeHead);
+  const financeAfterCustody = await createSteppedUpCertificationClient(page, "FINANCE_HEAD");
+  const financeExit = await issueFinanceExitForTail(
+    financeAfterCustody,
+    orderId,
+    piId,
+    commercialVersionId,
+    financeActorId,
+    runSuffix,
+  );
+
+  const gateTail = await executeGateTailForTail(
+    page,
+    orderId,
+    custody.cartonId,
+    custody.cartonCode,
+    runSuffix,
+    gateSecurity,
+  );
+
+  return {
+    orderId,
+    orderItemId,
+    consignmentId: custody.consignmentId,
+    cartonId: custody.cartonId,
+    cartonCode: custody.cartonCode,
+    financeDplReceiptId: financeExit.financeDplReceiptId,
+    finalInvoiceId: financeExit.finalInvoiceId,
+    finalInvoiceGrossTotal: financeExit.finalInvoiceGrossTotal,
+    financeDispatchClearanceEventId: financeExit.financeDispatchClearanceEventId,
+    gateDecisionOk: true,
+    dispatchProofId: gateTail.dispatchProofId,
+    dispatchFinalizationOk: true,
+    finalOrderStatus: gateTail.finalOrderStatus,
+    complaintClockBasis: gateTail.complaintClockBasis,
+    complaintDeadline: gateTail.complaintDeadline,
+    complaintWindowOpen: gateTail.complaintWindowOpen,
   };
 }

@@ -11,7 +11,7 @@ import {
   productionGateBlockers,
 } from "../../src/lib/point100/upstreamDependencies";
 import { CENTRAL_ADMIN_MODULE_AUTHORITY_MATRIX } from "../../src/lib/appverse/centralAdminModuleAuthorityMatrix";
-import { MACRO_DISPATCH_MANAGER_HOME, MACRO_ORDER_DISPATCH_JOURNEY } from "../../src/lib/macro-order-dispatch/macroOrderDispatchJourney";
+import { macro556DispatchRoutesPresent } from "../../src/lib/point100/dispatchRouteCensus";
 import { probeRpcExists } from "./support";
 
 const CENTRAL_ROUTE_BINDINGS = new Set(
@@ -84,21 +84,7 @@ export async function certifiedDispatchFinalizeProbe(): Promise<{
   return { ready, note, upstreamNotes };
 }
 
-export function macro556DispatchRoutesPresent(): { ok: boolean; detail: string } {
-  const required = [
-    MACRO_DISPATCH_MANAGER_HOME,
-    ...MACRO_ORDER_DISPATCH_JOURNEY.filter((stage) =>
-      ["dispatch_readiness", "packing_dpl", "golden_chain", "security_gate"].includes(stage.key),
-    ).map((stage) => stage.route),
-    "/admin/dispatch-completion",
-    "/admin/dispatch-finalization",
-  ];
-  const missing = required.filter((route) => !CENTRAL_ROUTE_BINDINGS.has(route));
-  if (missing.length > 0) {
-    return { ok: false, detail: `Missing #556 dispatch routes: ${missing.join(", ")}` };
-  }
-  return { ok: true, detail: `#556 routes present: ${required.join(", ")}` };
-}
+export { macro556DispatchRoutesPresent } from "../../src/lib/point100/dispatchRouteCensus";
 
 export async function runLifecycleProbes(): Promise<Point100ProbeOutcome[]> {
   const outcomes: Point100ProbeOutcome[] = [];

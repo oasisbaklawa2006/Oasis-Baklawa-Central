@@ -9,58 +9,25 @@
  * allocator owns PIYYYY/MM-NNN.
  */
 
-import { readFileSync } from "node:fs";
 import { createClient } from "@supabase/supabase-js";
 import { computeTotpCode } from "../factory-certification/totp.mjs";
+import {
+  RUN_TOKEN,
+  assertLoopbackHttpOrigin,
+  assertNoError,
+  parseCredentialFile,
+  readCredential,
+  requireBootstrapEnv,
+} from "./point38-bootstrap-common.mjs";
 
-const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
-const CREDENTIAL_FILE = "/tmp/oasis-factory-certification.env";
-const RUN_TOKEN = "point100-point38-canonical-v1";
-
-function requireEnv(name) {
-  const value = process.env[name]?.trim();
-  if (!value) throw new Error(`POINT100_POINT38_ENV_REQUIRED: ${name}`);
-  return value;
-}
-
-function assertLoopbackHttp(rawUrl) {
-  const parsed = new URL(rawUrl);
-  if (parsed.protocol !== "http:" || !LOOPBACK_HOSTS.has(parsed.hostname)) {
-    throw new Error(`POINT100_POINT38_LOCAL_ONLY: refusing Supabase target ${parsed.origin}`);
-  }
-  if (parsed.username || parsed.password || parsed.pathname !== "/" || parsed.search || parsed.hash) {
-    throw new Error("POINT100_POINT38_LOCAL_ONLY: Supabase URL must be a canonical loopback origin");
-  }
-  return parsed.origin;
-}
-
-function parseCredentials() {
-  const values = new Map();
-  for (const line of readFileSync(CREDENTIAL_FILE, "utf8").split(/\r?\n/)) {
-    const match = /^export ([A-Z0-9_]+)='([^']*)'$/.exec(line.trim());
-    if (match) values.set(match[1], match[2]);
-  }
-  return values;
-}
-
-function required(values, name) {
-  const value = values.get(name)?.trim();
-  if (!value) throw new Error(`POINT100_POINT38_CREDENTIAL_REQUIRED: ${name}`);
-  return value;
-}
-
-function assertNoError(error, operation) {
-  if (!error) return;
-  throw new Error(`${operation}: ${error.message ?? String(error)}`);
-}
-
-const backendUrl = assertLoopbackHttp(requireEnv("FACTORY_CERT_SUPABASE_URL"));
-const anonKey = requireEnv("FACTORY_CERT_SUPABASE_ANON_KEY");
-const credentials = parseCredentials();
-const orderId = required(credentials, "FACTORY_CERT_POINT38_ORDER_ID");
-const email = required(credentials, "FACTORY_CERT_FINANCE_HEAD_EMAIL");
-const password = required(credentials, "FACTORY_CERT_FINANCE_HEAD_PASSWORD");
-const totpSecret = required(credentials, "FACTORY_CERT_FINANCE_HEAD_TOTP_SECRET");
+const LOCAL_LABEL = "POINT100_POINT38";
+const credentials = parseCredentialFile();
+const backendUrl = assertLoopbackHttpOrigin(requireBootstrapEnv("FACTORY_CERT_SUPABASE_URL", LOCAL_LABEL), LOCAL_LABEL);
+const anonKey = requireBootstrapEnv("FACTORY_CERT_SUPABASE_ANON_KEY", LOCAL_LABEL);
+const orderId = readCredential(credentials, "FACTORY_CERT_POINT38_ORDER_ID", LOCAL_LABEL);
+const email = readCredential(credentials, "FACTORY_CERT_FINANCE_HEAD_EMAIL", LOCAL_LABEL);
+const password = readCredential(credentials, "FACTORY_CERT_FINANCE_HEAD_PASSWORD", LOCAL_LABEL);
+const totpSecret = readCredential(credentials, "FACTORY_CERT_FINANCE_HEAD_TOTP_SECRET", LOCAL_LABEL);
 
 const client = createClient(backendUrl, anonKey, {
   auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
