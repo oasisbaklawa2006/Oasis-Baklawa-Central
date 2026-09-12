@@ -574,7 +574,7 @@ const BuyerLogin = () => {
       window.location.href = `tel:${SUPPORT_PHONE}`;
       return;
     }
-    toast.info(`Support contact is not configured on this preview. Email ${SUPPORT_EMAIL}.`);
+    toast.info(`Support contact is unavailable right now. Email ${SUPPORT_EMAIL}.`);
   };
 
   return (
