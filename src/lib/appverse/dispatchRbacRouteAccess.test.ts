@@ -100,6 +100,10 @@ describe("Dispatch RBAC — security gate policy", () => {
   it.each(DISPATCH_ROLES)("denies %s from /security-gate (independent gate release authority)", (role) => {
     expect(canAccessSecurityGate(role)).toBe(false);
   });
+
+  it.each(DISPATCH_ROLES)("denies %s from /security-gate via isAuthorizedForAdminPath", (role) => {
+    expect(isAuthorizedForAdminPath("/security-gate", role)).toBe(false);
+  });
 });
 
 describe("Dispatch RBAC — dashboard fallback fail-closed", () => {
