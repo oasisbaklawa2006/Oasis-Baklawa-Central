@@ -145,8 +145,7 @@ function isCentralOrderPoolPath(pathname: string): boolean {
 export function getUnauthorizedAdminRedirect(role: string | null | undefined): string {
   const normalizedRole = role?.trim().toUpperCase();
   if (normalizedRole === "SALES_EXECUTIVE") return "/sales/dashboard";
-  const destination = getRoleDestination(role);
-  return destination === "/customer-app-redirect" ? "/admin" : destination;
+  return getRoleDestination(role);
 }
 
 /** Complete AdminRouteGuard authorization for a concrete /admin path and role. */
