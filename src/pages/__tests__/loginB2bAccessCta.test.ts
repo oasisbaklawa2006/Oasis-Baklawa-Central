@@ -20,7 +20,7 @@ describe.each([
 
   it("binds the CTA to the dedicated handler", () => {
     expect(source).toContain(`onClick={${ctaHandlerName}}`);
-    expect(source).toContain("Apply for B2B Access");
+    expect(source).toContain("Request B2B Access");
   });
 
   it("opens the governed pre-login B2B application directly without forcing OTP", () => {
