@@ -23,6 +23,8 @@ const MSG91_WIDGET_ID = "3664766e464b383030383331";
 const MSG91_TOKEN_AUTH = "509994T6SRbi4LqM69ea72d0P1";
 const MSG91_PROVIDER_SCRIPT_ID = "msg91-otp-provider";
 const MSG91_CAPTCHA_ID = "msg91-captcha";
+const MSG91_PROVIDER_CALL_TIMEOUT_MS = 20_000;
+const MSG91_EDGE_TIMEOUT_MS = 15_000;
 
 const SUPPORT_EMAIL = "support@oasisbaklawa.com";
 const SUPPORT_WHATSAPP = (import.meta.env.VITE_B2B_SUPPORT_WHATSAPP || "").replace(/\D/g, "");
@@ -89,6 +91,8 @@ function providerErrorMessage(error: unknown) {
 
 function mapOtpErrorMessage(rawMessage?: string | null) {
   const message = (rawMessage ?? "").toLowerCase();
+  if (message.includes("session_token_mint_failed") || message.includes("session_token_missing")) return "MSG91 verified the OTP, but session creation failed. Please retry.";
+  if (message.includes("session_token_mint_timeout") || message.includes("msg91_edge_timeout")) return "MSG91 verified the OTP, but Oasis session creation timed out. Please retry.";
   if (message.includes("expired")) return "OTP expired. Please request a new code.";
   if (message.includes("invalid") || message.includes("incorrect")) return "OTP invalid. Please enter the correct code and try again.";
   if (message.includes("network") || message.includes("fetch")) return "Network error. Please check your connection and try again.";
@@ -268,10 +272,14 @@ const BuyerLogin = () => {
     }
 
     updateStatus("verifying_otp", { result: "started" });
+    const abortController = controllerRef.current.createAbortController();
+    const edgeTimeout = controllerRef.current.registerTimer(window.setTimeout(() => abortController.abort(), MSG91_EDGE_TIMEOUT_MS));
     try {
       const { data: verifyRes, error } = await supabase.functions.invoke("msg91-otp", {
         body: { mode: "verify_widget", accessToken, phone: identifier, attemptId },
+        signal: abortController.signal,
       });
+      controllerRef.current.clearTimer(edgeTimeout);
       if (error) throw new Error(error.message);
       if (!verifyRes?.ok) throw new Error(verifyRes?.error || verifyRes?.reason || "provider_verification_failed");
       if (!verifyRes?.token_hash || !verifyRes?.user_id) throw new Error("session_token_missing");
@@ -307,7 +315,8 @@ const BuyerLogin = () => {
       controllerRef.current.finalize();
       setLoading(false);
     } catch (error) {
-      const raw = error instanceof Error ? error.message : "mobile_session_failed";
+      controllerRef.current.clearTimer(edgeTimeout);
+      const raw = abortController.signal.aborted ? "session_token_mint_timeout" : error instanceof Error ? error.message : "mobile_session_failed";
       logAuthEvent("OTP_VERIFY_FAILED", {
         attemptId,
         method,
@@ -340,11 +349,17 @@ const BuyerLogin = () => {
     try {
       await ensureMsg91CustomUi();
       if (typeof window.sendOtp !== "function") throw new Error("msg91_send_method_unavailable");
+      const callbackTimeout = controllerRef.current.registerTimer(window.setTimeout(() => {
+        if (attemptRef.current?.id !== attemptId) return;
+        logAuthEvent("OTP_REQUEST_FAILED", { attemptId, method, identifier: phone.e164 || identifier, result: "failed", error: "msg91_send_timeout" });
+        void finalizeFailure("OTP request timed out. Please retry.");
+      }, MSG91_PROVIDER_CALL_TIMEOUT_MS));
 
       window.sendOtp(
         identifier,
         (payload) => {
           if (attemptRef.current?.id !== attemptId) return;
+          controllerRef.current.clearTimer(callbackTimeout);
           const reqId = extractMsg91RequestId(payload);
           setMobileReqId(reqId);
           setMobileOtpSent(true);
@@ -362,6 +377,7 @@ const BuyerLogin = () => {
         },
         (error) => {
           if (attemptRef.current?.id !== attemptId) return;
+          controllerRef.current.clearTimer(callbackTimeout);
           const message = providerErrorMessage(error);
           logAuthEvent("OTP_REQUEST_FAILED", { attemptId, method, identifier: phone.e164 || identifier, result: "failed", error: message });
           void finalizeFailure(mapOtpErrorMessage(message));
@@ -395,14 +411,21 @@ const BuyerLogin = () => {
     try {
       await ensureMsg91CustomUi();
       if (typeof window.verifyOtp !== "function") throw new Error("msg91_verify_method_unavailable");
+      const callbackTimeout = controllerRef.current.registerTimer(window.setTimeout(() => {
+        if (attemptRef.current?.id !== attemptId) return;
+        logAuthEvent("OTP_VERIFY_FAILED", { attemptId, method, identifier: phone.e164 || identifier, result: "failed", error: "msg91_verify_timeout" });
+        void finalizeFailure("OTP verification timed out. Please retry.");
+      }, MSG91_PROVIDER_CALL_TIMEOUT_MS));
       window.verifyOtp(
-        Number(otp),
+        otp,
         (payload) => {
           if (attemptRef.current?.id !== attemptId) return;
+          controllerRef.current.clearTimer(callbackTimeout);
           void verifiedMobileSession(payload, identifier, attemptId);
         },
         (error) => {
           if (attemptRef.current?.id !== attemptId) return;
+          controllerRef.current.clearTimer(callbackTimeout);
           const message = providerErrorMessage(error);
           logAuthEvent("OTP_VERIFY_FAILED", { attemptId, method, identifier: phone.e164 || identifier, result: "failed", error: message });
           void finalizeFailure(mapOtpErrorMessage(message));
@@ -417,6 +440,8 @@ const BuyerLogin = () => {
 
   const resendMobileOtp = async () => {
     if (!mobileOtpSent) return void sendMobileOtp();
+    const attemptId = attemptRef.current?.id;
+    if (!attemptId) return void sendMobileOtp();
     setLoading(true);
     setStatusMessage(null);
     try {
@@ -425,9 +450,15 @@ const BuyerLogin = () => {
         setLoading(false);
         return void sendMobileOtp();
       }
+      const callbackTimeout = controllerRef.current.registerTimer(window.setTimeout(() => {
+        if (attemptRef.current?.id !== attemptId) return;
+        void finalizeFailure("OTP resend timed out. Please retry.");
+      }, MSG91_PROVIDER_CALL_TIMEOUT_MS));
       window.retryOtp(
         null,
         (payload) => {
+          if (attemptRef.current?.id !== attemptId) return;
+          controllerRef.current.clearTimer(callbackTimeout);
           const reqId = extractMsg91RequestId(payload) ?? mobileReqId;
           setMobileReqId(reqId);
           setMobileOtp("");
@@ -435,6 +466,8 @@ const BuyerLogin = () => {
           setStatusMessage("A fresh OTP has been requested.");
         },
         (error) => {
+          if (attemptRef.current?.id !== attemptId) return;
+          controllerRef.current.clearTimer(callbackTimeout);
           const message = providerErrorMessage(error);
           void finalizeFailure(mapOtpErrorMessage(message));
         },
@@ -442,7 +475,7 @@ const BuyerLogin = () => {
       );
     } catch {
       setLoading(false);
-      await sendMobileOtp();
+      if (attemptRef.current?.id === attemptId) await sendMobileOtp();
     }
   };
 
@@ -519,6 +552,8 @@ const BuyerLogin = () => {
   };
 
   const goBackToChannelChoice = () => {
+    controllerRef.current.clearAllTimers();
+    attemptRef.current = null;
     setChannel(null);
     setMobileOtpSent(false);
     setMobileOtp("");
@@ -639,7 +674,7 @@ const BuyerLogin = () => {
         )}
 
         {statusMessage && !isMinting && (
-          <div className={`rounded-xl border px-4 py-3 text-sm ${authStatus === "failed" ? "border-destructive/30 bg-destructive/5 text-destructive" : "border-border bg-muted/50 text-muted-foreground"}`}>{statusMessage}</div>
+          <div role={authStatus === "failed" ? "alert" : "status"} aria-live="polite" className={`rounded-xl border px-4 py-3 text-sm ${authStatus === "failed" ? "border-destructive/30 bg-destructive/5 text-destructive" : "border-border bg-muted/50 text-muted-foreground"}`}>{statusMessage}</div>
         )}
 
         <div className="space-y-4 border-t border-border pt-5 text-center">
