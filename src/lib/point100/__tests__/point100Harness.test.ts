@@ -82,7 +82,7 @@ describe("point100 probe runner", () => {
       executed: false,
     });
     expect(outcome.status).toBe("upstream_contract_missing");
-    expect(outcome.executable).toBe(true);
+    expect(outcome.executable).toBe(false);
   });
 
   it("summarizes capability matrix counts", () => {
