@@ -1,5 +1,6 @@
 export type AuthAttemptMethod =
   | "mobile_otp"
+  | "email_otp"
   | "email_password"
   | "google_oauth"
   | "apple_oauth"
