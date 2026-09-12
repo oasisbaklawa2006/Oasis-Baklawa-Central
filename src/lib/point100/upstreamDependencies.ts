@@ -264,7 +264,7 @@ export function upstreamBlockersForStage(stageId: string): Point100UpstreamDepen
 
 export function productionGateBlockers(): Point100UpstreamDependency[] {
   return POINT100_UPSTREAM_DEPENDENCIES.filter(
-    (dep) => dep.state !== "merged" && dep.id === "core-macro-dispatch-260",
+    (dep) => dep.state !== "merged" && (dep.id === "core-macro-dispatch-260" || dep.id === "oasis-trace-recovery-38"),
   );
 }
 
