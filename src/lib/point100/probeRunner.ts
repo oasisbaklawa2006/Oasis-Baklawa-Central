@@ -75,12 +75,9 @@ export function buildProbeOutcome(input: {
   if (upstreamDep) {
     status = upstreamDep.failClosedStatus;
     detail = formatUpstreamBlocker(upstreamDep);
-    if (stage.id === "trace_handover" && missingRpcs.length === 0 && upstreamDep.id === "oasis-trace-macro-37") {
-      detail = `${formatUpstreamBlocker(upstreamDep)} Software contracts present on production-certified Core #260 pin ${POINT100_CORE_PRODUCTION_VERIFIED_SHA}; physical handover PASS not claimed.`;
-    }
   } else if (stage.id === "trace_handover" && missingRpcs.length > 0) {
     status = "upstream_contract_missing";
-    detail = `Production-certified Core #260 trace software RPC unavailable: ${missingRpcs.join(", ")}`;
+    detail = `Production-certified Core trace software RPC unavailable on ${POINT100_CORE_PRODUCTION_VERIFIED_SHA}: ${missingRpcs.join(", ")}`;
   } else if (stage.domain === "trace" && stage.id === "trace_handover") {
     status = "physical_uat_only";
     detail = "Trace scanner/device handover requires Leap 13 physical UAT; Central scan-timeline projection is software-only.";
@@ -99,8 +96,8 @@ export function buildProbeOutcome(input: {
   } else {
     status = "implemented";
     detail = isDisposableRehearsalMode()
-      ? `Contract present on production-certified Core #260 pin ${POINT100_CORE_PRODUCTION_VERIFIED_SHA}; execution remains pending in this probe context`
-      : `Contract present on production-certified Core #260 pin ${POINT100_CORE_PRODUCTION_VERIFIED_SHA}; full journey execution is certified by the dress-rehearsal stage`;
+      ? `Contract present on production-certified Core pin ${POINT100_CORE_PRODUCTION_VERIFIED_SHA}; execution remains pending in this probe context`
+      : `Contract present on production-certified Core pin ${POINT100_CORE_PRODUCTION_VERIFIED_SHA}; full journey execution is certified by the dress-rehearsal stage`;
   }
 
   const contractReady =
@@ -108,7 +105,7 @@ export function buildProbeOutcome(input: {
 
   const technicalReady = contractReady && stage.domain !== "trace";
 
-  // Trace #37 device recert is fail-closed, but production-certified Core #260 includes the #259 trace_*_v1 software contracts.
+  // Trace software may execute only when its current upstream lane is clear; physical device proof remains separate.
   const traceSoftwareReady = stage.id === "trace_handover" && contractReady;
 
   const upstreamBlocksExecution = upstream.some(
