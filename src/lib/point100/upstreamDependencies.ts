@@ -23,13 +23,13 @@ export type Point100UpstreamDependency = {
   disposableRehearsalBypass?: boolean;
 };
 
-/** Production-certified Core boundary — current protected production release after Macro Dispatch Finalize #260. */
-export const POINT100_CORE_PRODUCTION_VERIFIED_SHA = "1503d6c5f0dcc04890190e00587fcdbf9abb5b20";
+/** Production-certified Core boundary — current protected production release after Trace reprint authority #290. */
+export const POINT100_CORE_PRODUCTION_VERIFIED_SHA = "7b2a09d4a70ee9632c264b552c3265f2495ce48a";
 
-export const POINT100_PRODUCTION_MIGRATION_GATE = "oasis-supabase-core#180";
+export const POINT100_PRODUCTION_MIGRATION_GATE = "oasis-supabase-core#182";
 
 /** GitHub Actions run certifying exact-SHA deploy, semantic parity and production contract smoke for the current protected release. */
-export const POINT100_PRODUCTION_MIGRATION_RUN_ID = "34653753066";
+export const POINT100_PRODUCTION_MIGRATION_RUN_ID = "34661721779";
 
 /** Governed Trace software contracts shipped on Core #259 and consumed by merged Trace #37. */
 export const POINT100_TRACE_SOFTWARE_RPCS = [
@@ -38,7 +38,7 @@ export const POINT100_TRACE_SOFTWARE_RPCS = [
   "trace_allocate_identity_v1",
 ] as const;
 
-/** Canonical Core dispatch-finalize authority delivered by #260. */
+/** Canonical Core dispatch-finalize authority delivered by #260 and retained on the current production pin. */
 export const POINT100_DISPATCH_FINALIZE_RPC = "release_order_to_dispatched_v1";
 
 /** Retained as provenance for capability-matrix compatibility; #260 is merged and production-certified. */
@@ -88,7 +88,7 @@ export const POINT100_UPSTREAM_DEPENDENCIES: readonly Point100UpstreamDependency
     state: "merged",
     affectedStageIds: ["inventory_lot_allocation", "production_qc"],
     blockerDetail:
-      "Macro Inventory #256 merged and remains an ancestor of the production-certified current pin. Lot/putaway/exception/factory RPCs are consumed from Core SHA 1503d6c5.",
+      "Macro Inventory #256 merged and remains an ancestor of the current production-certified Core pin. Lot/putaway/exception/factory RPCs are consumed from Core SHA 7b2a09d4.",
     failClosedStatus: "implemented",
   },
   {
@@ -98,7 +98,7 @@ export const POINT100_UPSTREAM_DEPENDENCIES: readonly Point100UpstreamDependency
     state: "merged",
     affectedStageIds: ["inventory_lot_allocation", "production_qc"],
     blockerDetail:
-      "Core Production Migration Release #159 deployed Macro Inventory #256 and is superseded as the current production pin by protected run 34653753066 / SHA 1503d6c5.",
+      "Core Production Migration Release #159 deployed Macro Inventory #256 and is superseded as the current production pin by protected run 34661721779 / SHA 7b2a09d4.",
     failClosedStatus: "implemented",
   },
   {
@@ -108,7 +108,7 @@ export const POINT100_UPSTREAM_DEPENDENCIES: readonly Point100UpstreamDependency
     state: "merged",
     affectedStageIds: ["trace_handover"],
     blockerDetail:
-      "Macro Trace Core #259 server identity + authenticated handover authority is an ancestor of production-certified Core SHA 1503d6c5.",
+      "Macro Trace Core #259 server identity + authenticated handover authority remains an ancestor of production-certified Core SHA 7b2a09d4.",
     failClosedStatus: "implemented",
   },
   {
@@ -145,23 +145,7 @@ export const POINT100_UPSTREAM_DEPENDENCIES: readonly Point100UpstreamDependency
     state: "merged",
     affectedStageIds: ["dispatch_consignment", "order_complete"],
     blockerDetail:
-      "Core #260 canonical release_order_to_dispatched_v1 remains on the production-certified lineage; the current protected production authority is run 34653753066 on Core SHA 1503d6c5f0dcc04890190e00587fcdbf9abb5b20.",
-    failClosedStatus: "implemented",
-  },
-  {
-    id: "core-production-migration-163",
-    repository: "oasis-supabase-core",
-    pr: "#163",
-    state: "merged",
-    affectedStageIds: [
-      "finance_dispatch_clearance",
-      "dispatch_consignment",
-      "security_gate",
-      "customer_dispatch_proof",
-      "order_complete",
-    ],
-    blockerDetail:
-      "Core Production Migration Release #163 is superseded by protected run 34653753066 / SHA 1503d6c5 on release #180.",
+      "Core #260 canonical release_order_to_dispatched_v1 remains on the production-certified lineage; the current protected production authority is run 34661721779 on Core SHA 7b2a09d4a70ee9632c264b552c3265f2495ce48a.",
     failClosedStatus: "implemented",
   },
   {
@@ -177,8 +161,45 @@ export const POINT100_UPSTREAM_DEPENDENCIES: readonly Point100UpstreamDependency
       "order_complete",
     ],
     blockerDetail:
-      "Current protected Production Migration Release run 34653753066 passed on exact Core SHA 1503d6c5f0dcc04890190e00587fcdbf9abb5b20; Point100 binds to that exact current production authority.",
+      "Protected Production Migration Release #180 is superseded by the current production-certified release #182 / run 34661721779.",
     failClosedStatus: "implemented",
+  },
+  {
+    id: "core-trace-reprint-290",
+    repository: "oasis-supabase-core",
+    pr: "#290",
+    state: "merged",
+    affectedStageIds: ["trace_handover"],
+    blockerDetail:
+      "Core #290 atomic Trace reprint count allocation and threshold authority is merged and production-certified on Core SHA 7b2a09d4a70ee9632c264b552c3265f2495ce48a.",
+    failClosedStatus: "implemented",
+  },
+  {
+    id: "core-production-migration-182",
+    repository: "oasis-supabase-core",
+    pr: "#182",
+    state: "merged",
+    affectedStageIds: [
+      "finance_dispatch_clearance",
+      "dispatch_consignment",
+      "security_gate",
+      "trace_handover",
+      "customer_dispatch_proof",
+      "order_complete",
+    ],
+    blockerDetail:
+      "Current protected Production Migration Release #182 / run 34661721779 passed on exact Core SHA 7b2a09d4a70ee9632c264b552c3265f2495ce48a; Point100 binds to that exact current production authority.",
+    failClosedStatus: "implemented",
+  },
+  {
+    id: "oasis-trace-recovery-38",
+    repository: "oasis-trace",
+    pr: "#38",
+    state: "open_pr",
+    affectedStageIds: ["trace_handover"],
+    blockerDetail:
+      "Trace #38 is the active Point95/99 recovery lane and must bind to production-certified Core #290 authority, clear current review findings, and merge before final Point100 software certification can claim the current Trace head.",
+    failClosedStatus: "upstream_contract_missing",
   },
 ] as const;
 
