@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-// Regression coverage for Admin Clients KPI staleness (P1 UAT): after
+// Regression coverage for Admin Clients KPI staleness (P1 UAT / FAIL-485-001): after
 // approve/reject mutations the pending tab list refreshed but summary KPI
 // cards (Pending Review / Recently Approved) stayed at mount-time values.
 
