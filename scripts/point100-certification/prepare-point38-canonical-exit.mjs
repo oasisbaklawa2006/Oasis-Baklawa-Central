@@ -258,20 +258,6 @@ function postgresScalar(sql, label) {
   }
 }
 
-function postgresJsonbSha256(value) {
-  const raw = JSON.stringify(value);
-  const tag = "$point100json$";
-  if (raw.includes(tag)) throw new Error("POINT100_POINT38_JSON_TAG_COLLISION");
-  const digest = postgresScalar(
-    `select encode(extensions.digest(${tag}${raw}${tag}::jsonb::text,'sha256'),'hex');`,
-    "Point38 DPL fingerprint computation",
-  );
-  if (!/^[0-9a-f]{64}$/.test(digest)) {
-    throw new Error(`POINT100_POINT38_DPL_FINGERPRINT_INVALID: ${digest}`);
-  }
-  return digest;
-}
-
 function firstRow(data) {
   return Array.isArray(data) ? data[0] : data;
 }
@@ -522,35 +508,7 @@ async function ensureFinalSettlement(finance, financeActorId, piId, commercialVe
   }
 }
 
-const financeRole = await authenticatedRole("FINANCE_HEAD", { aal2: true });
-const adminRole = await authenticatedRole("ADMIN");
-const dispatchRole = await authenticatedRole("DISPATCH_MANAGER");
-
-try {
-  const { data: bindings, error: bindingError } = await financeRole.client
-    .from("sales_order_proforma_invoice_authority_v1")
-    .select("id,commercial_version_id,status")
-    .eq("order_id", point38OrderId)
-    .in("status", ["READY_FOR_ISSUE", "ISSUED"])
-    .limit(1);
-  assertNoError(bindingError, "Point38 PI binding read");
-  if (!bindings?.length) throw new Error("POINT100_POINT38_PI_BINDING_MISSING");
-  const piId = String(bindings[0].id);
-  const commercialVersionId = String(bindings[0].commercial_version_id);
-
-  await ensureOperationsClearance(financeRole.client, financeRole.actorId, piId, commercialVersionId);
-
-  const { data: orderItem, error: orderItemError } = await dispatchRole.client
-    .from("order_items")
-    .select("id,product_id,quantity,carton_type")
-    .eq("id", point38OrderItemId)
-    .eq("order_id", point38OrderId)
-    .maybeSingle();
-  assertNoError(orderItemError, "Point38 order item read");
-  if (!orderItem?.id || !orderItem.product_id || Number(orderItem.quantity ?? 0) <= 0) {
-    throw new Error(`POINT100_POINT38_ORDER_ITEM_INVALID: ${JSON.stringify(orderItem)}`);
-  }
-  const quantity = Number(orderItem.quantity);
+async function submitPoint38DispatchCustodyToFinance(dispatchRole, adminRole, financeRole, orderItem, quantity) {
   const { data: product, error: productError } = await dispatchRole.client
     .from("products")
     .select("id,sku,barcode_sku")
@@ -668,38 +626,55 @@ try {
   });
   assertNoError(dplSubmitResult.error, "Point38 DPL submission");
 
-  const financeDplSnapshot = {
-    order_id: point38OrderId,
-    commercial_version_id: commercialVersionId,
-    external_dpl_id: dplId,
-    dpl_version: dplVersion,
-    carton_ids: [cartonId],
-    lines: [{
-      order_item_id: point38OrderItemId,
-      product_id: String(orderItem.product_id),
-      actual_dispatch_qty: quantity,
-      uom: String(consignmentLine.uom || orderItem.carton_type || "unit"),
-    }],
-  };
-  const dplFingerprint = postgresJsonbSha256(financeDplSnapshot);
-  const dplReceiptResult = await adminRole.client.rpc("receive_finance_dpl_v1", {
+  const dplReceiptResult = await financeRole.client.rpc("receive_submitted_b2b_dispatch_dpls_v1", {
     p_order_id: point38OrderId,
-    p_commercial_version_id: commercialVersionId,
-    p_external_dpl_id: dplId,
-    p_dpl_version: dplVersion,
-    p_dpl_snapshot: financeDplSnapshot,
-    p_dpl_fingerprint: dplFingerprint,
-    p_finalized_at: new Date(Date.now() - 1000).toISOString(),
     p_evidence_reference: `point100:dpl:${dplId}`,
-    p_source_channel: "DISPATCH",
-    p_source_reference: `consignment:${consignmentId}`,
     p_correlation_id: `${RUN_TOKEN}:finance-dpl-receipt`,
     p_idempotency_key: `${RUN_TOKEN}:finance-dpl-receipt`,
-    p_actor_id: adminRole.actorId,
+    p_actor_id: financeRole.actorId,
   });
   assertNoError(dplReceiptResult.error, "Point38 Finance DPL receipt");
   const financeDplReceiptId = String(firstRow(dplReceiptResult.data)?.receipt_id ?? "");
   if (!financeDplReceiptId) throw new Error("POINT100_POINT38_FINANCE_DPL_RECEIPT_ID_MISSING");
+  return financeDplReceiptId;
+}
+
+const financeRole = await authenticatedRole("FINANCE_HEAD", { aal2: true });
+const adminRole = await authenticatedRole("ADMIN");
+const dispatchRole = await authenticatedRole("DISPATCH_MANAGER");
+
+try {
+  const { data: bindings, error: bindingError } = await financeRole.client
+    .from("sales_order_proforma_invoice_authority_v1")
+    .select("id,commercial_version_id,status")
+    .eq("order_id", point38OrderId)
+    .in("status", ["READY_FOR_ISSUE", "ISSUED"])
+    .limit(1);
+  assertNoError(bindingError, "Point38 PI binding read");
+  if (!bindings?.length) throw new Error("POINT100_POINT38_PI_BINDING_MISSING");
+  const piId = String(bindings[0].id);
+  const commercialVersionId = String(bindings[0].commercial_version_id);
+
+  await ensureOperationsClearance(financeRole.client, financeRole.actorId, piId, commercialVersionId);
+
+  const { data: orderItem, error: orderItemError } = await dispatchRole.client
+    .from("order_items")
+    .select("id,product_id,quantity,carton_type")
+    .eq("id", point38OrderItemId)
+    .eq("order_id", point38OrderId)
+    .maybeSingle();
+  assertNoError(orderItemError, "Point38 order item read");
+  if (!orderItem?.id || !orderItem.product_id || Number(orderItem.quantity ?? 0) <= 0) {
+    throw new Error(`POINT100_POINT38_ORDER_ITEM_INVALID: ${JSON.stringify(orderItem)}`);
+  }
+  const quantity = Number(orderItem.quantity);
+  const financeDplReceiptId = await submitPoint38DispatchCustodyToFinance(
+    dispatchRole,
+    adminRole,
+    financeRole,
+    orderItem,
+    quantity,
+  );
 
   const invoiceDate = await ensureFinalPaymentCoverage(
     financeRole.client,
