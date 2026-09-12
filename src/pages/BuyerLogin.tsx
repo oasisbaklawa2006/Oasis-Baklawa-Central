@@ -1,20 +1,23 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { LogIn, Eye, EyeOff, Loader2, Mail, ShieldCheck } from "lucide-react";
+import { Loader2, ShieldCheck } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import logoImg from "@/assets/logo-open.png";
-import { createAuthStateController, completeAuthLogin, getCustomerAuthUserMessage, getPostLoginRedirectOnError, readAuthCache, type AuthStatus } from "@/lib/auth-flow";
+import { createAuthStateController, getCustomerAuthUserMessage, readAuthCache, redirectAfterAuth, type AuthStatus } from "@/lib/auth-flow";
 import { createAuthAttemptId, logAuthEvent, type AuthAttemptMethod } from "@/lib/auth-logging";
 import { normalizeIdentifier } from "@/lib/auth-identity";
 import { signOutAndClearSession } from "@/utils/authSession";
 
+// MSG91 "Widget ID" and "Auth Token" are the pair MSG91's own OTP Widget SDK
+// requires in the browser to boot its verification UI (see initSendOTP()
+// below) -- the same public-widget-config model as e.g. a reCAPTCHA site
+// key. They are not the MSG91 account authkey used to call MSG91's REST
+// send APIs; that server-side provider secret lives only in the msg91-otp
+// Edge Function's environment and is never present in this bundle.
 const MSG91_WIDGET_ID = "3664766e464b383030383331";
 const MSG91_TOKEN_AUTH = "509994T6SRbi4LqM69ea72d0P1";
 const MSG91_PROVIDER_SCRIPT_ID = "msg91-otp-provider";
-
-type AuthTab = "msg91" | "email";
 
 declare global {
   interface Window {
@@ -107,12 +110,8 @@ function sanitizeAuthDebugPayload(value: unknown): unknown {
   );
 }
 
-const Login = () => {
+const BuyerLogin = () => {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<AuthTab>("msg91");
-  const [showPwd, setShowPwd] = useState(false);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [authStatus, setAuthStatus] = useState<AuthStatus>("idle");
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -146,88 +145,31 @@ const Login = () => {
     setAuthStatus(next);
   };
 
-  const redirectAfterAuth = async (
-    identity: string,
-    method: AuthAttemptMethod,
-    userId?: string,
-    attemptId?: string,
-  ) => {
-    const currentAttemptId = attemptId ?? createAuthAttemptId();
-    const normalized = normalizeIdentifier(identity);
-
-    let result;
-    try {
-      result = await completeAuthLogin({
-        identity: normalized.normalized,
-        method,
-        userId,
-        attemptId: currentAttemptId,
-        setStatus: (next, meta) => updateStatus(next, meta),
-      });
-    } catch (error) {
-      const unresolvedDestination = getPostLoginRedirectOnError(error);
-      if (unresolvedDestination) {
-        logAuthEvent("REDIRECT_STARTED", {
-          attemptId: currentAttemptId,
-          method,
-          identifier: normalized.normalized,
-          result: "info",
-          details: { destination: unresolvedDestination, reason: "unresolved_account" },
-        });
-        navigate(unresolvedDestination, { replace: true });
-        logAuthEvent("REDIRECT_SUCCESS", {
-          attemptId: currentAttemptId,
-          method,
-          identifier: normalized.normalized,
-          result: "success",
-          details: { destination: unresolvedDestination },
-        });
-        return;
-      }
-      const message = error instanceof Error ? error.message : "account_resolution_failed";
-      throw new Error(`ACCOUNT_RESOLUTION_FAILED:${message}`);
+  const finalizeFailure = async (message: string, finalState: AuthStatus = "failed", shouldSignOut = false) => {
+    controllerRef.current.clearAllTimers();
+    controllerRef.current.finalize();
+    if (shouldSignOut) {
+      await signOutAndClearSession();
     }
+    updateStatus(finalState, { result: "failed", error: message });
+    setStatusMessage(message);
+    setLoading(false);
+    teardownMsg91Widget();
+  };
 
-    logAuthEvent("REDIRECT_STARTED", {
-      attemptId: currentAttemptId,
+  const runRedirectAfterAuth = async (identity: string, method: AuthAttemptMethod, userId?: string, attemptId?: string) => {
+    // Buyer surface only: a resolved role that isn't a buyer/customer
+    // membership fails closed here rather than silently forwarding an
+    // authenticated staff identity anywhere.
+    await redirectAfterAuth({
+      identity,
       method,
-      identifier: result.identifier,
-      result: "started",
-      details: { destination: result.destination, role: result.role },
+      userId,
+      attemptId,
+      navigate,
+      setStatus: (next, meta) => updateStatus(next, meta),
+      requiredMembership: "buyer",
     });
-
-    // Admin express lane — use react-router native navigation to avoid Safari hard-refresh bugs
-    const idLower = (normalized.normalized || identity || "").toLowerCase();
-    const isAdminExpress =
-      idLower === "admin@oasisbaklawa.com" ||
-      idLower === "9891162212" ||
-      idLower === "+919891162212" ||
-      idLower === "919891162212" ||
-      String(result.role || "").toLowerCase() === "admin" ||
-      String(result.role || "").toUpperCase() === "SUPER_ADMIN";
-
-    try {
-      const target = isAdminExpress ? "/admin/cmd-war-room" : result.destination;
-      navigate(target, { replace: true });
-      logAuthEvent("REDIRECT_SUCCESS", {
-        attemptId: currentAttemptId,
-        method,
-        identifier: result.identifier,
-        result: "success",
-        details: { destination: result.destination },
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "redirect_failed";
-      logAuthEvent("REDIRECT_FAILED", {
-        attemptId: currentAttemptId,
-        method,
-        identifier: result.identifier,
-        result: "failed",
-        error: message,
-        details: { destination: result.destination },
-      });
-      throw new Error(`REDIRECT_FAILED:${message}`);
-    }
   };
 
   const ensureMsg91Provider = useCallback(() => {
@@ -283,7 +225,7 @@ const Login = () => {
     return providerLoadRef.current;
   }, []);
 
-  // ── PART 3: Manual Magic-Link bypass ──
+  // ── Manual Magic-Link bypass ──
   // When the magic link redirects with ?manual_auth=true, completely bypass
   // onAuthStateChange and manually extract the access/refresh tokens from the
   // URL hash, then call supabase.auth.setSession() directly. This sidesteps
@@ -318,8 +260,14 @@ const Login = () => {
         // Clear sensitive tokens from URL
         window.history.replaceState({}, "", url.pathname);
         const identity = data.session.user.email || data.session.user.phone || data.session.user.id;
-        await redirectAfterAuth(identity, "session_restore", data.session.user.id);
+        await runRedirectAfterAuth(identity, "session_restore", data.session.user.id);
       } catch (err) {
+        // setSession() above already established a real Supabase session before
+        // this failure (e.g. a resolved staff identity failing the buyer
+        // membership boundary) — a session this restore never earned buyer
+        // access for must not be left reusable. The intended ACCOUNT_PENDING
+        // buyer-onboarding path does not throw, so it never reaches this catch.
+        await signOutAndClearSession();
         toast.error(getCustomerAuthUserMessage(err));
         setLoading(false);
       }
@@ -329,8 +277,7 @@ const Login = () => {
 
   useEffect(() => {
     void ensureMsg91Provider().catch(() => {
-      setStatusMessage("Mobile verification is unavailable right now. Please use Email login.");
-      setActiveTab("email");
+      setStatusMessage("Mobile verification is unavailable right now. Please try again shortly.");
     });
 
     return () => {
@@ -339,11 +286,9 @@ const Login = () => {
   }, [ensureMsg91Provider]);
 
   useEffect(() => {
-    updateStatus("entering_identifier", { result: "info", details: { tab: activeTab } });
-    if (activeTab === "msg91") {
-      setStatusMessage(null);
-    }
-  }, [activeTab]);
+    updateStatus("entering_identifier", { result: "info" });
+    setStatusMessage(null);
+  }, []);
 
   const teardownMsg91Widget = () => {
     if (typeof document === "undefined") return;
@@ -356,18 +301,6 @@ const Login = () => {
     } catch {
       // DOM cleanup is best-effort — nothing to do if nodes are already gone.
     }
-  };
-
-  const finalizeFailure = async (message: string, finalState: AuthStatus = "failed", shouldSignOut = false) => {
-    controllerRef.current.clearAllTimers();
-    controllerRef.current.finalize();
-    if (shouldSignOut) {
-      await signOutAndClearSession();
-    }
-    updateStatus(finalState, { result: "failed", error: message });
-    setStatusMessage(message);
-    setLoading(false);
-    teardownMsg91Widget();
   };
 
   // Issue #561: B2B application is a governed pre-login intake.
@@ -431,7 +364,7 @@ const Login = () => {
             verifiedPhone,
           });
           if (!accessToken) {
-            await finalizeFailure("Verification did not return a valid token. Please retry or use Email login.", "failed", false);
+            await finalizeFailure("Verification did not return a valid token. Please retry.", "failed", false);
             return;
           }
           const normalizedIdentifier = verifiedPhone ? normalizeIdentifier(String(verifiedPhone)).normalized : null;
@@ -445,8 +378,7 @@ const Login = () => {
             logAuthEvent("AUTH_TIMEOUT_TRIGGERED", {
               attemptId, method, identifier: normalizedIdentifier, result: "failed", error: "session_mint_timeout",
             });
-            await finalizeFailure("Session creation took too long. Please retry or use Email login.", "fallback_to_email", true);
-            setActiveTab("email");
+            await finalizeFailure("Session creation took too long. Please retry.", "failed", true);
           }, 20000));
 
           updateStatus("verifying_otp", { result: "started" });
@@ -456,7 +388,6 @@ const Login = () => {
           logAuthEvent("OTP_VERIFY_STARTED", {
             attemptId, method, identifier: normalizedIdentifier, result: "started",
           });
-          console.log("OTP_VERIFIED - Starting Session Minting...");
 
           try {
             const { data: verifyRes, error } = await supabase.functions.invoke("msg91-otp", {
@@ -527,15 +458,13 @@ const Login = () => {
               result: "success",
               details: { userId: sessionData.user.id },
             });
-            console.log("SESSION_CREATED - Redirecting to Dashboard...");
 
-            await redirectAfterAuth(normalizedResolvedIdentifier, method, sessionData.user.id, attemptId);
+            await runRedirectAfterAuth(normalizedResolvedIdentifier, method, sessionData.user.id, attemptId);
             controllerRef.current.finalize();
             setLoading(false);
           } catch (error) {
             console.error("[auth] Session minting failed:", error);
-            await finalizeFailure("Session creation failed. Please try Email login.", "fallback_to_email", true);
-            setActiveTab("email");
+            await finalizeFailure(getCustomerAuthUserMessage(error), "failed", true);
           }
         },
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -550,7 +479,7 @@ const Login = () => {
             result: "failed",
             error: message,
           });
-          await finalizeFailure(mapOtpErrorMessage(message), /timeout/i.test(message) ? "fallback_to_email" : "failed");
+          await finalizeFailure(mapOtpErrorMessage(message), "failed");
         },
       });
 
@@ -565,92 +494,9 @@ const Login = () => {
         result: "failed",
         error: message,
       });
-      void finalizeFailure(mapOtpErrorMessage(message), "fallback_to_email");
-      setActiveTab("email");
+      void finalizeFailure(mapOtpErrorMessage(message), "failed");
     }
   };
-
-  const handleEmailLogin = async () => {
-    const trimmedEmail = email.trim();
-    if (!trimmedEmail || !password) {
-      toast.error("Please enter email and password.");
-      return;
-    }
-
-    const attemptId = createAuthAttemptId();
-    const method: AuthAttemptMethod = "email_password";
-    const identifier = normalizeIdentifier(trimmedEmail).normalized;
-    attemptRef.current = { id: attemptId, method, identifier };
-    setLoading(true);
-    setStatusMessage(null);
-
-    logAuthEvent("AUTH_START", {
-      attemptId,
-      method,
-      identifier,
-      result: "started",
-    });
-    updateStatus("session_creation_in_progress", { result: "started" });
-    logAuthEvent("SESSION_CREATE_STARTED", {
-      attemptId,
-      method,
-      identifier,
-      result: "started",
-    });
-
-    const { error, data } = await supabase.auth.signInWithPassword({ email: trimmedEmail, password });
-
-    if (error || !data.user) {
-      const message = error?.message || "session_create_failed";
-      logAuthEvent("SESSION_CREATE_FAILED", {
-        attemptId,
-        method,
-        identifier,
-        result: "failed",
-        error: message,
-      });
-      await finalizeFailure(message.includes("Invalid") ? "Login was not available for this account. You can request B2B access." : getCustomerAuthUserMessage(error), "failed");
-      navigate("/buyer/access-request");
-      return;
-    }
-
-    logAuthEvent("SESSION_CREATE_SUCCESS", {
-      attemptId,
-      method,
-      identifier,
-      result: "success",
-      details: { userId: data.user.id },
-    });
-
-    try {
-      await redirectAfterAuth(trimmedEmail, method, data.user.id, attemptId);
-      setLoading(false);
-    } catch (error) {
-      await finalizeFailure(getCustomerAuthUserMessage(error), "failed", true);
-    }
-  };
-
-  const handleResetPassword = async () => {
-    const trimmedEmail = email.trim();
-    if (!trimmedEmail) {
-      toast.error("Enter your email first.");
-      return;
-    }
-
-    const { error } = await supabase.auth.resetPasswordForEmail(trimmedEmail, {
-      redirectTo: "https://b2b.oasisbaklawa.com/reset-password",
-    });
-
-    if (error) toast.error("We couldn't send a reset email. Please check your email address and try again.");
-    else toast.success("Password reset email sent.");
-  };
-
-  const tabClass = (tab: AuthTab) =>
-    `flex-1 py-2 text-xs font-bold rounded-xl transition-all ${
-      activeTab === tab
-        ? "bg-primary text-primary-foreground shadow-sm"
-        : "text-muted-foreground hover:text-foreground"
-    }`;
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-5 bg-background">
@@ -664,92 +510,29 @@ const Login = () => {
       <div className="w-full max-w-sm space-y-8">
         <div className="text-center space-y-3">
           <img src={logoImg} alt="Oasis Baklawa" width={134} height={96} fetchPriority="high" decoding="async" className="h-10 sm:h-12 w-auto mx-auto object-contain" />
-          <h1 className="text-3xl text-foreground">Welcome Back</h1>
+          <h1 className="text-3xl text-foreground">Oasis Buyer</h1>
           <p className="text-sm text-muted-foreground">Sign in to your B2B account</p>
         </div>
 
         <div className="bg-card rounded-2xl p-6 space-y-5 border border-border shadow-sm">
-          <div className="flex gap-1 p-1 rounded-xl bg-muted">
-            <button onClick={() => setActiveTab("msg91")} className={tabClass("msg91")}>
-              <ShieldCheck size={12} className="inline mr-1 -mt-0.5" />Mobile Verification
-            </button>
-            <button onClick={() => setActiveTab("email")} className={tabClass("email")}>
-              <Mail size={12} className="inline mr-1 -mt-0.5" />Email
+          <div className="space-y-4">
+            <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-center space-y-2">
+              <ShieldCheck size={28} className="mx-auto text-primary" />
+              <p className="text-sm font-bold text-foreground">Secure Mobile Verification</p>
+              <p className="text-xs text-muted-foreground">Verification via SMS, WhatsApp, or Voice.</p>
+            </div>
+            <button
+              onClick={launchMsg91Widget}
+              disabled={loading || !isMsg91Ready}
+              className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-sm hover:brightness-110 disabled:opacity-60"
+            >
+              {(loading || !isMsg91Ready) ? <Loader2 size={18} className="animate-spin" /> : <ShieldCheck size={18} />}
+              {!isMsg91Ready ? "Preparing verification…" : loading ? "Opening verification…" : "Continue with mobile verification"}
             </button>
           </div>
 
-          {activeTab === "msg91" && (
-            <div className="space-y-4">
-              <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-center space-y-2">
-                <ShieldCheck size={28} className="mx-auto text-primary" />
-                <p className="text-sm font-bold text-foreground">Secure Mobile Verification</p>
-                <p className="text-xs text-muted-foreground">Verification via SMS, WhatsApp, or Voice.</p>
-              </div>
-              <button
-                onClick={launchMsg91Widget}
-                disabled={loading || !isMsg91Ready}
-                className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-sm hover:brightness-110 disabled:opacity-60"
-              >
-                {(loading || !isMsg91Ready) ? <Loader2 size={18} className="animate-spin" /> : <ShieldCheck size={18} />}
-                {!isMsg91Ready ? "Preparing verification…" : loading ? "Opening verification…" : "Continue with mobile verification"}
-              </button>
-            </div>
-          )}
-
-          {activeTab === "email" && (
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-foreground">Email Address</label>
-                <Input
-                  type="email"
-                  placeholder="you@business.com"
-                  className="rounded-xl"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-foreground">Password</label>
-                <div className="relative">
-                  <Input
-                    type={showPwd ? "text" : "password"}
-                    placeholder="••••••••"
-                    className="rounded-xl pr-10"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && void handleEmailLogin()}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPwd(!showPwd)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    {showPwd ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                </div>
-              </div>
-
-              <button
-                onClick={() => void handleEmailLogin()}
-                disabled={loading}
-                className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm flex items-center justify-center gap-2 transition-colors shadow-sm disabled:opacity-60"
-              >
-                {loading ? <Loader2 size={18} className="animate-spin" /> : <LogIn size={18} />}
-                {loading ? "Signing in..." : "Login"}
-              </button>
-
-              <p className="text-xs text-center text-muted-foreground">
-                Forgot password?{" "}
-                <button onClick={() => void handleResetPassword()} className="text-primary font-semibold hover:underline">
-                  Reset it
-                </button>
-              </p>
-            </div>
-          )}
-
           {statusMessage && !isMinting && (
-            <div className={`rounded-xl border px-4 py-3 text-sm ${authStatus === "failed" || authStatus === "fallback_to_email" ? "border-destructive/30 bg-destructive/5 text-destructive" : "border-border bg-muted/50 text-muted-foreground"}`}>
+            <div className={`rounded-xl border px-4 py-3 text-sm ${authStatus === "failed" ? "border-destructive/30 bg-destructive/5 text-destructive" : "border-border bg-muted/50 text-muted-foreground"}`}>
               {statusMessage}
             </div>
           )}
@@ -791,4 +574,4 @@ const Login = () => {
   );
 };
 
-export default Login;
+export default BuyerLogin;
