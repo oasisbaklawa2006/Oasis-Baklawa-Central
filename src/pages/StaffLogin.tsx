@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { LogIn, Eye, EyeOff, Loader2 } from "lucide-react";
+import { LogIn, Eye, EyeOff, Loader2, ShieldAlert } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
@@ -25,7 +25,6 @@ const StaffLogin = () => {
     () => {
       const minting = ["verification_success", "session_creation_in_progress", "account_resolution_in_progress", "profile_loading", "role_loading"].includes(authStatus);
       if (!minting) return false;
-      // Skip the "Securing your Oasis session" overlay when role is already cached locally.
       const cached = typeof window !== "undefined" ? readAuthCache() : null;
       return !(cached && cached.role);
     },
@@ -58,9 +57,6 @@ const StaffLogin = () => {
   };
 
   const runRedirectAfterAuth = async (identity: string, method: AuthAttemptMethod, userId?: string, attemptId?: string) => {
-    // Staff surface only: a resolved role that isn't an internal staff role
-    // fails closed here. Authenticating on this page never infers or grants
-    // a B2B buyer membership.
     await redirectAfterAuth({
       identity,
       method,
@@ -72,29 +68,18 @@ const StaffLogin = () => {
     });
   };
 
-  // ── Manual Magic-Link bypass ──
-  // Staff invite emails and admin-triggered magic login links redirect here
-  // with ?manual_auth=true (see AdminUsers.tsx). Bypass onAuthStateChange and
-  // manually extract the access/refresh tokens from the URL hash, then call
-  // supabase.auth.setSession() directly. This sidesteps the SMTP redirection
-  // conflict that was causing "Auth configuration mismatch". Password-reset
-  // emails route separately to /reset-password.
   useEffect(() => {
     if (typeof window === "undefined") return;
     const url = new URL(window.location.href);
     const isManual = url.searchParams.get("manual_auth") === "true";
     if (!isManual) return;
 
-    // Tokens come back in the URL fragment from Supabase magic-link emails.
     const hash = window.location.hash?.startsWith("#") ? window.location.hash.slice(1) : window.location.hash;
     const params = new URLSearchParams(hash || "");
     const access_token = params.get("access_token");
     const refresh_token = params.get("refresh_token");
 
-    if (!access_token || !refresh_token) {
-      // Nothing to do — fall back to normal flow silently.
-      return;
-    }
+    if (!access_token || !refresh_token) return;
 
     (async () => {
       setLoading(true);
@@ -106,15 +91,10 @@ const StaffLogin = () => {
           setLoading(false);
           return;
         }
-        // Clear sensitive tokens from URL
         window.history.replaceState({}, "", url.pathname);
         const identity = data.session.user.email || data.session.user.phone || data.session.user.id;
         await runRedirectAfterAuth(identity, "session_restore", data.session.user.id);
       } catch (err) {
-        // setSession() above already established a real Supabase session before
-        // this failure (wrong-surface membership, or an unresolved/pending
-        // staff identity failing closed) — a session this restore never earned
-        // staff access for must not be left reusable.
         await signOutAndClearSession();
         toast.error(getCustomerAuthUserMessage(err));
         setLoading(false);
@@ -145,31 +125,15 @@ const StaffLogin = () => {
     setLoading(true);
     setStatusMessage(null);
 
-    logAuthEvent("AUTH_START", {
-      attemptId,
-      method,
-      identifier,
-      result: "started",
-    });
+    logAuthEvent("AUTH_START", { attemptId, method, identifier, result: "started" });
     updateStatus("session_creation_in_progress", { result: "started" });
-    logAuthEvent("SESSION_CREATE_STARTED", {
-      attemptId,
-      method,
-      identifier,
-      result: "started",
-    });
+    logAuthEvent("SESSION_CREATE_STARTED", { attemptId, method, identifier, result: "started" });
 
     const { error, data } = await supabase.auth.signInWithPassword({ email: trimmedEmail, password });
 
     if (error || !data.user) {
       const message = error?.message || "session_create_failed";
-      logAuthEvent("SESSION_CREATE_FAILED", {
-        attemptId,
-        method,
-        identifier,
-        result: "failed",
-        error: message,
-      });
+      logAuthEvent("SESSION_CREATE_FAILED", { attemptId, method, identifier, result: "failed", error: message });
       await finalizeFailure(getCustomerAuthUserMessage(error), "failed");
       return;
     }
@@ -214,17 +178,27 @@ const StaffLogin = () => {
         </div>
       )}
 
-      <div className="w-full max-w-sm space-y-8">
+      <div className="w-full max-w-sm space-y-7">
         <div className="text-center space-y-3">
           <img src={logoImg} alt="Oasis Baklawa" width={134} height={96} fetchPriority="high" decoding="async" className="h-10 sm:h-12 w-auto mx-auto object-contain" />
-          <h1 className="text-3xl text-foreground">Oasis Staff</h1>
-          <p className="text-sm text-muted-foreground">Sign in to your Oasis Baklawa account</p>
+          <h1 className="text-3xl text-foreground">Employee Access</h1>
+          <p className="text-sm text-muted-foreground">Oasis Baklawa staff login</p>
+        </div>
+
+        <div className="rounded-2xl border border-amber-300/60 bg-amber-50/70 p-4 text-amber-950">
+          <div className="flex gap-3">
+            <ShieldAlert size={20} className="mt-0.5 shrink-0" />
+            <div className="space-y-1">
+              <p className="text-sm font-bold">Restricted employee entry</p>
+              <p className="text-xs leading-5">Authorized Oasis employees only. Access is role-controlled and activity may be audited.</p>
+            </div>
+          </div>
         </div>
 
         <div className="bg-card rounded-2xl p-6 space-y-5 border border-border shadow-sm">
           <div className="space-y-4">
             <div className="space-y-2">
-              <label htmlFor="staff-email" className="text-xs font-semibold text-foreground">Email Address</label>
+              <label htmlFor="staff-email" className="text-xs font-semibold text-foreground">Employee Email</label>
               <Input
                 id="staff-email"
                 type="email"
@@ -284,14 +258,13 @@ const StaffLogin = () => {
           )}
         </div>
 
-        <div className="text-center">
-          <p className="text-xs text-muted-foreground">
-            Not an Oasis employee?{" "}
-            <button onClick={() => navigate("/buyer/login")} className="text-primary font-semibold hover:underline">
-              Go to B2B Client Login
-            </button>
-          </p>
-        </div>
+        <button
+          type="button"
+          onClick={() => navigate("/buyer/login")}
+          className="w-full rounded-xl border border-border bg-card py-3 text-sm font-semibold text-foreground"
+        >
+          Return to B2B Login
+        </button>
       </div>
     </div>
   );
