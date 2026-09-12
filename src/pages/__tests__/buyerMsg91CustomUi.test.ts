@@ -34,4 +34,24 @@ describe("Buyer MSG91 custom OTP UI regression", () => {
     expect(buyerLogin).toContain("Verify and continue");
     expect(buyerLogin).toContain("Resend mobile OTP");
   });
+
+  it("preserves leading-zero OTPs and never coerces them to a number", () => {
+    expect(buyerLogin).toContain("window.verifyOtp(\n        otp,");
+    expect(buyerLogin).not.toContain("Number(otp)");
+  });
+
+  it("bounds provider and Edge calls and cancels stale attempts", () => {
+    expect(buyerLogin).toContain("MSG91_PROVIDER_CALL_TIMEOUT_MS");
+    expect(buyerLogin).toContain("MSG91_EDGE_TIMEOUT_MS");
+    expect(buyerLogin).toContain("createAbortController()");
+    expect(buyerLogin).toContain("signal: abortController.signal");
+    expect(buyerLogin).toContain("registerTimer(window.setTimeout");
+    expect(buyerLogin).toContain("attemptRef.current = null");
+  });
+
+  it("announces dynamic OTP status and maps session-token failures", () => {
+    expect(buyerLogin).toContain('aria-live="polite"');
+    expect(buyerLogin).toContain("session_token_mint_failed");
+    expect(buyerLogin).toContain("session_token_missing");
+  });
 });
