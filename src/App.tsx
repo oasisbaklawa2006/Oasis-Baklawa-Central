@@ -20,6 +20,7 @@ import AuthErrorListener from "./components/AuthErrorListener.tsx";
 import RoleProtectedRoute from "@/components/RoleProtectedRoute";
 import { WhatsAppPermissionRoute } from "@/components/WhatsAppPermissionRoute";
 import AdminModuleRoute from "@/components/AdminModuleRoute";
+import { DemoAuthorityQuarantineRoute } from "@/components/admin/DemoAuthorityQuarantineRoute";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { getRoleDestination, isStaffRole, isStorefrontRole, normalizeRole } from "@/lib/auth-routing";
 import { SECURITY_GATE_ALLOWED_ROLES } from "@/lib/auth/securityGatePolicy";
@@ -200,7 +201,7 @@ const RootGate = () => {
 
   // Admin express bypass — skip heavy bootstrap waits for known admin identities
   if (user && isAdminExpressUser(user)) {
-    return <Navigate to="/admin/execution-command-center" replace />;
+    return <Navigate to="/admin" replace />;
   }
 
   if (authLoading || (user && !profileReady)) {
@@ -356,11 +357,25 @@ const App = () => (
                       }
                     />
                     <Route path="cmd-war-room" element={<Navigate to="/admin/central-pool" replace />} />
-                    <Route path="inventory-command-center" element={<InventoryCommandCenter />} />
+                    <Route
+                      path="inventory-command-center"
+                      element={
+                        <DemoAuthorityQuarantineRoute route="/admin/inventory-command-center">
+                          <InventoryCommandCenter />
+                        </DemoAuthorityQuarantineRoute>
+                      }
+                    />
                     <Route path="inventory-receiving" element={<InventoryReceiving />} />
                     <Route path="carton-explorer" element={<CartonExplorer />} />
                     <Route path="reservation-board" element={<ReservationBoard />} />
-                    <Route path="inventory-risk-board" element={<InventoryRiskBoard />} />
+                    <Route
+                      path="inventory-risk-board"
+                      element={
+                        <DemoAuthorityQuarantineRoute route="/admin/inventory-risk-board">
+                          <InventoryRiskBoard />
+                        </DemoAuthorityQuarantineRoute>
+                      }
+                    />
                     <Route path="scan-timeline" element={<ScanTimeline />} />
                     <Route path="assembly-tasks" element={<AssemblyManagement />} />
                     <Route path="assembly-tv" element={<AssemblyTV />} />
@@ -407,25 +422,31 @@ const App = () => (
                     <Route
                       path="queue-execution-preview"
                       element={
-                        <AdminModuleRoute moduleKey="cmd_war_room">
-                          <QueueExecutionPreview />
-                        </AdminModuleRoute>
+                        <DemoAuthorityQuarantineRoute route="/admin/queue-execution-preview">
+                          <AdminModuleRoute moduleKey="cmd_war_room">
+                            <QueueExecutionPreview />
+                          </AdminModuleRoute>
+                        </DemoAuthorityQuarantineRoute>
                       }
                     />
                     <Route
                       path="barcode-execution-preview"
                       element={
-                        <AdminModuleRoute moduleKey="cmd_war_room">
-                          <BarcodeExecutionPreview />
-                        </AdminModuleRoute>
+                        <DemoAuthorityQuarantineRoute route="/admin/barcode-execution-preview">
+                          <AdminModuleRoute moduleKey="cmd_war_room">
+                            <BarcodeExecutionPreview />
+                          </AdminModuleRoute>
+                        </DemoAuthorityQuarantineRoute>
                       }
                     />
                     <Route
                       path="product-intelligence-prototype"
                       element={
-                        <AdminModuleRoute moduleKey="cmd_war_room">
-                          <ProductIntelligencePrototype />
-                        </AdminModuleRoute>
+                        <DemoAuthorityQuarantineRoute route="/admin/product-intelligence-prototype">
+                          <AdminModuleRoute moduleKey="cmd_war_room">
+                            <ProductIntelligencePrototype />
+                          </AdminModuleRoute>
+                        </DemoAuthorityQuarantineRoute>
                       }
                     />
                     <Route
@@ -439,25 +460,31 @@ const App = () => (
                     <Route
                       path="execution-command-center"
                       element={
-                        <AdminModuleRoute moduleKey="cmd_war_room">
-                          <ExecutionCommandCenter />
-                        </AdminModuleRoute>
+                        <DemoAuthorityQuarantineRoute route="/admin/execution-command-center">
+                          <AdminModuleRoute moduleKey="cmd_war_room">
+                            <ExecutionCommandCenter />
+                          </AdminModuleRoute>
+                        </DemoAuthorityQuarantineRoute>
                       }
                     />
                     <Route
                       path="execution-risk"
                       element={
-                        <AdminModuleRoute moduleKey="cmd_war_room">
-                          <ExecutionRiskBoard />
-                        </AdminModuleRoute>
+                        <DemoAuthorityQuarantineRoute route="/admin/execution-risk">
+                          <AdminModuleRoute moduleKey="cmd_war_room">
+                            <ExecutionRiskBoard />
+                          </AdminModuleRoute>
+                        </DemoAuthorityQuarantineRoute>
                       }
                     />
                     <Route
                       path="execution-bottlenecks"
                       element={
-                        <AdminModuleRoute moduleKey="cmd_war_room">
-                          <ExecutionBottlenecks />
-                        </AdminModuleRoute>
+                        <DemoAuthorityQuarantineRoute route="/admin/execution-bottlenecks">
+                          <AdminModuleRoute moduleKey="cmd_war_room">
+                            <ExecutionBottlenecks />
+                          </AdminModuleRoute>
+                        </DemoAuthorityQuarantineRoute>
                       }
                     />
                     {/*
@@ -470,10 +497,10 @@ const App = () => (
                       authoritative tables instead. execution/dispatch now
                       redirects to FACT-C3 /admin/dispatch-mgmt (Lane D).
                       execution/third-party redirects to the governed 3PGS
-                      queue. execution/retail redirects to reservation-board;
-                      execution/complaints redirects to support. Point86
-                      quarantined operational_queue_items for all remaining
-                      department queue reads.
+                      queue. execution/retail and execution/complaints are
+                      Point 58 quarantined (production redirect via
+                      DemoAuthorityQuarantineRoute). Point86 removed dead
+                      operational_queue_items reads from department boards.
                     */}
                     <Route path="execution/production" element={<Navigate to="/operations-controller" replace />} />
                     <Route path="execution/assembly" element={<Navigate to="/admin/assembly-tasks" replace />} />
@@ -490,17 +517,21 @@ const App = () => (
                     <Route
                       path="execution/retail"
                       element={
-                        <AdminModuleRoute moduleKey="inventory">
-                          <RetailExecutionBoard />
-                        </AdminModuleRoute>
+                        <DemoAuthorityQuarantineRoute route="/admin/execution/retail">
+                          <AdminModuleRoute moduleKey="inventory">
+                            <RetailExecutionBoard />
+                          </AdminModuleRoute>
+                        </DemoAuthorityQuarantineRoute>
                       }
                     />
                     <Route
                       path="execution/complaints"
                       element={
-                        <AdminModuleRoute moduleKey="support">
-                          <ComplaintsExecutionBoard />
-                        </AdminModuleRoute>
+                        <DemoAuthorityQuarantineRoute route="/admin/execution/complaints">
+                          <AdminModuleRoute moduleKey="support">
+                            <ComplaintsExecutionBoard />
+                          </AdminModuleRoute>
+                        </DemoAuthorityQuarantineRoute>
                       }
                     />
                     <Route path="rgs-tv" element={<ReadyGoodsTV />} />
@@ -552,7 +583,14 @@ const App = () => (
                         </AdminModuleRoute>
                       }
                     />
-                    <Route path="verification" element={<Navigate to="/admin/execution-command-center" replace />} />
+                    <Route
+                      path="verification"
+                      element={
+                        <DemoAuthorityQuarantineRoute route="/admin/verification">
+                          <span />
+                        </DemoAuthorityQuarantineRoute>
+                      }
+                    />
                     <Route path="announcements" element={<AdminAnnouncements />} />
                   </Route>
                   </Route>

@@ -64,7 +64,7 @@ export function ExecutionResponsiveShell({
           {mode !== "tv" ? (
             <>
               <Button type="button" variant="outline" size="sm" className="min-h-[44px]" asChild>
-                <Link to="/admin/execution-command-center">Command center</Link>
+                <Link to="/admin/live-work-queues">Live work queues</Link>
               </Button>
               <Button type="button" variant="outline" size="sm" className="min-h-[44px]" asChild>
                 <Link to={tvHref}>

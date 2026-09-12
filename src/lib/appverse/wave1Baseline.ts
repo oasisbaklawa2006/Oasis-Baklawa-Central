@@ -18,7 +18,7 @@ export const WAVE1_LAUNCHPAD_KEYS = [
 
 export const WAVE1_LAUNCHPAD_LANDING_PATHS = [
   "/admin/order-management",
-  "/admin/execution-command-center",
+  "/admin/live-work-queues",
   "/admin/operator-inbox",
 ] as const;
 
