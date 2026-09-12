@@ -80,6 +80,7 @@ const StaffLogin = () => {
     const refresh_token = params.get("refresh_token");
 
     if (!access_token || !refresh_token) return;
+    window.history.replaceState({}, "", url.pathname);
 
     (async () => {
       setLoading(true);
@@ -91,7 +92,6 @@ const StaffLogin = () => {
           setLoading(false);
           return;
         }
-        window.history.replaceState({}, "", url.pathname);
         const identity = data.session.user.email || data.session.user.phone || data.session.user.id;
         await runRedirectAfterAuth(identity, "session_restore", data.session.user.id);
       } catch (err) {
