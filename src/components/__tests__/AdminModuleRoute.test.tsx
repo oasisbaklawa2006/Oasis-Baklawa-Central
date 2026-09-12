@@ -268,11 +268,13 @@ describe("AdminModuleRoute finance surface gate (UAT-005)", () => {
     expect(screen.getByText("Finance workspace")).toBeTruthy();
   });
 
-  it("preserves governed /admin fallback for unknown roles denied finance access", () => {
+  it("keeps unknown roles out of /admin and redirects to the governed customer gate", () => {
     mockRole = "UNKNOWN_ROLE";
     renderFinanceAt("/admin/finance");
     expect(screen.queryByText("Finance workspace")).not.toBeInTheDocument();
-    expect(screen.getByText("Admin landing")).toBeInTheDocument();
+    expect(screen.queryByText("Admin landing")).not.toBeInTheDocument();
+    expect(screen.getByText("Customer redirect")).toBeInTheDocument();
+    expect(getRoleDestination("UNKNOWN_ROLE")).toBe("/customer-app-redirect");
   });
 
   it("redirects DISPATCH_MANAGER off /admin/finance before profileReady when cached role is known", () => {
