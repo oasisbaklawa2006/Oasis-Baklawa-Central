@@ -356,6 +356,7 @@ describe("auth-flow / assertMembership (per-surface authorization boundary)", ()
   });
 
   it("customer-facing message is specific to the mismatched surface", () => {
+    expect.assertions(2);
     try {
       assertMembership("ADMIN", "buyer");
     } catch (error) {

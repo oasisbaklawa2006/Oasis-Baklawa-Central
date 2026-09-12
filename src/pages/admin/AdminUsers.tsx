@@ -243,7 +243,7 @@ const AdminUsers = () => {
     setSaving("new");
     const roleRecord = roles.find((r) => r.role_key === nf.role);
     const chosenPassword = nf.password;
-    const inviteRedirect = `${window.location.origin}/login?manual_auth=true`;
+    const inviteRedirect = `${window.location.origin}/staff/login?manual_auth=true`;
 
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: nf.email.trim(),
@@ -675,7 +675,7 @@ const AdminUsers = () => {
                                       const { error } = await supabase.auth.signInWithOtp({
                                         email: u.email,
                                         options: {
-                                          emailRedirectTo: `${window.location.origin}/login?manual_auth=true`,
+                                          emailRedirectTo: `${window.location.origin}/staff/login?manual_auth=true`,
                                           shouldCreateUser: false,
                                         },
                                       });

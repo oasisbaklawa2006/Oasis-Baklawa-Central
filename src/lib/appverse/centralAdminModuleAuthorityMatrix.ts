@@ -35,7 +35,9 @@ export type CentralRouteGuard =
   | "ROLE_PROTECTED"
   | "ADMIN_MODULE_ROUTE"
   | "WHATSAPP_PERMISSION"
-  | "COMPOSITE";
+  | "COMPOSITE"
+  /** Mounted with no ProtectedRoute/RoleProtectedRoute wrapper -- reachable pre-login. */
+  | "PUBLIC";
 
 export type ProgrammeOwnership =
   | "POINT57"
@@ -115,9 +117,9 @@ export const CENTRAL_ADMIN_MODULE_AUTHORITY_MATRIX: CentralModuleAuthorityEntry[
   // ── Auth / gates ───────────────────────────────────────────────────────
   { route: "/", label: "Root gate", surface: "AUTH_GATE", owner: "Central / Auth", routeGuardModuleKey: null, disposition: "CANONICAL", guard: "ROLE_PROTECTED", readAuthority: "NONE", writeAuthority: "NONE", programmeOwnership: "POINT57" },
   { route: "/splash", label: "Splash", surface: "AUTH_GATE", owner: "Central / Auth", routeGuardModuleKey: null, disposition: "CANONICAL", guard: "ROLE_PROTECTED", readAuthority: "NONE", writeAuthority: "NONE", programmeOwnership: "POINT57" },
-  { route: "/login", label: "Login", surface: "AUTH_GATE", owner: "Central / Auth", routeGuardModuleKey: null, disposition: "CANONICAL", guard: "ROLE_PROTECTED", readAuthority: "NONE", writeAuthority: "NONE", programmeOwnership: "POINT57", notes: "Neutral entry selector only (AuthEntry.tsx) -- no auth form; links to /buyer/login and /staff/login." },
-  { route: "/buyer/login", label: "Buyer login", surface: "AUTH_GATE", owner: "Central / Auth", routeGuardModuleKey: null, disposition: "CANONICAL", guard: "ROLE_PROTECTED", readAuthority: "SUPABASE", writeAuthority: "NONE", programmeOwnership: "POINT57", notes: "B2B client authentication only (MSG91 mobile OTP); no staff email/password." },
-  { route: "/staff/login", label: "Staff login", surface: "AUTH_GATE", owner: "Central / Auth", routeGuardModuleKey: null, disposition: "CANONICAL", guard: "ROLE_PROTECTED", readAuthority: "SUPABASE", writeAuthority: "NONE", programmeOwnership: "POINT57", notes: "Oasis staff authentication only (email/password); no buyer onboarding CTA." },
+  { route: "/login", label: "Login", surface: "AUTH_GATE", owner: "Central / Auth", routeGuardModuleKey: null, disposition: "CANONICAL", guard: "PUBLIC", readAuthority: "NONE", writeAuthority: "NONE", programmeOwnership: "POINT57", notes: "Neutral entry selector only (AuthEntry.tsx) -- no auth form; links to /buyer/login and /staff/login. Mounted with no route wrapper -- reachable pre-login by design." },
+  { route: "/buyer/login", label: "Buyer login", surface: "AUTH_GATE", owner: "Central / Auth", routeGuardModuleKey: null, disposition: "CANONICAL", guard: "PUBLIC", readAuthority: "SUPABASE", writeAuthority: "NONE", programmeOwnership: "POINT57", notes: "B2B client authentication only (MSG91 mobile OTP); no staff email/password. Mounted with no route wrapper -- reachable pre-login by design." },
+  { route: "/staff/login", label: "Staff login", surface: "AUTH_GATE", owner: "Central / Auth", routeGuardModuleKey: null, disposition: "CANONICAL", guard: "PUBLIC", readAuthority: "SUPABASE", writeAuthority: "NONE", programmeOwnership: "POINT57", notes: "Oasis staff authentication only (email/password); no buyer onboarding CTA. Mounted with no route wrapper -- reachable pre-login by design." },
   { route: "/reset-password", label: "Reset password", surface: "AUTH_GATE", owner: "Central / Auth", routeGuardModuleKey: null, disposition: "CANONICAL", guard: "ROLE_PROTECTED", readAuthority: "NONE", writeAuthority: "NONE", programmeOwnership: "POINT57" },
   { route: "/customer-app-redirect", label: "Customer app redirect", surface: "AUTH_GATE", owner: "Central / Auth", routeGuardModuleKey: null, disposition: "CANONICAL", guard: "ROLE_PROTECTED", readAuthority: "NONE", writeAuthority: "NONE", programmeOwnership: "BUYER_APP" },
   { route: "/buyer/access-request", label: "Buyer access request", surface: "BUYER_LEGACY", owner: "Buyer App (legacy Central route)", routeGuardModuleKey: null, disposition: "COMPATIBILITY_ALIAS", guard: "ROLE_PROTECTED", readAuthority: "SUPABASE", writeAuthority: "SUPABASE", programmeOwnership: "BUYER_APP", notes: "Customer storefront belongs in Expo oasis-baklawa." },
