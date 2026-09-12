@@ -125,7 +125,16 @@ export function getCustomerAuthUserMessage(error: unknown): string {
 // post-login (see getRoleDestination), not a stuck failure state on /login.
 const UNRESOLVED_ACCOUNT_REDIRECT_CODES = new Set(["ROLE_NOT_ASSIGNED", "ACCOUNT_PENDING"]);
 
-export function getPostLoginRedirectOnError(error: unknown): string | null {
+/**
+ * Surface-aware: an unresolved account (no role, or pending approval) only
+ * converges on /buyer/access-request for the buyer surface (and the neutral
+ * entry point, which has no membership requirement of its own). The staff
+ * surface must never send an unresolved/pending identity into B2B buyer
+ * onboarding — on `requiredMembership === "staff"` this always returns null,
+ * which leaves the caller's AuthFlowError to propagate and fail closed.
+ */
+export function getPostLoginRedirectOnError(error: unknown, requiredMembership?: RequiredMembership): string | null {
+  if (requiredMembership === "staff") return null;
   if (error instanceof AuthFlowError && UNRESOLVED_ACCOUNT_REDIRECT_CODES.has(error.code)) {
     return "/buyer/access-request";
   }
@@ -702,6 +711,11 @@ export interface RedirectAfterAuthParams {
  * (email/phone) branch here by design: Admin/Super Admin routing must come
  * from getRoleDestination()'s role lookup alone, never a hard-coded caller
  * identity.
+ *
+ * Unresolved-account handling (no role / pending approval) is also
+ * surface-aware: on the staff surface it never forwards into B2B buyer
+ * onboarding (see getPostLoginRedirectOnError) — it fails closed and lets
+ * the bounded AuthFlowError propagate to the caller instead.
  */
 export async function redirectAfterAuth(params: RedirectAfterAuthParams): Promise<void> {
   const currentAttemptId = params.attemptId ?? createAuthAttemptId();
@@ -718,7 +732,7 @@ export async function redirectAfterAuth(params: RedirectAfterAuthParams): Promis
     });
     assertMembership(result.role, params.requiredMembership);
   } catch (error) {
-    const unresolvedDestination = getPostLoginRedirectOnError(error);
+    const unresolvedDestination = getPostLoginRedirectOnError(error, params.requiredMembership);
     if (unresolvedDestination) {
       logAuthEvent("REDIRECT_STARTED", {
         attemptId: currentAttemptId,

@@ -109,6 +109,11 @@ const StaffLogin = () => {
         const identity = data.session.user.email || data.session.user.phone || data.session.user.id;
         await runRedirectAfterAuth(identity, "session_restore", data.session.user.id);
       } catch (err) {
+        // setSession() above already established a real Supabase session before
+        // this failure (wrong-surface membership, or an unresolved/pending
+        // staff identity failing closed) — a session this restore never earned
+        // staff access for must not be left reusable.
+        await signOutAndClearSession();
         toast.error(getCustomerAuthUserMessage(err));
         setLoading(false);
       }
@@ -191,7 +196,7 @@ const StaffLogin = () => {
     }
 
     const { error } = await supabase.auth.resetPasswordForEmail(trimmedEmail, {
-      redirectTo: "https://b2b.oasisbaklawa.com/reset-password",
+      redirectTo: `${window.location.origin}/reset-password`,
     });
 
     if (error) toast.error("We couldn't send a reset email. Please check your email address and try again.");

@@ -262,6 +262,12 @@ const BuyerLogin = () => {
         const identity = data.session.user.email || data.session.user.phone || data.session.user.id;
         await runRedirectAfterAuth(identity, "session_restore", data.session.user.id);
       } catch (err) {
+        // setSession() above already established a real Supabase session before
+        // this failure (e.g. a resolved staff identity failing the buyer
+        // membership boundary) — a session this restore never earned buyer
+        // access for must not be left reusable. The intended ACCOUNT_PENDING
+        // buyer-onboarding path does not throw, so it never reaches this catch.
+        await signOutAndClearSession();
         toast.error(getCustomerAuthUserMessage(err));
         setLoading(false);
       }

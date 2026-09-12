@@ -246,6 +246,52 @@ describe("auth-flow / post-login redirect for unresolved accounts", () => {
   });
 });
 
+// AUTH SPLIT FAIL-CLOSED FOLLOW-UP — Finding 1: the unresolved-account
+// redirect is a governed buyer-onboarding convenience. It must never apply
+// on the staff surface, where an unresolved/pending identity has to fail
+// closed instead of landing in B2B onboarding.
+describe("auth-flow / getPostLoginRedirectOnError is surface-aware", () => {
+  it("staff surface: ROLE_NOT_ASSIGNED never redirects to buyer onboarding", () => {
+    const error = new AuthFlowError("ROLE_NOT_ASSIGNED", "Role not assigned. Please contact an administrator.");
+    expect(getPostLoginRedirectOnError(error, "staff")).toBeNull();
+  });
+
+  it("staff surface: ACCOUNT_PENDING never redirects to buyer onboarding", () => {
+    const error = new AuthFlowError("ACCOUNT_PENDING", "Account pending approval.");
+    expect(getPostLoginRedirectOnError(error, "staff")).toBeNull();
+  });
+
+  it("buyer surface: preserves the existing governed onboarding redirect", () => {
+    expect(getPostLoginRedirectOnError(new AuthFlowError("ROLE_NOT_ASSIGNED", "x"), "buyer")).toBe("/buyer/access-request");
+    expect(getPostLoginRedirectOnError(new AuthFlowError("ACCOUNT_PENDING", "x"), "buyer")).toBe("/buyer/access-request");
+  });
+
+  it("no requiredMembership (neutral entry point): preserves existing behaviour", () => {
+    expect(getPostLoginRedirectOnError(new AuthFlowError("ACCOUNT_PENDING", "x"))).toBe("/buyer/access-request");
+    expect(getPostLoginRedirectOnError(new AuthFlowError("ROLE_NOT_ASSIGNED", "x"))).toBe("/buyer/access-request");
+  });
+
+  it("staff surface still returns null for genuine authentication failures (unaffected)", () => {
+    expect(getPostLoginRedirectOnError(new AuthFlowError("ACCOUNT_BLOCKED", "blocked"), "staff")).toBeNull();
+    expect(getPostLoginRedirectOnError(new AuthFlowError("NETWORK_ERROR", "network"), "staff")).toBeNull();
+  });
+});
+
+// AUTH SPLIT FAIL-CLOSED FOLLOW-UP — Finding 1: redirectAfterAuth must let an
+// unresolved/pending staff identity's AuthFlowError propagate (fail closed)
+// rather than navigating anywhere. End-to-end coverage (real completeAuthLogin
+// resolution, real navigate() calls) lives in
+// src/pages/__tests__/authSplitFailClosed.test.tsx; this only pins the pure
+// decision function redirectAfterAuth relies on.
+describe("auth-flow / redirectAfterAuth staff fail-closed (no buyer-onboarding fallthrough)", () => {
+  it("getPostLoginRedirectOnError never yields a navigable destination for the staff surface", () => {
+    for (const code of ["ACCOUNT_PENDING", "ROLE_NOT_ASSIGNED"]) {
+      const destination = getPostLoginRedirectOnError(new AuthFlowError(code, "x"), "staff");
+      expect(destination).toBeNull();
+    }
+  });
+});
+
 // AUTH SPLIT — B2B Client Login vs Oasis Staff Login. Requirements 8 & 9:
 // each login surface's membership requirement must fail closed when the
 // resolved backend role does not belong to that surface, regardless of

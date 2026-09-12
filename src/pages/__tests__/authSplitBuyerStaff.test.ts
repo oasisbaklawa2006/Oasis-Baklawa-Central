@@ -143,3 +143,24 @@ describe("MSG91 client-side configuration classification", () => {
     }
   });
 });
+
+// AUTH SPLIT FAIL-CLOSED FOLLOW-UP — Finding 3: the staff password reset link
+// must resolve against whichever host actually served the page, not a
+// hard-coded B2B buyer domain that has no reason to be a dependency of the
+// staff surface.
+describe("Requirement 7 (follow-up) — staff password reset uses the current app origin", () => {
+  it("StaffLogin no longer hard-codes the B2B reset hostname", () => {
+    expect(staffLogin).not.toContain("b2b.oasisbaklawa.com");
+    expect(staffLogin).toContain("`${window.location.origin}/reset-password`");
+  });
+});
+
+// AUTH SPLIT FAIL-CLOSED FOLLOW-UP — Finding 10: /buyer/login and /staff/login
+// must stay separate, independently code-split routes rather than merging
+// back into one bundle.
+describe("Requirement 10 (follow-up) — /buyer/login and /staff/login remain separate lazy routes", () => {
+  it("App.tsx lazy-loads BuyerLogin and StaffLogin as distinct chunks", () => {
+    expect(appSource).toMatch(/const BuyerLogin\s*=\s*lazy\(\s*\(\)\s*=>\s*import\(["']\.\/pages\/BuyerLogin\.tsx["']\)\s*\)/);
+    expect(appSource).toMatch(/const StaffLogin\s*=\s*lazy\(\s*\(\)\s*=>\s*import\(["']\.\/pages\/StaffLogin\.tsx["']\)\s*\)/);
+  });
+});
