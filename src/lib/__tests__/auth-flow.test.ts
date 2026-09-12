@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
+  assertMembership,
   AuthFlowError,
   createAuthStateController,
   getCustomerAuthUserMessage,
@@ -242,5 +243,82 @@ describe("auth-flow / post-login redirect for unresolved accounts", () => {
     const destination = getPostLoginRedirectOnError(new AuthFlowError("ACCOUNT_PENDING", "x"));
     expect(deletedRoutes).not.toContain(destination);
     expect(destination).toBe("/buyer/access-request");
+  });
+});
+
+// AUTH SPLIT — B2B Client Login vs Oasis Staff Login. Requirements 8 & 9:
+// each login surface's membership requirement must fail closed when the
+// resolved backend role does not belong to that surface, regardless of
+// which page the caller successfully authenticated on.
+describe("auth-flow / assertMembership (per-surface authorization boundary)", () => {
+  it("is a no-op when no membership is required (the neutral entry point)", () => {
+    expect(() => assertMembership("ADMIN")).not.toThrow();
+    expect(() => assertMembership(null)).not.toThrow();
+  });
+
+  it("requirement 9 — staff surface: a buyer role fails closed", () => {
+    expect(() => assertMembership("B2B_BUYER", "staff")).toThrow(AuthFlowError);
+    try {
+      assertMembership("CUSTOMER_USER", "staff");
+      throw new Error("expected assertMembership to throw");
+    } catch (error) {
+      expect(error).toBeInstanceOf(AuthFlowError);
+      expect((error as AuthFlowError).code).toBe("STAFF_MEMBERSHIP_REQUIRED");
+    }
+  });
+
+  it("requirement 9 — staff surface: an unresolved/unknown role fails closed", () => {
+    expect(() => assertMembership(null, "staff")).toThrow(AuthFlowError);
+    expect(() => assertMembership("PENDING", "staff")).toThrow(AuthFlowError);
+  });
+
+  it("requirement 9 — staff surface: every real staff role passes, including ADMIN/SUPER_ADMIN", () => {
+    for (const role of ["ADMIN", "SUPER_ADMIN", "OWNER", "SALES_EXECUTIVE", "DISPATCH_MANAGER"]) {
+      expect(() => assertMembership(role, "staff")).not.toThrow();
+    }
+  });
+
+  it("requirement 8 — buyer surface: a staff role fails closed", () => {
+    expect(() => assertMembership("ADMIN", "buyer")).toThrow(AuthFlowError);
+    try {
+      assertMembership("SUPER_ADMIN", "buyer");
+      throw new Error("expected assertMembership to throw");
+    } catch (error) {
+      expect(error).toBeInstanceOf(AuthFlowError);
+      expect((error as AuthFlowError).code).toBe("BUYER_MEMBERSHIP_REQUIRED");
+    }
+  });
+
+  it("requirement 8 — buyer surface: an unresolved/unknown role fails closed", () => {
+    expect(() => assertMembership(null, "buyer")).toThrow(AuthFlowError);
+    expect(() => assertMembership("PENDING", "buyer")).toThrow(AuthFlowError);
+  });
+
+  it("requirement 8 — buyer surface: every real buyer/customer role passes", () => {
+    for (const role of ["B2B_BUYER", "SPECIAL_BUYER", "HORECA_BUYER", "WHOLESALE_BUYER", "BULK_BUYER", "BUYER", "CLIENT", "CUSTOMER_USER"]) {
+      expect(() => assertMembership(role, "buyer")).not.toThrow();
+    }
+  });
+
+  it("staff authentication can never be reinterpreted as a buyer membership, and vice versa", () => {
+    // Cross-check both directions with the same role set to prove the two
+    // membership kinds are mutually exclusive at this boundary.
+    expect(() => assertMembership("ADMIN", "staff")).not.toThrow();
+    expect(() => assertMembership("ADMIN", "buyer")).toThrow(AuthFlowError);
+    expect(() => assertMembership("B2B_BUYER", "buyer")).not.toThrow();
+    expect(() => assertMembership("B2B_BUYER", "staff")).toThrow(AuthFlowError);
+  });
+
+  it("customer-facing message is specific to the mismatched surface", () => {
+    try {
+      assertMembership("ADMIN", "buyer");
+    } catch (error) {
+      expect(getCustomerAuthUserMessage(error)).toBe("This sign-in is for B2B buyers only. Staff should use Oasis Staff Login.");
+    }
+    try {
+      assertMembership("B2B_BUYER", "staff");
+    } catch (error) {
+      expect(getCustomerAuthUserMessage(error)).toBe("This sign-in is for Oasis staff only. Buyers should use B2B Client Login.");
+    }
   });
 });

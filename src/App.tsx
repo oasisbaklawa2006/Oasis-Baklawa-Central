@@ -12,7 +12,7 @@ import { Navigate } from "react-router-dom";
 import ProtectedRoute from "@/components/ProtectedRoute";
 
 // Eager — small, used on initial paint / auth flow
-import Login from "./pages/Login.tsx";
+import AuthEntry from "./pages/AuthEntry.tsx";
 import Splash from "./pages/Splash.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import ErrorBoundary from "./components/ErrorBoundary.tsx";
@@ -28,6 +28,8 @@ import { SECURITY_GATE_ALLOWED_ROLES } from "@/lib/auth/securityGatePolicy";
 const ResetPassword = lazy(() => import("./pages/ResetPassword.tsx"));
 const BuyerApp = lazy(() => import("./pages/customer/BuyerApp.tsx"));
 const BuyerAccessRequest = lazy(() => import("./pages/customer/BuyerApp.tsx").then((module) => ({ default: module.BuyerAccessRequest })));
+const BuyerLogin = lazy(() => import("./pages/BuyerLogin.tsx"));
+const StaffLogin = lazy(() => import("./pages/StaffLogin.tsx"));
 
 const AdminLayout = lazy(() => import("./components/AdminLayout.tsx"));
 const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard.tsx"));
@@ -184,24 +186,9 @@ function getUnresolvedDestination(_opts: {
   return "/buyer/access-request";
 }
 
-const ADMIN_EXPRESS_EMAILS = new Set(["admin@oasisbaklawa.com"]);
-const ADMIN_EXPRESS_PHONES = new Set(["+919891162212", "919891162212", "9891162212"]);
-
-const isAdminExpressUser = (user: { email?: string | null; phone?: string | null } | null | undefined) => {
-  if (!user) return false;
-  const email = (user.email || "").toLowerCase();
-  const phone = (user.phone || "").replace(/\s+/g, "");
-  return ADMIN_EXPRESS_EMAILS.has(email) || ADMIN_EXPRESS_PHONES.has(phone);
-};
-
 const RootGate = () => {
   const { user, loading: authLoading, role, companyId, profileReady, hasAppliedB2B, profileStatus } = useAuth();
   const normalizedRole = normalizeRole(role);
-
-  // Admin express bypass — skip heavy bootstrap waits for known admin identities
-  if (user && isAdminExpressUser(user)) {
-    return <Navigate to="/admin/execution-command-center" replace />;
-  }
 
   if (authLoading || (user && !profileReady)) {
     return <AuthSpinner />;
@@ -264,7 +251,9 @@ const App = () => (
                       </ProtectedRoute>
                     }
                   />
-                  <Route path="/login" element={<Login />} />
+                  <Route path="/login" element={<AuthEntry />} />
+                  <Route path="/buyer/login" element={<BuyerLogin />} />
+                  <Route path="/staff/login" element={<StaffLogin />} />
                   <Route path="/reset-password" element={<ResetPassword />} />
                   <Route
                     path="/admin"

@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import { fetchAuthRoleRecord, getRoleDestination, isInternalStaffUser, isStorefrontRole, normalizeRole } from "@/lib/auth-routing";
+import { fetchAuthRoleRecord, getRoleDestination, isInternalStaffUser, isStaffRole, isStorefrontRole, normalizeRole } from "@/lib/auth-routing";
 import { normalizeIdentifier, normalizePhone } from "@/lib/auth-identity";
 import { createAuthAttemptId, logAuthEvent, type AuthAttemptMethod } from "@/lib/auth-logging";
 
@@ -73,6 +73,8 @@ const USER_MESSAGE_BY_CODE: Record<string, string> = {
   DASHBOARD_LOAD_FAILED: "Dashboard could not be loaded.",
   AUTH_UNAUTHORIZED: "You are not authorized to access this app.",
   PROVIDER_NOT_LINKED: "Provider login not linked to an approved portal account.",
+  STAFF_MEMBERSHIP_REQUIRED: "This sign-in is for Oasis staff only. Buyers should use B2B Client Login.",
+  BUYER_MEMBERSHIP_REQUIRED: "This sign-in is for B2B buyers only. Staff should use Oasis Staff Login.",
 };
 
 type PublicUserRow = {
@@ -651,4 +653,122 @@ export async function completeAuthLogin(params: {
     destination,
     userId: resolved.userId,
   };
+}
+
+// ─── AUTH SPLIT — B2B Client Login vs Oasis Staff Login ─────────────────────
+// Buyer and staff login are separate authentication SURFACES, but must never
+// fork the backend identity/authorization system: both call the same
+// completeAuthLogin() above, and the resolved role is the single source of
+// truth. This section only adds a per-surface authorization boundary on top
+// of it. A resolved role of the wrong kind fails closed here rather than
+// silently landing on the other surface's destination just because the
+// Supabase auth step itself succeeded.
+export type RequiredMembership = "staff" | "buyer";
+
+/**
+ * Fails closed when a resolved role does not belong to the membership kind
+ * a login surface requires. Pure and independent of completeAuthLogin's
+ * network calls so it can be unit-tested directly.
+ */
+export function assertMembership(role: string | null, required?: RequiredMembership): void {
+  if (!required) return;
+  if (required === "staff" && !isStaffRole(role)) {
+    throw new AuthFlowError("STAFF_MEMBERSHIP_REQUIRED", USER_MESSAGE_BY_CODE.STAFF_MEMBERSHIP_REQUIRED, "failed");
+  }
+  if (required === "buyer" && !isStorefrontRole(role)) {
+    throw new AuthFlowError("BUYER_MEMBERSHIP_REQUIRED", USER_MESSAGE_BY_CODE.BUYER_MEMBERSHIP_REQUIRED, "failed");
+  }
+}
+
+export interface RedirectAfterAuthParams {
+  identity: string;
+  method: AuthAttemptMethod;
+  userId?: string;
+  attemptId?: string;
+  navigate: (path: string, options?: { replace?: boolean }) => void;
+  setStatus: (
+    next: AuthStatus,
+    meta?: { result?: "started" | "success" | "failed" | "info"; error?: string | null; details?: Record<string, unknown> },
+  ) => void;
+  /** Scopes this call to one login surface. Omit for the neutral entry point. */
+  requiredMembership?: RequiredMembership;
+}
+
+/**
+ * Shared post-authentication redirect for both /buyer/login and /staff/login.
+ * Resolves the account exactly once (completeAuthLogin), enforces the
+ * calling surface's membership requirement, and navigates to the
+ * server-role-derived destination only. There is no identity-based
+ * (email/phone) branch here by design: Admin/Super Admin routing must come
+ * from getRoleDestination()'s role lookup alone, never a hard-coded caller
+ * identity.
+ */
+export async function redirectAfterAuth(params: RedirectAfterAuthParams): Promise<void> {
+  const currentAttemptId = params.attemptId ?? createAuthAttemptId();
+  const normalized = normalizeIdentifier(params.identity);
+
+  let result: CompletedAuthResult;
+  try {
+    result = await completeAuthLogin({
+      identity: normalized.normalized,
+      method: params.method,
+      userId: params.userId,
+      attemptId: currentAttemptId,
+      setStatus: params.setStatus,
+    });
+    assertMembership(result.role, params.requiredMembership);
+  } catch (error) {
+    const unresolvedDestination = getPostLoginRedirectOnError(error);
+    if (unresolvedDestination) {
+      logAuthEvent("REDIRECT_STARTED", {
+        attemptId: currentAttemptId,
+        method: params.method,
+        identifier: normalized.normalized,
+        result: "info",
+        details: { destination: unresolvedDestination, reason: "unresolved_account" },
+      });
+      params.navigate(unresolvedDestination, { replace: true });
+      logAuthEvent("REDIRECT_SUCCESS", {
+        attemptId: currentAttemptId,
+        method: params.method,
+        identifier: normalized.normalized,
+        result: "success",
+        details: { destination: unresolvedDestination },
+      });
+      return;
+    }
+    if (error instanceof AuthFlowError) throw error;
+    const message = error instanceof Error ? error.message : "account_resolution_failed";
+    throw new Error(`ACCOUNT_RESOLUTION_FAILED:${message}`);
+  }
+
+  logAuthEvent("REDIRECT_STARTED", {
+    attemptId: currentAttemptId,
+    method: params.method,
+    identifier: result.identifier,
+    result: "started",
+    details: { destination: result.destination, role: result.role },
+  });
+
+  try {
+    params.navigate(result.destination, { replace: true });
+    logAuthEvent("REDIRECT_SUCCESS", {
+      attemptId: currentAttemptId,
+      method: params.method,
+      identifier: result.identifier,
+      result: "success",
+      details: { destination: result.destination },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "redirect_failed";
+    logAuthEvent("REDIRECT_FAILED", {
+      attemptId: currentAttemptId,
+      method: params.method,
+      identifier: result.identifier,
+      result: "failed",
+      error: message,
+      details: { destination: result.destination },
+    });
+    throw new Error(`REDIRECT_FAILED:${message}`);
+  }
 }
