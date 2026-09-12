@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   APPROVED_B2B_IDENTITY_CLAIM_RPC,
   claimApprovedB2bIdentity,
+  isApprovedB2bIdentityClaimRow,
   shouldClaimApprovedB2bIdentityAfterTokenHash,
   verifyTokenHashThenClaimApprovedB2bIdentity,
 } from "@/lib/b2b-approved-identity-claim";
@@ -47,7 +48,16 @@ describe("UAT #561 approved B2B identity claim", () => {
     expect(claim).not.toHaveBeenCalled();
   });
 
-  it("treats a no-match Core claim as a valid pending-applicant no-op", async () => {
+  it("accepts only the exact Core row shape", () => {
+    expect(isApprovedB2bIdentityClaimRow({ application_id: null, claimed: false, company_id: null, already_active: false })).toBe(true);
+    expect(isApprovedB2bIdentityClaimRow({ application_id: "app-1", claimed: true, company_id: "company-1", already_active: false })).toBe(true);
+    expect(isApprovedB2bIdentityClaimRow(null)).toBe(false);
+    expect(isApprovedB2bIdentityClaimRow({})).toBe(false);
+    expect(isApprovedB2bIdentityClaimRow({ application_id: null, claimed: "false", company_id: null, already_active: false })).toBe(false);
+    expect(isApprovedB2bIdentityClaimRow({ application_id: 42, claimed: false, company_id: null, already_active: false })).toBe(false);
+  });
+
+  it("treats a structurally valid no-match Core claim as a pending-applicant no-op", async () => {
     const outcome = await claimApprovedB2bIdentity(async () => ({
       data: [{ application_id: null, claimed: false, company_id: null, already_active: false }],
       error: null,
@@ -61,6 +71,21 @@ describe("UAT #561 approved B2B identity claim", () => {
       error: null,
     }));
     expect(outcome).toEqual({ applicationId: "app-1", companyId: "company-1", claimed: true, alreadyActive: false });
+  });
+
+  it.each([
+    null,
+    [],
+    {},
+    [{ application_id: null, claimed: false, company_id: null }],
+    [{ application_id: null, claimed: "false", company_id: null, already_active: false }],
+    [
+      { application_id: null, claimed: false, company_id: null, already_active: false },
+      { application_id: null, claimed: false, company_id: null, already_active: false },
+    ],
+  ])("fails closed on malformed successful Core payload %#", async (data) => {
+    await expect(claimApprovedB2bIdentity(async () => ({ data, error: null })))
+      .rejects.toThrow("APPROVED_B2B_IDENTITY_CLAIM_FAILED");
   });
 
   it("fails closed when Core claim RPC fails", async () => {
