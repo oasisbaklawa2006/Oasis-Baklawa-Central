@@ -34,6 +34,7 @@ const MSG91_WIDGET_ID = "3664766e464b383030383331";
 const MSG91_TOKEN_AUTH = "509994T6SRbi4LqM69ea72d0P1";
 const MSG91_PROVIDER_SCRIPT_ID = "msg91-otp-provider";
 const MSG91_CAPTCHA_ID = "msg91-captcha";
+const MSG91_CAPTCHA_REQUIRED_MESSAGE = "Please complete the security check above before requesting an OTP.";
 const MSG91_PROVIDER_CALL_TIMEOUT_MS = 20_000;
 const MSG91_EDGE_TIMEOUT_MS = 15_000;
 
@@ -50,6 +51,18 @@ declare global {
     sendOtp?: (identifier: string, success?: Msg91Callback, failure?: Msg91Callback) => void;
     verifyOtp?: (otp: number | string, success?: Msg91Callback, failure?: Msg91Callback, reqId?: string) => void;
     retryOtp?: (channel: string | null, success?: Msg91Callback, failure?: Msg91Callback, reqId?: string) => void;
+    /** Present when MSG91 captcha is enabled for this widget (official Web SDK). */
+    isCaptchaVerified?: () => boolean;
+  }
+}
+
+/** MSG91 docs: call before sendOtp when captchaRenderId is configured. */
+function isMsg91CaptchaRequiredAndUnverified() {
+  if (typeof window === "undefined" || typeof window.isCaptchaVerified !== "function") return false;
+  try {
+    return !window.isCaptchaVerified();
+  } catch {
+    return true;
   }
 }
 
@@ -439,6 +452,19 @@ const BuyerLogin = () => {
 
     try {
       await ensureMsg91CustomUi();
+      if (isMsg91CaptchaRequiredAndUnverified()) {
+        updateStatus("failed", { result: "failed", error: "msg91_captcha_required" });
+        setStatusMessage(MSG91_CAPTCHA_REQUIRED_MESSAGE);
+        setLoading(false);
+        logAuthEvent("OTP_REQUEST_FAILED", {
+          attemptId,
+          method,
+          identifier: phone.e164 || identifier,
+          result: "failed",
+          error: "msg91_captcha_required",
+        });
+        return;
+      }
       if (typeof window.sendOtp !== "function") throw new Error("msg91_send_method_unavailable");
       const callbackTimeout = controllerRef.current.registerTimer(window.setTimeout(() => {
         if (attemptRef.current?.id !== attemptId) return;
@@ -539,6 +565,12 @@ const BuyerLogin = () => {
     setStatusMessage(null);
     try {
       await ensureMsg91CustomUi();
+      if (isMsg91CaptchaRequiredAndUnverified()) {
+        setAuthStatus("failed");
+        setStatusMessage(MSG91_CAPTCHA_REQUIRED_MESSAGE);
+        setLoading(false);
+        return;
+      }
       if (typeof window.retryOtp !== "function") {
         setLoading(false);
         return void sendMobileOtp();

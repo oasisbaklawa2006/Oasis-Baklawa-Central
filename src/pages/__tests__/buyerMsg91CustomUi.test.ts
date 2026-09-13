@@ -22,6 +22,13 @@ describe("Buyer MSG91 custom OTP UI regression", () => {
     expect(initBlock).toContain("captchaRenderId: MSG91_CAPTCHA_ID");
   });
 
+  it("requires MSG91 captcha verification before sendOtp when the SDK exposes isCaptchaVerified", () => {
+    expect(buyerLogin).toContain("isCaptchaVerified");
+    expect(buyerLogin).toContain("isMsg91CaptchaRequiredAndUnverified");
+    expect(buyerLogin).toContain("msg91_captcha_required");
+    expect(buyerLogin).toContain("Please complete the security check above before requesting an OTP.");
+  });
+
   it("sends a country-code-qualified identifier and retains the provider request id", () => {
     expect(buyerLogin).toContain('const identifier = `91${phone.last10}`');
     expect(buyerLogin).toContain("extractMsg91RequestId");
