@@ -24,10 +24,13 @@ describe("admin WhatsApp route loading", () => {
     expect(suspense).toContain("Reload screen");
   });
 
-  it("protected routes fail open when profile bootstrap exceeds 5 seconds", () => {
+  it("keeps protected routes fail-closed when profile bootstrap times out", () => {
     const route = readRepoSource(REPO_ROOT, "src/components/ProtectedRoute.tsx");
     expect(route).toContain("PROFILE_BOOTSTRAP_TIMEOUT_MS = 5_000");
-    expect(route).toContain("bootstrapWaitExpired");
+    expect(route).toContain("protected-route-bootstrap-timeout");
+    expect(route).toContain("Retry profile check");
+    expect(route).not.toContain("bootstrapWaitExpired");
+    expect(route).not.toMatch(/return\s*<>\{children\}<\/>\s*;[\s\S]*bootstrapTimedOut/);
   });
 
   it("operator workspace hydration fails open instead of blocking the inbox forever", () => {
