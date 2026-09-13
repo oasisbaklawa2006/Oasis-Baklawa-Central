@@ -5,7 +5,7 @@ import {
   normalizeSenderPhoneLast10,
   pickIdleSenders,
   to91FromSenderLast10,
-} from "../../../../supabase/functions/_shared/whatsappBufferReconciler";
+} from "../../../../supabase/functions/_shared/whatsappBufferReconcilerPure";
 
 describe("whatsappBufferReconciler", () => {
   it("normalizes sender phones for governed contact lookup", () => {
@@ -28,12 +28,16 @@ describe("whatsappBufferReconciler", () => {
     const { readFileSync } = await import("node:fs");
     const { join } = await import("node:path");
     const source = readFileSync(
+      join(import.meta.dirname, "../../../../supabase/functions/_shared/whatsappBufferReconcilerPure.ts"),
+      "utf8",
+    );
+    const dbSource = readFileSync(
       join(import.meta.dirname, "../../../../supabase/functions/_shared/whatsappBufferReconciler.ts"),
       "utf8",
     );
-    expect(source).toContain("senderHasStitchedPacket");
-    expect(source).toContain('bundle_status: "flushed"');
-    expect(source).not.toMatch(/\.from\(\s*["']orders["']\s*\)/);
-    expect(source).not.toMatch(/\.from\(\s*["']suggested_orders["']\s*\)/);
+    expect(dbSource).toContain("senderHasStitchedPacket");
+    expect(dbSource).toContain('bundle_status: "flushed"');
+    expect(dbSource).not.toMatch(/\.from\(\s*["']orders["']\s*\)/);
+    expect(dbSource).not.toMatch(/\.from\(\s*["']suggested_orders["']\s*\)/);
   });
 });
