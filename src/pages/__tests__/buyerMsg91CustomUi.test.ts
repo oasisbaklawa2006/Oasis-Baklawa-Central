@@ -44,8 +44,19 @@ describe("Buyer MSG91 custom OTP UI regression", () => {
     expect(buyerLogin).toContain("supabase.auth.verifyOtp");
     expect(buyerLogin).toContain('type: "email"');
     expect(buyerLogin).toContain("SESSION_CREATE_STARTED");
-    expect(buyerLogin).toContain("internalPhoneEmailFromIdentifier");
+    expect(buyerLogin).toContain("mintEmailPresent");
     expect(buyerLogin).toContain('requiredMembership: "buyer"');
+  });
+
+  it("verifies the minted session with token_hash only (no client-supplied email)", () => {
+    const block = buyerLogin.slice(
+      buyerLogin.indexOf("const verifiedMobileSession"),
+      buyerLogin.indexOf("const sendMobileOtp"),
+    );
+    const verifyOtpCall = block.slice(block.indexOf("supabase.auth.verifyOtp"));
+    expect(verifyOtpCall).toContain("token_hash: verifyRes.token_hash");
+    expect(verifyOtpCall).not.toContain("email:");
+    expect(buyerLogin).not.toContain("internalPhoneEmailFromIdentifier");
   });
 
   it("runs approved B2B claim after SESSION_CREATE_SUCCESS and before redirectAfterAuth", () => {

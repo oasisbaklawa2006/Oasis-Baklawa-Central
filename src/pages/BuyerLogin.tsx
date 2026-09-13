@@ -20,7 +20,6 @@ import {
 import { mapBuyerOtpProviderError, mapBuyerPostMintAuthError } from "@/lib/buyer-login-errors";
 import { createAuthAttemptId, logAuthEvent, type AuthAttemptMethod } from "@/lib/auth-logging";
 import {
-  internalPhoneEmailFromIdentifier,
   isEmailIdentifier,
   normalizeIdentifier,
   normalizePhone,
@@ -71,6 +70,11 @@ function firstNonEmptyString(...values: unknown[]) {
     if (typeof value === "string" && value.trim()) return value.trim();
   }
   return null;
+}
+
+function maskMintEmail(email: string) {
+  const [name, domain] = email.split("@");
+  return domain ? `${name.slice(0, 2)}***@${domain}` : "***";
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -325,17 +329,19 @@ const BuyerLogin = () => {
 
       updateStatus("verification_success", { result: "success" });
       updateStatus("session_creation_in_progress", { result: "started" });
-      const sessionEmail = firstNonEmptyString(verifyRes?.email)
-        ?? internalPhoneEmailFromIdentifier(resolvedIdentifier);
+      const mintEmail = firstNonEmptyString(verifyRes?.email);
       logAuthEvent("SESSION_CREATE_STARTED", {
         attemptId,
         method,
         identifier: normalizedIdentifier,
         result: "started",
-        details: { userId: verifyRes.user_id },
+        details: {
+          userId: verifyRes.user_id,
+          mintEmailPresent: Boolean(mintEmail),
+          ...(mintEmail ? { mintEmail: maskMintEmail(mintEmail) } : {}),
+        },
       });
       const { data: sessionData, error: sessionError } = await supabase.auth.verifyOtp({
-        email: sessionEmail,
         token_hash: verifyRes.token_hash,
         type: "email",
       });
@@ -347,7 +353,11 @@ const BuyerLogin = () => {
           identifier: normalizedIdentifier,
           result: "failed",
           error: sessionFailure,
-          details: { userId: verifyRes.user_id },
+          details: {
+            userId: verifyRes.user_id,
+            mintEmailPresent: Boolean(mintEmail),
+            ...(mintEmail ? { mintEmail: maskMintEmail(mintEmail) } : {}),
+          },
         });
         throw new Error(sessionFailure);
       }

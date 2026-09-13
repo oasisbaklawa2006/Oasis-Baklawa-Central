@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 
 const source = readFileSync("supabase/functions/msg91-otp/index.ts", "utf8");
+const buyerLogin = readFileSync("src/pages/BuyerLogin.tsx", "utf8");
 
 describe("msg91-otp / scalable fail-closed identity resolution", () => {
   it("does not enumerate the Auth or public users directories", () => {
@@ -72,5 +73,23 @@ describe("msg91-otp / provider response privacy", () => {
 
   it("masks the client-supplied phone in request logs", () => {
     expect(source).toContain("phone: maskSecret(body.phone ?? null)");
+  });
+});
+
+describe("BuyerLogin / MSG91 token_hash session handoff", () => {
+  it("calls verifyOtp with token_hash only so mint email cannot mismatch Auth user", () => {
+    const block = buyerLogin.slice(
+      buyerLogin.indexOf("const verifiedMobileSession"),
+      buyerLogin.indexOf("const sendMobileOtp"),
+    );
+    const verifyOtpCall = block.slice(block.indexOf("supabase.auth.verifyOtp"));
+    expect(verifyOtpCall).toMatch(/verifyOtp\(\{\s*token_hash: verifyRes\.token_hash,\s*type: "email",\s*\}\)/);
+    expect(verifyOtpCall).not.toContain("email:");
+  });
+
+  it("records mint email presence on SESSION_CREATE_FAILED without passing email to verifyOtp", () => {
+    expect(buyerLogin).toContain("mintEmailPresent: Boolean(mintEmail)");
+    expect(buyerLogin).toContain('logAuthEvent("SESSION_CREATE_FAILED"');
+    expect(buyerLogin).toContain("error: sessionFailure");
   });
 });
