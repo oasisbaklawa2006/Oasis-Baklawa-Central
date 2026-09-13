@@ -49,6 +49,12 @@ describe("Buyer MSG91 custom OTP UI regression", () => {
     expect(buyerLogin).toContain("attemptRef.current = null");
   });
 
+  it("allows ~20s for MSG91 SDK load and custom-method readiness on slow mobile browsers", () => {
+    const readinessPollMatches = buyerLogin.match(/attempts >= 160/g) ?? [];
+    expect(readinessPollMatches.length).toBeGreaterThanOrEqual(2);
+    expect(buyerLogin).not.toContain("attempts >= 40");
+  });
+
   it("announces dynamic OTP status and maps session-token failures", () => {
     expect(buyerLogin).toContain('aria-live="polite"');
     expect(buyerLogin).toContain("session_token_mint_failed");
