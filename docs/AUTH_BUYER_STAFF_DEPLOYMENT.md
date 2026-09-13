@@ -15,6 +15,10 @@ This document records production requirements for the split Buyer and Staff auth
 
 Email OTP must **not** be declared production-certified until Core #298 and the production email template are both deployed and verified.
 
+`BuyerLogin` passes `emailRedirectTo: resolveBuyerEmailOtpRedirectUrl()` so Supabase magic-link / confirm URLs stay on the **current Central deployment origin** (`window.location.origin`, e.g. `https://oasis-baklawa-central.vercel.app` or the canonical `https://oasisbaklawa.com` buyer host) — **not** `https://b2b.oasisbaklawa.com`.
+
+Supabase Auth dashboard (production) must allow those Central origins in **Redirect URLs** and must not rely on the legacy B2B Site URL for Buyer email OTP.
+
 The Supabase email template used by `signInWithOtp` must render the numeric OTP with:
 
 ```text

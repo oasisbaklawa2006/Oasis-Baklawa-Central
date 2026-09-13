@@ -25,6 +25,7 @@ import {
   normalizeIdentifier,
   normalizePhone,
 } from "@/lib/auth-identity";
+import { resolveBuyerEmailOtpRedirectUrl } from "@/lib/auth-redirect-urls";
 import { signOutAndClearSession } from "@/utils/authSession";
 
 // MSG91 "Widget ID" and "Auth Token" are the browser OTP-widget configuration
@@ -281,6 +282,41 @@ const BuyerLogin = () => {
       }, 125);
     });
   }, [loadMsg91Script]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    const isManual = url.searchParams.get("manual_auth") === "true";
+    if (!isManual) return;
+
+    const hash = window.location.hash?.startsWith("#") ? window.location.hash.slice(1) : window.location.hash;
+    const params = new URLSearchParams(hash || "");
+    const access_token = params.get("access_token");
+    const refresh_token = params.get("refresh_token");
+
+    if (!access_token || !refresh_token) return;
+    window.history.replaceState({}, "", url.pathname);
+
+    (async () => {
+      setLoading(true);
+      setStatusMessage("Authenticating via secure email link…");
+      try {
+        const { data, error } = await supabase.auth.setSession({ access_token, refresh_token });
+        if (error || !data.session) {
+          toast.error("Email link session failed. Please request a new OTP.");
+          setLoading(false);
+          return;
+        }
+        const identity = data.session.user.email || data.session.user.phone || data.session.user.id;
+        await runRedirectAfterAuth(identity, "email_otp", data.session.user.id);
+      } catch (err) {
+        await signOutAndClearSession();
+        toast.error(getCustomerAuthUserMessage(err));
+        setLoading(false);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     void loadMsg91Script().catch(() => setIsMsg91Ready(false));
@@ -627,7 +663,10 @@ const BuyerLogin = () => {
 
     const { error } = await supabase.auth.signInWithOtp({
       email: trimmedEmail,
-      options: { shouldCreateUser: false },
+      options: {
+        shouldCreateUser: false,
+        emailRedirectTo: resolveBuyerEmailOtpRedirectUrl(),
+      },
     });
 
     if (error) {

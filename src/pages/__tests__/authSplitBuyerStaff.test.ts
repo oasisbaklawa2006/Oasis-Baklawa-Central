@@ -56,6 +56,9 @@ describe("Requirement 2/3 — /buyer/login is passwordless Buyer authentication"
     expect(buyerLogin).toContain('method: AuthAttemptMethod = "email_otp"');
     expect(buyerLogin).toContain("supabase.auth.signInWithOtp");
     expect(buyerLogin).toContain("shouldCreateUser: false");
+    expect(buyerLogin).toContain("emailRedirectTo: resolveBuyerEmailOtpRedirectUrl()");
+    expect(buyerLogin).toContain("resolveBuyerEmailOtpRedirectUrl");
+    expect(buyerLogin).not.toContain("b2b.oasisbaklawa.com");
     expect(buyerLogin).toContain("supabase.auth.verifyOtp");
     expect(buyerLogin).toContain('type: "email"');
     expect(buyerLogin).toContain("Email OTP");
@@ -162,6 +165,15 @@ describe("Requirement 7 (follow-up) — staff password reset uses the current ap
   it("StaffLogin no longer hard-codes the B2B reset hostname", () => {
     expect(staffLogin).not.toContain("b2b.oasisbaklawa.com");
     expect(staffLogin).toContain("`${window.location.origin}/reset-password`");
+  });
+});
+
+describe("Requirement 8 (follow-up) — Buyer email OTP redirect stays on Central", () => {
+  it("BuyerLogin passes a Central-origin emailRedirectTo and restores magic-link sessions on /buyer/login", () => {
+    expect(buyerLogin).toContain('url.searchParams.get("manual_auth") === "true"');
+    expect(buyerLogin).toContain("supabase.auth.setSession({ access_token, refresh_token })");
+    expect(buyerLogin).toContain("emailRedirectTo: resolveBuyerEmailOtpRedirectUrl()");
+    expect(buyerLogin).not.toContain("b2b.oasisbaklawa.com");
   });
 });
 
