@@ -35,6 +35,16 @@ describe("msg91-otp / scalable fail-closed identity resolution", () => {
     expect(source).toContain("approved_b2b_pending_claim");
   });
 
+  it("allows orphan Auth mint when approved B2B pending claim exists despite unbound company members", () => {
+    const guardBlock = source.slice(
+      source.indexOf("if (publicMatches.ids.length > 1)"),
+      source.indexOf("let authRef: AuthUserRef"),
+    );
+    expect(guardBlock).toContain("!publicMatches.approvedB2bPendingClaim");
+    expect(guardBlock).toContain("ambiguous_phone_identity");
+    expect(guardBlock).toContain("duplicate_phone_identity");
+  });
+
   it("keeps duplicate and lookup failures fail-closed", () => {
     expect(source).toContain("duplicate_phone_identity");
     expect(source).toContain("identity_lookup_failed");
