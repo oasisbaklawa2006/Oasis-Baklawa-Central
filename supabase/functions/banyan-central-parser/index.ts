@@ -198,22 +198,50 @@ function fuzzyMatchCompany(extractedName: string, companies: { id: string; busin
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
-  // WA_CANONICAL_RETIREMENT: this cron-backed pipeline previously created a
-  // parallel suggested_orders/customer lifecycle. Parsing helpers remain in
-  // this file for the later canonical-adapter migration, but execution is
-  // deliberately stopped until they write only to governed intake suggestions.
-  return new Response(
-    JSON.stringify({
-      ok: false,
-      retired: true,
-      canonical_path: "/admin/operator-inbox",
-      reason: "Banyan independent WhatsApp lifecycle is retired",
-    }),
-    {
-      status: 410,
+  // WA_CANONICAL_RETIREMENT: Banyan Vision AI / suggested_orders remain retired.
+  // The pg_cron slot now recovers governed packet stitching for whatsapp_messages.
+  const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  if (!supabaseUrl || !serviceKey) {
+    return new Response(JSON.stringify({ ok: false, error: "Service configuration unavailable" }), {
+      status: 503,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
-    },
-  );
+    });
+  }
+
+  try {
+    const stitcherResponse = await fetch(`${supabaseUrl.replace(/\/$/, "")}/functions/v1/whatsapp-message-stitcher`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${serviceKey}`,
+      },
+      body: JSON.stringify({ trigger: "cron-stitcher-recovery" }),
+      signal: AbortSignal.timeout(120_000),
+    });
+    const stitcherBody = await stitcherResponse.json().catch(() => ({}));
+    return new Response(JSON.stringify({
+      ok: stitcherResponse.ok,
+      retired_banyan_ai: true,
+      canonical_path: "/admin/operator-inbox",
+      stitcher: stitcherBody,
+    }), {
+      status: stitcherResponse.ok ? 200 : 207,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : "STITCHER_RECOVERY_FAILED";
+    console.error("[banyan-central-parser] stitcher recovery failed", detail);
+    return new Response(JSON.stringify({
+      ok: false,
+      retired_banyan_ai: true,
+      canonical_path: "/admin/operator-inbox",
+      error: detail,
+    }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
 
   /* c8 ignore start -- retained, unreachable migration source */
   const supabaseAdmin = createClient(

@@ -9,6 +9,7 @@ import {
   isWithinAppendWindow,
   mergeStitchedText,
   partitionDuplicateProviderMessages,
+  partitionUnstitchedByContactAuthority,
   stitchedTextFor,
   type StitchableMessage,
 } from "../../../../supabase/functions/_shared/whatsappStitchingWindow";
@@ -157,6 +158,16 @@ describe("partitionDuplicateProviderMessages — Gate A: duplicate webhook / pro
     const { primary, duplicates } = partitionDuplicateProviderMessages(messages);
     expect(primary.map((m) => m.id)).toEqual(["m1", "m2"]);
     expect(duplicates).toHaveLength(0);
+  });
+
+  it("quarantines missing contact authority without discarding stitchable rows", () => {
+    const messages = [
+      msg("good", "contact-1", "2026-09-13T10:00:00Z"),
+      { ...msg("bad", "", "2026-09-13T10:00:01Z"), contact_id: "" },
+    ];
+    const { stitchable, rejectedIds } = partitionUnstitchedByContactAuthority(messages);
+    expect(stitchable.map((row) => row.id)).toEqual(["good"]);
+    expect(rejectedIds).toEqual(["bad"]);
   });
 
   it("handles more than two retries of the same provider_message_id", () => {

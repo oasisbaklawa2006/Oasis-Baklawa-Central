@@ -4,7 +4,7 @@
 // commercial evidence, then invokes the Core-owned AI worker automatically.
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.45.0";
-import { groupMessagesByStitchingWindow } from "../_shared/whatsappStitchingWindow.ts";
+import { groupMessagesByStitchingWindow, partitionUnstitchedByContactAuthority } from "../_shared/whatsappStitchingWindow.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -213,15 +213,15 @@ serve(async (req) => {
     if (error) throw new Error(`Failed to find unstitched messages: ${error.message}`);
 
     const unstitched = (data ?? []) as UnstitchedMessage[];
-    const invalidContactRows = unstitched.filter((message) =>
-      typeof message.contact_id !== "string" || message.contact_id.trim().length === 0
-    );
-    if (invalidContactRows.length > 0) {
-      const invalidIds = invalidContactRows.map((message) => message.id).join(", ");
-      throw new Error(`Unstitched inbound messages missing contact authority: ${invalidIds}`);
+    const { stitchable, rejectedIds } = partitionUnstitchedByContactAuthority(unstitched);
+    if (rejectedIds.length > 0) {
+      console.warn(
+        "[whatsapp-message-stitcher] quarantined unstitched rows missing contact authority",
+        JSON.stringify({ rejectedIds }),
+      );
     }
 
-    const groupsByContact = groupMessagesByStitchingWindow(unstitched, windowSeconds);
+    const groupsByContact = groupMessagesByStitchingWindow(stitchable, windowSeconds);
     let groupsProcessed = 0;
     let fragmentsLinked = 0;
     let commercialFragmentsLinked = 0;
@@ -277,7 +277,9 @@ serve(async (req) => {
     return new Response(JSON.stringify({
       success: !hasFailures,
       ok: !hasFailures,
-      messagesProcessed: unstitched.length,
+      messagesProcessed: stitchable.length,
+      messagesQuarantined: rejectedIds.length,
+      quarantinedMessageIds: rejectedIds,
       groupsProcessed,
       fragmentsLinked,
       commercialFragmentsLinked,
