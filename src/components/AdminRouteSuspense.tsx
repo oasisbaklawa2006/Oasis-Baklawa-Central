@@ -1,7 +1,7 @@
 import { Suspense, useEffect, useState, type ReactNode } from "react";
 import { Outlet } from "react-router-dom";
 
-const LOAD_TIMEOUT_MS = 20_000;
+const LOAD_TIMEOUT_MS = 5_000;
 
 function AdminRouteLoadingFallback() {
   const [timedOut, setTimedOut] = useState(false);
@@ -16,7 +16,7 @@ function AdminRouteLoadingFallback() {
       <div className="flex min-h-[50vh] flex-col items-center justify-center gap-3 p-6 text-center" role="alert">
         <h2 className="text-lg font-semibold">This admin screen failed to load</h2>
         <p className="max-w-md text-sm text-muted-foreground">
-          The module did not finish loading within 20 seconds. Your session and navigation remain active — reload this
+          The module did not finish loading within 5 seconds. Your session and navigation remain active — reload this
           screen to try again.
         </p>
         <button

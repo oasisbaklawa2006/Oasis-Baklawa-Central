@@ -209,6 +209,9 @@ serve(async (req) => {
     });
   }
 
+  const cronBody = await req.json().catch(() => ({})) as { buffer_id?: string; bufferId?: string };
+  const replayBufferId = String(cronBody.buffer_id ?? cronBody.bufferId ?? "").trim();
+
   try {
     const stitcherResponse = await fetch(`${supabaseUrl.replace(/\/$/, "")}/functions/v1/whatsapp-message-stitcher`, {
       method: "POST",
@@ -216,7 +219,10 @@ serve(async (req) => {
         "Content-Type": "application/json",
         Authorization: `Bearer ${serviceKey}`,
       },
-      body: JSON.stringify({ trigger: "cron-stitcher-recovery" }),
+      body: JSON.stringify({
+        trigger: "cron-stitcher-recovery",
+        ...(replayBufferId ? { buffer_id: replayBufferId } : {}),
+      }),
       signal: AbortSignal.timeout(120_000),
     });
     const stitcherBody = await stitcherResponse.json().catch(() => ({}));

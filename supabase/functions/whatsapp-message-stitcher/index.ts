@@ -4,6 +4,7 @@
 // commercial evidence, then invokes the Core-owned AI worker automatically.
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.45.0";
+import { flushGovernedWhatsappBuffer } from "../_shared/whatsappBufferReconciler.ts";
 import { groupMessagesByStitchingWindow, partitionUnstitchedByContactAuthority } from "../_shared/whatsappStitchingWindow.ts";
 
 const corsHeaders = {
@@ -33,6 +34,8 @@ type StitcherRequest = {
   batchSize?: number;
   providerMessageId?: string;
   provider_message_id?: string;
+  bufferId?: string;
+  buffer_id?: string;
 };
 
 type PacketFailure = { packetId: string; error: string };
@@ -200,6 +203,7 @@ serve(async (req) => {
     const windowSeconds = Math.min(3600, Math.max(30, Number(body.windowSeconds) || DEFAULT_WINDOW_SECONDS));
     const batchSize = Math.min(500, Math.max(1, Number(body.batchSize) || DEFAULT_BATCH_SIZE));
     const recoveryProviderMessageId = String(body.providerMessageId ?? body.provider_message_id ?? "").trim();
+    const replayBufferId = String(body.bufferId ?? body.buffer_id ?? "").trim();
     const admin = createClient(supabaseUrl, serviceKey);
 
     const { data, error } = await admin
@@ -273,6 +277,26 @@ serve(async (req) => {
       console.warn("[whatsapp-message-stitcher] packet AI failures", JSON.stringify(aiFailures));
     }
 
+    let bufferFlush = {
+      rowsFlushed: 0,
+      sendersProcessed: 0,
+      sendersWaiting: 0,
+      staleFlushingRecovered: 0,
+      flushedBufferIds: [] as string[],
+      linkedPacketIds: [] as string[],
+    };
+    try {
+      bufferFlush = await flushGovernedWhatsappBuffer(admin, {
+        bufferIds: replayBufferId ? [replayBufferId] : undefined,
+        idleSeconds: replayBufferId ? 0 : undefined,
+      });
+    } catch (bufferError) {
+      console.warn(
+        "[whatsapp-message-stitcher] buffer flush failed",
+        bufferError instanceof Error ? bufferError.message : String(bufferError),
+      );
+    }
+
     const hasFailures = commercialFailures.length > 0 || aiFailures.length > 0;
     return new Response(JSON.stringify({
       success: !hasFailures,
@@ -286,6 +310,8 @@ serve(async (req) => {
       commercialFailures,
       packetIds: packetIdList,
       recoveryProviderMessageId: recoveryProviderMessageId || null,
+      replayBufferId: replayBufferId || null,
+      bufferFlush,
       aiResults,
       config: { windowSeconds, batchSize, aiWorkerConcurrency: AI_WORKER_CONCURRENCY },
     }), { status: hasFailures ? 207 : 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });

@@ -12,6 +12,14 @@ describe("whatsapp stitcher recovery", () => {
     expect(stitcher).not.toContain("throw new Error(`Unstitched inbound messages missing contact authority");
   });
 
+  it("flushes governed buffer rows after stitching without order writes", () => {
+    const stitcher = readRepoSource(REPO_ROOT, "supabase/functions/whatsapp-message-stitcher/index.ts");
+    expect(stitcher).toContain("flushGovernedWhatsappBuffer");
+    expect(stitcher).toContain("bufferFlush");
+    expect(stitcher).toContain("replayBufferId");
+    expect(stitcher).not.toMatch(/\.from\(\s*["']orders["']\s*\)/);
+  });
+
   it("reuses the pg_cron slot for governed stitcher recovery without Banyan writes", () => {
     const parser = readRepoSource(REPO_ROOT, "supabase/functions/banyan-central-parser/index.ts");
     const liveHandler = parser.split("/* c8 ignore start")[0];

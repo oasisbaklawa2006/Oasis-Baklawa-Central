@@ -14,7 +14,7 @@ import {
 } from "./operatorInboxWorkspaceMutations";
 
 const RETRY_MS = 30_000;
-const HYDRATION_TIMEOUT_MS = 20_000;
+const HYDRATION_TIMEOUT_MS = 5_000;
 
 export function OperatorInboxWorkspacePersistenceGate({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);

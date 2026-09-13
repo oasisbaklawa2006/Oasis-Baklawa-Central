@@ -17,16 +17,22 @@ describe("admin WhatsApp route loading", () => {
     expect(app).toContain('path="operator-inbox"');
   });
 
-  it("fails admin lazy route loads to an error state within 20 seconds", () => {
+  it("fails admin lazy route loads to an error state within 5 seconds", () => {
     const suspense = readRepoSource(REPO_ROOT, "src/components/AdminRouteSuspense.tsx");
-    expect(suspense).toContain("20_000");
+    expect(suspense).toContain("5_000");
     expect(suspense).toContain("failed to load");
     expect(suspense).toContain("Reload screen");
   });
 
+  it("protected routes fail open when profile bootstrap exceeds 5 seconds", () => {
+    const route = readRepoSource(REPO_ROOT, "src/components/ProtectedRoute.tsx");
+    expect(route).toContain("PROFILE_BOOTSTRAP_TIMEOUT_MS = 5_000");
+    expect(route).toContain("bootstrapWaitExpired");
+  });
+
   it("operator workspace hydration fails open instead of blocking the inbox forever", () => {
     const gate = readRepoSource(REPO_ROOT, "src/components/whatsapp/OperatorInboxWorkspacePersistenceGate.tsx");
-    expect(gate).toContain("HYDRATION_TIMEOUT_MS = 20_000");
+    expect(gate).toContain("HYDRATION_TIMEOUT_MS = 5_000");
     expect(gate).toContain("setReady(true)");
     expect(gate).toContain("WA_OPERATOR_WORKSPACE_HYDRATION_TIMEOUT");
   });
