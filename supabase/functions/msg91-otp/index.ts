@@ -95,22 +95,32 @@ async function createAuthUserForPhone(e164: string, normalized: string): Promise
 }
 
 /**
- * Fail-closed identity collision guard. Current production phone data is stored
- * in one of four canonical forms (10-digit, 91..., +91..., or 0...). Query those
- * variants directly instead of enumerating the entire users directory.
+ * Fail-closed identity collision guard. Canonical public.users phone columns are
+ * checked first, then governed B2B application and company phone authority so an
+ * approved Buyer is not minted as an orphan Auth user when Core already owns the
+ * identity on b2b_applications.user_id or company membership.
  */
 async function findPublicIdentityMatches(normalized: string): Promise<{ ids: string[] } | { error: string }> {
   if (!supabaseAdmin) return { error: "service_role_unavailable" };
   const variants = phoneVariants(normalized);
-  if (!variants.length) return { error: "phone_invalid" };
+  const tail = last10(normalized);
+  if (!variants.length || tail.length < 10) return { error: "phone_invalid" };
+  const pattern = `%${tail}%`;
 
-  const [phoneResult, mobileResult, secondaryResult] = await Promise.all([
+  const [phoneResult, mobileResult, secondaryResult, appResult, companyResult] = await Promise.all([
     supabaseAdmin.from("users").select("id").in("phone", variants),
     supabaseAdmin.from("users").select("id").in("mobile_number", variants),
     supabaseAdmin.from("users").select("id").overlaps("secondary_phones", variants),
+    supabaseAdmin
+      .from("b2b_applications")
+      .select("user_id, company_id")
+      .eq("status", "approved")
+      .or(`contact_phone.ilike.${pattern},mobile_number.ilike.${pattern}`),
+    supabaseAdmin.from("companies").select("id").ilike("phone", pattern),
   ]);
 
-  const lookupError = phoneResult.error || mobileResult.error || secondaryResult.error;
+  const lookupError = phoneResult.error || mobileResult.error || secondaryResult.error
+    || appResult.error || companyResult.error;
   if (lookupError) {
     console.error("[msg91] identity lookup error:", maskSecret(lookupError.message ?? null) ?? "unknown");
     return { error: "identity_lookup_failed" };
@@ -120,6 +130,30 @@ async function findPublicIdentityMatches(normalized: string): Promise<{ ids: str
   for (const row of [...(phoneResult.data || []), ...(mobileResult.data || []), ...(secondaryResult.data || [])]) {
     if (row?.id) ids.add(String(row.id));
   }
+
+  const companyIds = new Set<string>();
+  for (const app of appResult.data || []) {
+    if (app?.user_id) ids.add(String(app.user_id));
+    if (app?.company_id) companyIds.add(String(app.company_id));
+  }
+  for (const company of companyResult.data || []) {
+    if (company?.id) companyIds.add(String(company.id));
+  }
+
+  if (companyIds.size > 0) {
+    const { data: companyUsers, error: companyUserError } = await supabaseAdmin
+      .from("users")
+      .select("id")
+      .in("company_id", [...companyIds]);
+    if (companyUserError) {
+      console.error("[msg91] company membership lookup error:", maskSecret(companyUserError.message ?? null) ?? "unknown");
+      return { error: "identity_lookup_failed" };
+    }
+    for (const row of companyUsers || []) {
+      if (row?.id) ids.add(String(row.id));
+    }
+  }
+
   return { ids: [...ids] };
 }
 
