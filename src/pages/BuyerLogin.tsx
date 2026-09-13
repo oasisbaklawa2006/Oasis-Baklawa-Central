@@ -351,6 +351,7 @@ const BuyerLogin = () => {
       if (typeof window.sendOtp !== "function") throw new Error("msg91_send_method_unavailable");
       const callbackTimeout = controllerRef.current.registerTimer(window.setTimeout(() => {
         if (attemptRef.current?.id !== attemptId) return;
+        attemptRef.current = null;
         logAuthEvent("OTP_REQUEST_FAILED", { attemptId, method, identifier: phone.e164 || identifier, result: "failed", error: "msg91_send_timeout" });
         void finalizeFailure("OTP request timed out. Please retry.");
       }, MSG91_PROVIDER_CALL_TIMEOUT_MS));
@@ -413,6 +414,7 @@ const BuyerLogin = () => {
       if (typeof window.verifyOtp !== "function") throw new Error("msg91_verify_method_unavailable");
       const callbackTimeout = controllerRef.current.registerTimer(window.setTimeout(() => {
         if (attemptRef.current?.id !== attemptId) return;
+        attemptRef.current = null;
         logAuthEvent("OTP_VERIFY_FAILED", { attemptId, method, identifier: phone.e164 || identifier, result: "failed", error: "msg91_verify_timeout" });
         void finalizeFailure("OTP verification timed out. Please retry.");
       }, MSG91_PROVIDER_CALL_TIMEOUT_MS));
@@ -452,6 +454,7 @@ const BuyerLogin = () => {
       }
       const callbackTimeout = controllerRef.current.registerTimer(window.setTimeout(() => {
         if (attemptRef.current?.id !== attemptId) return;
+        attemptRef.current = null;
         void finalizeFailure("OTP resend timed out. Please retry.");
       }, MSG91_PROVIDER_CALL_TIMEOUT_MS));
       window.retryOtp(
