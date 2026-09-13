@@ -7,8 +7,12 @@ function AdminRouteLoadingFallback() {
   const [timedOut, setTimedOut] = useState(false);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setTimedOut(true), LOAD_TIMEOUT_MS);
-    return () => window.clearTimeout(timer);
+    const timer = window.setTimeout(() => {
+      setTimedOut(true);
+    }, LOAD_TIMEOUT_MS);
+    return () => {
+      window.clearTimeout(timer);
+    };
   }, []);
 
   if (timedOut) {
@@ -22,7 +26,9 @@ function AdminRouteLoadingFallback() {
         <button
           type="button"
           className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
-          onClick={() => window.location.reload()}
+          onClick={() => {
+            window.location.reload();
+          }}
         >
           Reload screen
         </button>
