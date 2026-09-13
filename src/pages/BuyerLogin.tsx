@@ -204,8 +204,18 @@ const BuyerLogin = () => {
       script.id = MSG91_PROVIDER_SCRIPT_ID;
       script.src = "https://verify.msg91.com/otp-provider.js";
       script.async = true;
-      script.onload = awaitSdk;
+
+      const scriptTagTimeout = window.setTimeout(() => {
+        providerLoadRef.current = null;
+        reject(new Error("msg91_provider_script_tag_timeout"));
+      }, MSG91_PROVIDER_CALL_TIMEOUT_MS);
+
+      script.onload = () => {
+        window.clearTimeout(scriptTagTimeout);
+        awaitSdk();
+      };
       script.onerror = () => {
+        window.clearTimeout(scriptTagTimeout);
         providerLoadRef.current = null;
         reject(new Error("msg91_provider_load_failed"));
       };
