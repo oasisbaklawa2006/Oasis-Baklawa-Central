@@ -13,7 +13,10 @@ import {
   type AuthStatus,
 } from "@/lib/auth-flow";
 import { invokeApprovedB2bIdentityClaimRpc } from "@/lib/approved-b2b-claim-invoke";
-import { claimApprovedB2bIdentityForAuthenticatedSession } from "@/lib/b2b-approved-identity-claim";
+import {
+  assertApprovedB2bClaimBound,
+  claimApprovedB2bIdentityForAuthenticatedSession,
+} from "@/lib/b2b-approved-identity-claim";
 import { mapBuyerOtpProviderError, mapBuyerPostMintAuthError } from "@/lib/buyer-login-errors";
 import { createAuthAttemptId, logAuthEvent, type AuthAttemptMethod } from "@/lib/auth-logging";
 import { isEmailIdentifier, normalizeIdentifier, normalizePhone } from "@/lib/auth-identity";
@@ -323,10 +326,14 @@ const BuyerLogin = () => {
         result: "started",
         details: { userId: sessionData.user.id },
       });
+      const mintedSession = sessionData.session;
       const claimOutcome = await claimApprovedB2bIdentityForAuthenticatedSession(
         invokeApprovedB2bIdentityClaimRpc,
-        async () => Boolean((await supabase.auth.getSession()).data.session?.access_token),
+        async () => Boolean(
+          mintedSession?.access_token || (await supabase.auth.getSession()).data.session?.access_token,
+        ),
       );
+      assertApprovedB2bClaimBound(claimOutcome, Boolean(verifyRes?.approved_b2b_pending_claim));
       logAuthEvent("APPROVED_B2B_CLAIM_SUCCESS", {
         attemptId,
         method,

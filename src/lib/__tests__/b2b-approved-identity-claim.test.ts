@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   APPROVED_B2B_IDENTITY_CLAIM_RPC,
+  assertApprovedB2bClaimBound,
   claimApprovedB2bIdentity,
   claimApprovedB2bIdentityForAuthenticatedSession,
   isApprovedB2bIdentityClaimRow,
@@ -122,5 +123,20 @@ describe("UAT #561 approved B2B identity claim", () => {
       ],
       error: null,
     }))).rejects.toThrow("APPROVED_B2B_IDENTITY_CLAIM_FAILED:ambiguous");
+  });
+
+  it("fails closed when Edge signalled an approved application but Core claim did not bind", () => {
+    expect(() => assertApprovedB2bClaimBound(
+      { applicationId: null, companyId: null, claimed: false, alreadyActive: false },
+      true,
+    )).toThrow("APPROVED_B2B_IDENTITY_CLAIM_FAILED:bind_failed");
+    expect(() => assertApprovedB2bClaimBound(
+      { applicationId: "app-1", companyId: "co-1", claimed: true, alreadyActive: false },
+      true,
+    )).not.toThrow();
+    expect(() => assertApprovedB2bClaimBound(
+      { applicationId: null, companyId: null, claimed: false, alreadyActive: false },
+      false,
+    )).not.toThrow();
   });
 });

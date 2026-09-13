@@ -51,6 +51,8 @@ describe("Buyer MSG91 custom OTP UI regression", () => {
     expect(redirectIdx).toBeGreaterThan(claimIdx);
     expect(block).toContain("claimApprovedB2bIdentityForAuthenticatedSession");
     expect(block).toContain("invokeApprovedB2bIdentityClaimRpc");
+    expect(block).toContain("assertApprovedB2bClaimBound");
+    expect(block).toContain("approved_b2b_pending_claim");
   });
 
   it("renders an explicit OTP entry and verification action", () => {

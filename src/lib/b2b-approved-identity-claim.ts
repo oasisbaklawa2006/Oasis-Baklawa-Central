@@ -135,3 +135,16 @@ export async function claimApprovedB2bIdentityForAuthenticatedSession(
   }
   return await claimApprovedB2bIdentity(invoke);
 }
+
+/**
+ * Fail closed when Edge signalled an approved application awaiting identity bind
+ * but Core claim did not attach membership (prevents silent access-request redirect).
+ */
+export function assertApprovedB2bClaimBound(
+  outcome: ApprovedB2bIdentityClaimOutcome,
+  approvedApplicationPendingClaim: boolean,
+): void {
+  if (!approvedApplicationPendingClaim) return;
+  if (outcome.claimed || outcome.alreadyActive) return;
+  throw new Error("APPROVED_B2B_IDENTITY_CLAIM_FAILED:bind_failed");
+}

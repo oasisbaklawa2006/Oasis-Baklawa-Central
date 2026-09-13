@@ -24,8 +24,11 @@ describe("msg91-otp / scalable fail-closed identity resolution", () => {
     expect(source).toContain('.eq("status", "approved")');
     expect(source).toContain("contact_phone.ilike");
     expect(source).toContain("mobile_number.ilike");
+    expect(source).toContain("resolved_company_id");
+    expect(source).not.toContain('select("user_id, company_id")');
     expect(source).toContain('.from("companies").select("id").ilike("phone", pattern)');
     expect(source).toContain('.in("company_id", [...companyIds])');
+    expect(source).toContain("approved_b2b_pending_claim");
   });
 
   it("keeps duplicate and lookup failures fail-closed", () => {

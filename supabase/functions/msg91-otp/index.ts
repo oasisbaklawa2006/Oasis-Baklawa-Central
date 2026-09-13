@@ -100,7 +100,13 @@ async function createAuthUserForPhone(e164: string, normalized: string): Promise
  * approved Buyer is not minted as an orphan Auth user when Core already owns the
  * identity on b2b_applications.user_id or company membership.
  */
-async function findPublicIdentityMatches(normalized: string): Promise<{ ids: string[] } | { error: string }> {
+type PublicIdentityMatchResult = {
+  ids: string[];
+  /** True when an approved application matches this phone but user_id is still null. */
+  approvedB2bPendingClaim: boolean;
+};
+
+async function findPublicIdentityMatches(normalized: string): Promise<PublicIdentityMatchResult | { error: string }> {
   if (!supabaseAdmin) return { error: "service_role_unavailable" };
   const variants = phoneVariants(normalized);
   const tail = last10(normalized);
@@ -113,7 +119,7 @@ async function findPublicIdentityMatches(normalized: string): Promise<{ ids: str
     supabaseAdmin.from("users").select("id").overlaps("secondary_phones", variants),
     supabaseAdmin
       .from("b2b_applications")
-      .select("user_id, company_id")
+      .select("user_id, resolved_company_id")
       .eq("status", "approved")
       .or(`contact_phone.ilike.${pattern},mobile_number.ilike.${pattern}`),
     supabaseAdmin.from("companies").select("id").ilike("phone", pattern),
@@ -132,9 +138,11 @@ async function findPublicIdentityMatches(normalized: string): Promise<{ ids: str
   }
 
   const companyIds = new Set<string>();
+  let approvedB2bPendingClaim = false;
   for (const app of appResult.data || []) {
     if (app?.user_id) ids.add(String(app.user_id));
-    if (app?.company_id) companyIds.add(String(app.company_id));
+    else approvedB2bPendingClaim = true;
+    if (app?.resolved_company_id) companyIds.add(String(app.resolved_company_id));
   }
   for (const company of companyResult.data || []) {
     if (company?.id) companyIds.add(String(company.id));
@@ -154,7 +162,7 @@ async function findPublicIdentityMatches(normalized: string): Promise<{ ids: str
     }
   }
 
-  return { ids: [...ids] };
+  return { ids: [...ids], approvedB2bPendingClaim };
 }
 
 type MintResult = { tokenHash: string } | { error: string };
@@ -467,6 +475,7 @@ serve(async (req) => {
 
       let authRef: AuthUserRef;
       let isNew = false;
+      const approvedB2bPendingClaim = publicMatches.approvedB2bPendingClaim;
 
       if (publicMatches.ids.length === 1) {
         const publicId = publicMatches.ids[0];
@@ -502,6 +511,7 @@ serve(async (req) => {
         type: "success",
         user_id: authRef.userId,
         is_new: isNew,
+        approved_b2b_pending_claim: approvedB2bPendingClaim,
         token_hash: maskSecret(mint.tokenHash),
       }));
       return new Response(
@@ -512,6 +522,7 @@ serve(async (req) => {
           email: authRef.email,
           phone: e164,
           is_new: isNew,
+          approved_b2b_pending_claim: approvedB2bPendingClaim,
           token_hash: mint.tokenHash,
         }),
         { status: 200, headers: jsonHeaders },

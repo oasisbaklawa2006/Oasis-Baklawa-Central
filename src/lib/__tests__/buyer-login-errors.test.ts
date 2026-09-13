@@ -23,6 +23,13 @@ describe("buyer-login-errors / post-mint failure surfacing", () => {
     expect(mapped.message).toContain("More than one approved B2B application");
   });
 
+  it("surfaces approved-application bind failures instead of generic mobile verification copy", () => {
+    const mapped = mapBuyerPostMintAuthError(new Error("APPROVED_B2B_IDENTITY_CLAIM_FAILED:bind_failed"));
+    expect(mapped.stage).toBe("approved_b2b_claim");
+    expect(mapped.message).toContain("approved B2B account could not be linked");
+    expect(mapped.message).not.toBe("Mobile verification failed. Please try again.");
+  });
+
   it("maps session token exchange failures after Edge mint", () => {
     const mapped = mapBuyerPostMintAuthError(new Error("Email link is invalid or has expired"));
     expect(mapped.stage).toBe("session_token");

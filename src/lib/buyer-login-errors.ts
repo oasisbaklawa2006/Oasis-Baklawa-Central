@@ -97,6 +97,12 @@ export function mapBuyerPostMintAuthError(error: unknown): { message: string; st
         message: "Your approved B2B account could not be linked right now. Please retry in a moment or contact Oasis support.",
       };
     }
+    if (message.includes(":bind_failed")) {
+      return {
+        stage,
+        message: "Your approved B2B account could not be linked to this login. Please retry or contact Oasis support.",
+      };
+    }
     return {
       stage,
       message: "Your approved B2B account could not be linked to this login. Please contact Oasis support.",
