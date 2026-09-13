@@ -18,6 +18,7 @@ import {
   claimApprovedB2bIdentityForAuthenticatedSession,
 } from "@/lib/b2b-approved-identity-claim";
 import { mapBuyerOtpProviderError, mapBuyerPostMintAuthError } from "@/lib/buyer-login-errors";
+import { extractEdgeFunctionErrorCode } from "@/lib/edge-function-errors";
 import { createAuthAttemptId, logAuthEvent, type AuthAttemptMethod } from "@/lib/auth-logging";
 import {
   isEmailIdentifier,
@@ -306,12 +307,18 @@ const BuyerLogin = () => {
     const edgeTimeout = controllerRef.current.registerTimer(window.setTimeout(() => abortController.abort(), MSG91_EDGE_TIMEOUT_MS));
     let edgeVerified = false;
     try {
-      const { data: verifyRes, error } = await supabase.functions.invoke("msg91-otp", {
+      const invokeResult = await supabase.functions.invoke("msg91-otp", {
         body: { mode: "verify_widget", accessToken, phone: identifier, attemptId },
         signal: abortController.signal,
       });
+      const { data: verifyRes, error: invokeError, response: invokeResponse } = invokeResult;
       controllerRef.current.clearTimer(edgeTimeout);
-      if (error) throw new Error(error.message);
+      const edgeErrorCode = await extractEdgeFunctionErrorCode({
+        data: verifyRes,
+        error: invokeError,
+        response: invokeResponse,
+      });
+      if (edgeErrorCode) throw new Error(edgeErrorCode);
       if (!verifyRes?.ok) throw new Error(verifyRes?.error || verifyRes?.reason || "provider_verification_failed");
       if (!verifyRes?.token_hash || !verifyRes?.user_id) throw new Error("session_token_missing");
 

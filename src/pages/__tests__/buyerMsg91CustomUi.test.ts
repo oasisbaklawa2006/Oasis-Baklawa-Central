@@ -41,6 +41,7 @@ describe("Buyer MSG91 custom OTP UI regression", () => {
     expect(buyerLogin).toContain('mode: "verify_widget"');
     expect(buyerLogin).toContain("accessToken");
     expect(buyerLogin).toContain("verifyRes?.token_hash");
+    expect(buyerLogin).toContain("extractEdgeFunctionErrorCode");
     expect(buyerLogin).toContain("supabase.auth.verifyOtp");
     expect(buyerLogin).toContain('type: "email"');
     expect(buyerLogin).toContain("SESSION_CREATE_STARTED");
