@@ -58,6 +58,9 @@ export function mapBuyerOtpProviderError(rawMessage?: string | null): string {
   if (message.includes("duplicate_phone_identity")) {
     return "This mobile number is linked to more than one account. Please contact Oasis support.";
   }
+  if (message.includes("ambiguous_phone_identity")) {
+    return "This mobile number matches a company record that still needs account reconciliation. Please contact Oasis support.";
+  }
   if (message.includes("provider_verification_failed")) {
     return "MSG91 could not verify this OTP session. Please request a new OTP.";
   }

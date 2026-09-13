@@ -101,7 +101,10 @@ async function createAuthUserForPhone(e164: string, normalized: string): Promise
  * identity on b2b_applications.user_id or company membership.
  */
 type PublicIdentityMatchResult = {
+  /** User IDs with an explicit verified-phone binding on public.users (or B2B user_id). */
   ids: string[];
+  /** Company-member IDs inferred only from company phone — never mint targets. */
+  unboundCompanyMemberIds: string[];
   /** True when an approved application matches this phone but user_id is still null. */
   approvedB2bPendingClaim: boolean;
 };
@@ -154,6 +157,7 @@ async function findPublicIdentityMatches(normalized: string): Promise<PublicIden
     if (company?.id) companyIds.add(String(company.id));
   }
 
+  const unboundCompanyMemberIds = new Set<string>();
   if (companyIds.size > 0) {
     const { data: companyUsers, error: companyUserError } = await supabaseAdmin
       .from("users")
@@ -164,11 +168,15 @@ async function findPublicIdentityMatches(normalized: string): Promise<PublicIden
       return { error: "identity_lookup_failed" };
     }
     for (const row of companyUsers || []) {
-      if (row?.id) ids.add(String(row.id));
+      if (row?.id) unboundCompanyMemberIds.add(String(row.id));
     }
   }
 
-  return { ids: [...ids], approvedB2bPendingClaim };
+  return {
+    ids: [...ids],
+    unboundCompanyMemberIds: [...unboundCompanyMemberIds],
+    approvedB2bPendingClaim,
+  };
 }
 
 type MintResult = { tokenHash: string } | { error: string };
@@ -477,6 +485,12 @@ serve(async (req) => {
       if (publicMatches.ids.length > 1) {
         console.error("[msg91-otp] duplicate_phone_identity", JSON.stringify({ matches: publicMatches.ids.length }));
         return fail("duplicate_phone_identity", 409);
+      }
+      if (publicMatches.ids.length === 0 && publicMatches.unboundCompanyMemberIds.length > 0) {
+        console.error("[msg91-otp] ambiguous_phone_identity", JSON.stringify({
+          unbound_company_members: publicMatches.unboundCompanyMemberIds.length,
+        }));
+        return fail("ambiguous_phone_identity", 409);
       }
 
       let authRef: AuthUserRef;

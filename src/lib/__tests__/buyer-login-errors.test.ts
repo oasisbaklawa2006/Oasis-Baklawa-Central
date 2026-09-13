@@ -6,6 +6,7 @@ describe("buyer-login-errors / provider OTP mapping", () => {
   it("maps provider verification failures without exposing raw RPC text", () => {
     expect(mapBuyerOtpProviderError("provider_verification_failed")).toContain("MSG91 could not verify");
     expect(mapBuyerOtpProviderError("duplicate_phone_identity")).toContain("more than one account");
+    expect(mapBuyerOtpProviderError("ambiguous_phone_identity")).toContain("reconciliation");
   });
 });
 
@@ -34,6 +35,12 @@ describe("buyer-login-errors / post-mint failure surfacing", () => {
     const mapped = mapBuyerPostMintAuthError(new Error("Email link is invalid or has expired"));
     expect(mapped.stage).toBe("session_token");
     expect(mapped.message).toContain("expired");
+  });
+
+  it("maps Edge mint timeout aborts to the session_token stage", () => {
+    const mapped = mapBuyerPostMintAuthError(new Error("session_token_mint_timeout"));
+    expect(mapped.stage).toBe("session_token");
+    expect(mapped.message).toContain("could not start your session");
   });
 
   it("preserves AuthFlowError buyer membership messaging", () => {

@@ -30,6 +30,8 @@ describe("msg91-otp / scalable fail-closed identity resolution", () => {
     expect(source).not.toContain('select("user_id, company_id")');
     expect(source).toContain('.from("companies").select("id").ilike("phone", pattern)');
     expect(source).toContain('.in("company_id", [...companyIds])');
+    expect(source).toContain("unboundCompanyMemberIds");
+    expect(source).toContain("ambiguous_phone_identity");
     expect(source).toContain("approved_b2b_pending_claim");
   });
 

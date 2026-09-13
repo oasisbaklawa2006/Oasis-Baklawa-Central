@@ -399,7 +399,9 @@ const BuyerLogin = () => {
         : error instanceof Error
           ? error.message
           : "mobile_session_failed";
-      const mapped = mapBuyerPostMintAuthError(error);
+      const mapped = mapBuyerPostMintAuthError(
+        abortController.signal.aborted ? new Error("session_token_mint_timeout") : error,
+      );
       if (mapped.stage === "approved_b2b_claim") {
         logAuthEvent("APPROVED_B2B_CLAIM_FAILED", {
           attemptId,
