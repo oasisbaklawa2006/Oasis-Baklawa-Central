@@ -528,7 +528,11 @@ serve(async (req) => {
         console.error("[msg91-otp] duplicate_phone_identity", JSON.stringify({ matches: publicMatches.ids.length }));
         return fail("duplicate_phone_identity", 409);
       }
-      if (publicMatches.ids.length === 0 && publicMatches.unboundCompanyMemberIds.length > 0) {
+      if (
+        publicMatches.ids.length === 0
+        && publicMatches.unboundCompanyMemberIds.length > 0
+        && !publicMatches.approvedB2bPendingClaim
+      ) {
         console.error("[msg91-otp] ambiguous_phone_identity", JSON.stringify({
           unbound_company_members: publicMatches.unboundCompanyMemberIds.length,
         }));
