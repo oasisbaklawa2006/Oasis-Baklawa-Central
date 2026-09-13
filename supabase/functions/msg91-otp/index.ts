@@ -113,10 +113,11 @@ async function findPublicIdentityMatches(normalized: string): Promise<PublicIden
   if (!variants.length || tail.length < 10) return { error: "phone_invalid" };
   const pattern = `%${tail}%`;
 
-  const [phoneResult, mobileResult, secondaryResult, appResult, companyResult] = await Promise.all([
+  const [phoneResult, mobileResult, secondaryResult, phonePatternResult, appResult, companyResult] = await Promise.all([
     supabaseAdmin.from("users").select("id").in("phone", variants),
     supabaseAdmin.from("users").select("id").in("mobile_number", variants),
     supabaseAdmin.from("users").select("id").overlaps("secondary_phones", variants),
+    supabaseAdmin.from("users").select("id").or(`phone.ilike.${pattern},mobile_number.ilike.${pattern}`),
     supabaseAdmin
       .from("b2b_applications")
       .select("user_id, resolved_company_id")
@@ -126,14 +127,19 @@ async function findPublicIdentityMatches(normalized: string): Promise<PublicIden
   ]);
 
   const lookupError = phoneResult.error || mobileResult.error || secondaryResult.error
-    || appResult.error || companyResult.error;
+    || phonePatternResult.error || appResult.error || companyResult.error;
   if (lookupError) {
     console.error("[msg91] identity lookup error:", maskSecret(lookupError.message ?? null) ?? "unknown");
     return { error: "identity_lookup_failed" };
   }
 
   const ids = new Set<string>();
-  for (const row of [...(phoneResult.data || []), ...(mobileResult.data || []), ...(secondaryResult.data || [])]) {
+  for (const row of [
+    ...(phoneResult.data || []),
+    ...(mobileResult.data || []),
+    ...(secondaryResult.data || []),
+    ...(phonePatternResult.data || []),
+  ]) {
     if (row?.id) ids.add(String(row.id));
   }
 

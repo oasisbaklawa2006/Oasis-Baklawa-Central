@@ -19,7 +19,12 @@ import {
 } from "@/lib/b2b-approved-identity-claim";
 import { mapBuyerOtpProviderError, mapBuyerPostMintAuthError } from "@/lib/buyer-login-errors";
 import { createAuthAttemptId, logAuthEvent, type AuthAttemptMethod } from "@/lib/auth-logging";
-import { isEmailIdentifier, normalizeIdentifier, normalizePhone } from "@/lib/auth-identity";
+import {
+  internalPhoneEmailFromIdentifier,
+  isEmailIdentifier,
+  normalizeIdentifier,
+  normalizePhone,
+} from "@/lib/auth-identity";
 import { signOutAndClearSession } from "@/utils/authSession";
 
 // MSG91 "Widget ID" and "Auth Token" are the browser OTP-widget configuration
@@ -282,6 +287,7 @@ const BuyerLogin = () => {
     updateStatus("verifying_otp", { result: "started" });
     const abortController = controllerRef.current.createAbortController();
     const edgeTimeout = controllerRef.current.registerTimer(window.setTimeout(() => abortController.abort(), MSG91_EDGE_TIMEOUT_MS));
+    let edgeVerified = false;
     try {
       const { data: verifyRes, error } = await supabase.functions.invoke("msg91-otp", {
         body: { mode: "verify_widget", accessToken, phone: identifier, attemptId },
@@ -295,6 +301,7 @@ const BuyerLogin = () => {
       const resolvedIdentifier = firstNonEmptyString(verifyRes?.phone, identifier) ?? identifier;
       const normalizedIdentifier = normalizeIdentifier(resolvedIdentifier).normalized;
       attemptRef.current = { id: attemptId, method, identifier: normalizedIdentifier };
+      edgeVerified = true;
       logAuthEvent("OTP_VERIFY_SUCCESS", {
         attemptId,
         method,
@@ -305,11 +312,32 @@ const BuyerLogin = () => {
 
       updateStatus("verification_success", { result: "success" });
       updateStatus("session_creation_in_progress", { result: "started" });
-      const { data: sessionData, error: sessionError } = await supabase.auth.verifyOtp({
-        token_hash: verifyRes.token_hash,
-        type: "magiclink",
+      const sessionEmail = firstNonEmptyString(verifyRes?.email)
+        ?? internalPhoneEmailFromIdentifier(resolvedIdentifier);
+      logAuthEvent("SESSION_CREATE_STARTED", {
+        attemptId,
+        method,
+        identifier: normalizedIdentifier,
+        result: "started",
+        details: { userId: verifyRes.user_id },
       });
-      if (sessionError || !sessionData.user) throw new Error(sessionError?.message || "session_create_failed");
+      const { data: sessionData, error: sessionError } = await supabase.auth.verifyOtp({
+        email: sessionEmail,
+        token_hash: verifyRes.token_hash,
+        type: "email",
+      });
+      if (sessionError || !sessionData.user) {
+        const sessionFailure = sessionError?.message || "session_create_failed";
+        logAuthEvent("SESSION_CREATE_FAILED", {
+          attemptId,
+          method,
+          identifier: normalizedIdentifier,
+          result: "failed",
+          error: sessionFailure,
+          details: { userId: verifyRes.user_id },
+        });
+        throw new Error(sessionFailure);
+      }
 
       logAuthEvent("SESSION_CREATE_SUCCESS", {
         attemptId,
@@ -368,15 +396,25 @@ const BuyerLogin = () => {
           error: raw,
           details: { postMintStage: mapped.stage },
         });
+      } else if (edgeVerified) {
+        logAuthEvent("SESSION_CREATE_FAILED", {
+          attemptId,
+          method,
+          identifier,
+          result: "failed",
+          error: raw,
+          details: { postMintStage: mapped.stage },
+        });
+      } else {
+        logAuthEvent("OTP_VERIFY_FAILED", {
+          attemptId,
+          method,
+          identifier,
+          result: "failed",
+          error: raw,
+          details: { postMintStage: mapped.stage },
+        });
       }
-      logAuthEvent("OTP_VERIFY_FAILED", {
-        attemptId,
-        method,
-        identifier,
-        result: "failed",
-        error: raw,
-        details: { postMintStage: mapped.stage },
-      });
       await finalizeFailure(mapped.message, true);
     }
   };

@@ -35,6 +35,9 @@ describe("Buyer MSG91 custom OTP UI regression", () => {
     expect(buyerLogin).toContain("accessToken");
     expect(buyerLogin).toContain("verifyRes?.token_hash");
     expect(buyerLogin).toContain("supabase.auth.verifyOtp");
+    expect(buyerLogin).toContain('type: "email"');
+    expect(buyerLogin).toContain("SESSION_CREATE_STARTED");
+    expect(buyerLogin).toContain("internalPhoneEmailFromIdentifier");
     expect(buyerLogin).toContain('requiredMembership: "buyer"');
   });
 

@@ -83,6 +83,22 @@ function isAuthDebugEnabled() {
   return import.meta.env.DEV || import.meta.env.VITE_AUTH_DEBUG === "true";
 }
 
+/** Post-mint Buyer OTP events are always emitted so prod ops can trace mint vs session vs claim. */
+const PRODUCTION_AUTH_EVENTS = new Set<AuthLogEvent>([
+  "OTP_VERIFY_SUCCESS",
+  "OTP_VERIFY_FAILED",
+  "SESSION_CREATE_STARTED",
+  "SESSION_CREATE_SUCCESS",
+  "SESSION_CREATE_FAILED",
+  "APPROVED_B2B_CLAIM_STARTED",
+  "APPROVED_B2B_CLAIM_SUCCESS",
+  "APPROVED_B2B_CLAIM_FAILED",
+]);
+
+function shouldLogAuthEvent(event: AuthLogEvent) {
+  return isAuthDebugEnabled() || PRODUCTION_AUTH_EVENTS.has(event);
+}
+
 function maskIdentifier(identifier?: string | null) {
   if (!identifier) return null;
   if (identifier.includes("@")) {
@@ -95,7 +111,7 @@ function maskIdentifier(identifier?: string | null) {
 }
 
 export function logAuthEvent(event: AuthLogEvent, context: AuthLogContext) {
-  if (!isAuthDebugEnabled()) return;
+  if (!shouldLogAuthEvent(event)) return;
 
   const payload = {
     event,

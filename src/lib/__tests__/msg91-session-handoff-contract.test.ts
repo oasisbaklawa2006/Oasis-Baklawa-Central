@@ -16,6 +16,8 @@ describe("msg91-otp / scalable fail-closed identity resolution", () => {
     expect(source).toContain('.in("phone", variants)');
     expect(source).toContain('.in("mobile_number", variants)');
     expect(source).toContain('.overlaps("secondary_phones", variants)');
+    expect(source).toContain("phonePatternResult");
+    expect(source).toContain("phone.ilike.${pattern},mobile_number.ilike.${pattern}");
     expect(source).toContain("auth.admin.getUserById(publicId)");
   });
 

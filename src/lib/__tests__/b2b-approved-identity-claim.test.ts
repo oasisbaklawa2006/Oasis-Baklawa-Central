@@ -4,6 +4,7 @@ import {
   assertApprovedB2bClaimBound,
   claimApprovedB2bIdentity,
   claimApprovedB2bIdentityForAuthenticatedSession,
+  waitForAuthenticatedSession,
   isApprovedB2bIdentityClaimRow,
   normalizeApprovedB2bClaimRpcData,
   shouldClaimApprovedB2bIdentityAfterTokenHash,
@@ -84,6 +85,16 @@ describe("UAT #561 approved B2B identity claim", () => {
       async () => ({ data: [], error: null }),
       async () => false,
     )).rejects.toThrow("APPROVED_B2B_IDENTITY_CLAIM_FAILED:session_missing");
+  });
+
+  it("retries session hydration briefly before failing claim", async () => {
+    let reads = 0;
+    const ready = await waitForAuthenticatedSession(async () => {
+      reads += 1;
+      return reads >= 3;
+    }, 5, 1);
+    expect(ready).toBe(true);
+    expect(reads).toBe(3);
   });
 
   it("returns activated claim state without inventing authority client-side", async () => {

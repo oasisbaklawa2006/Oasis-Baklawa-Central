@@ -17,7 +17,9 @@ function classifyPostMintStage(rawMessage: string): BuyerPostMintFailureStage {
     message.includes("session_create") ||
     message.includes("verifyotp") ||
     message.includes("token_hash") ||
-    message.includes("email link")
+    message.includes("email link") ||
+    message.includes("invalid login credentials") ||
+    message.includes("otp_expired")
   ) {
     return "session_token";
   }

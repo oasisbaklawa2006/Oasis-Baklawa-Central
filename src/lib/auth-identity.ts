@@ -55,6 +55,14 @@ export function normalizePhone(input: string, defaultCountryCode = "91") {
   };
 }
 
+/** Matches Edge msg91-otp internalEmailFor / Core claim phone authority. */
+export function internalPhoneEmailFromIdentifier(identifier: string): string {
+  const phone = normalizePhone(identifier);
+  const digits = phone.digits || identifier.replace(/\D/g, "");
+  const normalized = phone.last10.length === 10 ? `91${phone.last10}` : digits.startsWith("91") ? digits : digits;
+  return `${normalized}@phone.oasis.local`;
+}
+
 export function normalizeIdentifier(input: string): NormalizedIdentifier {
   const raw = input.trim();
 

@@ -125,11 +125,25 @@ export async function verifyTokenHashThenClaimApprovedB2bIdentity<T extends {
  * readable client-side so Core can bind auth.uid() to the approved application /
  * identity_profiles row before account resolution.
  */
+export async function waitForAuthenticatedSession(
+  ensureSession: () => Promise<boolean>,
+  attempts = 8,
+  delayMs = 75,
+): Promise<boolean> {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    if (await ensureSession()) return true;
+    if (attempt < attempts - 1) {
+      await new Promise((resolve) => globalThis.setTimeout(resolve, delayMs));
+    }
+  }
+  return false;
+}
+
 export async function claimApprovedB2bIdentityForAuthenticatedSession(
   invoke: () => Promise<ClaimRpcResult>,
   ensureSession: () => Promise<boolean>,
 ): Promise<ApprovedB2bIdentityClaimOutcome> {
-  const sessionReady = await ensureSession();
+  const sessionReady = await waitForAuthenticatedSession(ensureSession);
   if (!sessionReady) {
     throw new Error("APPROVED_B2B_IDENTITY_CLAIM_FAILED:session_missing");
   }
