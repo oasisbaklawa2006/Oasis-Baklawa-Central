@@ -183,7 +183,7 @@ const BuyerLogin = () => {
           if (typeof window.initSendOTP === "function") {
             window.clearInterval(poll);
             resolve();
-          } else if (attempts >= 40) {
+          } else if (attempts >= 160) {
             window.clearInterval(poll);
             providerLoadRef.current = null;
             reject(new Error("msg91_provider_load_timeout"));
@@ -247,7 +247,7 @@ const BuyerLogin = () => {
           window.clearInterval(poll);
           setIsMsg91Ready(true);
           resolve();
-        } else if (attempts >= 40) {
+        } else if (attempts >= 160) {
           window.clearInterval(poll);
           providerInitializedRef.current = false;
           reject(new Error("msg91_custom_methods_unavailable"));
