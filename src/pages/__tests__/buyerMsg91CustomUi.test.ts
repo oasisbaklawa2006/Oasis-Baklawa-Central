@@ -38,6 +38,21 @@ describe("Buyer MSG91 custom OTP UI regression", () => {
     expect(buyerLogin).toContain('requiredMembership: "buyer"');
   });
 
+  it("runs approved B2B claim after SESSION_CREATE_SUCCESS and before redirectAfterAuth", () => {
+    const block = buyerLogin.slice(
+      buyerLogin.indexOf("const verifiedMobileSession"),
+      buyerLogin.indexOf("const sendMobileOtp"),
+    );
+    const sessionIdx = block.indexOf("SESSION_CREATE_SUCCESS");
+    const claimIdx = block.indexOf("APPROVED_B2B_CLAIM_STARTED");
+    const redirectIdx = block.indexOf("runRedirectAfterAuth");
+    expect(sessionIdx).toBeGreaterThan(-1);
+    expect(claimIdx).toBeGreaterThan(sessionIdx);
+    expect(redirectIdx).toBeGreaterThan(claimIdx);
+    expect(block).toContain("claimApprovedB2bIdentityForAuthenticatedSession");
+    expect(block).toContain("invokeApprovedB2bIdentityClaimRpc");
+  });
+
   it("renders an explicit OTP entry and verification action", () => {
     expect(buyerLogin).toContain('id="buyer-mobile-otp"');
     expect(buyerLogin).toContain('autoComplete="one-time-code"');
@@ -69,6 +84,7 @@ describe("Buyer MSG91 custom OTP UI regression", () => {
     expect(buyerLogin).toContain('aria-live="polite"');
     expect(buyerLogin).toContain("mapBuyerPostMintAuthError");
     expect(buyerLogin).toContain("postMintStage");
+    expect(buyerLogin).toContain("APPROVED_B2B_CLAIM_FAILED");
     expect(buyerLogin).toContain("session_token_missing");
   });
 });

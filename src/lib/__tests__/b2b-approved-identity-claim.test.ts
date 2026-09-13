@@ -2,7 +2,9 @@ import { describe, expect, it, vi } from "vitest";
 import {
   APPROVED_B2B_IDENTITY_CLAIM_RPC,
   claimApprovedB2bIdentity,
+  claimApprovedB2bIdentityForAuthenticatedSession,
   isApprovedB2bIdentityClaimRow,
+  normalizeApprovedB2bClaimRpcData,
   shouldClaimApprovedB2bIdentityAfterTokenHash,
   verifyTokenHashThenClaimApprovedB2bIdentity,
 } from "@/lib/b2b-approved-identity-claim";
@@ -65,6 +67,24 @@ describe("UAT #561 approved B2B identity claim", () => {
     expect(outcome).toEqual({ applicationId: null, companyId: null, claimed: false, alreadyActive: false });
   });
 
+  it("treats an empty Core claim result set as a deliberate no-match (no identity_profiles row yet)", async () => {
+    expect(normalizeApprovedB2bClaimRpcData([])).toEqual({
+      application_id: null,
+      claimed: false,
+      company_id: null,
+      already_active: false,
+    });
+    const outcome = await claimApprovedB2bIdentity(async () => ({ data: [], error: null }));
+    expect(outcome.claimed).toBe(false);
+  });
+
+  it("requires a readable session before invoking Core claim authority", async () => {
+    await expect(claimApprovedB2bIdentityForAuthenticatedSession(
+      async () => ({ data: [], error: null }),
+      async () => false,
+    )).rejects.toThrow("APPROVED_B2B_IDENTITY_CLAIM_FAILED:session_missing");
+  });
+
   it("returns activated claim state without inventing authority client-side", async () => {
     const outcome = await claimApprovedB2bIdentity(async () => ({
       data: [{ application_id: "app-1", claimed: true, company_id: "company-1", already_active: false }],
@@ -75,7 +95,6 @@ describe("UAT #561 approved B2B identity claim", () => {
 
   it.each([
     null,
-    [],
     {},
     [{ application_id: null, claimed: false, company_id: null }],
     [{ application_id: null, claimed: "false", company_id: null, already_active: false }],

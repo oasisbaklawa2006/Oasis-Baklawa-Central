@@ -11,7 +11,7 @@ export type BuyerPostMintFailureStage =
 
 function classifyPostMintStage(rawMessage: string): BuyerPostMintFailureStage {
   const message = rawMessage.toLowerCase();
-  if (message.includes("approved_b2b_identity_claim_failed")) return "approved_b2b_claim";
+  if (message.includes("approved_b2b_identity_claim_failed") || message.includes("session_missing")) return "approved_b2b_claim";
   if (
     message.includes("session_token") ||
     message.includes("session_create") ||
@@ -79,6 +79,12 @@ export function mapBuyerPostMintAuthError(error: unknown): { message: string; st
   const message = raw.toLowerCase();
 
   if (stage === "approved_b2b_claim") {
+    if (message.includes(":session_missing")) {
+      return {
+        stage,
+        message: "Your session was created but could not be confirmed for B2B account linking. Please retry.",
+      };
+    }
     if (message.includes(":ambiguous") || message.includes("ambiguous")) {
       return {
         stage,

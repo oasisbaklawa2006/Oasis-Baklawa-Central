@@ -15,7 +15,24 @@ export type ApprovedB2bIdentityClaimOutcome = {
 };
 
 type RpcErrorLike = { message?: string } | null;
-type ClaimRpcResult = { data: unknown; error: RpcErrorLike };
+export type ClaimRpcResult = { data: unknown; error: RpcErrorLike };
+
+const NO_MATCH_CLAIM_ROW: ApprovedB2bIdentityClaimRow = {
+  application_id: null,
+  claimed: false,
+  company_id: null,
+  already_active: false,
+};
+
+/** Core may return an empty set when no identity_profiles row exists yet for auth.uid(). */
+export function normalizeApprovedB2bClaimRpcData(data: unknown): ApprovedB2bIdentityClaimRow | null {
+  if (Array.isArray(data)) {
+    if (data.length === 0) return NO_MATCH_CLAIM_ROW;
+    if (data.length === 1) return isApprovedB2bIdentityClaimRow(data[0]) ? data[0] : null;
+    return null;
+  }
+  return isApprovedB2bIdentityClaimRow(data) ? data : null;
+}
 
 function classifyApprovedB2bClaimRpcError(message?: string | null): string {
   const normalized = (message ?? "").toLowerCase();
@@ -67,8 +84,8 @@ export async function claimApprovedB2bIdentity(
     throw new Error(`APPROVED_B2B_IDENTITY_CLAIM_FAILED:${classifyApprovedB2bClaimRpcError(error.message)}`);
   }
 
-  const candidate = Array.isArray(data) && data.length === 1 ? data[0] : !Array.isArray(data) ? data : null;
-  if (!isApprovedB2bIdentityClaimRow(candidate)) {
+  const candidate = normalizeApprovedB2bClaimRpcData(data);
+  if (!candidate) {
     const malformedReason = Array.isArray(data) && data.length > 1 ? "ambiguous" : "malformed_response";
     throw new Error(`APPROVED_B2B_IDENTITY_CLAIM_FAILED:${malformedReason}`);
   }
@@ -101,4 +118,20 @@ export async function verifyTokenHashThenClaimApprovedB2bIdentity<T extends {
 
   await claim();
   return verified;
+}
+
+/**
+ * Buyer MSG91 post-session claim: runs only after a verified Supabase session is
+ * readable client-side so Core can bind auth.uid() to the approved application /
+ * identity_profiles row before account resolution.
+ */
+export async function claimApprovedB2bIdentityForAuthenticatedSession(
+  invoke: () => Promise<ClaimRpcResult>,
+  ensureSession: () => Promise<boolean>,
+): Promise<ApprovedB2bIdentityClaimOutcome> {
+  const sessionReady = await ensureSession();
+  if (!sessionReady) {
+    throw new Error("APPROVED_B2B_IDENTITY_CLAIM_FAILED:session_missing");
+  }
+  return await claimApprovedB2bIdentity(invoke);
 }

@@ -12,6 +12,8 @@ import {
   redirectAfterAuth,
   type AuthStatus,
 } from "@/lib/auth-flow";
+import { invokeApprovedB2bIdentityClaimRpc } from "@/lib/approved-b2b-claim-invoke";
+import { claimApprovedB2bIdentityForAuthenticatedSession } from "@/lib/b2b-approved-identity-claim";
 import { mapBuyerOtpProviderError, mapBuyerPostMintAuthError } from "@/lib/buyer-login-errors";
 import { createAuthAttemptId, logAuthEvent, type AuthAttemptMethod } from "@/lib/auth-logging";
 import { isEmailIdentifier, normalizeIdentifier, normalizePhone } from "@/lib/auth-identity";
@@ -311,7 +313,32 @@ const BuyerLogin = () => {
         method,
         identifier: normalizedIdentifier,
         result: "success",
+        details: { userId: sessionData.user.id, edgeIsNew: Boolean(verifyRes?.is_new) },
+      });
+
+      logAuthEvent("APPROVED_B2B_CLAIM_STARTED", {
+        attemptId,
+        method,
+        identifier: normalizedIdentifier,
+        result: "started",
         details: { userId: sessionData.user.id },
+      });
+      const claimOutcome = await claimApprovedB2bIdentityForAuthenticatedSession(
+        invokeApprovedB2bIdentityClaimRpc,
+        async () => Boolean((await supabase.auth.getSession()).data.session?.access_token),
+      );
+      logAuthEvent("APPROVED_B2B_CLAIM_SUCCESS", {
+        attemptId,
+        method,
+        identifier: normalizedIdentifier,
+        result: "success",
+        details: {
+          userId: sessionData.user.id,
+          claimed: claimOutcome.claimed,
+          alreadyActive: claimOutcome.alreadyActive,
+          applicationId: claimOutcome.applicationId,
+          companyId: claimOutcome.companyId,
+        },
       });
 
       await runRedirectAfterAuth(normalizedIdentifier, method, sessionData.user.id, attemptId);
@@ -325,6 +352,16 @@ const BuyerLogin = () => {
           ? error.message
           : "mobile_session_failed";
       const mapped = mapBuyerPostMintAuthError(error);
+      if (mapped.stage === "approved_b2b_claim") {
+        logAuthEvent("APPROVED_B2B_CLAIM_FAILED", {
+          attemptId,
+          method,
+          identifier,
+          result: "failed",
+          error: raw,
+          details: { postMintStage: mapped.stage },
+        });
+      }
       logAuthEvent("OTP_VERIFY_FAILED", {
         attemptId,
         method,
