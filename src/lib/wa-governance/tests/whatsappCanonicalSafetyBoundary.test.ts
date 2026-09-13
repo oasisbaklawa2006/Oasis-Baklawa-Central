@@ -40,15 +40,17 @@ describe("WhatsApp canonical safety boundary", () => {
   it("stops Banyan before its retained legacy lifecycle can execute", () => {
     const parser = readRepoFile("supabase/functions/banyan-central-parser/index.ts");
     const marker = parser.indexOf("WA_CANONICAL_RETIREMENT");
-    const retiredReturn = parser.indexOf("status: 410", marker);
-    const serviceClient = parser.indexOf("const supabaseAdmin = createClient", marker);
+    const unreachableLegacy = parser.indexOf("/* c8 ignore start");
+    const liveHandler = parser.slice(0, unreachableLegacy);
 
     expect(marker).toBeGreaterThan(-1);
-    expect(retiredReturn).toBeGreaterThan(marker);
-    expect(serviceClient).toBeGreaterThan(retiredReturn);
-    expect(parser.slice(marker, serviceClient)).toContain(
-      "Banyan independent WhatsApp lifecycle is retired",
-    );
+    expect(unreachableLegacy).toBeGreaterThan(marker);
+    expect(liveHandler).toContain("whatsapp-message-stitcher");
+    expect(liveHandler).toContain("retired_banyan_ai");
+    expect(liveHandler).not.toContain("status: 410");
+    expect(liveHandler).not.toMatch(/\.from\(\s*["']suggested_orders["']\s*\)/);
+    expect(liveHandler).not.toMatch(/\.from\(\s*["']shadow_clients["']\s*\)/);
+    expect(parser.slice(unreachableLegacy)).toMatch(/\.from\(\s*["']suggested_orders["']\s*\)/);
   });
 
   it("keeps webhook ingress incapable of creating shadow companies", () => {
