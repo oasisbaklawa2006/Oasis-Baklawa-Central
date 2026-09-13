@@ -12,6 +12,7 @@ import {
   redirectAfterAuth,
   type AuthStatus,
 } from "@/lib/auth-flow";
+import { mapBuyerOtpProviderError, mapBuyerPostMintAuthError } from "@/lib/buyer-login-errors";
 import { createAuthAttemptId, logAuthEvent, type AuthAttemptMethod } from "@/lib/auth-logging";
 import { isEmailIdentifier, normalizeIdentifier, normalizePhone } from "@/lib/auth-identity";
 import { signOutAndClearSession } from "@/utils/authSession";
@@ -87,19 +88,6 @@ function providerErrorMessage(error: unknown) {
     return firstNonEmptyString(record.message, record.errorMessage, record.error, record.type) ?? "otp_request_failed";
   }
   return typeof error === "string" ? error : "otp_request_failed";
-}
-
-function mapOtpErrorMessage(rawMessage?: string | null) {
-  const message = (rawMessage ?? "").toLowerCase();
-  if (message.includes("session_token_mint_failed") || message.includes("session_token_missing")) return "MSG91 verified the OTP, but session creation failed. Please retry.";
-  if (message.includes("session_token_mint_timeout") || message.includes("msg91_edge_timeout")) return "MSG91 verified the OTP, but Oasis session creation timed out. Please retry.";
-  if (message.includes("expired")) return "OTP expired. Please request a new code.";
-  if (message.includes("invalid") || message.includes("incorrect")) return "OTP invalid. Please enter the correct code and try again.";
-  if (message.includes("network") || message.includes("fetch")) return "Network error. Please check your connection and try again.";
-  if (message.includes("phone_linked_to_missing_auth_identity")) return "This mobile identity needs account reconciliation. Please contact Oasis support.";
-  if (message.includes("duplicate_phone_identity")) return "This mobile number is linked to more than one account. Please contact Oasis support.";
-  if (message.includes("provider_verification_failed")) return "MSG91 could not verify this OTP session. Please request a new OTP.";
-  return "Mobile verification failed. Please try again.";
 }
 
 const BuyerLogin = () => {
@@ -331,15 +319,21 @@ const BuyerLogin = () => {
       setLoading(false);
     } catch (error) {
       controllerRef.current.clearTimer(edgeTimeout);
-      const raw = abortController.signal.aborted ? "session_token_mint_timeout" : error instanceof Error ? error.message : "mobile_session_failed";
+      const raw = abortController.signal.aborted
+        ? "session_token_mint_timeout"
+        : error instanceof Error
+          ? error.message
+          : "mobile_session_failed";
+      const mapped = mapBuyerPostMintAuthError(error);
       logAuthEvent("OTP_VERIFY_FAILED", {
         attemptId,
         method,
         identifier,
         result: "failed",
         error: raw,
+        details: { postMintStage: mapped.stage },
       });
-      await finalizeFailure(mapOtpErrorMessage(raw), true);
+      await finalizeFailure(mapped.message, true);
     }
   };
 
@@ -396,7 +390,7 @@ const BuyerLogin = () => {
           controllerRef.current.clearTimer(callbackTimeout);
           const message = providerErrorMessage(error);
           logAuthEvent("OTP_REQUEST_FAILED", { attemptId, method, identifier: phone.e164 || identifier, result: "failed", error: message });
-          void finalizeFailure(mapOtpErrorMessage(message));
+          void finalizeFailure(mapBuyerOtpProviderError(message));
         },
       );
     } catch (error) {
@@ -445,13 +439,13 @@ const BuyerLogin = () => {
           controllerRef.current.clearTimer(callbackTimeout);
           const message = providerErrorMessage(error);
           logAuthEvent("OTP_VERIFY_FAILED", { attemptId, method, identifier: phone.e164 || identifier, result: "failed", error: message });
-          void finalizeFailure(mapOtpErrorMessage(message));
+          void finalizeFailure(mapBuyerOtpProviderError(message));
         },
         mobileReqId ?? undefined,
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : "otp_verify_failed";
-      await finalizeFailure(mapOtpErrorMessage(message));
+      await finalizeFailure(mapBuyerOtpProviderError(message));
     }
   };
 
@@ -487,7 +481,7 @@ const BuyerLogin = () => {
           if (attemptRef.current?.id !== attemptId) return;
           controllerRef.current.clearTimer(callbackTimeout);
           const message = providerErrorMessage(error);
-          void finalizeFailure(mapOtpErrorMessage(message));
+          void finalizeFailure(mapBuyerOtpProviderError(message));
         },
         mobileReqId ?? undefined,
       );

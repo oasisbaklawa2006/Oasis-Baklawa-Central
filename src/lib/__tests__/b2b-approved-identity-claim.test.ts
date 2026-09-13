@@ -92,6 +92,16 @@ describe("UAT #561 approved B2B identity claim", () => {
     await expect(claimApprovedB2bIdentity(async () => ({
       data: null,
       error: { message: "ambiguous approved application" },
-    }))).rejects.toThrow("APPROVED_B2B_IDENTITY_CLAIM_FAILED");
+    }))).rejects.toThrow("APPROVED_B2B_IDENTITY_CLAIM_FAILED:ambiguous");
+  });
+
+  it("classifies malformed multi-row claim payloads as ambiguous", async () => {
+    await expect(claimApprovedB2bIdentity(async () => ({
+      data: [
+        { application_id: null, claimed: false, company_id: null, already_active: false },
+        { application_id: null, claimed: false, company_id: null, already_active: false },
+      ],
+      error: null,
+    }))).rejects.toThrow("APPROVED_B2B_IDENTITY_CLAIM_FAILED:ambiguous");
   });
 });

@@ -65,9 +65,10 @@ describe("Buyer MSG91 custom OTP UI regression", () => {
     expect(buyerLogin).not.toContain("attempts >= 40");
   });
 
-  it("announces dynamic OTP status and maps session-token failures", () => {
+  it("announces dynamic OTP status and maps post-mint failures through buyer-login-errors", () => {
     expect(buyerLogin).toContain('aria-live="polite"');
-    expect(buyerLogin).toContain("session_token_mint_failed");
+    expect(buyerLogin).toContain("mapBuyerPostMintAuthError");
+    expect(buyerLogin).toContain("postMintStage");
     expect(buyerLogin).toContain("session_token_missing");
   });
 });

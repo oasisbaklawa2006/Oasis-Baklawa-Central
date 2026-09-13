@@ -21,8 +21,9 @@ async function invokeApprovedBuyerIdentityClaim(): Promise<ClaimRpcResponse> {
   // are accepted because Core derives phone/application authority from auth.uid().
   const rpc = supabase.rpc as unknown as (
     name: string,
+    args?: Record<string, never>,
   ) => PromiseLike<ClaimRpcResponse>;
-  return await rpc(APPROVED_B2B_IDENTITY_CLAIM_RPC);
+  return await rpc(APPROVED_B2B_IDENTITY_CLAIM_RPC, {});
 }
 
 /**

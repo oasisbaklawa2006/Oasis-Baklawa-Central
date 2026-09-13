@@ -17,6 +17,12 @@ export type ApprovedB2bIdentityClaimOutcome = {
 type RpcErrorLike = { message?: string } | null;
 type ClaimRpcResult = { data: unknown; error: RpcErrorLike };
 
+function classifyApprovedB2bClaimRpcError(message?: string | null): string {
+  const normalized = (message ?? "").toLowerCase();
+  if (normalized.includes("ambiguous") || normalized.includes("duplicate")) return "ambiguous";
+  return "rpc_error";
+}
+
 /**
  * The only Central auth exchange that needs the post-session buyer claim is the
  * programmatic TokenHash handoff used by the MSG91 bridge. Ordinary SMS/email
@@ -58,12 +64,13 @@ export async function claimApprovedB2bIdentity(
 ): Promise<ApprovedB2bIdentityClaimOutcome> {
   const { data, error } = await invoke();
   if (error) {
-    throw new Error("APPROVED_B2B_IDENTITY_CLAIM_FAILED");
+    throw new Error(`APPROVED_B2B_IDENTITY_CLAIM_FAILED:${classifyApprovedB2bClaimRpcError(error.message)}`);
   }
 
   const candidate = Array.isArray(data) && data.length === 1 ? data[0] : !Array.isArray(data) ? data : null;
   if (!isApprovedB2bIdentityClaimRow(candidate)) {
-    throw new Error("APPROVED_B2B_IDENTITY_CLAIM_FAILED");
+    const malformedReason = Array.isArray(data) && data.length > 1 ? "ambiguous" : "malformed_response";
+    throw new Error(`APPROVED_B2B_IDENTITY_CLAIM_FAILED:${malformedReason}`);
   }
 
   return {
