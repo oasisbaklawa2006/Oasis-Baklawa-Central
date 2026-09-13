@@ -232,6 +232,9 @@ const BuyerLogin = () => {
     }
 
     if (!providerInitializedRef.current) {
+      // MSG91 otp-provider.js throws if `success` is missing at init time (even with
+      // exposeMethods). sendOtp/verifyOtp callbacks drive Buyer UX; these init hooks
+      // satisfy the SDK contract and avoid duplicate handling on verify.
       window.initSendOTP({
         widgetId: MSG91_WIDGET_ID,
         tokenAuth: MSG91_TOKEN_AUTH,
@@ -240,6 +243,8 @@ const BuyerLogin = () => {
         "country-code": "91",
         "auto-country": false,
         captchaRenderId: MSG91_CAPTCHA_ID,
+        success: () => {},
+        failure: () => {},
       });
       providerInitializedRef.current = true;
     }

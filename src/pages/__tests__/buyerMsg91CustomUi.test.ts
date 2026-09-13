@@ -12,6 +12,16 @@ describe("Buyer MSG91 custom OTP UI regression", () => {
     expect(buyerLogin).not.toContain("exposeMethods: false");
   });
 
+  it("registers MSG91 init success/failure callbacks required by otp-provider.js", () => {
+    const initBlock = buyerLogin.slice(
+      buyerLogin.indexOf("window.initSendOTP({"),
+      buyerLogin.indexOf("providerInitializedRef.current = true"),
+    );
+    expect(initBlock).toContain("success:");
+    expect(initBlock).toContain("failure:");
+    expect(initBlock).toContain("captchaRenderId: MSG91_CAPTCHA_ID");
+  });
+
   it("sends a country-code-qualified identifier and retains the provider request id", () => {
     expect(buyerLogin).toContain('const identifier = `91${phone.last10}`');
     expect(buyerLogin).toContain("extractMsg91RequestId");
