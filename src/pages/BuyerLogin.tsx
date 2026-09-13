@@ -12,8 +12,19 @@ import {
   redirectAfterAuth,
   type AuthStatus,
 } from "@/lib/auth-flow";
+import { invokeApprovedB2bIdentityClaimRpc } from "@/lib/approved-b2b-claim-invoke";
+import {
+  assertApprovedB2bClaimBound,
+  claimApprovedB2bIdentityForAuthenticatedSession,
+} from "@/lib/b2b-approved-identity-claim";
+import { mapBuyerOtpProviderError, mapBuyerPostMintAuthError } from "@/lib/buyer-login-errors";
 import { createAuthAttemptId, logAuthEvent, type AuthAttemptMethod } from "@/lib/auth-logging";
-import { isEmailIdentifier, normalizeIdentifier, normalizePhone } from "@/lib/auth-identity";
+import {
+  internalPhoneEmailFromIdentifier,
+  isEmailIdentifier,
+  normalizeIdentifier,
+  normalizePhone,
+} from "@/lib/auth-identity";
 import { signOutAndClearSession } from "@/utils/authSession";
 
 // MSG91 "Widget ID" and "Auth Token" are the browser OTP-widget configuration
@@ -23,6 +34,7 @@ const MSG91_WIDGET_ID = "3664766e464b383030383331";
 const MSG91_TOKEN_AUTH = "509994T6SRbi4LqM69ea72d0P1";
 const MSG91_PROVIDER_SCRIPT_ID = "msg91-otp-provider";
 const MSG91_CAPTCHA_ID = "msg91-captcha";
+const MSG91_CAPTCHA_REQUIRED_MESSAGE = "Please complete the security check above before requesting an OTP.";
 const MSG91_PROVIDER_CALL_TIMEOUT_MS = 20_000;
 const MSG91_EDGE_TIMEOUT_MS = 15_000;
 
@@ -39,6 +51,18 @@ declare global {
     sendOtp?: (identifier: string, success?: Msg91Callback, failure?: Msg91Callback) => void;
     verifyOtp?: (otp: number | string, success?: Msg91Callback, failure?: Msg91Callback, reqId?: string) => void;
     retryOtp?: (channel: string | null, success?: Msg91Callback, failure?: Msg91Callback, reqId?: string) => void;
+    /** Present when MSG91 captcha is enabled for this widget (official Web SDK). */
+    isCaptchaVerified?: () => boolean;
+  }
+}
+
+/** MSG91 docs: call before sendOtp when captchaRenderId is configured. */
+function isMsg91CaptchaRequiredAndUnverified() {
+  if (typeof window === "undefined" || typeof window.isCaptchaVerified !== "function") return false;
+  try {
+    return !window.isCaptchaVerified();
+  } catch {
+    return true;
   }
 }
 
@@ -87,19 +111,6 @@ function providerErrorMessage(error: unknown) {
     return firstNonEmptyString(record.message, record.errorMessage, record.error, record.type) ?? "otp_request_failed";
   }
   return typeof error === "string" ? error : "otp_request_failed";
-}
-
-function mapOtpErrorMessage(rawMessage?: string | null) {
-  const message = (rawMessage ?? "").toLowerCase();
-  if (message.includes("session_token_mint_failed") || message.includes("session_token_missing")) return "MSG91 verified the OTP, but session creation failed. Please retry.";
-  if (message.includes("session_token_mint_timeout") || message.includes("msg91_edge_timeout")) return "MSG91 verified the OTP, but Oasis session creation timed out. Please retry.";
-  if (message.includes("expired")) return "OTP expired. Please request a new code.";
-  if (message.includes("invalid") || message.includes("incorrect")) return "OTP invalid. Please enter the correct code and try again.";
-  if (message.includes("network") || message.includes("fetch")) return "Network error. Please check your connection and try again.";
-  if (message.includes("phone_linked_to_missing_auth_identity")) return "This mobile identity needs account reconciliation. Please contact Oasis support.";
-  if (message.includes("duplicate_phone_identity")) return "This mobile number is linked to more than one account. Please contact Oasis support.";
-  if (message.includes("provider_verification_failed")) return "MSG91 could not verify this OTP session. Please request a new OTP.";
-  return "Mobile verification failed. Please try again.";
 }
 
 const BuyerLogin = () => {
@@ -289,6 +300,7 @@ const BuyerLogin = () => {
     updateStatus("verifying_otp", { result: "started" });
     const abortController = controllerRef.current.createAbortController();
     const edgeTimeout = controllerRef.current.registerTimer(window.setTimeout(() => abortController.abort(), MSG91_EDGE_TIMEOUT_MS));
+    let edgeVerified = false;
     try {
       const { data: verifyRes, error } = await supabase.functions.invoke("msg91-otp", {
         body: { mode: "verify_widget", accessToken, phone: identifier, attemptId },
@@ -302,6 +314,7 @@ const BuyerLogin = () => {
       const resolvedIdentifier = firstNonEmptyString(verifyRes?.phone, identifier) ?? identifier;
       const normalizedIdentifier = normalizeIdentifier(resolvedIdentifier).normalized;
       attemptRef.current = { id: attemptId, method, identifier: normalizedIdentifier };
+      edgeVerified = true;
       logAuthEvent("OTP_VERIFY_SUCCESS", {
         attemptId,
         method,
@@ -312,18 +325,68 @@ const BuyerLogin = () => {
 
       updateStatus("verification_success", { result: "success" });
       updateStatus("session_creation_in_progress", { result: "started" });
-      const { data: sessionData, error: sessionError } = await supabase.auth.verifyOtp({
-        token_hash: verifyRes.token_hash,
-        type: "magiclink",
+      const sessionEmail = firstNonEmptyString(verifyRes?.email)
+        ?? internalPhoneEmailFromIdentifier(resolvedIdentifier);
+      logAuthEvent("SESSION_CREATE_STARTED", {
+        attemptId,
+        method,
+        identifier: normalizedIdentifier,
+        result: "started",
+        details: { userId: verifyRes.user_id },
       });
-      if (sessionError || !sessionData.user) throw new Error(sessionError?.message || "session_create_failed");
+      const { data: sessionData, error: sessionError } = await supabase.auth.verifyOtp({
+        email: sessionEmail,
+        token_hash: verifyRes.token_hash,
+        type: "email",
+      });
+      if (sessionError || !sessionData.user) {
+        const sessionFailure = sessionError?.message || "session_create_failed";
+        logAuthEvent("SESSION_CREATE_FAILED", {
+          attemptId,
+          method,
+          identifier: normalizedIdentifier,
+          result: "failed",
+          error: sessionFailure,
+          details: { userId: verifyRes.user_id },
+        });
+        throw new Error(sessionFailure);
+      }
 
       logAuthEvent("SESSION_CREATE_SUCCESS", {
         attemptId,
         method,
         identifier: normalizedIdentifier,
         result: "success",
+        details: { userId: sessionData.user.id, edgeIsNew: Boolean(verifyRes?.is_new) },
+      });
+
+      logAuthEvent("APPROVED_B2B_CLAIM_STARTED", {
+        attemptId,
+        method,
+        identifier: normalizedIdentifier,
+        result: "started",
         details: { userId: sessionData.user.id },
+      });
+      const mintedSession = sessionData.session;
+      const claimOutcome = await claimApprovedB2bIdentityForAuthenticatedSession(
+        invokeApprovedB2bIdentityClaimRpc,
+        async () => Boolean(
+          mintedSession?.access_token || (await supabase.auth.getSession()).data.session?.access_token,
+        ),
+      );
+      assertApprovedB2bClaimBound(claimOutcome, Boolean(verifyRes?.approved_b2b_pending_claim));
+      logAuthEvent("APPROVED_B2B_CLAIM_SUCCESS", {
+        attemptId,
+        method,
+        identifier: normalizedIdentifier,
+        result: "success",
+        details: {
+          userId: sessionData.user.id,
+          claimed: claimOutcome.claimed,
+          alreadyActive: claimOutcome.alreadyActive,
+          applicationId: claimOutcome.applicationId,
+          companyId: claimOutcome.companyId,
+        },
       });
 
       await runRedirectAfterAuth(normalizedIdentifier, method, sessionData.user.id, attemptId);
@@ -331,15 +394,43 @@ const BuyerLogin = () => {
       setLoading(false);
     } catch (error) {
       controllerRef.current.clearTimer(edgeTimeout);
-      const raw = abortController.signal.aborted ? "session_token_mint_timeout" : error instanceof Error ? error.message : "mobile_session_failed";
-      logAuthEvent("OTP_VERIFY_FAILED", {
-        attemptId,
-        method,
-        identifier,
-        result: "failed",
-        error: raw,
-      });
-      await finalizeFailure(mapOtpErrorMessage(raw), true);
+      const raw = abortController.signal.aborted
+        ? "session_token_mint_timeout"
+        : error instanceof Error
+          ? error.message
+          : "mobile_session_failed";
+      const mapped = mapBuyerPostMintAuthError(
+        abortController.signal.aborted ? new Error("session_token_mint_timeout") : error,
+      );
+      if (mapped.stage === "approved_b2b_claim") {
+        logAuthEvent("APPROVED_B2B_CLAIM_FAILED", {
+          attemptId,
+          method,
+          identifier,
+          result: "failed",
+          error: raw,
+          details: { postMintStage: mapped.stage },
+        });
+      } else if (edgeVerified) {
+        logAuthEvent("SESSION_CREATE_FAILED", {
+          attemptId,
+          method,
+          identifier,
+          result: "failed",
+          error: raw,
+          details: { postMintStage: mapped.stage },
+        });
+      } else {
+        logAuthEvent("OTP_VERIFY_FAILED", {
+          attemptId,
+          method,
+          identifier,
+          result: "failed",
+          error: raw,
+          details: { postMintStage: mapped.stage },
+        });
+      }
+      await finalizeFailure(mapped.message, true);
     }
   };
 
@@ -363,6 +454,19 @@ const BuyerLogin = () => {
 
     try {
       await ensureMsg91CustomUi();
+      if (isMsg91CaptchaRequiredAndUnverified()) {
+        updateStatus("failed", { result: "failed", error: "msg91_captcha_required" });
+        setStatusMessage(MSG91_CAPTCHA_REQUIRED_MESSAGE);
+        setLoading(false);
+        logAuthEvent("OTP_REQUEST_FAILED", {
+          attemptId,
+          method,
+          identifier: phone.e164 || identifier,
+          result: "failed",
+          error: "msg91_captcha_required",
+        });
+        return;
+      }
       if (typeof window.sendOtp !== "function") throw new Error("msg91_send_method_unavailable");
       const callbackTimeout = controllerRef.current.registerTimer(window.setTimeout(() => {
         if (attemptRef.current?.id !== attemptId) return;
@@ -396,7 +500,7 @@ const BuyerLogin = () => {
           controllerRef.current.clearTimer(callbackTimeout);
           const message = providerErrorMessage(error);
           logAuthEvent("OTP_REQUEST_FAILED", { attemptId, method, identifier: phone.e164 || identifier, result: "failed", error: message });
-          void finalizeFailure(mapOtpErrorMessage(message));
+          void finalizeFailure(mapBuyerOtpProviderError(message));
         },
       );
     } catch (error) {
@@ -445,13 +549,13 @@ const BuyerLogin = () => {
           controllerRef.current.clearTimer(callbackTimeout);
           const message = providerErrorMessage(error);
           logAuthEvent("OTP_VERIFY_FAILED", { attemptId, method, identifier: phone.e164 || identifier, result: "failed", error: message });
-          void finalizeFailure(mapOtpErrorMessage(message));
+          void finalizeFailure(mapBuyerOtpProviderError(message));
         },
         mobileReqId ?? undefined,
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : "otp_verify_failed";
-      await finalizeFailure(mapOtpErrorMessage(message));
+      await finalizeFailure(mapBuyerOtpProviderError(message));
     }
   };
 
@@ -463,6 +567,12 @@ const BuyerLogin = () => {
     setStatusMessage(null);
     try {
       await ensureMsg91CustomUi();
+      if (isMsg91CaptchaRequiredAndUnverified()) {
+        setAuthStatus("failed");
+        setStatusMessage(MSG91_CAPTCHA_REQUIRED_MESSAGE);
+        setLoading(false);
+        return;
+      }
       if (typeof window.retryOtp !== "function") {
         setLoading(false);
         return void sendMobileOtp();
@@ -487,7 +597,7 @@ const BuyerLogin = () => {
           if (attemptRef.current?.id !== attemptId) return;
           controllerRef.current.clearTimer(callbackTimeout);
           const message = providerErrorMessage(error);
-          void finalizeFailure(mapOtpErrorMessage(message));
+          void finalizeFailure(mapBuyerOtpProviderError(message));
         },
         mobileReqId ?? undefined,
       );

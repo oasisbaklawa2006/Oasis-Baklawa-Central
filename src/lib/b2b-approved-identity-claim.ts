@@ -15,7 +15,30 @@ export type ApprovedB2bIdentityClaimOutcome = {
 };
 
 type RpcErrorLike = { message?: string } | null;
-type ClaimRpcResult = { data: unknown; error: RpcErrorLike };
+export type ClaimRpcResult = { data: unknown; error: RpcErrorLike };
+
+const NO_MATCH_CLAIM_ROW: ApprovedB2bIdentityClaimRow = {
+  application_id: null,
+  claimed: false,
+  company_id: null,
+  already_active: false,
+};
+
+/** Core may return an empty set when no identity_profiles row exists yet for auth.uid(). */
+export function normalizeApprovedB2bClaimRpcData(data: unknown): ApprovedB2bIdentityClaimRow | null {
+  if (Array.isArray(data)) {
+    if (data.length === 0) return NO_MATCH_CLAIM_ROW;
+    if (data.length === 1) return isApprovedB2bIdentityClaimRow(data[0]) ? data[0] : null;
+    return null;
+  }
+  return isApprovedB2bIdentityClaimRow(data) ? data : null;
+}
+
+function classifyApprovedB2bClaimRpcError(message?: string | null): string {
+  const normalized = (message ?? "").toLowerCase();
+  if (normalized.includes("ambiguous") || normalized.includes("duplicate")) return "ambiguous";
+  return "rpc_error";
+}
 
 /**
  * The only Central auth exchange that needs the post-session buyer claim is the
@@ -58,12 +81,13 @@ export async function claimApprovedB2bIdentity(
 ): Promise<ApprovedB2bIdentityClaimOutcome> {
   const { data, error } = await invoke();
   if (error) {
-    throw new Error("APPROVED_B2B_IDENTITY_CLAIM_FAILED");
+    throw new Error(`APPROVED_B2B_IDENTITY_CLAIM_FAILED:${classifyApprovedB2bClaimRpcError(error.message)}`);
   }
 
-  const candidate = Array.isArray(data) && data.length === 1 ? data[0] : !Array.isArray(data) ? data : null;
-  if (!isApprovedB2bIdentityClaimRow(candidate)) {
-    throw new Error("APPROVED_B2B_IDENTITY_CLAIM_FAILED");
+  const candidate = normalizeApprovedB2bClaimRpcData(data);
+  if (!candidate) {
+    const malformedReason = Array.isArray(data) && data.length > 1 ? "ambiguous" : "malformed_response";
+    throw new Error(`APPROVED_B2B_IDENTITY_CLAIM_FAILED:${malformedReason}`);
   }
 
   return {
@@ -94,4 +118,47 @@ export async function verifyTokenHashThenClaimApprovedB2bIdentity<T extends {
 
   await claim();
   return verified;
+}
+
+/**
+ * Buyer MSG91 post-session claim: runs only after a verified Supabase session is
+ * readable client-side so Core can bind auth.uid() to the approved application /
+ * identity_profiles row before account resolution.
+ */
+export async function waitForAuthenticatedSession(
+  ensureSession: () => Promise<boolean>,
+  attempts = 8,
+  delayMs = 75,
+): Promise<boolean> {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    if (await ensureSession()) return true;
+    if (attempt < attempts - 1) {
+      await new Promise((resolve) => globalThis.setTimeout(resolve, delayMs));
+    }
+  }
+  return false;
+}
+
+export async function claimApprovedB2bIdentityForAuthenticatedSession(
+  invoke: () => Promise<ClaimRpcResult>,
+  ensureSession: () => Promise<boolean>,
+): Promise<ApprovedB2bIdentityClaimOutcome> {
+  const sessionReady = await waitForAuthenticatedSession(ensureSession);
+  if (!sessionReady) {
+    throw new Error("APPROVED_B2B_IDENTITY_CLAIM_FAILED:session_missing");
+  }
+  return await claimApprovedB2bIdentity(invoke);
+}
+
+/**
+ * Fail closed when Edge signalled an approved application awaiting identity bind
+ * but Core claim did not attach membership (prevents silent access-request redirect).
+ */
+export function assertApprovedB2bClaimBound(
+  outcome: ApprovedB2bIdentityClaimOutcome,
+  approvedApplicationPendingClaim: boolean,
+): void {
+  if (!approvedApplicationPendingClaim) return;
+  if (outcome.claimed || outcome.alreadyActive) return;
+  throw new Error("APPROVED_B2B_IDENTITY_CLAIM_FAILED:bind_failed");
 }
