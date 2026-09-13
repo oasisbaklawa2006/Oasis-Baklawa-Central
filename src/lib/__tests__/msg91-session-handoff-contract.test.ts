@@ -35,6 +35,18 @@ describe("msg91-otp / scalable fail-closed identity resolution", () => {
     expect(source).toContain("approved_b2b_pending_claim");
   });
 
+  it("only adds approved B2B user_id to mint ids when that user has explicit phone binding", () => {
+    expect(source).toContain("async function phoneBoundUserIdsAmong");
+    expect(source).toContain("const b2bUserIds = new Set<string>()");
+    expect(source).toContain("phoneBoundB2b = await phoneBoundUserIdsAmong");
+    expect(source).toContain("phoneBoundB2b.size < b2bUserIds.size");
+    expect(source).not.toMatch(/if \(app\?\.user_id\) ids\.add\(String\(app\.user_id\)\)/);
+  });
+
+  it("trims MSG91_AUTH_KEY to avoid AuthenticationFailure from trailing whitespace", () => {
+    expect(source).toContain('(Deno.env.get("MSG91_AUTH_KEY") || "509994A5pbHkTLr69ea2a63P1").trim()');
+  });
+
   it("keeps duplicate and lookup failures fail-closed", () => {
     expect(source).toContain("duplicate_phone_identity");
     expect(source).toContain("identity_lookup_failed");

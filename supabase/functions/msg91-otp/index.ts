@@ -101,13 +101,47 @@ async function createAuthUserForPhone(e164: string, normalized: string): Promise
  * identity on b2b_applications.user_id or company membership.
  */
 type PublicIdentityMatchResult = {
-  /** User IDs with an explicit verified-phone binding on public.users (or B2B user_id). */
+  /** User IDs with an explicit verified-phone binding on public.users. */
   ids: string[];
   /** Company-member IDs inferred only from company phone — never mint targets. */
   unboundCompanyMemberIds: string[];
-  /** True when an approved application matches this phone but user_id is still null. */
+  /** True when an approved application matches this phone but has no phone-bound user_id yet. */
   approvedB2bPendingClaim: boolean;
 };
+
+/** Among the given user IDs, return only those with explicit phone binding matching variants. */
+async function phoneBoundUserIdsAmong(
+  userIds: string[],
+  variants: string[],
+  pattern: string,
+): Promise<Set<string> | { error: string }> {
+  if (!userIds.length) return new Set();
+  if (!supabaseAdmin) return { error: "service_role_unavailable" };
+
+  const [phoneResult, mobileResult, secondaryResult, patternResult] = await Promise.all([
+    supabaseAdmin.from("users").select("id").in("id", userIds).in("phone", variants),
+    supabaseAdmin.from("users").select("id").in("id", userIds).in("mobile_number", variants),
+    supabaseAdmin.from("users").select("id").in("id", userIds).overlaps("secondary_phones", variants),
+    supabaseAdmin.from("users").select("id").in("id", userIds).or(`phone.ilike.${pattern},mobile_number.ilike.${pattern}`),
+  ]);
+
+  const lookupError = phoneResult.error || mobileResult.error || secondaryResult.error || patternResult.error;
+  if (lookupError) {
+    console.error("[msg91] b2b user phone binding lookup error:", maskSecret(lookupError.message ?? null) ?? "unknown");
+    return { error: "identity_lookup_failed" };
+  }
+
+  const bound = new Set<string>();
+  for (const row of [
+    ...(phoneResult.data || []),
+    ...(mobileResult.data || []),
+    ...(secondaryResult.data || []),
+    ...(patternResult.data || []),
+  ]) {
+    if (row?.id) bound.add(String(row.id));
+  }
+  return bound;
+}
 
 async function findPublicIdentityMatches(normalized: string): Promise<PublicIdentityMatchResult | { error: string }> {
   if (!supabaseAdmin) return { error: "service_role_unavailable" };
@@ -147,11 +181,19 @@ async function findPublicIdentityMatches(normalized: string): Promise<PublicIden
   }
 
   const companyIds = new Set<string>();
+  const b2bUserIds = new Set<string>();
   let approvedB2bPendingClaim = false;
   for (const app of appResult.data || []) {
-    if (app?.user_id) ids.add(String(app.user_id));
+    if (app?.user_id) b2bUserIds.add(String(app.user_id));
     else approvedB2bPendingClaim = true;
     if (app?.resolved_company_id) companyIds.add(String(app.resolved_company_id));
+  }
+
+  if (b2bUserIds.size > 0) {
+    const phoneBoundB2b = await phoneBoundUserIdsAmong([...b2bUserIds], variants, pattern);
+    if ("error" in phoneBoundB2b) return phoneBoundB2b;
+    for (const userId of phoneBoundB2b) ids.add(userId);
+    if (phoneBoundB2b.size < b2bUserIds.size) approvedB2bPendingClaim = true;
   }
   for (const company of companyResult.data || []) {
     if (company?.id) companyIds.add(String(company.id));
@@ -238,7 +280,7 @@ async function ensurePendingProfile(userId: string, phoneE164: string): Promise<
 
 // Unified MSG91 auth key (matches client widget tokenAuth: 509994AgMgjQib69e9dc60P1).
 // Falls back to placeholder so the function still boots if secret unset.
-const AUTH_KEY = Deno.env.get("MSG91_AUTH_KEY") || "509994A5pbHkTLr69ea2a63P1";
+const AUTH_KEY = (Deno.env.get("MSG91_AUTH_KEY") || "509994A5pbHkTLr69ea2a63P1").trim();
 const SENDER_ID = Deno.env.get("MSG91_SENDER_ID") || "OASBKL";
 const VOICE_DID = Deno.env.get("MSG91_VOICE_DID") || "";
 const MSG91_ENABLED = AUTH_KEY !== "PLACEHOLDER_NOT_CONFIGURED";
