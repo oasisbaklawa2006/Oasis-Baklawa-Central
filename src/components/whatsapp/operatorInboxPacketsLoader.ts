@@ -67,6 +67,11 @@ export function withTimeout<T>(promise: Promise<T>, ms: number, message: string)
   });
 }
 
+// The empty `whatsapp_messages!...!inner()` embed is deliberately part of the
+// packet query rather than a client-side filter. Historical pre-atomic stitcher
+// races can leave an open packet shell after its messages are correctly claimed
+// by a different packet. `!inner()` requires at least one governed child message
+// without returning every child id, keeping both pagination and payload bounded.
 const PACKET_SELECT = `
       id,
       contact_id,
@@ -79,7 +84,8 @@ const PACKET_SELECT = `
         phone_number,
         customer_name,
         wa_contact_id
-      )
+      ),
+      whatsapp_messages!fk_whatsapp_messages_packet_id!inner()
     `;
 
 type PacketSelectRow = {
@@ -129,6 +135,8 @@ export async function fetchPacketById(packetId: string): Promise<OperatorInboxPa
 /**
  * Fetch one bounded, newest-first page of open packets. Always uses `.range` with an
  * explicit upper bound — callers must never request an unbounded window.
+ * The inner message relation excludes zero-message legacy packet shells at the
+ * database boundary, preserving stable pagination over actual conversations.
  */
 export async function fetchOpenPacketsPage(offset: number, limit: number): Promise<OperatorInboxPacket[]> {
   const { data, error } = await supabase
