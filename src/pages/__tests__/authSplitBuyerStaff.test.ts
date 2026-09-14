@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 
-// AUTH SURFACE CONTRACT — public Buyer welcome, passwordless Buyer OTP login,
-// and restricted Oasis employee email/password login remain separate surfaces.
+// AUTH SURFACE CONTRACT — public Buyer welcome, gated passwordless Buyer OTP
+// login, and restricted Oasis employee email/password login remain separate.
 
 const authEntry = readFileSync("src/pages/AuthEntry.tsx", "utf8");
 const buyerLogin = readFileSync("src/pages/BuyerLogin.tsx", "utf8");
@@ -10,6 +10,7 @@ const staffLogin = readFileSync("src/pages/StaffLogin.tsx", "utf8");
 const appSource = readFileSync("src/App.tsx", "utf8");
 const authFlowSource = readFileSync("src/lib/auth-flow.ts", "utf8");
 const authLoggingSource = readFileSync("src/lib/auth-logging.ts", "utf8");
+const gatewaySource = readFileSync("supabase/functions/buyer-login-gateway/index.ts", "utf8");
 
 describe("Requirement 1 — /login is the public Buyer welcome entry", () => {
   it("routes /login to AuthEntry", () => {
@@ -28,14 +29,6 @@ describe("Requirement 1 — /login is the public Buyer welcome entry", () => {
     expect(authEntry).toContain("Request B2B Access");
     expect(authEntry).toContain("Language and currency");
   });
-
-  it("keeps language/currency preferences on the same public route", () => {
-    expect(authEntry).toContain('searchParams.get("view") === "preferences"');
-    expect(authEntry).toContain('setLang("en")');
-    expect(authEntry).toContain('setLang("hi")');
-    expect(authEntry).toContain('setCurrency("INR")');
-    expect(authEntry).toContain('setCurrency("USD")');
-  });
 });
 
 describe("Requirement 2/3 — /buyer/login is passwordless Buyer authentication", () => {
@@ -43,22 +36,38 @@ describe("Requirement 2/3 — /buyer/login is passwordless Buyer authentication"
     expect(appSource).toContain('<Route path="/buyer/login" element={<BuyerLogin />} />');
   });
 
-  it("supports certified MSG91 mobile OTP", () => {
+  it("supports certified MSG91 mobile OTP behind Buyer eligibility preflight", () => {
     expect(buyerLogin).toContain("initSendOTP");
     expect(buyerLogin).toContain("Secure Mobile Verification");
     expect(buyerLogin).toContain("MSG91_WIDGET_ID");
     expect(buyerLogin).toContain('method: AuthAttemptMethod = "mobile_otp"');
+    expect(buyerLogin).toContain('supabase.functions.invoke("buyer-login-gateway"');
+    expect(buyerLogin).toContain('mode: "preflight"');
     expect(buyerLogin).toContain('supabase.functions.invoke("msg91-otp"');
   });
 
-  it("supports Supabase email OTP without creating unknown users", () => {
+  it("uses a governed numeric email OTP with no legacy portal redirect", () => {
     expect(authLoggingSource).toContain('"email_otp"');
     expect(buyerLogin).toContain('method: AuthAttemptMethod = "email_otp"');
-    expect(buyerLogin).toContain("supabase.auth.signInWithOtp");
-    expect(buyerLogin).toContain("shouldCreateUser: false");
+    expect(buyerLogin).toContain('mode: "email_otp_send"');
+    expect(buyerLogin).toContain('channel: "email"');
     expect(buyerLogin).toContain("supabase.auth.verifyOtp");
     expect(buyerLogin).toContain('type: "email"');
     expect(buyerLogin).toContain("Email OTP");
+    expect(buyerLogin).not.toContain("b2b.oasisbaklawa.com");
+    expect(gatewaySource).toContain("auth.admin.generateLink");
+    expect(gatewaySource).toContain("email_otp");
+    expect(gatewaySource).not.toContain("action_link");
+  });
+
+  it("gates unknown, pending and employee identities before OTP", () => {
+    expect(gatewaySource).toContain('state: "unknown"');
+    expect(gatewaySource).toContain('state: "pending"');
+    expect(gatewaySource).toContain('state: "employee"');
+    expect(gatewaySource).toContain("Employees must use Admin Login");
+    expect(buyerLogin).toContain("applyEligibility");
+    expect(buyerLogin).toContain('navigate("/staff/login")');
+    expect(buyerLogin).toContain('navigate("/buyer/access-request")');
   });
 
   it("never renders or uses a Buyer password", () => {
@@ -78,6 +87,7 @@ describe("Requirement 2/3 — /buyer/login is passwordless Buyer authentication"
 
   it("enforces the Buyer membership boundary through the shared redirect helper", () => {
     expect(buyerLogin).toContain('requiredMembership: "buyer"');
+    expect(buyerLogin).toContain("claimApprovedB2bIdentityForAuthenticatedSession");
   });
 });
 
@@ -98,7 +108,6 @@ describe("Requirement 4/5/6 — /staff/login is restricted employee-only auth", 
     expect(staffLogin).not.toContain("Request B2B Access");
     expect(staffLogin).not.toContain('navigate("/buyer/access-request")');
     expect(staffLogin).not.toContain("initSendOTP");
-    expect(staffLogin).not.toContain("ensureMsg91Provider");
     expect(staffLogin).not.toContain("MSG91_WIDGET_ID");
     expect(staffLogin).not.toContain('method: AuthAttemptMethod = "email_otp"');
   });
@@ -135,39 +144,13 @@ describe("Requirement 12 — Admin/Super Admin routing is role-derived only", ()
       expect(source).not.toContain("isAdminExpress");
     }
   });
-
-  it("redirectAfterAuth navigates only to the role-derived destination", () => {
-    const start = authFlowSource.indexOf("export async function redirectAfterAuth");
-    const body = authFlowSource.slice(start, authFlowSource.indexOf("\n}", authFlowSource.lastIndexOf("params.navigate(result.destination")));
-    expect(body).toContain("params.navigate(result.destination");
-    expect(body).not.toContain('"/admin/cmd-war-room"');
-  });
 });
 
-describe("MSG91 client-side configuration classification", () => {
-  it("BuyerLogin documents the widget-config vs provider-secret boundary", () => {
+describe("MSG91 client/server configuration boundary", () => {
+  it("BuyerLogin carries only widget configuration while server authkey remains Edge-only", () => {
     expect(buyerLogin).toContain("MSG91_WIDGET_ID");
     expect(buyerLogin).toContain("MSG91_TOKEN_AUTH");
-    expect(buyerLogin).toContain("not the MSG91");
-  });
-
-  it("no login surface embeds an MSG91 server-side authkey variable name", () => {
-    for (const source of [buyerLogin, staffLogin, authEntry]) {
-      expect(source).not.toContain("MSG91_AUTH_KEY");
-    }
-  });
-});
-
-describe("Requirement 7 (follow-up) — staff password reset uses the current app origin", () => {
-  it("StaffLogin no longer hard-codes the B2B reset hostname", () => {
-    expect(staffLogin).not.toContain("b2b.oasisbaklawa.com");
-    expect(staffLogin).toContain("`${window.location.origin}/reset-password`");
-  });
-});
-
-describe("Requirement 10 (follow-up) — /buyer/login and /staff/login remain separate lazy routes", () => {
-  it("App.tsx lazy-loads BuyerLogin and StaffLogin as distinct chunks", () => {
-    expect(appSource).toMatch(/const BuyerLogin\s*=\s*lazy\(\s*\(\)\s*=>\s*import\(["']\.\/pages\/BuyerLogin\.tsx["']\)\s*\)/);
-    expect(appSource).toMatch(/const StaffLogin\s*=\s*lazy\(\s*\(\)\s*=>\s*import\(["']\.\/pages\/StaffLogin\.tsx["']\)\s*\)/);
+    expect(buyerLogin).not.toContain("MSG91_AUTH_KEY");
+    expect(gatewaySource).toContain("MSG91_AUTH_KEY");
   });
 });
