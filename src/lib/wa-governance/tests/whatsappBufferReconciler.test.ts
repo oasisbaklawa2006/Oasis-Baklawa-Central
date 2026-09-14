@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   BUFFER_IDLE_SECONDS,
+  earliestCreatedAtBySender,
   latestCreatedAtBySender,
   normalizeSenderPhoneLast10,
   pickIdleSenders,
@@ -24,18 +25,46 @@ describe("whatsappBufferReconciler", () => {
     expect(eligible).toEqual(["9891162212"]);
   });
 
-  it("documents governed buffer flush only after packet_id is set (no order writes)", async () => {
+  it("compares timestamptz values by epoch rather than lexical formatting", () => {
+    const rows = [
+      {
+        id: "recent-offset",
+        sender_phone: "9891162212",
+        created_at: "2026-09-13T10:00:00.500123+00:00",
+        bundle_status: "pending",
+      },
+      {
+        id: "older-z",
+        sender_phone: "9891162212",
+        created_at: "2026-09-13T09:59:59.900Z",
+        bundle_status: "pending",
+      },
+    ];
+
+    const senderLatest = latestCreatedAtBySender(rows);
+    expect(senderLatest.get("9891162212")).toBe("2026-09-13T10:00:00.500123+00:00");
+    expect(pickIdleSenders(senderLatest, "2026-09-13T10:00:00.500Z")).toEqual([]);
+  });
+
+  it("tracks the earliest pending row so historical packets cannot authorize a newer flush", () => {
+    const rows = [
+      { id: "new-1", sender_phone: "9891162212", created_at: "2026-09-13T12:00:00.000Z", bundle_status: "pending" },
+      { id: "new-2", sender_phone: "9891162212", created_at: "2026-09-13T12:00:10.000Z", bundle_status: "pending" },
+    ];
+
+    expect(earliestCreatedAtBySender(rows).get("9891162212")).toBe("2026-09-13T12:00:00.000Z");
+  });
+
+  it("documents governed buffer flush only after a packet in the pending-row window is set (no order writes)", async () => {
     const { readFileSync } = await import("node:fs");
     const { join } = await import("node:path");
-    const source = readFileSync(
-      join(import.meta.dirname, "../../../../supabase/functions/_shared/whatsappBufferReconcilerPure.ts"),
-      "utf8",
-    );
     const dbSource = readFileSync(
       join(import.meta.dirname, "../../../../supabase/functions/_shared/whatsappBufferReconciler.ts"),
       "utf8",
     );
     expect(dbSource).toContain("senderHasStitchedPacket");
+    expect(dbSource).toContain("earliestCreatedAtBySender");
+    expect(dbSource).toContain('.gte("created_at", sinceIso)');
     expect(dbSource).toContain('bundle_status: "flushed"');
     expect(dbSource).not.toMatch(/\.from\(\s*["']orders["']\s*\)/);
     expect(dbSource).not.toMatch(/\.from\(\s*["']suggested_orders["']\s*\)/);
