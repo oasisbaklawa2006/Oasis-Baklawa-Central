@@ -7,7 +7,6 @@ import { toast } from "sonner";
 import logoImg from "@/assets/logo-open.png";
 import {
   createAuthStateController,
-  getCustomerAuthUserMessage,
   readAuthCache,
   redirectAfterAuth,
   type AuthStatus,
@@ -23,8 +22,7 @@ import { createAuthAttemptId, logAuthEvent, type AuthAttemptMethod } from "@/lib
 import { isEmailIdentifier, normalizeIdentifier, normalizePhone } from "@/lib/auth-identity";
 import { signOutAndClearSession } from "@/utils/authSession";
 
-// MSG91 "Widget ID" and "Auth Token" are browser widget configuration,
-// not the MSG91 provider authkey. Server credentials remain Edge-only.
+// Browser widget configuration only. MSG91 provider authkey remains Edge-only.
 const MSG91_WIDGET_ID = "3664766e464b383030383331";
 const MSG91_TOKEN_AUTH = "509994T6SRbi4LqM69ea72d0P1";
 const MSG91_PROVIDER_SCRIPT_ID = "msg91-otp-provider";
@@ -42,6 +40,7 @@ const SUPPORT_PHONE = import.meta.env.VITE_B2B_SUPPORT_PHONE || "";
 type BuyerLoginChannel = "mobile" | "email" | null;
 type EligibilityState = "approved" | "pending" | "employee" | "rejected" | "unknown" | "ambiguous" | null;
 type Msg91Callback = (payload: unknown) => void;
+type SessionBridge = "msg91-otp" | "msg91-email-session";
 
 type PreflightResponse = {
   ok?: boolean;
@@ -49,7 +48,6 @@ type PreflightResponse = {
   allowOtp?: boolean;
   message?: string;
   error?: string;
-  provider?: string;
 };
 
 declare global {
@@ -87,31 +85,19 @@ function isMsg91CaptchaRequiredAndUnverified() {
 function extractMsg91AccessToken(payload: any) {
   return firstNonEmptyString(
     typeof payload === "string" ? payload : null,
-    payload?.["access-token"],
-    payload?.accessToken,
-    payload?.access_token,
+    payload?.["access-token"], payload?.accessToken, payload?.access_token,
     typeof payload?.message === "string" ? payload.message : null,
-    payload?.message?.["access-token"],
-    payload?.message?.accessToken,
-    payload?.message?.access_token,
-    payload?.data?.message,
-    payload?.data?.["access-token"],
-    payload?.data?.accessToken,
-    payload?.data?.access_token,
+    payload?.message?.["access-token"], payload?.message?.accessToken, payload?.message?.access_token,
+    payload?.data?.message, payload?.data?.["access-token"], payload?.data?.accessToken, payload?.data?.access_token,
   );
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function extractMsg91RequestId(payload: any) {
   return firstNonEmptyString(
-    payload?.reqId,
-    payload?.req_id,
-    payload?.requestId,
-    payload?.request_id,
-    payload?.message?.reqId,
-    payload?.message?.requestId,
-    payload?.data?.reqId,
-    payload?.data?.requestId,
+    payload?.reqId, payload?.req_id, payload?.requestId, payload?.request_id,
+    payload?.message?.reqId, payload?.message?.requestId,
+    payload?.data?.reqId, payload?.data?.requestId,
   );
 }
 
@@ -133,6 +119,7 @@ const BuyerLogin = () => {
   const [email, setEmail] = useState("");
   const [emailOtp, setEmailOtp] = useState("");
   const [emailOtpSent, setEmailOtpSent] = useState(false);
+  const [emailReqId, setEmailReqId] = useState<string | null>(null);
   const [authStatus, setAuthStatus] = useState<AuthStatus>("idle");
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [eligibilityState, setEligibilityState] = useState<EligibilityState>(null);
@@ -146,12 +133,8 @@ const BuyerLogin = () => {
 
   const isMinting = useMemo(() => {
     const minting = [
-      "verifying_otp",
-      "verification_success",
-      "session_creation_in_progress",
-      "account_resolution_in_progress",
-      "profile_loading",
-      "role_loading",
+      "verifying_otp", "verification_success", "session_creation_in_progress",
+      "account_resolution_in_progress", "profile_loading", "role_loading",
     ].includes(authStatus);
     if (!minting) return false;
     const cached = typeof window !== "undefined" ? readAuthCache() : null;
@@ -255,9 +238,7 @@ const BuyerLogin = () => {
 
   const initializeMsg91CustomUi = useCallback(async () => {
     await loadMsg91Script();
-    if (typeof window === "undefined" || typeof window.initSendOTP !== "function") {
-      throw new Error("msg91_provider_unavailable");
-    }
+    if (typeof window === "undefined" || typeof window.initSendOTP !== "function") throw new Error("msg91_provider_unavailable");
 
     if (!providerInitializedRef.current) {
       window.initSendOTP({
@@ -313,7 +294,7 @@ const BuyerLogin = () => {
   }, []);
 
   useEffect(() => {
-    if (channel !== "mobile") return;
+    if (!channel) return;
     void ensureMsg91CustomUi().catch(() => {
       setIsMsg91Ready(false);
       setStatusMessage("The security check is taking too long to load. Tap Retry security check.");
@@ -328,23 +309,18 @@ const BuyerLogin = () => {
     return (data || {}) as PreflightResponse;
   };
 
-  const applyEligibility = (result: PreflightResponse) => {
-    const state = result.state ?? "ambiguous";
+  const applyEligibility = (preflight: PreflightResponse) => {
+    const state = preflight.state ?? "ambiguous";
     setEligibilityState(state);
-    if (result.message) setStatusMessage(result.message);
-    if (result.allowOtp) return true;
+    if (preflight.message) setStatusMessage(preflight.message);
+    if (preflight.allowOtp) return true;
     updateStatus("failed", { result: "info", error: state });
     setLoading(false);
     return false;
   };
 
   const runApprovedClaim = async (attemptId: string, method: AuthAttemptMethod, identifier: string, requireBound: boolean) => {
-    logAuthEvent("APPROVED_B2B_CLAIM_STARTED", {
-      attemptId,
-      method,
-      identifier,
-      result: "started",
-    });
+    logAuthEvent("APPROVED_B2B_CLAIM_STARTED", { attemptId, method, identifier, result: "started" });
     const currentSession = (await supabase.auth.getSession()).data.session;
     const claimOutcome = await claimApprovedB2bIdentityForAuthenticatedSession(
       invokeApprovedB2bIdentityClaimRpc,
@@ -366,8 +342,13 @@ const BuyerLogin = () => {
     return claimOutcome;
   };
 
-  const verifiedMobileSession = async (payload: unknown, identifier: string, attemptId: string) => {
-    const method: AuthAttemptMethod = "mobile_otp";
+  const verifiedProviderSession = async (
+    payload: unknown,
+    identifier: string,
+    attemptId: string,
+    method: AuthAttemptMethod,
+    bridge: SessionBridge,
+  ) => {
     const accessToken = extractMsg91AccessToken(payload);
     if (!accessToken) {
       await finalizeFailure("MSG91 verified the OTP but did not return a verification token. Please request a new OTP.");
@@ -384,22 +365,21 @@ const BuyerLogin = () => {
     let edgeVerified = false;
 
     try {
-      const invokeResult = await supabase.functions.invoke("msg91-otp", {
-        body: { mode: "verify_widget", accessToken, phone: identifier, attemptId },
-        signal: abortController.signal,
-      });
+      const invokeBody = bridge === "msg91-otp"
+        ? { mode: "verify_widget", accessToken, phone: identifier, attemptId }
+        : { accessToken, email: identifier, attemptId };
+      const invokeResult = await supabase.functions.invoke(bridge, { body: invokeBody, signal: abortController.signal });
       const { data: verifyRes, error: invokeError, response: invokeResponse } = invokeResult;
       controllerRef.current.clearTimer(edgeTimeout);
-      const edgeErrorCode = await extractEdgeFunctionErrorCode({
-        data: verifyRes,
-        error: invokeError,
-        response: invokeResponse,
-      });
+      const edgeErrorCode = await extractEdgeFunctionErrorCode({ data: verifyRes, error: invokeError, response: invokeResponse });
       if (edgeErrorCode) throw new Error(edgeErrorCode);
       if (!verifyRes?.ok) throw new Error(verifyRes?.error || verifyRes?.reason || "provider_verification_failed");
       if (!verifyRes?.token_hash || !verifyRes?.user_id) throw new Error("session_token_missing");
 
-      const resolvedIdentifier = firstNonEmptyString(verifyRes?.phone, identifier) ?? identifier;
+      const resolvedIdentifier = firstNonEmptyString(
+        bridge === "msg91-email-session" ? verifyRes?.verified_email : verifyRes?.phone,
+        identifier,
+      ) ?? identifier;
       const normalizedIdentifier = normalizeIdentifier(resolvedIdentifier).normalized;
       attemptRef.current = { id: attemptId, method, identifier: normalizedIdentifier };
       edgeVerified = true;
@@ -438,11 +418,7 @@ const BuyerLogin = () => {
           identifier: normalizedIdentifier,
           result: "failed",
           error: sessionFailure,
-          details: {
-            userId: verifyRes.user_id,
-            mintEmailPresent: Boolean(mintEmail),
-            ...(mintEmail ? { mintEmail: maskMintEmail(mintEmail) } : {}),
-          },
+          details: { userId: verifyRes.user_id, mintEmailPresent: Boolean(mintEmail) },
         });
         throw new Error(sessionFailure);
       }
@@ -461,41 +437,87 @@ const BuyerLogin = () => {
       setLoading(false);
     } catch (error) {
       controllerRef.current.clearTimer(edgeTimeout);
-      const raw = edgeTimedOut
-        ? "session_token_mint_timeout"
-        : error instanceof Error
-          ? error.message
-          : "mobile_session_failed";
+      const raw = edgeTimedOut ? "session_token_mint_timeout" : error instanceof Error ? error.message : "buyer_session_failed";
       const mapped = mapBuyerPostMintAuthError(edgeTimedOut ? new Error("session_token_mint_timeout") : error);
       if (mapped.stage === "approved_b2b_claim") {
-        logAuthEvent("APPROVED_B2B_CLAIM_FAILED", {
-          attemptId,
-          method,
-          identifier,
-          result: "failed",
-          error: raw,
-          details: { postMintStage: mapped.stage },
-        });
+        logAuthEvent("APPROVED_B2B_CLAIM_FAILED", { attemptId, method, identifier, result: "failed", error: raw });
       } else if (edgeVerified) {
-        logAuthEvent("SESSION_CREATE_FAILED", {
-          attemptId,
-          method,
-          identifier,
-          result: "failed",
-          error: raw,
-          details: { postMintStage: mapped.stage },
-        });
+        logAuthEvent("SESSION_CREATE_FAILED", { attemptId, method, identifier, result: "failed", error: raw });
       } else {
-        logAuthEvent("OTP_VERIFY_FAILED", {
-          attemptId,
-          method,
-          identifier,
-          result: "failed",
-          error: raw,
-          details: { postMintStage: mapped.stage },
-        });
+        logAuthEvent("OTP_VERIFY_FAILED", { attemptId, method, identifier, result: "failed", error: raw });
       }
       await finalizeFailure(mapped.message, true);
+    }
+  };
+
+  const requestProviderOtp = async (
+    identifier: string,
+    targetChannel: "mobile" | "email",
+    method: AuthAttemptMethod,
+    setSent: (value: boolean) => void,
+    setReqId: (value: string | null) => void,
+    setOtp: (value: string) => void,
+  ) => {
+    const attemptId = createAuthAttemptId();
+    attemptRef.current = { id: attemptId, method, identifier: normalizeIdentifier(identifier).normalized };
+    setLoading(true);
+    setEligibilityState(null);
+    setStatusMessage(null);
+    updateStatus("sending_otp", { result: "started" });
+    logAuthEvent("AUTH_START", { attemptId, method, identifier, result: "started" });
+
+    try {
+      const preflight = await invokePreflight(targetChannel, identifier, attemptId);
+      if (!applyEligibility(preflight)) return;
+      await ensureMsg91CustomUi();
+      if (isMsg91CaptchaRequiredAndUnverified()) {
+        logAuthEvent("OTP_REQUEST_FAILED", { attemptId, method, identifier, result: "failed", error: "msg91_captcha_required" });
+        await finalizeFailure(MSG91_CAPTCHA_REQUIRED_MESSAGE);
+        return;
+      }
+      if (typeof window.sendOtp !== "function") throw new Error("msg91_send_method_unavailable");
+
+      logAuthEvent("OTP_REQUEST_STARTED", { attemptId, method, identifier, result: "started" });
+      const callbackTimeout = controllerRef.current.registerTimer(window.setTimeout(() => {
+        if (attemptRef.current?.id !== attemptId) return;
+        attemptRef.current = null;
+        logAuthEvent("OTP_REQUEST_FAILED", { attemptId, method, identifier, result: "failed", error: "msg91_send_timeout" });
+        void finalizeFailure("OTP request timed out. Retry the security check and try again.");
+      }, MSG91_PROVIDER_CALL_TIMEOUT_MS));
+
+      window.sendOtp(
+        identifier,
+        (payload) => {
+          if (attemptRef.current?.id !== attemptId) return;
+          controllerRef.current.clearTimer(callbackTimeout);
+          const reqId = extractMsg91RequestId(payload);
+          setReqId(reqId);
+          setSent(true);
+          setOtp("");
+          setLoading(false);
+          updateStatus("otp_sent", { result: "success", details: { requestIdPresent: Boolean(reqId) } });
+          logAuthEvent("OTP_REQUEST_SUCCESS", {
+            attemptId, method, identifier, result: "success",
+            details: { requestIdPresent: Boolean(reqId), providerAcknowledged: true },
+          });
+          setStatusMessage(
+            targetChannel === "mobile"
+              ? "OTP request accepted by MSG91. Check your phone for a fresh code before continuing."
+              : "Email OTP request accepted by MSG91. Check your registered email for a fresh code before continuing.",
+          );
+        },
+        (error) => {
+          if (attemptRef.current?.id !== attemptId) return;
+          controllerRef.current.clearTimer(callbackTimeout);
+          const message = providerErrorMessage(error);
+          logAuthEvent("OTP_REQUEST_FAILED", { attemptId, method, identifier, result: "failed", error: message });
+          void finalizeFailure(mapBuyerOtpProviderError(message));
+        },
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "otp_request_failed";
+      logAuthEvent("OTP_REQUEST_FAILED", { attemptId, method, identifier, result: "failed", error: message });
+      await finalizeFailure("Verification could not start. Retry the security check and try again.");
     }
   };
 
@@ -506,115 +528,38 @@ const BuyerLogin = () => {
       setStatusMessage("Enter a valid registered mobile number.");
       return;
     }
-
-    const identifier = `91${phone.last10}`;
-    const attemptId = createAuthAttemptId();
-    const method: AuthAttemptMethod = "mobile_otp";
-    attemptRef.current = { id: attemptId, method, identifier: phone.e164 || identifier };
-    setLoading(true);
-    setEligibilityState(null);
-    setStatusMessage(null);
-    updateStatus("sending_otp", { result: "started" });
-    logAuthEvent("AUTH_START", { attemptId, method, identifier: phone.e164 || identifier, result: "started" });
-
-    try {
-      const preflight = await invokePreflight("mobile", phone.e164 || identifier, attemptId);
-      if (!applyEligibility(preflight)) return;
-
-      await ensureMsg91CustomUi();
-      if (isMsg91CaptchaRequiredAndUnverified()) {
-        updateStatus("failed", { result: "failed", error: "msg91_captcha_required" });
-        setStatusMessage(MSG91_CAPTCHA_REQUIRED_MESSAGE);
-        setLoading(false);
-        logAuthEvent("OTP_REQUEST_FAILED", {
-          attemptId,
-          method,
-          identifier: phone.e164 || identifier,
-          result: "failed",
-          error: "msg91_captcha_required",
-        });
-        return;
-      }
-      if (typeof window.sendOtp !== "function") throw new Error("msg91_send_method_unavailable");
-
-      logAuthEvent("OTP_REQUEST_STARTED", { attemptId, method, identifier: phone.e164 || identifier, result: "started" });
-      const callbackTimeout = controllerRef.current.registerTimer(window.setTimeout(() => {
-        if (attemptRef.current?.id !== attemptId) return;
-        attemptRef.current = null;
-        logAuthEvent("OTP_REQUEST_FAILED", {
-          attemptId,
-          method,
-          identifier: phone.e164 || identifier,
-          result: "failed",
-          error: "msg91_send_timeout",
-        });
-        void finalizeFailure("OTP request timed out. Retry the security check and try again.");
-      }, MSG91_PROVIDER_CALL_TIMEOUT_MS));
-
-      window.sendOtp(
-        identifier,
-        (payload) => {
-          if (attemptRef.current?.id !== attemptId) return;
-          controllerRef.current.clearTimer(callbackTimeout);
-          const reqId = extractMsg91RequestId(payload);
-          setMobileReqId(reqId);
-          setMobileOtpSent(true);
-          setMobileOtp("");
-          setLoading(false);
-          updateStatus("otp_sent", { result: "success", details: { requestIdPresent: Boolean(reqId) } });
-          logAuthEvent("OTP_REQUEST_SUCCESS", {
-            attemptId,
-            method,
-            identifier: phone.e164 || identifier,
-            result: "success",
-            details: { requestIdPresent: Boolean(reqId), providerAcknowledged: true },
-          });
-          setStatusMessage("OTP request accepted by MSG91. Check your phone for a fresh code before continuing.");
-        },
-        (error) => {
-          if (attemptRef.current?.id !== attemptId) return;
-          controllerRef.current.clearTimer(callbackTimeout);
-          const message = providerErrorMessage(error);
-          logAuthEvent("OTP_REQUEST_FAILED", {
-            attemptId,
-            method,
-            identifier: phone.e164 || identifier,
-            result: "failed",
-            error: message,
-          });
-          void finalizeFailure(mapBuyerOtpProviderError(message));
-        },
-      );
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "otp_request_failed";
-      logAuthEvent("OTP_REQUEST_FAILED", {
-        attemptId,
-        method,
-        identifier: phone.e164 || identifier,
-        result: "failed",
-        error: message,
-      });
-      await finalizeFailure("Mobile verification could not start. Retry the security check and try again.");
-    }
+    await requestProviderOtp(`91${phone.last10}`, "mobile", "mobile_otp", setMobileOtpSent, setMobileReqId, setMobileOtp);
   };
 
-  const verifyMobileOtp = async () => {
-    const otp = mobileOtp.replace(/\D/g, "");
-    const phone = normalizePhone(mobile);
-    if (!mobileOtpSent || !phone.last10 || otp.length < 4 || otp.length > 8) {
+  const sendEmailOtp = async () => {
+    const trimmedEmail = email.trim().toLowerCase();
+    if (!isEmailIdentifier(trimmedEmail)) {
       setAuthStatus("failed");
-      setStatusMessage("Enter the OTP received on your registered mobile number.");
+      setStatusMessage("Enter a valid registered email address.");
       return;
     }
+    await requestProviderOtp(trimmedEmail, "email", "email_otp", setEmailOtpSent, setEmailReqId, setEmailOtp);
+  };
 
-    const identifier = `91${phone.last10}`;
+  const verifyProviderOtp = async (
+    otpInput: string,
+    identifier: string,
+    reqId: string | null,
+    method: AuthAttemptMethod,
+    bridge: SessionBridge,
+  ) => {
+    const otp = otpInput.replace(/\D/g, "");
+    if (otp.length < 4 || otp.length > 8) {
+      setAuthStatus("failed");
+      setStatusMessage("Enter the OTP you just received.");
+      return;
+    }
     const attemptId = attemptRef.current?.id || createAuthAttemptId();
-    const method: AuthAttemptMethod = "mobile_otp";
-    attemptRef.current = { id: attemptId, method, identifier: phone.e164 || identifier };
+    attemptRef.current = { id: attemptId, method, identifier: normalizeIdentifier(identifier).normalized };
     setLoading(true);
     setStatusMessage(null);
     updateStatus("verifying_otp", { result: "started" });
-    logAuthEvent("OTP_VERIFY_STARTED", { attemptId, method, identifier: phone.e164 || identifier, result: "started" });
+    logAuthEvent("OTP_VERIFY_STARTED", { attemptId, method, identifier, result: "started" });
 
     try {
       await ensureMsg91CustomUi();
@@ -622,13 +567,7 @@ const BuyerLogin = () => {
       const callbackTimeout = controllerRef.current.registerTimer(window.setTimeout(() => {
         if (attemptRef.current?.id !== attemptId) return;
         attemptRef.current = null;
-        logAuthEvent("OTP_VERIFY_FAILED", {
-          attemptId,
-          method,
-          identifier: phone.e164 || identifier,
-          result: "failed",
-          error: "msg91_verify_timeout",
-        });
+        logAuthEvent("OTP_VERIFY_FAILED", { attemptId, method, identifier, result: "failed", error: "msg91_verify_timeout" });
         void finalizeFailure("OTP verification timed out. Please retry.");
       }, MSG91_PROVIDER_CALL_TIMEOUT_MS));
 
@@ -637,46 +576,52 @@ const BuyerLogin = () => {
         (payload) => {
           if (attemptRef.current?.id !== attemptId) return;
           controllerRef.current.clearTimer(callbackTimeout);
-          void verifiedMobileSession(payload, identifier, attemptId);
+          void verifiedProviderSession(payload, identifier, attemptId, method, bridge);
         },
         (error) => {
           if (attemptRef.current?.id !== attemptId) return;
           controllerRef.current.clearTimer(callbackTimeout);
           const message = providerErrorMessage(error);
-          logAuthEvent("OTP_VERIFY_FAILED", {
-            attemptId,
-            method,
-            identifier: phone.e164 || identifier,
-            result: "failed",
-            error: message,
-          });
+          logAuthEvent("OTP_VERIFY_FAILED", { attemptId, method, identifier, result: "failed", error: message });
           void finalizeFailure(mapBuyerOtpProviderError(message));
         },
-        mobileReqId ?? undefined,
+        reqId ?? undefined,
       );
     } catch (error) {
-      const message = error instanceof Error ? error.message : "otp_verify_failed";
-      await finalizeFailure(mapBuyerOtpProviderError(message));
+      await finalizeFailure(mapBuyerOtpProviderError(error instanceof Error ? error.message : "otp_verify_failed"));
     }
   };
 
-  const resendMobileOtp = async () => {
-    if (!mobileOtpSent) return void sendMobileOtp();
+  const verifyMobileOtp = async () => {
+    const phone = normalizePhone(mobile);
+    if (!mobileOtpSent || !phone.last10) return void setStatusMessage("Request a fresh mobile OTP first.");
+    await verifyProviderOtp(mobileOtp, `91${phone.last10}`, mobileReqId, "mobile_otp", "msg91-otp");
+  };
+
+  const verifyEmailOtp = async () => {
+    const trimmedEmail = email.trim().toLowerCase();
+    if (!emailOtpSent || !isEmailIdentifier(trimmedEmail)) return void setStatusMessage("Request a fresh email OTP first.");
+    await verifyProviderOtp(emailOtp, trimmedEmail, emailReqId, "email_otp", "msg91-email-session");
+  };
+
+  const retryProviderOtp = async (
+    reqId: string | null,
+    method: AuthAttemptMethod,
+    identifier: string,
+    setReqId: (value: string | null) => void,
+    setOtp: (value: string) => void,
+    fallback: () => Promise<void>,
+  ) => {
     const attemptId = attemptRef.current?.id;
-    if (!attemptId) return void sendMobileOtp();
+    if (!attemptId) return void fallback();
     setLoading(true);
     setStatusMessage(null);
     try {
       await ensureMsg91CustomUi();
-      if (isMsg91CaptchaRequiredAndUnverified()) {
-        setAuthStatus("failed");
-        setStatusMessage(MSG91_CAPTCHA_REQUIRED_MESSAGE);
-        setLoading(false);
-        return;
-      }
+      if (isMsg91CaptchaRequiredAndUnverified()) return void finalizeFailure(MSG91_CAPTCHA_REQUIRED_MESSAGE);
       if (typeof window.retryOtp !== "function") {
         setLoading(false);
-        return void sendMobileOtp();
+        return void fallback();
       }
       const callbackTimeout = controllerRef.current.registerTimer(window.setTimeout(() => {
         if (attemptRef.current?.id !== attemptId) return;
@@ -688,138 +633,22 @@ const BuyerLogin = () => {
         (payload) => {
           if (attemptRef.current?.id !== attemptId) return;
           controllerRef.current.clearTimer(callbackTimeout);
-          const reqId = extractMsg91RequestId(payload) ?? mobileReqId;
-          setMobileReqId(reqId);
-          setMobileOtp("");
+          setReqId(extractMsg91RequestId(payload) ?? reqId);
+          setOtp("");
           setLoading(false);
-          setStatusMessage("A fresh OTP request was accepted. Check your phone before continuing.");
+          logAuthEvent("OTP_REQUEST_SUCCESS", { attemptId, method, identifier, result: "success", details: { retry: true } });
+          setStatusMessage("A fresh OTP request was accepted. Check the same verified channel before continuing.");
         },
         (error) => {
           if (attemptRef.current?.id !== attemptId) return;
           controllerRef.current.clearTimer(callbackTimeout);
-          const message = providerErrorMessage(error);
-          void finalizeFailure(mapBuyerOtpProviderError(message));
+          void finalizeFailure(mapBuyerOtpProviderError(providerErrorMessage(error)));
         },
-        mobileReqId ?? undefined,
+        reqId ?? undefined,
       );
     } catch {
       setLoading(false);
-      if (attemptRef.current?.id === attemptId) await sendMobileOtp();
-    }
-  };
-
-  const sendEmailOtp = async () => {
-    const trimmedEmail = email.trim().toLowerCase();
-    if (!isEmailIdentifier(trimmedEmail)) {
-      setAuthStatus("failed");
-      setStatusMessage("Enter a valid registered email address.");
-      return;
-    }
-
-    const attemptId = createAuthAttemptId();
-    const method: AuthAttemptMethod = "email_otp";
-    const identifier = normalizeIdentifier(trimmedEmail).normalized;
-    attemptRef.current = { id: attemptId, method, identifier };
-    setLoading(true);
-    setEligibilityState(null);
-    setStatusMessage(null);
-    updateStatus("sending_otp", { result: "started" });
-    logAuthEvent("AUTH_START", { attemptId, method, identifier, result: "started" });
-    logAuthEvent("OTP_REQUEST_STARTED", { attemptId, method, identifier, result: "started" });
-
-    try {
-      const { data, error } = await supabase.functions.invoke("buyer-login-gateway", {
-        body: { mode: "email_otp_send", channel: "email", identifier: trimmedEmail, attemptId },
-      });
-      if (error) throw new Error(error.message);
-      const result = (data || {}) as PreflightResponse;
-      if (!result.ok) {
-        if (result.state) applyEligibility(result);
-        else await finalizeFailure("We couldn't send an email OTP. Please use Mobile OTP or try again shortly.");
-        return;
-      }
-
-      setEligibilityState("approved");
-      logAuthEvent("OTP_REQUEST_SUCCESS", {
-        attemptId,
-        method,
-        identifier,
-        result: "success",
-        details: { provider: result.provider || "email_provider" },
-      });
-      updateStatus("otp_sent", { result: "success" });
-      setEmailOtpSent(true);
-      setEmailOtp("");
-      setStatusMessage(result.message || "A verification code has been sent to your registered email address.");
-      setLoading(false);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "email_otp_send_failed";
-      logAuthEvent("OTP_REQUEST_FAILED", { attemptId, method, identifier, result: "failed", error: message });
-      await finalizeFailure("We couldn't send an email OTP. Please use Mobile OTP or try again shortly.");
-    }
-  };
-
-  const verifyEmailOtp = async () => {
-    const trimmedEmail = email.trim().toLowerCase();
-    const token = emailOtp.replace(/\D/g, "");
-    if (!isEmailIdentifier(trimmedEmail) || token.length < 4 || token.length > 8) {
-      setAuthStatus("failed");
-      setStatusMessage("Enter the verification code sent to your email.");
-      return;
-    }
-
-    const attemptId = attemptRef.current?.id || createAuthAttemptId();
-    const method: AuthAttemptMethod = "email_otp";
-    const identifier = normalizeIdentifier(trimmedEmail).normalized;
-    attemptRef.current = { id: attemptId, method, identifier };
-    setLoading(true);
-    setStatusMessage(null);
-    updateStatus("verifying_otp", { result: "started" });
-    logAuthEvent("OTP_VERIFY_STARTED", { attemptId, method, identifier, result: "started" });
-
-    const { data, error } = await supabase.auth.verifyOtp({ email: trimmedEmail, token, type: "email" });
-    if (error || !data.user) {
-      logAuthEvent("OTP_VERIFY_FAILED", {
-        attemptId,
-        method,
-        identifier,
-        result: "failed",
-        error: error?.message || "email_otp_verify_failed",
-      });
-      await finalizeFailure("The email OTP is invalid or expired. Please request a new code.", true);
-      return;
-    }
-
-    logAuthEvent("OTP_VERIFY_SUCCESS", {
-      attemptId,
-      method,
-      identifier,
-      result: "success",
-      details: { userId: data.user.id },
-    });
-    logAuthEvent("SESSION_CREATE_SUCCESS", {
-      attemptId,
-      method,
-      identifier,
-      result: "success",
-      details: { userId: data.user.id },
-    });
-    updateStatus("verification_success", { result: "success" });
-
-    try {
-      await runApprovedClaim(attemptId, method, identifier, true);
-      await runRedirectAfterAuth(identifier, method, data.user.id, attemptId);
-      controllerRef.current.finalize();
-      setLoading(false);
-    } catch (authError) {
-      logAuthEvent("APPROVED_B2B_CLAIM_FAILED", {
-        attemptId,
-        method,
-        identifier,
-        result: "failed",
-        error: authError instanceof Error ? authError.message : "approved_b2b_claim_failed",
-      });
-      await finalizeFailure(getCustomerAuthUserMessage(authError), true);
+      await fallback();
     }
   };
 
@@ -832,6 +661,7 @@ const BuyerLogin = () => {
     setMobileReqId(null);
     setEmailOtpSent(false);
     setEmailOtp("");
+    setEmailReqId(null);
     setStatusMessage(null);
     setEligibilityState(null);
     setAuthStatus("entering_identifier");
@@ -855,6 +685,17 @@ const BuyerLogin = () => {
     setStatusMessage("Reloading the security check…");
     setSecurityRetryNonce((value) => value + 1);
   };
+
+  const SecurityCheck = () => (
+    <>
+      <div id={MSG91_CAPTCHA_ID} />
+      {!isMsg91Ready && (
+        <button type="button" onClick={retrySecurityCheck} className="w-full rounded-xl border border-border py-2.5 text-xs font-semibold text-foreground flex items-center justify-center gap-2">
+          <RefreshCw size={14} /> Retry security check
+        </button>
+      )}
+    </>
+  );
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-5 bg-background">
@@ -883,7 +724,7 @@ const BuyerLogin = () => {
             <button type="button" onClick={() => { setChannel("email"); setStatusMessage(null); setEligibilityState(null); }} className="w-full rounded-2xl border border-border bg-card p-5 text-left shadow-sm hover:border-primary/40">
               <span className="flex items-center gap-4">
                 <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary"><Mail size={21} /></span>
-                <span><span className="block text-sm font-bold text-foreground">Email OTP</span><span className="mt-1 block text-xs text-muted-foreground">Receive a code on your approved B2B email.</span></span>
+                <span><span className="block text-sm font-bold text-foreground">Email OTP</span><span className="mt-1 block text-xs text-muted-foreground">Approved Buyers verify through MSG91 email OTP.</span></span>
               </span>
             </button>
           </div>
@@ -895,21 +736,13 @@ const BuyerLogin = () => {
             <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-center space-y-2">
               <ShieldCheck size={28} className="mx-auto text-primary" />
               <p className="text-sm font-bold text-foreground">Secure Mobile Verification</p>
-              <p className="text-xs text-muted-foreground">We first confirm B2B eligibility, then MSG91 verifies your mobile OTP.</p>
+              <p className="text-xs text-muted-foreground">We confirm B2B eligibility before MSG91 can send a login OTP.</p>
             </div>
-
-            <div id={MSG91_CAPTCHA_ID} />
-            {!isMsg91Ready && !mobileOtpSent && (
-              <button type="button" onClick={retrySecurityCheck} className="w-full rounded-xl border border-border py-2.5 text-xs font-semibold text-foreground flex items-center justify-center gap-2">
-                <RefreshCw size={14} /> Retry security check
-              </button>
-            )}
-
+            <SecurityCheck />
             <div className="space-y-2">
               <label htmlFor="buyer-mobile" className="text-xs font-semibold text-foreground">Registered mobile number</label>
               <Input id="buyer-mobile" inputMode="tel" autoComplete="tel" placeholder="+91 98765 43210" value={mobile} disabled={mobileOtpSent} onChange={(event) => setMobile(event.target.value)} className="rounded-xl" />
             </div>
-
             {!mobileOtpSent ? (
               <button type="button" onClick={() => void sendMobileOtp()} disabled={loading} className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm flex items-center justify-center gap-2 shadow-sm disabled:opacity-60">
                 {loading ? <Loader2 size={18} className="animate-spin" /> : <ShieldCheck size={18} />}
@@ -917,15 +750,11 @@ const BuyerLogin = () => {
               </button>
             ) : (
               <div className="space-y-3">
-                <div className="space-y-2">
-                  <label htmlFor="buyer-mobile-otp" className="text-xs font-semibold text-foreground">Mobile OTP</label>
-                  <Input id="buyer-mobile-otp" inputMode="numeric" autoComplete="one-time-code" placeholder="Enter OTP" value={mobileOtp} onChange={(event) => setMobileOtp(event.target.value.replace(/\D/g, "").slice(0, 8))} className="rounded-xl tracking-[0.25em] text-center" />
-                </div>
+                <Input id="buyer-mobile-otp" inputMode="numeric" autoComplete="one-time-code" placeholder="Enter OTP" value={mobileOtp} onChange={(event) => setMobileOtp(event.target.value.replace(/\D/g, "").slice(0, 8))} className="rounded-xl tracking-[0.25em] text-center" />
                 <button type="button" onClick={() => void verifyMobileOtp()} disabled={loading} className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-60">
-                  {loading ? <Loader2 size={18} className="animate-spin" /> : <ShieldCheck size={18} />}
-                  Verify and continue
+                  {loading ? <Loader2 size={18} className="animate-spin" /> : <ShieldCheck size={18} />} Verify and continue
                 </button>
-                <button type="button" onClick={() => void resendMobileOtp()} disabled={loading} className="w-full py-2 text-xs font-semibold text-primary disabled:opacity-60">Resend mobile OTP</button>
+                <button type="button" onClick={() => void retryProviderOtp(mobileReqId, "mobile_otp", normalizePhone(mobile).e164 || mobile, setMobileReqId, setMobileOtp, sendMobileOtp)} disabled={loading} className="w-full py-2 text-xs font-semibold text-primary disabled:opacity-60">Resend mobile OTP</button>
               </div>
             )}
           </div>
@@ -937,13 +766,13 @@ const BuyerLogin = () => {
             <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-center space-y-2">
               <Mail size={28} className="mx-auto text-primary" />
               <p className="text-sm font-bold text-foreground">Secure Email Verification</p>
-              <p className="text-xs text-muted-foreground">Only an approved B2B email can receive a login code. No external portal link is used.</p>
+              <p className="text-xs text-muted-foreground">Only an approved B2B email can receive a login OTP. No portal or magic-link redirect is used.</p>
             </div>
+            <SecurityCheck />
             <div className="space-y-2">
               <label htmlFor="buyer-email" className="text-xs font-semibold text-foreground">Registered email</label>
               <Input id="buyer-email" type="email" autoComplete="email" placeholder="buyer@company.com" value={email} disabled={emailOtpSent} onChange={(event) => setEmail(event.target.value)} className="rounded-xl" />
             </div>
-
             {!emailOtpSent ? (
               <button type="button" onClick={() => void sendEmailOtp()} disabled={loading} className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-60">
                 {loading ? <Loader2 size={18} className="animate-spin" /> : <Mail size={18} />}
@@ -951,15 +780,11 @@ const BuyerLogin = () => {
               </button>
             ) : (
               <div className="space-y-3">
-                <div className="space-y-2">
-                  <label htmlFor="buyer-email-otp" className="text-xs font-semibold text-foreground">Email OTP</label>
-                  <Input id="buyer-email-otp" inputMode="numeric" autoComplete="one-time-code" placeholder="Enter code" value={emailOtp} onChange={(event) => setEmailOtp(event.target.value.replace(/\D/g, "").slice(0, 8))} className="rounded-xl tracking-[0.25em] text-center" />
-                </div>
+                <Input id="buyer-email-otp" inputMode="numeric" autoComplete="one-time-code" placeholder="Enter code" value={emailOtp} onChange={(event) => setEmailOtp(event.target.value.replace(/\D/g, "").slice(0, 8))} className="rounded-xl tracking-[0.25em] text-center" />
                 <button type="button" onClick={() => void verifyEmailOtp()} disabled={loading} className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-60">
-                  {loading ? <Loader2 size={18} className="animate-spin" /> : <ShieldCheck size={18} />}
-                  Verify and continue
+                  {loading ? <Loader2 size={18} className="animate-spin" /> : <ShieldCheck size={18} />} Verify and continue
                 </button>
-                <button type="button" onClick={() => { setEmailOtpSent(false); setEmailOtp(""); void sendEmailOtp(); }} disabled={loading} className="w-full py-2 text-xs font-semibold text-primary disabled:opacity-60">Resend email OTP</button>
+                <button type="button" onClick={() => void retryProviderOtp(emailReqId, "email_otp", email.trim().toLowerCase(), setEmailReqId, setEmailOtp, sendEmailOtp)} disabled={loading} className="w-full py-2 text-xs font-semibold text-primary disabled:opacity-60">Resend email OTP</button>
               </div>
             )}
           </div>
