@@ -1,9 +1,9 @@
 // Buyer Login Gateway
 // -------------------
 // Anonymous pre-auth boundary for Buyer eligibility and governed email OTP delivery.
-// This function never grants Buyer authority. It only classifies the entered
-// identifier and, for an approved email Buyer, generates a Supabase email OTP
-// server-side and delivers that OTP without exposing it to the browser.
+// This function never grants Buyer authority. It classifies the entered identifier
+// and, for an approved email Buyer, generates a Supabase email OTP server-side and
+// delivers that OTP without exposing it to the browser.
 
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -56,11 +56,37 @@ const BUYER_ROLES = new Set([
 ]);
 const PENDING_ROLES = new Set(["PENDING", "PENDING_BUYER"]);
 
+// Best-effort warm-worker limiter. Provider/platform limits remain authoritative;
+// raw identifiers/IPs are never retained in the bucket key.
+const WINDOW_MS = 60_000;
+const MAX_REQUESTS_PER_WINDOW = 12;
+const rateBuckets = new Map<string, { count: number; resetAt: number }>();
+
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
+    headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "no-store" },
   });
+}
+
+async function sha256(value: string) {
+  const bytes = new TextEncoder().encode(value);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function isRateLimited(req: Request, channel: Channel, identifier: string) {
+  const forwarded = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const key = (await sha256(`${forwarded}|${channel}|${identifier.trim().toLowerCase()}`)).slice(0, 32);
+  const now = Date.now();
+  const current = rateBuckets.get(key);
+  if (!current || current.resetAt <= now) {
+    rateBuckets.set(key, { count: 1, resetAt: now + WINDOW_MS });
+    return false;
+  }
+  current.count += 1;
+  rateBuckets.set(key, current);
+  return current.count > MAX_REQUESTS_PER_WINDOW;
 }
 
 function normalizeEmail(raw: string) {
@@ -99,11 +125,7 @@ function eligibility(state: EligibilityState, channel: Channel): Eligibility {
     case "approved":
       return { state, allowOtp: true, message: approvedMessage(channel) };
     case "pending":
-      return {
-        state,
-        allowOtp: false,
-        message: "Your B2B access request is under review. You will be able to log in after approval.",
-      };
+      return { state, allowOtp: false, message: "Your B2B access request is under review. You will be able to log in after approval." };
     case "employee":
       return {
         state,
@@ -113,17 +135,9 @@ function eligibility(state: EligibilityState, channel: Channel): Eligibility {
           : "This email belongs to an Oasis employee account. Employees must use Admin Login.",
       };
     case "rejected":
-      return {
-        state,
-        allowOtp: false,
-        message: "This B2B access request is not active. Please contact Oasis support or submit a new access request if eligible.",
-      };
+      return { state, allowOtp: false, message: "This B2B access request is not active. Please contact Oasis support or submit a new access request if eligible." };
     case "ambiguous":
-      return {
-        state,
-        allowOtp: false,
-        message: "We found conflicting account records for this login. Please contact Oasis support before continuing.",
-      };
+      return { state, allowOtp: false, message: "We found conflicting account records for this login. Please contact Oasis support before continuing." };
     default:
       return {
         state: "unknown",
@@ -143,14 +157,8 @@ async function classifyIdentifier(channel: Channel, identifier: string): Promise
     if (!email || !email.includes("@")) return eligibility("unknown", channel);
 
     const [usersRes, profilesRes, appsRes] = await Promise.all([
-      admin.from("users")
-        .select("id,role,is_active,company_id,email")
-        .ilike("email", email)
-        .limit(10),
-      admin.from("profiles")
-        .select("id,role,status,is_approved,company_id,email")
-        .ilike("email", email)
-        .limit(10),
+      admin.from("users").select("id,role,is_active,company_id,email").ilike("email", email).limit(10),
+      admin.from("profiles").select("id,role,status,is_approved,company_id,email").ilike("email", email).limit(10),
       admin.from("b2b_applications")
         .select("id,status,user_id,resolved_company_id,created_at")
         .ilike("contact_email", email)
@@ -242,16 +250,9 @@ async function sendViaMsg91(email: string, otp: string) {
   try {
     const response = await fetch("https://control.msg91.com/api/v5/email/send", {
       method: "POST",
-      headers: {
-        accept: "application/json",
-        authkey: MSG91_AUTH_KEY,
-        "content-type": "application/JSON",
-      },
+      headers: { accept: "application/json", authkey: MSG91_AUTH_KEY, "content-type": "application/JSON" },
       body: JSON.stringify({
-        recipients: [{
-          to: [{ name: "Oasis B2B Buyer", email }],
-          variables: { otp, company_name: "Oasis Baklawa" },
-        }],
+        recipients: [{ to: [{ name: "Oasis B2B Buyer", email }], variables: { otp, company_name: "Oasis Baklawa" } }],
         from: { name: MSG91_EMAIL_FROM_NAME, email: MSG91_EMAIL_FROM },
         domain: MSG91_EMAIL_DOMAIN,
         template_id: MSG91_EMAIL_TEMPLATE_ID,
@@ -269,10 +270,7 @@ async function sendViaResend(email: string, otp: string) {
   try {
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${RESEND_API_KEY}`,
-      },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${RESEND_API_KEY}` },
       body: JSON.stringify({
         from: "Oasis Baklawa <noreply@oasisbaklawa.com>",
         to: [email],
@@ -294,10 +292,7 @@ async function sendEmailOtp(identifier: string) {
   const current = await classifyIdentifier("email", email);
   if (!current.allowOtp) return json({ ok: false, ...current }, 200);
 
-  const { data, error } = await admin.auth.admin.generateLink({
-    type: "magiclink",
-    email,
-  });
+  const { data, error } = await admin.auth.admin.generateLink({ type: "magiclink", email });
   if (error || !data) {
     console.error("[buyer-login-gateway] email OTP generation failed", error?.message || "missing_data");
     return json({ ok: false, error: "email_otp_generation_failed" }, 502);
@@ -309,9 +304,7 @@ async function sendEmailOtp(identifier: string) {
 
   const msg91Delivered = await sendViaMsg91(email, otp);
   const resendDelivered = msg91Delivered ? false : await sendViaResend(email, otp);
-  if (!msg91Delivered && !resendDelivered) {
-    return json({ ok: false, error: "email_otp_delivery_failed" }, 502);
-  }
+  if (!msg91Delivered && !resendDelivered) return json({ ok: false, error: "email_otp_delivery_failed" }, 502);
 
   return json({
     ok: true,
@@ -324,7 +317,6 @@ async function sendEmailOtp(identifier: string) {
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
-
   if (req.method !== "POST") return json({ ok: false, error: "method_not_allowed" }, 405);
 
   try {
@@ -335,6 +327,7 @@ serve(async (req) => {
 
     if (!mode || !channel || !identifier.trim()) return json({ ok: false, error: "invalid_request" }, 400);
     if (mode === "email_otp_send" && channel !== "email") return json({ ok: false, error: "invalid_channel" }, 400);
+    if (await isRateLimited(req, channel, identifier)) return json({ ok: false, error: "rate_limited" }, 429);
 
     if (mode === "preflight") {
       const result = await classifyIdentifier(channel, identifier);
