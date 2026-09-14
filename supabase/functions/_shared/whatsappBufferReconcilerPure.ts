@@ -27,16 +27,35 @@ export function latestCreatedAtBySender(rows: BufferRow[]): Map<string, string> 
   for (const row of rows) {
     const sender = normalizeSenderPhoneLast10(row.sender_phone);
     if (!sender) continue;
+    const rowMs = Date.parse(row.created_at);
+    if (!Number.isFinite(rowMs)) continue;
     const existing = senderLatest.get(sender);
-    if (!existing || row.created_at > existing) senderLatest.set(sender, row.created_at);
+    if (!existing || rowMs > Date.parse(existing)) senderLatest.set(sender, row.created_at);
   }
   return senderLatest;
 }
 
+export function earliestCreatedAtBySender(rows: BufferRow[]): Map<string, string> {
+  const senderEarliest = new Map<string, string>();
+  for (const row of rows) {
+    const sender = normalizeSenderPhoneLast10(row.sender_phone);
+    if (!sender) continue;
+    const rowMs = Date.parse(row.created_at);
+    if (!Number.isFinite(rowMs)) continue;
+    const existing = senderEarliest.get(sender);
+    if (!existing || rowMs < Date.parse(existing)) senderEarliest.set(sender, row.created_at);
+  }
+  return senderEarliest;
+}
+
 export function pickIdleSenders(senderLatest: Map<string, string>, cutoffIso: string): string[] {
+  const cutoffMs = Date.parse(cutoffIso);
+  if (!Number.isFinite(cutoffMs)) return [];
+
   const eligible: string[] = [];
   for (const [sender, latest] of senderLatest) {
-    if (latest < cutoffIso) eligible.push(sender);
+    const latestMs = Date.parse(latest);
+    if (Number.isFinite(latestMs) && latestMs < cutoffMs) eligible.push(sender);
   }
   return eligible;
 }
