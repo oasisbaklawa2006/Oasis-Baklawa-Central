@@ -4,6 +4,46 @@ import { readFileSync } from "node:fs";
 const source = readFileSync("supabase/functions/msg91-otp/index.ts", "utf8");
 const buyerLogin = readFileSync("src/pages/BuyerLogin.tsx", "utf8");
 
+type GuardInput = {
+  ids: string[];
+  unboundCompanyMemberIds: string[];
+  approvedB2bPendingClaim: boolean;
+};
+
+type GuardOutcome = "mintable" | "duplicate_phone_identity" | "ambiguous_phone_identity";
+
+/**
+ * Execute the exact fail-closed identity guard shipped by msg91-otp rather than
+ * merely asserting that expected strings exist. This deliberately extracts only
+ * the side-effect-free guard between public identity resolution and auth minting;
+ * `fail` is replaced with a deterministic return value while console output is
+ * suppressed. If the handler guard changes semantically these cases fail.
+ */
+function executeShippedIdentityGuard(publicMatches: GuardInput): GuardOutcome {
+  const start = source.indexOf("if (publicMatches.ids.length > 1)");
+  const end = source.indexOf("let authRef: AuthUserRef", start);
+  expect(start).toBeGreaterThan(-1);
+  expect(end).toBeGreaterThan(start);
+
+  const guard = source.slice(start, end);
+  const runnable = new Function(
+    "publicMatches",
+    "fail",
+    "console",
+    `${guard}\nreturn "mintable";`,
+  ) as (
+    input: GuardInput,
+    fail: (error: string) => GuardOutcome,
+    consoleStub: { error: () => void },
+  ) => GuardOutcome;
+
+  return runnable(
+    publicMatches,
+    (error) => error as GuardOutcome,
+    { error: () => undefined },
+  );
+}
+
 describe("msg91-otp / scalable fail-closed identity resolution", () => {
   it("does not enumerate the Auth or public users directories", () => {
     expect(source).not.toContain(".listUsers(");
@@ -32,7 +72,6 @@ describe("msg91-otp / scalable fail-closed identity resolution", () => {
     expect(source).toContain('.from("companies").select("id").ilike("phone", pattern)');
     expect(source).toContain('.in("company_id", [...companyIds])');
     expect(source).toContain("unboundCompanyMemberIds");
-    expect(source).toContain("ambiguous_phone_identity");
     expect(source).toContain("approved_b2b_pending_claim");
   });
 
@@ -44,14 +83,28 @@ describe("msg91-otp / scalable fail-closed identity resolution", () => {
     expect(source).not.toMatch(/if \(app\?\.user_id\) ids\.add\(String\(app\.user_id\)\)/);
   });
 
-  it("allows orphan Auth mint when approved B2B pending claim exists despite unbound company members", () => {
-    const guardBlock = source.slice(
-      source.indexOf("if (publicMatches.ids.length > 1)"),
-      source.indexOf("let authRef: AuthUserRef"),
-    );
-    expect(guardBlock).toContain("!publicMatches.approvedB2bPendingClaim");
-    expect(guardBlock).toContain("ambiguous_phone_identity");
-    expect(guardBlock).toContain("duplicate_phone_identity");
+  it("executes approved pending-claim + unbound-company path as mintable", () => {
+    expect(executeShippedIdentityGuard({
+      ids: [],
+      unboundCompanyMemberIds: ["unbound-company-member"],
+      approvedB2bPendingClaim: true,
+    })).toBe("mintable");
+  });
+
+  it("executes unbound-company-without-approved-claim path as ambiguous", () => {
+    expect(executeShippedIdentityGuard({
+      ids: [],
+      unboundCompanyMemberIds: ["unbound-company-member"],
+      approvedB2bPendingClaim: false,
+    })).toBe("ambiguous_phone_identity");
+  });
+
+  it("executes multiple explicit phone bindings as duplicate identity", () => {
+    expect(executeShippedIdentityGuard({
+      ids: ["phone-user-a", "phone-user-b"],
+      unboundCompanyMemberIds: [],
+      approvedB2bPendingClaim: false,
+    })).toBe("duplicate_phone_identity");
   });
 
   it("trims MSG91_AUTH_KEY to avoid AuthenticationFailure from trailing whitespace", () => {
