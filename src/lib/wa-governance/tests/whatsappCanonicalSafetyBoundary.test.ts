@@ -53,6 +53,19 @@ describe("WhatsApp canonical safety boundary", () => {
     expect(parser.slice(unreachableLegacy)).toMatch(/\.from\(\s*["']suggested_orders["']\s*\)/);
   });
 
+  it("requires a trusted service-role caller before Banyan forwards recovery to the stitcher", () => {
+    const parser = readRepoFile("supabase/functions/banyan-central-parser/index.ts");
+    const unreachableLegacy = parser.indexOf("/* c8 ignore start");
+    const liveHandler = parser.slice(0, unreachableLegacy);
+    const authCheck = liveHandler.indexOf('(req.headers.get("Authorization") ?? "") !== `Bearer ${serviceKey}`');
+    const stitcherFetch = liveHandler.indexOf("/functions/v1/whatsapp-message-stitcher");
+
+    expect(authCheck).toBeGreaterThan(-1);
+    expect(stitcherFetch).toBeGreaterThan(authCheck);
+    expect(liveHandler).toContain('error: "Trusted parser caller required"');
+    expect(liveHandler).toContain("status: 401");
+  });
+
   it("keeps webhook ingress incapable of creating shadow companies", () => {
     const webhook = readRepoFile("supabase/functions/whatsapp-webhook/index.ts");
     expect(webhook).not.toContain("shadowName");
