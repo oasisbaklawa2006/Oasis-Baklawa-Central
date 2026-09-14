@@ -19,7 +19,10 @@
     "test:ai-uat:report": "node scripts/merge-ai-uat-report.mjs",
     "test:dispatch-uat-005": "playwright test tests/dispatch-rbac-forbidden-route.spec.ts --project=desktop-chrome-size",
     "check:boundaries": "bash scripts/check-repo-boundaries.sh",
-    "test:release-controller": "bash .github/scripts/tests/appverse-release-controller.test.sh"
+    "test:release-controller": "bash .github/scripts/tests/appverse-release-controller.test.sh",
+    "test:point100": "playwright test -c playwright.point100.config.ts",
+    "test:point100:matrix": "playwright test -c playwright.point100.config.ts tests/point100/capability-matrix.cert.spec.ts",
+    "test:point100:rehearsal": "bash scripts/point100-certification/run-dress-rehearsal.sh"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
