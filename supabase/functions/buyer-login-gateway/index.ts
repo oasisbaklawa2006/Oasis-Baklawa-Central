@@ -1,9 +1,8 @@
 // Buyer Login Gateway
 // -------------------
-// Anonymous pre-auth boundary for Buyer eligibility and governed email OTP delivery.
-// This function never grants Buyer authority. It classifies the entered identifier
-// and, for an approved email Buyer, generates a Supabase email OTP server-side and
-// delivers that OTP without exposing it to the browser.
+// Anonymous pre-auth boundary for Buyer eligibility only. It never sends OTPs,
+// creates Auth users, mutates applications, or grants Buyer authority. Approved
+// identities continue to the provider-specific verification path in BuyerLogin.
 
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -16,48 +15,21 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-const MSG91_AUTH_KEY = (Deno.env.get("MSG91_AUTH_KEY") || "").trim();
-const MSG91_EMAIL_DOMAIN = (Deno.env.get("MSG91_EMAIL_DOMAIN") || "").trim();
-const MSG91_EMAIL_FROM = (Deno.env.get("MSG91_EMAIL_FROM") || "").trim();
-const MSG91_EMAIL_FROM_NAME = (Deno.env.get("MSG91_EMAIL_FROM_NAME") || "Oasis Baklawa").trim();
-const MSG91_EMAIL_TEMPLATE_ID = (Deno.env.get("MSG91_EMAIL_TEMPLATE_ID") || "").trim();
-const RESEND_API_KEY = (Deno.env.get("RESEND_API_KEY") || "").trim();
-
 const admin = SUPABASE_URL && SERVICE_ROLE_KEY
   ? createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistSession: false } })
   : null;
 
 type Channel = "mobile" | "email";
-type Mode = "preflight" | "email_otp_send";
 type EligibilityState = "approved" | "pending" | "employee" | "rejected" | "unknown" | "ambiguous";
-
-type RequestBody = {
-  mode?: Mode;
-  channel?: Channel;
-  identifier?: string;
-  attemptId?: string;
-};
-
-type Eligibility = {
-  state: EligibilityState;
-  allowOtp: boolean;
-  message: string;
-};
+type Eligibility = { state: EligibilityState; allowOtp: boolean; message: string };
 
 const BUYER_ROLES = new Set([
-  "B2B_BUYER",
-  "SPECIAL_BUYER",
-  "HORECA_BUYER",
-  "WHOLESALE_BUYER",
-  "BULK_BUYER",
-  "BUYER",
-  "CLIENT",
-  "CUSTOMER_USER",
+  "B2B_BUYER", "SPECIAL_BUYER", "HORECA_BUYER", "WHOLESALE_BUYER",
+  "BULK_BUYER", "BUYER", "CLIENT", "CUSTOMER_USER",
 ]);
 const PENDING_ROLES = new Set(["PENDING", "PENDING_BUYER"]);
 
-// Best-effort warm-worker limiter. Provider/platform limits remain authoritative;
-// raw identifiers/IPs are never retained in the bucket key.
+// Best-effort hot-worker limiter. Raw identifiers/IPs are never retained.
 const WINDOW_MS = 60_000;
 const MAX_REQUESTS_PER_WINDOW = 12;
 const rateBuckets = new Map<string, { count: number; resetAt: number }>();
@@ -70,8 +42,7 @@ function json(body: unknown, status = 200) {
 }
 
 async function sha256(value: string) {
-  const bytes = new TextEncoder().encode(value);
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
   return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
@@ -85,7 +56,6 @@ async function isRateLimited(req: Request, channel: Channel, identifier: string)
     return false;
   }
   current.count += 1;
-  rateBuckets.set(key, current);
   return current.count > MAX_REQUESTS_PER_WINDOW;
 }
 
@@ -110,97 +80,96 @@ function normalizeRole(role: unknown) {
 
 function isEmployeeRole(role: unknown) {
   const normalized = normalizeRole(role);
-  if (!normalized || BUYER_ROLES.has(normalized) || PENDING_ROLES.has(normalized)) return false;
-  return true;
+  return Boolean(normalized) && !BUYER_ROLES.has(normalized) && !PENDING_ROLES.has(normalized);
 }
 
-function approvedMessage(channel: Channel) {
-  return channel === "mobile"
-    ? "Approved B2B account found. Continue with mobile OTP."
-    : "Approved B2B account found. Continue with email OTP.";
-}
-
-function eligibility(state: EligibilityState, channel: Channel): Eligibility {
-  switch (state) {
-    case "approved":
-      return { state, allowOtp: true, message: approvedMessage(channel) };
-    case "pending":
-      return { state, allowOtp: false, message: "Your B2B access request is under review. You will be able to log in after approval." };
-    case "employee":
-      return {
-        state,
-        allowOtp: false,
-        message: channel === "mobile"
-          ? "This mobile number belongs to an Oasis employee account. Employees must use Admin Login."
-          : "This email belongs to an Oasis employee account. Employees must use Admin Login.",
-      };
-    case "rejected":
-      return { state, allowOtp: false, message: "This B2B access request is not active. Please contact Oasis support or submit a new access request if eligible." };
-    case "ambiguous":
-      return { state, allowOtp: false, message: "We found conflicting account records for this login. Please contact Oasis support before continuing." };
-    default:
-      return {
-        state: "unknown",
-        allowOtp: false,
-        message: channel === "mobile"
-          ? "This mobile number is not registered for B2B access."
-          : "This email is not registered for B2B access.",
-      };
+function result(state: EligibilityState, channel: Channel): Eligibility {
+  if (state === "approved") {
+    return {
+      state,
+      allowOtp: true,
+      message: channel === "mobile"
+        ? "Approved B2B account found. Continue with mobile OTP."
+        : "Approved B2B account found. Continue with email OTP.",
+    };
   }
+  if (state === "pending") {
+    return { state, allowOtp: false, message: "Your B2B access request is under review. You will be able to log in after approval." };
+  }
+  if (state === "employee") {
+    return {
+      state,
+      allowOtp: false,
+      message: channel === "mobile"
+        ? "This mobile number belongs to an Oasis employee account. Employees must use Admin Login."
+        : "This email belongs to an Oasis employee account. Employees must use Admin Login.",
+    };
+  }
+  if (state === "rejected") {
+    return { state, allowOtp: false, message: "This B2B access request is not active. Please contact Oasis support or submit a new access request if eligible." };
+  }
+  if (state === "ambiguous") {
+    return { state, allowOtp: false, message: "We found conflicting account records for this login. Please contact Oasis support before continuing." };
+  }
+  return {
+    state: "unknown",
+    allowOtp: false,
+    message: channel === "mobile"
+      ? "This mobile number is not registered for B2B access."
+      : "This email is not registered for B2B access.",
+  };
 }
 
-async function classifyIdentifier(channel: Channel, identifier: string): Promise<Eligibility> {
-  if (!admin) return eligibility("ambiguous", channel);
+async function classifyEmail(identifier: string): Promise<Eligibility> {
+  if (!admin) return result("ambiguous", "email");
+  const email = normalizeEmail(identifier);
+  if (!email || !email.includes("@")) return result("unknown", "email");
 
-  if (channel === "email") {
-    const email = normalizeEmail(identifier);
-    if (!email || !email.includes("@")) return eligibility("unknown", channel);
-
-    const [usersRes, profilesRes, appsRes] = await Promise.all([
-      admin.from("users").select("id,role,is_active,company_id,email").ilike("email", email).limit(10),
-      admin.from("profiles").select("id,role,status,is_approved,company_id,email").ilike("email", email).limit(10),
-      admin.from("b2b_applications")
-        .select("id,status,user_id,resolved_company_id,created_at")
-        .ilike("contact_email", email)
-        .order("created_at", { ascending: false })
-        .limit(20),
-    ]);
-
-    const queryError = usersRes.error || profilesRes.error || appsRes.error;
-    if (queryError) {
-      console.error("[buyer-login-gateway] email lookup failed", queryError.message);
-      return eligibility("ambiguous", channel);
-    }
-
-    const staff = [
-      ...(usersRes.data || []).filter((row) => row?.is_active !== false),
-      ...(profilesRes.data || []).filter((row) => row?.status !== "disabled"),
-    ].some((row) => isEmployeeRole(row?.role));
-    if (staff) return eligibility("employee", channel);
-
-    const activeBuyer = (usersRes.data || []).some((row) =>
-      row?.is_active !== false && BUYER_ROLES.has(normalizeRole(row?.role)) && Boolean(row?.company_id)
-    ) || (profilesRes.data || []).some((row) =>
-      row?.is_approved === true && BUYER_ROLES.has(normalizeRole(row?.role)) && Boolean(row?.company_id)
-    );
-
-    const apps = appsRes.data || [];
-    const approvedApps = apps.filter((row) => String(row?.status || "").toLowerCase() === "approved" && row?.resolved_company_id);
-    const approvedCompanies = new Set(approvedApps.map((row) => String(row.resolved_company_id)));
-    if (approvedCompanies.size > 1) return eligibility("ambiguous", channel);
-    if (activeBuyer || approvedApps.length > 0) return eligibility("approved", channel);
-    if (apps.some((row) => String(row?.status || "").toLowerCase() === "pending")) return eligibility("pending", channel);
-    if (apps.some((row) => String(row?.status || "").toLowerCase() === "rejected")) return eligibility("rejected", channel);
-    return eligibility("unknown", channel);
+  const [usersRes, profilesRes, appsRes] = await Promise.all([
+    admin.from("users").select("id,role,is_active,company_id,email").ilike("email", email).limit(10),
+    admin.from("profiles").select("id,role,status,is_approved,company_id,email").ilike("email", email).limit(10),
+    admin.from("b2b_applications")
+      .select("id,status,user_id,resolved_company_id,created_at")
+      .ilike("contact_email", email)
+      .order("created_at", { ascending: false })
+      .limit(20),
+  ]);
+  const lookupError = usersRes.error || profilesRes.error || appsRes.error;
+  if (lookupError) {
+    console.error("[buyer-login-gateway] email lookup failed", lookupError.message);
+    return result("ambiguous", "email");
   }
 
+  const staff = [
+    ...(usersRes.data || []).filter((row) => row?.is_active !== false),
+    ...(profilesRes.data || []).filter((row) => row?.status !== "disabled"),
+  ].some((row) => isEmployeeRole(row?.role));
+  if (staff) return result("employee", "email");
+
+  const activeBuyer = (usersRes.data || []).some((row) =>
+    row?.is_active !== false && BUYER_ROLES.has(normalizeRole(row?.role)) && Boolean(row?.company_id)
+  ) || (profilesRes.data || []).some((row) =>
+    row?.is_approved === true && BUYER_ROLES.has(normalizeRole(row?.role)) && Boolean(row?.company_id)
+  );
+
+  const apps = appsRes.data || [];
+  const approved = apps.filter((row) => String(row?.status || "").toLowerCase() === "approved" && row?.resolved_company_id);
+  const approvedCompanies = new Set(approved.map((row) => String(row.resolved_company_id)));
+  if (approvedCompanies.size > 1) return result("ambiguous", "email");
+  if (activeBuyer || approved.length > 0) return result("approved", "email");
+  if (apps.some((row) => String(row?.status || "").toLowerCase() === "pending")) return result("pending", "email");
+  if (apps.some((row) => String(row?.status || "").toLowerCase() === "rejected")) return result("rejected", "email");
+  return result("unknown", "email");
+}
+
+async function classifyMobile(identifier: string): Promise<Eligibility> {
+  if (!admin) return result("ambiguous", "mobile");
   const normalized = normalizePhone(identifier);
-  if (!normalized) return eligibility("unknown", channel);
+  if (!normalized) return result("unknown", "mobile");
   const variants = phoneVariants(normalized);
-  const tail = normalized.slice(-10);
-  const pattern = `%${tail}%`;
+  const pattern = `%${normalized.slice(-10)}%`;
 
-  const [phoneUsers, mobileUsers, secondaryUsers, profileUsers, appsRes] = await Promise.all([
+  const [phoneUsers, mobileUsers, secondaryUsers, profilesRes, appsRes] = await Promise.all([
     admin.from("users").select("id,role,is_active,company_id,phone,mobile_number").in("phone", variants),
     admin.from("users").select("id,role,is_active,company_id,phone,mobile_number").in("mobile_number", variants),
     admin.from("users").select("id,role,is_active,company_id,phone,mobile_number").overlaps("secondary_phones", variants),
@@ -211,108 +180,36 @@ async function classifyIdentifier(channel: Channel, identifier: string): Promise
       .order("created_at", { ascending: false })
       .limit(20),
   ]);
-
-  const queryError = phoneUsers.error || mobileUsers.error || secondaryUsers.error || profileUsers.error || appsRes.error;
-  if (queryError) {
-    console.error("[buyer-login-gateway] mobile lookup failed", queryError.message);
-    return eligibility("ambiguous", channel);
+  const lookupError = phoneUsers.error || mobileUsers.error || secondaryUsers.error || profilesRes.error || appsRes.error;
+  if (lookupError) {
+    console.error("[buyer-login-gateway] mobile lookup failed", lookupError.message);
+    return result("ambiguous", "mobile");
   }
 
   const userMap = new Map<string, Record<string, unknown>>();
   for (const row of [...(phoneUsers.data || []), ...(mobileUsers.data || []), ...(secondaryUsers.data || [])]) {
     if (row?.id) userMap.set(String(row.id), row as Record<string, unknown>);
   }
-
   const staff = [
     ...userMap.values(),
-    ...(profileUsers.data || []).filter((row) => row?.status !== "disabled"),
+    ...(profilesRes.data || []).filter((row) => row?.status !== "disabled"),
   ].some((row) => isEmployeeRole(row?.role));
-  if (staff) return eligibility("employee", channel);
+  if (staff) return result("employee", "mobile");
 
   const activeBuyer = [...userMap.values()].some((row) =>
     row?.is_active !== false && BUYER_ROLES.has(normalizeRole(row?.role)) && Boolean(row?.company_id)
-  ) || (profileUsers.data || []).some((row) =>
+  ) || (profilesRes.data || []).some((row) =>
     row?.is_approved === true && BUYER_ROLES.has(normalizeRole(row?.role)) && Boolean(row?.company_id)
   );
 
   const apps = appsRes.data || [];
-  const approvedApps = apps.filter((row) => String(row?.status || "").toLowerCase() === "approved" && row?.resolved_company_id);
-  const approvedCompanies = new Set(approvedApps.map((row) => String(row.resolved_company_id)));
-  if (approvedCompanies.size > 1) return eligibility("ambiguous", channel);
-  if (activeBuyer || approvedApps.length > 0) return eligibility("approved", channel);
-  if (apps.some((row) => String(row?.status || "").toLowerCase() === "pending")) return eligibility("pending", channel);
-  if (apps.some((row) => String(row?.status || "").toLowerCase() === "rejected")) return eligibility("rejected", channel);
-  return eligibility("unknown", channel);
-}
-
-async function sendViaMsg91(email: string, otp: string) {
-  if (!MSG91_AUTH_KEY || !MSG91_EMAIL_DOMAIN || !MSG91_EMAIL_FROM || !MSG91_EMAIL_TEMPLATE_ID) return false;
-  try {
-    const response = await fetch("https://control.msg91.com/api/v5/email/send", {
-      method: "POST",
-      headers: { accept: "application/json", authkey: MSG91_AUTH_KEY, "content-type": "application/JSON" },
-      body: JSON.stringify({
-        recipients: [{ to: [{ name: "Oasis B2B Buyer", email }], variables: { otp, company_name: "Oasis Baklawa" } }],
-        from: { name: MSG91_EMAIL_FROM_NAME, email: MSG91_EMAIL_FROM },
-        domain: MSG91_EMAIL_DOMAIN,
-        template_id: MSG91_EMAIL_TEMPLATE_ID,
-      }),
-    });
-    return response.ok;
-  } catch (error) {
-    console.error("[buyer-login-gateway] MSG91 email failed", error instanceof Error ? error.name : "unknown");
-    return false;
-  }
-}
-
-async function sendViaResend(email: string, otp: string) {
-  if (!RESEND_API_KEY) return false;
-  try {
-    const response = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${RESEND_API_KEY}` },
-      body: JSON.stringify({
-        from: "Oasis Baklawa <noreply@oasisbaklawa.com>",
-        to: [email],
-        subject: "Your Oasis Baklawa B2B verification code",
-        text: `Your Oasis Baklawa verification code is ${otp}. Enter this code on the B2B login screen. Do not share this code.`,
-        html: `<div style="font-family:Arial,sans-serif;max-width:520px;margin:auto"><h2>Oasis Baklawa</h2><p>Your B2B verification code is:</p><p style="font-size:30px;font-weight:700;letter-spacing:6px">${otp}</p><p>Enter this code on the Oasis Baklawa B2B login screen. Do not share this code.</p></div>`,
-      }),
-    });
-    return response.ok;
-  } catch (error) {
-    console.error("[buyer-login-gateway] Resend email failed", error instanceof Error ? error.name : "unknown");
-    return false;
-  }
-}
-
-async function sendEmailOtp(identifier: string) {
-  if (!admin) return json({ ok: false, error: "service_role_unavailable" }, 503);
-  const email = normalizeEmail(identifier);
-  const current = await classifyIdentifier("email", email);
-  if (!current.allowOtp) return json({ ok: false, ...current }, 200);
-
-  const { data, error } = await admin.auth.admin.generateLink({ type: "magiclink", email });
-  if (error || !data) {
-    console.error("[buyer-login-gateway] email OTP generation failed", error?.message || "missing_data");
-    return json({ ok: false, error: "email_otp_generation_failed" }, 502);
-  }
-
-  const properties = (data.properties || {}) as Record<string, unknown>;
-  const otp = typeof properties.email_otp === "string" ? properties.email_otp.trim() : "";
-  if (!otp) return json({ ok: false, error: "email_otp_generation_failed" }, 502);
-
-  const msg91Delivered = await sendViaMsg91(email, otp);
-  const resendDelivered = msg91Delivered ? false : await sendViaResend(email, otp);
-  if (!msg91Delivered && !resendDelivered) return json({ ok: false, error: "email_otp_delivery_failed" }, 502);
-
-  return json({
-    ok: true,
-    state: "approved",
-    allowOtp: true,
-    provider: msg91Delivered ? "msg91_email" : "resend",
-    message: "A verification code has been sent to your registered email address.",
-  });
+  const approved = apps.filter((row) => String(row?.status || "").toLowerCase() === "approved" && row?.resolved_company_id);
+  const approvedCompanies = new Set(approved.map((row) => String(row.resolved_company_id)));
+  if (approvedCompanies.size > 1) return result("ambiguous", "mobile");
+  if (activeBuyer || approved.length > 0) return result("approved", "mobile");
+  if (apps.some((row) => String(row?.status || "").toLowerCase() === "pending")) return result("pending", "mobile");
+  if (apps.some((row) => String(row?.status || "").toLowerCase() === "rejected")) return result("rejected", "mobile");
+  return result("unknown", "mobile");
 }
 
 serve(async (req) => {
@@ -320,22 +217,16 @@ serve(async (req) => {
   if (req.method !== "POST") return json({ ok: false, error: "method_not_allowed" }, 405);
 
   try {
-    const body = (await req.json()) as RequestBody;
-    const mode = body.mode;
+    const body = await req.json() as { mode?: string; channel?: Channel; identifier?: string; attemptId?: string };
     const channel = body.channel;
     const identifier = typeof body.identifier === "string" ? body.identifier : "";
-
-    if (!mode || !channel || !identifier.trim()) return json({ ok: false, error: "invalid_request" }, 400);
-    if (mode === "email_otp_send" && channel !== "email") return json({ ok: false, error: "invalid_channel" }, 400);
+    if (body.mode !== "preflight" || !channel || !identifier.trim()) return json({ ok: false, error: "invalid_request" }, 400);
     if (await isRateLimited(req, channel, identifier)) return json({ ok: false, error: "rate_limited" }, 429);
 
-    if (mode === "preflight") {
-      const result = await classifyIdentifier(channel, identifier);
-      return json({ ok: true, ...result });
-    }
-
-    if (mode === "email_otp_send") return await sendEmailOtp(identifier);
-    return json({ ok: false, error: "unknown_mode" }, 400);
+    const eligibility = channel === "email"
+      ? await classifyEmail(identifier)
+      : await classifyMobile(identifier);
+    return json({ ok: true, ...eligibility });
   } catch (error) {
     console.error("[buyer-login-gateway] fatal", error instanceof Error ? error.name : "unknown");
     return json({ ok: false, error: "gateway_failure" }, 500);
