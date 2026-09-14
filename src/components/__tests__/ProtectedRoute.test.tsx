@@ -79,6 +79,26 @@ describe("ProtectedRoute fail-closed bootstrap", () => {
     expect(screen.getByRole("status", { name: "Verifying session profile" })).toBeInTheDocument();
   });
 
+  it("re-arms the bounded timeout after retry if profile resolution stalls again", () => {
+    renderProtectedRoute();
+
+    act(() => {
+      vi.advanceTimersByTime(PROFILE_BOOTSTRAP_TIMEOUT_MS);
+    });
+    act(() => {
+      screen.getByRole("button", { name: "Retry profile check" }).click();
+    });
+
+    expect(screen.getByRole("status", { name: "Verifying session profile" })).toBeInTheDocument();
+
+    act(() => {
+      vi.advanceTimersByTime(PROFILE_BOOTSTRAP_TIMEOUT_MS);
+    });
+
+    expect(screen.getByTestId("protected-route-bootstrap-timeout")).toBeInTheDocument();
+    expect(screen.queryByTestId("protected-child")).not.toBeInTheDocument();
+  });
+
   it("renders protected children only after profileReady becomes true", () => {
     const view = renderProtectedRoute();
     expect(screen.queryByTestId("protected-child")).not.toBeInTheDocument();
