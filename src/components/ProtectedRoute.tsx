@@ -7,6 +7,7 @@ export const PROFILE_BOOTSTRAP_TIMEOUT_MS = 5_000;
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { loading, profileReady, isAuthenticated, refreshProfile } = useAuth();
   const [bootstrapTimedOut, setBootstrapTimedOut] = useState(false);
+  const [bootstrapRetryAttempt, setBootstrapRetryAttempt] = useState(0);
 
   useEffect(() => {
     if (!isAuthenticated || profileReady) {
@@ -16,7 +17,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
     const timer = window.setTimeout(() => setBootstrapTimedOut(true), PROFILE_BOOTSTRAP_TIMEOUT_MS);
     return () => window.clearTimeout(timer);
-  }, [isAuthenticated, profileReady]);
+  }, [bootstrapRetryAttempt, isAuthenticated, profileReady]);
 
   if (!isAuthenticated) {
     if (loading) {
@@ -50,6 +51,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
             className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
             onClick={() => {
               setBootstrapTimedOut(false);
+              setBootstrapRetryAttempt((attempt) => attempt + 1);
               void refreshProfile({ method: "session_restore", forceRefresh: true });
             }}
           >
