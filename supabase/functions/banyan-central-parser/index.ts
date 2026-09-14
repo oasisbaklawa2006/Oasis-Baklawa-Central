@@ -197,6 +197,12 @@ function fuzzyMatchCompany(extractedName: string, companies: { id: string; busin
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  if (req.method !== "POST") {
+    return new Response(JSON.stringify({ ok: false, error: "Method not allowed" }), {
+      status: 405,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
 
   // WA_CANONICAL_RETIREMENT: Banyan Vision AI / suggested_orders remain retired.
   // The pg_cron slot now recovers governed packet stitching for whatsapp_messages.
@@ -205,6 +211,12 @@ serve(async (req) => {
   if (!supabaseUrl || !serviceKey) {
     return new Response(JSON.stringify({ ok: false, error: "Service configuration unavailable" }), {
       status: 503,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  if ((req.headers.get("Authorization") ?? "") !== `Bearer ${serviceKey}`) {
+    return new Response(JSON.stringify({ ok: false, error: "Trusted parser caller required" }), {
+      status: 401,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
