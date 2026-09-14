@@ -63,17 +63,14 @@ describe("fetchOpenPacketsPage", () => {
 
     expect(fromMock).toHaveBeenCalledWith("whatsapp_message_packets");
     expect(chain.eq).toHaveBeenCalledWith("status", "open");
-    // last_message_at alone isn't unique — a secondary `id` tiebreaker keeps offset
-    // pagination deterministic so ties don't skip or duplicate packets across pages.
     expect(chain.orderCalls).toEqual([
       ["last_message_at", { ascending: false }],
       ["id", { ascending: false }],
     ]);
-    // Bounded: an explicit upper bound is always passed, never an unbounded fetch.
     expect(chain.range).toHaveBeenCalledWith(0, OPERATOR_INBOX_INITIAL_PACKET_LIMIT - 1);
   });
 
-  it("filters zero-message legacy packet shells at the query boundary", async () => {
+  it("filters zero-message legacy packet shells without embedding child ids", async () => {
     const chain = packetsChain({ data: [], error: null });
     fromMock.mockReturnValue(chain);
 
@@ -81,7 +78,8 @@ describe("fetchOpenPacketsPage", () => {
 
     expect(chain.select).toHaveBeenCalledTimes(1);
     const packetSelect = String(chain.select.mock.calls[0]?.[0] ?? "");
-    expect(packetSelect).toContain("whatsapp_messages!fk_whatsapp_messages_packet_id!inner");
+    expect(packetSelect).toContain("whatsapp_messages!fk_whatsapp_messages_packet_id!inner()");
+    expect(packetSelect).not.toContain("whatsapp_messages!fk_whatsapp_messages_packet_id!inner (\n        id");
   });
 
   it("pages beyond the initial window using the same bounded page size", async () => {
@@ -128,7 +126,7 @@ describe("fetchPacketById", () => {
     expect(fromMock).toHaveBeenCalledWith("whatsapp_message_packets");
     expect(eq).toHaveBeenCalledWith("id", "packet-1");
     expect(String(select.mock.calls[0]?.[0] ?? "")).toContain(
-      "whatsapp_messages!fk_whatsapp_messages_packet_id!inner",
+      "whatsapp_messages!fk_whatsapp_messages_packet_id!inner()",
     );
     expect(result?.id).toBe("packet-1");
   });
@@ -170,13 +168,8 @@ describe("pagination merge helpers — no silent duplication or reordering", () 
   });
 
   it("regression: a deterministic (last_message_at, id) tiebreaker prevents skipped packets across tied-timestamp pages", () => {
-    // Without a unique tiebreaker, offset pagination over rows sharing the same
-    // last_message_at can reshuffle between requests, so page two can overlap
-    // page one and page three's offset (based on loaded.length) skips a row
-    // that never got fetched. Ordering by (last_message_at desc, id desc) makes
-    // the server-side ordering stable, so consecutive `offset` pages never overlap.
     const pageOne = ["e", "d", "c"].map((id) => ({ id }));
-    const pageTwo = ["b", "a"].map((id) => ({ id })); // deterministic: strictly continues past "c"
+    const pageTwo = ["b", "a"].map((id) => ({ id }));
 
     let loaded = mergeAppendUniqueById([], pageOne);
     expect(loaded.map((p) => p.id)).toEqual(["e", "d", "c"]);
@@ -186,7 +179,6 @@ describe("pagination merge helpers — no silent duplication or reordering", () 
 
     loaded = mergeAppendUniqueById(loaded, pageTwo);
     expect(loaded.map((p) => p.id)).toEqual(["e", "d", "c", "b", "a"]);
-    // Every id sharing the tied timestamp is present exactly once — none skipped, none duplicated.
     expect(new Set(loaded.map((p) => p.id)).size).toBe(loaded.length);
   });
 
