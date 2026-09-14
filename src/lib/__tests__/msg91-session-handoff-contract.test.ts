@@ -141,10 +141,11 @@ describe("msg91-otp / provider response privacy", () => {
 
 describe("BuyerLogin / MSG91 token_hash session handoff", () => {
   it("calls verifyOtp with token_hash only so mint email cannot mismatch Auth user", () => {
-    const block = buyerLogin.slice(
-      buyerLogin.indexOf("const verifiedMobileSession"),
-      buyerLogin.indexOf("const sendMobileOtp"),
-    );
+    const start = buyerLogin.indexOf("const verifiedProviderSession");
+    const end = buyerLogin.indexOf("const requestProviderOtp", start);
+    expect(start).toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(start);
+    const block = buyerLogin.slice(start, end);
     const verifyOtpCall = block.slice(block.indexOf("supabase.auth.verifyOtp"));
     expect(verifyOtpCall).toMatch(/verifyOtp\(\{\s*token_hash: verifyRes\.token_hash,\s*type: "email",\s*\}\)/);
     expect(verifyOtpCall).not.toContain("email:");
