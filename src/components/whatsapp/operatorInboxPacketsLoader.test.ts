@@ -73,6 +73,17 @@ describe("fetchOpenPacketsPage", () => {
     expect(chain.range).toHaveBeenCalledWith(0, OPERATOR_INBOX_INITIAL_PACKET_LIMIT - 1);
   });
 
+  it("filters zero-message legacy packet shells at the query boundary", async () => {
+    const chain = packetsChain({ data: [], error: null });
+    fromMock.mockReturnValue(chain);
+
+    await fetchOpenPacketsPage(0, OPERATOR_INBOX_INITIAL_PACKET_LIMIT);
+
+    expect(chain.select).toHaveBeenCalledTimes(1);
+    const packetSelect = String(chain.select.mock.calls[0]?.[0] ?? "");
+    expect(packetSelect).toContain("whatsapp_messages!fk_whatsapp_messages_packet_id!inner");
+  });
+
   it("pages beyond the initial window using the same bounded page size", async () => {
     const chain = packetsChain({ data: [], error: null });
     fromMock.mockReturnValue(chain);
@@ -105,7 +116,7 @@ describe("fetchPacketById", () => {
     fromMock.mockReset();
   });
 
-  it("fetches a single packet by governed UUID", async () => {
+  it("fetches a single packet by governed UUID and excludes empty legacy shells", async () => {
     const row = makePacketRow("packet-1", "2026-08-15T10:00:00Z");
     const maybeSingle = vi.fn().mockResolvedValue({ data: row, error: null });
     const eq = vi.fn().mockReturnValue({ maybeSingle });
@@ -116,6 +127,9 @@ describe("fetchPacketById", () => {
 
     expect(fromMock).toHaveBeenCalledWith("whatsapp_message_packets");
     expect(eq).toHaveBeenCalledWith("id", "packet-1");
+    expect(String(select.mock.calls[0]?.[0] ?? "")).toContain(
+      "whatsapp_messages!fk_whatsapp_messages_packet_id!inner",
+    );
     expect(result?.id).toBe("packet-1");
   });
 });
