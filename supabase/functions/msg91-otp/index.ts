@@ -278,12 +278,12 @@ async function ensurePendingProfile(userId: string, phoneE164: string): Promise<
   }
 }
 
-// Unified MSG91 auth key (matches client widget tokenAuth: 509994AgMgjQib69e9dc60P1).
-// Falls back to placeholder so the function still boots if secret unset.
-const AUTH_KEY = (Deno.env.get("MSG91_AUTH_KEY") || "509994A5pbHkTLr69ea2a63P1").trim();
+// MSG91 authentication must come from the configured project secret only.
+// Missing configuration fails closed; no credential fallback is embedded in source.
+const AUTH_KEY = (Deno.env.get("MSG91_AUTH_KEY") || "").trim();
 const SENDER_ID = Deno.env.get("MSG91_SENDER_ID") || "OASBKL";
 const VOICE_DID = Deno.env.get("MSG91_VOICE_DID") || "";
-const MSG91_ENABLED = AUTH_KEY !== "PLACEHOLDER_NOT_CONFIGURED";
+const MSG91_ENABLED = Boolean(AUTH_KEY);
 const RESEND_KEY = Deno.env.get("RESEND_API_KEY") || "";
 
 function to91(raw: string): string {
@@ -358,6 +358,7 @@ function extractProviderVerifiedPhone(raw: UnknownRecord): string | null {
 //   Body:    { authkey, "access-token" }
 //   Success: { type: "success", message: "...", ... }
 async function verifyAccessToken(accessToken: string): Promise<{ ok: boolean; raw: UnknownRecord }> {
+  if (!AUTH_KEY) return { ok: false, raw: { error: "auth_key_unavailable" } };
   try {
     const res = await fetch("https://control.msg91.com/api/v5/widget/verifyAccessToken", {
       method: "POST",
