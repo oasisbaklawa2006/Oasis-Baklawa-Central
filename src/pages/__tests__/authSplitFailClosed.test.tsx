@@ -6,21 +6,11 @@ import BuyerLogin from "@/pages/BuyerLogin";
 
 // AUTH SPLIT — FAIL-CLOSED FOLLOW-UP.
 //
-// Finding 1: the unresolved-account redirect to /buyer/access-request is a
-// governed buyer-onboarding convenience. It must never fire on the staff
-// surface -- an unresolved/pending staff identity has to fail closed instead.
-//
-// Finding 2: the manual_auth / magic-link session-restore path calls
-// supabase.auth.setSession() *before* membership/account resolution runs. If
-// resolution then fails for a reason other than the intentionally preserved
-// buyer-onboarding redirect, the already-established Supabase session must be
-// torn down -- it must never be left as a reusable, wrong-surface session.
-//
-// These tests drive both pages through their real manual_auth effect (the
-// simplest path common to both StaffLogin and BuyerLogin) against a mocked
-// completeAuthLogin() dependency chain (supabase client + auth-routing RPCs),
-// so the real redirectAfterAuth/assertMembership/getPostLoginRedirectOnError
-// logic in auth-flow.ts is exercised end-to-end, not stubbed out.
+// Staff manual-auth remains fail-closed. BuyerLogin no longer has a magic-link
+// path: it preflights eligibility, verifies through MSG91, exchanges the
+// server-issued token_hash, then runs the same governed membership boundary.
+// These tests keep the wrong-surface/session-teardown assertions while driving
+// BuyerLogin through that current production contract.
 
 const state = vi.hoisted(() => ({
   sessionUser: { id: "user-1", email: "identity@example.com", phone: null as string | null },
@@ -37,24 +27,58 @@ vi.mock("@/utils/authSession", () => ({
 }));
 
 vi.mock("sonner", () => ({
-  toast: { error: vi.fn(), success: vi.fn() },
+  toast: { error: vi.fn(), success: vi.fn(), info: vi.fn() },
 }));
 
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     auth: {
-      setSession: () => Promise.resolve({ data: { session: { user: state.sessionUser } }, error: null }),
+      setSession: () => Promise.resolve({ data: { session: { user: state.sessionUser, access_token: "test-access-token" } }, error: null }),
       signInWithPassword: () => Promise.resolve({ data: { user: state.sessionUser }, error: null }),
       signInWithOtp: () => Promise.resolve({ error: null }),
-      verifyOtp: () => Promise.resolve({ data: { user: state.sessionUser }, error: null }),
-      getSession: () => Promise.resolve({ data: { session: null }, error: null }),
+      verifyOtp: () => Promise.resolve({
+        data: { user: state.sessionUser, session: { user: state.sessionUser, access_token: "test-access-token" } },
+        error: null,
+      }),
+      getSession: () => Promise.resolve({
+        data: { session: { user: state.sessionUser, access_token: "test-access-token" } },
+        error: null,
+      }),
       onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
       resetPasswordForEmail: () => Promise.resolve({ error: null }),
     },
-    functions: { invoke: () => Promise.resolve({ data: null, error: null }) },
+    functions: {
+      invoke: (name: string) => {
+        if (name === "buyer-login-gateway") {
+          return Promise.resolve({
+            data: { ok: true, state: "approved", allowOtp: true, message: "Approved Buyer" },
+            error: null,
+          });
+        }
+        if (name === "msg91-email-session") {
+          return Promise.resolve({
+            data: {
+              ok: true,
+              token_hash: "server-token-hash",
+              user_id: state.sessionUser.id,
+              verified_email: state.sessionUser.email,
+              approved_b2b_pending_claim: false,
+            },
+            error: null,
+          });
+        }
+        return Promise.resolve({ data: null, error: null });
+      },
+    },
     rpc: (fn: string) => {
       if (fn === "get_user_role") return Promise.resolve({ data: state.serverRole, error: null });
       if (fn === "is_internal_staff") return Promise.resolve({ data: state.isInternalStaff, error: null });
+      if (fn === "claim_approved_b2b_access_request_v2") {
+        return Promise.resolve({
+          data: [{ application_id: "app-1", claimed: false, company_id: "company-1", already_active: true }],
+          error: null,
+        });
+      }
       return Promise.resolve({ data: null, error: null });
     },
     from: (table: string) => {
@@ -91,11 +115,6 @@ function renderAt(Component: React.ComponentType, path: string) {
   );
 }
 
-// BuyerLogin no longer has a manual_auth/magic-link path (buyers never
-// receive magic-link emails -- only staff invites do, per AdminUsers.tsx).
-// Its post-authentication membership boundary is now driven through the
-// email OTP channel instead: sign in, request the OTP, verify it, and the
-// same runRedirectAfterAuth(... requiredMembership: "buyer") call fires.
 async function driveBuyerEmailOtp(path: string, email = "identity@example.com", otp = "123456") {
   window.history.pushState({}, "", path);
   render(
@@ -103,11 +122,13 @@ async function driveBuyerEmailOtp(path: string, email = "identity@example.com", 
       <BuyerLogin />
     </BrowserRouter>,
   );
+
   fireEvent.click(screen.getByText("Email OTP"));
-  fireEvent.change(screen.getByLabelText("Registered email address"), { target: { value: email } });
-  fireEvent.click(screen.getByText("Send email OTP"));
-  await waitFor(() => screen.getByLabelText("6-digit email OTP"));
-  fireEvent.change(screen.getByLabelText("6-digit email OTP"), { target: { value: otp } });
+  fireEvent.change(await screen.findByLabelText("Registered email"), { target: { value: email } });
+  fireEvent.click(screen.getByText("Continue with email OTP"));
+
+  const otpInput = await screen.findByPlaceholderText("Enter code");
+  fireEvent.change(otpInput, { target: { value: otp } });
   fireEvent.click(screen.getByText("Verify and continue"));
 }
 
@@ -118,10 +139,21 @@ beforeEach(() => {
   state.profileRow = null;
   state.serverRole = null;
   state.isInternalStaff = false;
+
+  window.initSendOTP = vi.fn();
+  window.sendOtp = vi.fn((_identifier, success) => success?.({ reqId: "req-1" }));
+  window.verifyOtp = vi.fn((_otp, success) => success?.("provider-access-token"));
+  window.retryOtp = vi.fn((_channel, success) => success?.({ reqId: "req-2" }));
+  window.isCaptchaVerified = vi.fn(() => true);
 });
 
 afterEach(() => {
   window.history.pushState({}, "", "/");
+  delete window.initSendOTP;
+  delete window.sendOtp;
+  delete window.verifyOtp;
+  delete window.retryOtp;
+  delete window.isCaptchaVerified;
 });
 
 describe("Requirement 1 — Staff Login + ACCOUNT_PENDING", () => {
@@ -157,7 +189,7 @@ describe("Requirement 2 — Staff Login + ROLE_NOT_ASSIGNED", () => {
 });
 
 describe("Requirement 3 — Buyer Login + intended ACCOUNT_PENDING onboarding", () => {
-  it("preserves the existing governed /buyer/access-request flow and keeps the session", async () => {
+  it("preserves the governed /buyer/access-request flow and keeps the session", async () => {
     state.userRow = {
       id: "user-1", email: "identity@example.com", role: "PENDING", company_id: null,
       is_active: true, phone: null, mobile_number: null, secondary_phones: null,
@@ -205,9 +237,8 @@ describe("Requirement 5 — Staff Login + resolved B2B_BUYER identity", () => {
   });
 });
 
-describe("Requirement 6 — a failed post-setSession authorization never leaves a reusable session", () => {
+describe("Requirement 6 — a failed post-session authorization never leaves a reusable session", () => {
   it("clears the session for every wrong-surface / unresolved outcome, on both surfaces", async () => {
-    // Staff surface, unresolved role.
     state.userRow = {
       id: "user-1", email: "identity@example.com", role: null, company_id: null,
       is_active: true, phone: null, mobile_number: null, secondary_phones: null,
@@ -216,7 +247,6 @@ describe("Requirement 6 — a failed post-setSession authorization never leaves 
     renderAt(StaffLogin, "/staff/login");
     await waitFor(() => expect(signOutAndClearSessionMock).toHaveBeenCalledTimes(1));
 
-    // Buyer surface, resolved staff identity.
     signOutAndClearSessionMock.mockClear();
     state.userRow = {
       id: "user-1", email: "identity@example.com", role: "SUPER_ADMIN", company_id: null,
