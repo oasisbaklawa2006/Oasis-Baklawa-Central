@@ -10,6 +10,7 @@ import { CurrencyProvider } from "./contexts/CurrencyContext.tsx";
 
 import { Navigate } from "react-router-dom";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import AdminLayout from "@/components/AdminLayout.tsx";
 
 // Eager — small, used on initial paint / auth flow
 import AuthEntry from "./pages/AuthEntry.tsx";
@@ -31,7 +32,6 @@ const BuyerAccessRequest = lazy(() => import("./pages/customer/BuyerApp.tsx").th
 const BuyerLogin = lazy(() => import("./pages/BuyerLogin.tsx"));
 const StaffLogin = lazy(() => import("./pages/StaffLogin.tsx"));
 
-const AdminLayout = lazy(() => import("./components/AdminLayout.tsx"));
 const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard.tsx"));
 const AdminClients = lazy(() => import("./pages/admin/AdminClients.tsx"));
 const Customer360Page = lazy(() => import("./pages/admin/Customer360Page.tsx"));

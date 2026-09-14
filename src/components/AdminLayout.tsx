@@ -26,6 +26,7 @@ import { isDispatchRole } from "@/lib/auth/securityGatePolicy";
 import { getAllowedModulesForRole, hasModuleAccess, type AppVerseModuleKey } from "@/lib/appverse/roleAccess";
 import { canAccessGoldenChainOperatorRoute } from "@/lib/appverse/routeAccess";
 import { canAccessCentralOrderPool } from "@/lib/centralOrderPool/centralOrderPoolAccess";
+import AdminRouteSuspense from "@/components/AdminRouteSuspense.tsx";
 
 interface NavItem {
   to: string; icon: React.ElementType; label: string; end?: boolean; moduleKey: AppVerseModuleKey;
@@ -239,7 +240,15 @@ const AdminLayout = () => {
         </div>
         <PanicAlertBanner />
         <main className="flex-1 p-4 pb-24 sm:p-6 sm:pb-24 lg:pb-6 overflow-y-auto overflow-x-hidden max-w-full">
-          <AdminRouteGuard>{isAppverseHome ? <AppverseAdminHome /> : <Outlet />}</AdminRouteGuard>
+          <AdminRouteGuard>
+            {isAppverseHome ? (
+              <AppverseAdminHome />
+            ) : (
+              <AdminRouteSuspense>
+                <Outlet />
+              </AdminRouteSuspense>
+            )}
+          </AdminRouteGuard>
         </main>
       </div>
       <AppverseMobileNav allowedModules={allowedModules} />
