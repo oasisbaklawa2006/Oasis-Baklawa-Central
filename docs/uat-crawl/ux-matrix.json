@@ -1,0 +1,292 @@
+{
+  "version": "2026-09-05",
+  "criteriaCount": 148,
+  "severityGuide": {
+    "P0": "security/role leakage, wrong authority, dangerous destructive action, false-success state, financially/operationally incorrect data or action",
+    "P1": "primary workflow unusable/blocked, invisible controls/options, major responsive failure, impossible navigation, scanner/camera failure",
+    "P2": "meaningful confusion/friction, misleading copy/status, broken empty/error state, poor mobile interaction, significant accessibility defect",
+    "P3": "cosmetic consistency/spacing/icon/copy polish that does not block correct operation"
+  },
+  "screenshotEvidence": {
+    "S0": "settled default page",
+    "S1": "primary menu/tab/filter opened",
+    "S2": "primary action/form/dialog opened",
+    "S3": "success or expected result after safe action OR exact blocked/error state"
+  },
+  "sections": [
+    {
+      "id": "A",
+      "title": "PAGE ENTRY / ORIENTATION",
+      "criteria": [
+        { "id": 1, "text": "Correct page title, module name, role context and breadcrumb/return path are obvious within 3 seconds." },
+        { "id": 2, "text": "User can tell what this page is for without prior knowledge." },
+        { "id": 3, "text": "Primary action is visually dominant; destructive/secondary actions are not competing with it." },
+        { "id": 4, "text": "No duplicate page/module names causing ambiguity." },
+        { "id": 5, "text": "No legacy/demo/preview wording on production operational surfaces unless intentionally labelled." },
+        { "id": 6, "text": "No dead-end page: every screen has an obvious next/back/home path." }
+      ]
+    },
+    {
+      "id": "B",
+      "title": "NAVIGATION / INFORMATION ARCHITECTURE",
+      "criteria": [
+        { "id": 7, "text": "Side/bottom/top navigation matches the logged-in role only." },
+        { "id": 8, "text": "Active nav item is visibly highlighted." },
+        { "id": 9, "text": "Browser/device Back returns to the expected previous state without data loss." },
+        { "id": 10, "text": "Redirects do not flash forbidden/legacy pages." },
+        { "id": 11, "text": "No duplicated routes exposing the same authority under different names unless explicitly redirected." },
+        { "id": 12, "text": "Deep links land on the correct governed page and survive refresh." },
+        { "id": 13, "text": "Tabs/sub-tabs remain understandable and preserve state where expected." },
+        { "id": 14, "text": "Mobile bottom navigation never overlaps content or safe areas." },
+        { "id": 15, "text": "Menus/drawers close predictably after selection." }
+      ]
+    },
+    {
+      "id": "C",
+      "title": "ROLE / AUTHORITY UX",
+      "criteria": [
+        { "id": 16, "text": "Forbidden modules are absent, not merely visually disabled, where policy requires hiding." },
+        { "id": 17, "text": "If an action is unavailable by authority, explanation is explicit and truthful." },
+        { "id": 18, "text": "No role sees War Room/CMD/Admin/Security Gate/Finance/Inventory surfaces outside its scope." },
+        { "id": 19, "text": "Dispatch specifically sees only ready orders, pickup/readiness, packing detail, packing scan, dispatch recording/finalization." },
+        { "id": 20, "text": "Security Gate remains independent of Dispatch." },
+        { "id": 21, "text": "Buyer never sees internal operational fields or admin terminology." },
+        { "id": 22, "text": "Staff do not see Buyer-only actions where not applicable." }
+      ]
+    },
+    {
+      "id": "D",
+      "title": "RESPONSIVE / LAYOUT",
+      "criteria": [
+        { "id": 23, "text": "Test required phone widths including iPhone-sized viewport, tablet, laptop/desktop, and TV where applicable." },
+        { "id": 24, "text": "No horizontal clipping or accidental horizontal scroll." },
+        { "id": 25, "text": "Cards/tables/controls do not overlap at narrow widths." },
+        { "id": 26, "text": "Fixed headers/footers do not cover content." },
+        { "id": 27, "text": "Safe-area insets respected around iPhone notch/home indicator." },
+        { "id": 28, "text": "Long names/order numbers/company names wrap or truncate intentionally with access to full value." },
+        { "id": 29, "text": "Tables remain usable on mobile: responsive cards, horizontal scroll, or deliberate compact layout." },
+        { "id": 30, "text": "Modal/sheet content stays fully reachable with keyboard open." },
+        { "id": 31, "text": "TV screens remain legible from distance; no tiny controls or interactive affordances on read-only TVs." }
+      ]
+    },
+    {
+      "id": "E",
+      "title": "STACKING / OVERLAY / PORTAL DEFECTS",
+      "criteria": [
+        { "id": 32, "text": "Open every Select, ComboBox, Popover, Tooltip, Dropdown, Context Menu, Dialog, Sheet and Drawer." },
+        { "id": 33, "text": "Verify each appears ABOVE the parent surface and is not clipped by overflow containers." },
+        { "id": 34, "text": "Verify overlay can be dismissed by expected methods without losing form state." },
+        { "id": 35, "text": "Verify nested overlays do not trap focus or render behind parent overlays." },
+        { "id": 36, "text": "Specifically retest Buyer approval Pricing Slab + Account Manager inside Sheet (#481)." }
+      ]
+    },
+    {
+      "id": "F",
+      "title": "FORMS / DATA ENTRY",
+      "criteria": [
+        { "id": 37, "text": "Required vs optional fields are visually obvious before submission." },
+        { "id": 38, "text": "Labels remain visible after typing; placeholders are not used as the only label." },
+        { "id": 39, "text": "Correct keyboard type appears on mobile for phone/email/numeric fields." },
+        { "id": 40, "text": "Numeric fields reject impossible/negative/non-numeric values safely." },
+        { "id": 41, "text": "Date/time fields show timezone and format clearly where operationally important." },
+        { "id": 42, "text": "Validation appears beside the actual bad field, not only as a generic toast." },
+        { "id": 43, "text": "Validation wording explains how to correct the problem." },
+        { "id": 44, "text": "Form errors preserve entered values unless security requires clearing." },
+        { "id": 45, "text": "Submit button enable/disable state is understandable and updates immediately when requirements are met." },
+        { "id": 46, "text": "Double-tap/double-click cannot create duplicate governed actions." },
+        { "id": 47, "text": "Unsaved changes are protected or clearly discarded." },
+        { "id": 48, "text": "Autofill/paste does not corrupt formatting." }
+      ]
+    },
+    {
+      "id": "G",
+      "title": "SEARCH / FILTER / SORT / PAGINATION",
+      "criteria": [
+        { "id": 49, "text": "Search returns correct results and clear zero-result state." },
+        { "id": 50, "text": "Search input does not lag, clear unexpectedly, or hide selected filters." },
+        { "id": 51, "text": "Applied filters are visibly represented and individually removable." },
+        { "id": 52, "text": "'Clear all' behaves correctly." },
+        { "id": 53, "text": "Filter counts/results match displayed data." },
+        { "id": 54, "text": "Sort indicator matches actual sort order." },
+        { "id": 55, "text": "Pagination/infinite scroll does not duplicate or skip records." },
+        { "id": 56, "text": "Returning from detail preserves useful list/filter position where practical." },
+        { "id": 57, "text": "Retest known B2B Dispatch filter empty-data case against expected production data." }
+      ]
+    },
+    {
+      "id": "H",
+      "title": "LOADING / EMPTY / ERROR / RETRY STATES",
+      "criteria": [
+        { "id": 58, "text": "Every async page has a deliberate loading state; no frozen blank page." },
+        { "id": 59, "text": "Skeleton/loading indicator does not imply false data." },
+        { "id": 60, "text": "Empty state explains whether there is genuinely no data, a filter issue, or missing authority." },
+        { "id": 61, "text": "Error state shows a useful user-safe message, not raw SQL/RPC/stack output." },
+        { "id": 62, "text": "Retry control actually retries and recovers." },
+        { "id": 63, "text": "Partial data failure is not presented as full success." },
+        { "id": 64, "text": "Stale cached data is clearly distinguishable where operational decisions depend on freshness." },
+        { "id": 65, "text": "Network/offline loss produces safe feedback and does not silently drop mutations." }
+      ]
+    },
+    {
+      "id": "I",
+      "title": "FEEDBACK AFTER ACTION",
+      "criteria": [
+        { "id": 66, "text": "Every click/tap that changes state gives immediate visible acknowledgement." },
+        { "id": 67, "text": "Long-running operations show progress or working state." },
+        { "id": 68, "text": "Success toast/banner confirms WHAT succeeded, not merely 'Success'." },
+        { "id": 69, "text": "Failed mutation clearly remains failed; UI must not optimistically display a completed state after server rejection." },
+        { "id": 70, "text": "Buttons cannot remain indefinitely spinning after request completion/failure." },
+        { "id": 71, "text": "State change is reflected in all relevant badges/lists/timelines without manual reload where expected." },
+        { "id": 72, "text": "Refresh does not revert a genuinely committed action." }
+      ]
+    },
+    {
+      "id": "J",
+      "title": "COPY / TERMINOLOGY / COMPREHENSION",
+      "criteria": [
+        { "id": 73, "text": "Use one canonical term for SO, PI, Invoice, DPL, Dispatch Clearance, Security Gate, etc." },
+        { "id": 74, "text": "No conflicting terms like 'order complete' before dispatch/gate truth is complete." },
+        { "id": 75, "text": "Buyer-facing copy is customer-safe and avoids internal implementation jargon." },
+        { "id": 76, "text": "MOQ/carton guidance is actionable ('add X boxes to complete carton'), not punitive." },
+        { "id": 77, "text": "Payment wording reflects 30% advance policy and governed calculation; UI does not locally invent finance amounts." },
+        { "id": 78, "text": "Error messages tell user what to do next." },
+        { "id": 79, "text": "Button labels describe the resulting action ('Approve & Activate', 'Submit for QC') rather than vague 'Save' where a governed transition occurs." }
+      ]
+    },
+    {
+      "id": "K",
+      "title": "VISUAL HIERARCHY / CONSISTENCY",
+      "criteria": [
+        { "id": 80, "text": "Typography hierarchy is consistent across equivalent screens." },
+        { "id": 81, "text": "Font size remains readable on phone and TV." },
+        { "id": 82, "text": "Contrast is sufficient for text, disabled states, badges and status colors." },
+        { "id": 83, "text": "Status colors are consistent app-wide and never the sole source of meaning." },
+        { "id": 84, "text": "Spacing/alignment is consistent; no accidental compressed/oversized gaps." },
+        { "id": 85, "text": "Cards/buttons/input heights remain consistent for equivalent components." },
+        { "id": 86, "text": "Icons match their action and are not ambiguous without labels where meaning is not obvious." },
+        { "id": 87, "text": "No clipped logos, distorted images, broken thumbnails, missing product imagery, or unexpected placeholders." },
+        { "id": 88, "text": "Long pages retain visual grouping and section boundaries." }
+      ]
+    },
+    {
+      "id": "L",
+      "title": "TOUCH / POINTER / KEYBOARD USABILITY",
+      "criteria": [
+        { "id": 89, "text": "Touch targets are comfortably tappable; flag targets below roughly 44x44 CSS px on primary mobile controls." },
+        { "id": 90, "text": "Adjacent destructive/non-destructive buttons are not dangerously close." },
+        { "id": 91, "text": "Hover-only information has a touch-accessible equivalent." },
+        { "id": 92, "text": "Keyboard Tab order is logical on desktop." },
+        { "id": 93, "text": "Enter/Space activates expected controls without accidental submission." },
+        { "id": 94, "text": "Escape closes overlays appropriately." },
+        { "id": 95, "text": "Focus indicator is visible." },
+        { "id": 96, "text": "Focus returns sensibly after closing a dialog/sheet." }
+      ]
+    },
+    {
+      "id": "M",
+      "title": "ACCESSIBILITY / SEMANTICS",
+      "criteria": [
+        { "id": 97, "text": "Buttons/inputs have meaningful accessible names." },
+        { "id": 98, "text": "Icon-only controls have aria-label/title equivalents." },
+        { "id": 99, "text": "Form errors are associated with fields." },
+        { "id": 100, "text": "Heading order is logical." },
+        { "id": 101, "text": "Tables expose meaningful headers." },
+        { "id": 102, "text": "Images have appropriate alt behavior; decorative images do not pollute screen-reader flow." },
+        { "id": 103, "text": "Status differences are not communicated only by color." },
+        { "id": 104, "text": "Zoom/text scaling to at least 200% must not hide critical controls on web surfaces." }
+      ]
+    },
+    {
+      "id": "N",
+      "title": "DATA TRUTH / OPERATIONAL TRUST",
+      "criteria": [
+        { "id": 105, "text": "Displayed order/customer/product/finance/stock data matches authoritative backend values for the chosen synthetic fixture." },
+        { "id": 106, "text": "No placeholder/mock/demo numbers on operational screens." },
+        { "id": 107, "text": "Currency, GST, units, dates and quantity formatting are correct." },
+        { "id": 108, "text": "SO/PI/Invoice numbers are not silently fabricated by the frontend." },
+        { "id": 109, "text": "No duplicate records caused by UI retries." },
+        { "id": 110, "text": "Audit/event/timeline ordering is chronological and understandable." },
+        { "id": 111, "text": "'Ready', 'Approved', 'Paid', 'Packed', 'Dispatched', 'Released' labels reflect actual governed state, not inferred UI state." },
+        { "id": 112, "text": "Sensitive IDs/secrets/internal diagnostic payloads are not exposed unnecessarily." }
+      ]
+    },
+    {
+      "id": "O",
+      "title": "MODULE-SPECIFIC BUYER UX",
+      "criteria": [
+        { "id": 113, "text": "Welcome/login/access request/approval-pending/session expiry flows are obvious and recoverable." },
+        { "id": 114, "text": "Buyer Dashboard: account status, wallet, pending amount, SO-ready advance, PI/final-payment, documents, statement, delays, banners, quick actions all render without contradiction." },
+        { "id": 115, "text": "Catalogue: category/filter/search/product detail/favorites/quick buy work with MOQ/carton guidance." },
+        { "id": 116, "text": "Cart: carton completion guidance, multi-item quantities, totals, and checkout authority are clear." },
+        { "id": 117, "text": "Orders: list/detail/golden pipeline/status/timeline/reorder are coherent." },
+        { "id": 118, "text": "Account: profile/company/employees/transporter/documents/settings remain usable on mobile." },
+        { "id": 119, "text": "Support: ticket/general enquiry states are understandable and communication history is readable." }
+      ]
+    },
+    {
+      "id": "P",
+      "title": "MODULE-SPECIFIC CENTRAL / FACTORY / DISPATCH",
+      "criteria": [
+        { "id": 120, "text": "Central Order Pool has one obvious authority path and no duplicate War Room ambiguity." },
+        { "id": 121, "text": "Finance screens separate review, payment, PI/final invoice, DPL receipt, dispatch clearance and gate release clearly." },
+        { "id": 122, "text": "Factory/HOD queues show what is awaiting action vs blocked vs complete without needing hidden knowledge." },
+        { "id": 123, "text": "RGS/3PGS/P&A screens show stock/shortage/booking/handover truth clearly." },
+        { "id": 124, "text": "Packing scan surfaces identify carton/order/current progress and scan errors unambiguously." },
+        { "id": 125, "text": "Dispatch recording shows exactly what remains before completion." },
+        { "id": 126, "text": "Gate screen shows independent release truth and cannot be mistaken for Dispatch action." }
+      ]
+    },
+    {
+      "id": "Q",
+      "title": "TRACE / SCANNER UX",
+      "criteria": [
+        { "id": 127, "text": "Scanner gives immediate feedback for valid, duplicate, wrong-order, wrong-stage and offline scans." },
+        { "id": 128, "text": "Offline queue count and retry state are visible." },
+        { "id": 129, "text": "Duplicate scan does not look like a new successful event." },
+        { "id": 130, "text": "Camera permission denied/granted states are understandable." },
+        { "id": 131, "text": "Manual barcode fallback, where permitted, is discoverable and governed." },
+        { "id": 132, "text": "Scan timeline clearly distinguishes device time/server time if relevant." }
+      ]
+    },
+    {
+      "id": "R",
+      "title": "AI STUDIO / MEDIA UX",
+      "criteria": [
+        { "id": 133, "text": "Create/edit/approval states clearly distinguish draft vs approved vs published." },
+        { "id": 134, "text": "AI-generated fields are visibly reviewable/correctable before governed acceptance." },
+        { "id": 135, "text": "Media upload/camera progress, failure, retry and completed storage state are visible." },
+        { "id": 136, "text": "Image preview corresponds to the exact product/variant being edited." },
+        { "id": 137, "text": "No failed enhancement/upload is shown as successful." },
+        { "id": 138, "text": "Physical camera orientation/crop/retake/permission flows are usable on phone." }
+      ]
+    },
+    {
+      "id": "S",
+      "title": "TV / READ-ONLY UX",
+      "criteria": [
+        { "id": 139, "text": "TV pages are actually non-interactive/read-only." },
+        { "id": 140, "text": "Priority/blinker/color semantics are understandable from viewing distance." },
+        { "id": 141, "text": "Orders/SO/dispatch schedule/expected-today information fit without clipping." },
+        { "id": 142, "text": "Automatic refresh does not reset to blank or stale silently." },
+        { "id": 143, "text": "No admin buttons/inputs appear on TV routes." }
+      ]
+    },
+    {
+      "id": "T",
+      "title": "PERFORMANCE AS UX",
+      "criteria": [
+        { "id": 144, "text": "Flag pages with visibly excessive first meaningful render time." },
+        { "id": 145, "text": "Flag controls where tap-to-feedback feels delayed or duplicates due to repeated taps." },
+        { "id": 146, "text": "Large tables/lists should remain scrollable without severe jank." },
+        { "id": 147, "text": "Images should not cause layout shift that moves controls after initial render." },
+        { "id": 148, "text": "Modal/dropdown opening should be immediate and stable." }
+      ]
+    }
+  ],
+  "mandatoryRetests": [
+    { "issue": "#483", "priorIssue": "#481", "uatIds": ["UAT-0018", "UAT-0020"], "criteria": [32, 33, 36], "route": "/admin/clients", "device": "phone", "note": "Re-test SAME FAIL-481-* / FAIL-UX-481-* IDs only after #483 deploy" },
+    { "issue": "B2B Dispatch filter", "criteria": [57], "route": "/admin/dispatch-mgmt" },
+    { "issue": "Dispatch RBAC nav", "criteria": [16, 17, 18, 19, 20], "persona": "DISPATCH" },
+    { "issue": "TV read-only", "criteria": [139, 140, 141, 142, 143], "device": "tv" }
+  ]
+}

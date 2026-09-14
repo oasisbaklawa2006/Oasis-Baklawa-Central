@@ -1,0 +1,361 @@
+# UAT Crawl Progress Summary
+
+**Last updated:** 2026-09-08T18:05Z (watchdog continue dispatch @ `a619a7a2` #558 — prior run [34244531921](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34244531921))  
+**Branch / PR:** `cursor/physical-uat-readiness-matrix-e763` → **#462**  
+**Current main:** `a619a7a2ef01ee889d32fffebb5ff13fe3181252` (#558)  
+**Prior holds (superseded):** `6c7de2a` (#556) · `15c59a3f` (#507) — preserved append-only  
+**Deploy gate:** **CLEARED** — GitHub deployment `6329154505` @ exact `a619a7a2` (Vercel success)  
+**Trusted deploy URL:** `https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app`  
+**Mode:** Read-only lane 7 — no remediation.
+
+## Lane 7 rebaseline complete @ `a619a7a2` — GHA run [34239494014](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34239494014)
+
+| Field | Value |
+|---|---|
+| Required SHA | `a619a7a2ef01ee889d32fffebb5ff13fe3181252` (#558) |
+| Trusted deploy | `6329154505` @ `https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app` |
+| Evidence commit | `b609e7fc` · artifact `uat-crawl-evidence-34239494014-1` |
+| Tranche | **`all`** (credential-prefix-unblock → chronological remainder) |
+
+| Step | Authenticated S0–S3 |
+|---|---:|
+| **credential-prefix-unblock** (13 Gate/RGS/3PGS) | **13 / 13** |
+| post-fix-483 (UAT-0018/0020) | **0 / 2** — S0 only; no pending review sheet (FAIL-481-* remain **BLOCKED**) |
+| auth-rerun | **11 / 13** — UAT-0006/0007 blocked (`TEST_BUYER_*`) |
+| tranche-03..08 + public + S2 gap | see manifests @ `a619a7a2` |
+| buyer-mobile | **0** — `TEST_BUYER_*` absent |
+| **Total auth S0–S3 @ a619a7a2** | **96 / 131** |
+| Verified credential **BLOCKED** | **28** |
+| Remaining without auth evidence | **29** |
+
+Prior `6c7de2a` / `15c59a3f` / `e2f123b0` evidence preserved append-only — not rewritten.
+
+| Continuation **`watchdog-continue`** | [34242121280](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34242121280) | GHA evidence commit | public re-cert @ `a619a7a2` + full tranche refresh |
+
+**Latest @ `a619a7a2`:** **96 / 131** auth S0–S3 · **5 / 5** public S0 @ exact deploy · **28** credential BLOCKED · **2** partial (UAT-0018/0020 post-fix fixture)
+
+**UAT audit continue (2026-09-08):** Deploy `6329154505` @ exact `a619a7a2` **CLEARED** — `64a107df`/preview **NOT** current-main proof. See [`UAT_AUDIT_CONTINUE.json`](UAT_AUDIT_CONTINUE.json). Physical/device/provider gates remain **NOT TESTED**.
+
+## Watchdog continue @ `a619a7a2` — dispatch 2026-09-08T18:05Z
+
+| Field | Value |
+|---|---|
+| Prior run (no coverage advance) | [34244531921](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34244531921) — refresh only, **96 / 131** unchanged |
+| Next chronological runnable | **NONE** without operator unblock |
+| post-fix UAT-0018/0020 | **BLOCKED** — fixture `dc370b46` has no pending review sheet (S0 only) |
+| buyer-mobile UAT-0006/0007/0114–0121 | **BLOCKED** — `TEST_BUYER_*` absent |
+| TV UAT-0106–0113 | **BLOCKED** — `TEST_TV_RGS_*` / `TEST_TV_PRODUCTION_*` absent |
+| AI Studio / Trace UAT-0122–0131 | **BLOCKED** — preview URL secrets absent |
+
+Artifact: [`UAT_WATCHDOG_CONTINUE.json`](UAT_WATCHDOG_CONTINUE.json)
+
+Registry: [`UAT_REBASELINE_CURRENT_MAIN.json`](UAT_REBASELINE_CURRENT_MAIN.json) · public archive: [`UAT_MANIFEST_PUBLIC_CONTINUATION_ARCHIVE.jsonl`](UAT_MANIFEST_PUBLIC_CONTINUATION_ARCHIVE.jsonl)
+
+## Lane 7 authority retarget — deploy CLEARED @ `a619a7a2` (2026-09-08) — superseded by run above
+
+## Lane 7 authority retarget — verified DEPLOY_BLOCKED @ `6c7de2a` (2026-09-07T23:51Z) — superseded
+
+| Field | Value |
+|---|---|
+| Required SHA | `6c7de2a69cec960f709a66fb85d25049dfcc2ae0` (#556) |
+| Prior hold SHA | `15c59a3f` — historical evidence preserved, not rewritten |
+| Trusted deploy @ exact SHA | **ABSENT** — crawl withheld |
+| Vercel status | `failure` — rate limited (100/day free tier) |
+| **NOT-TESTED / DEPLOY_BLOCKED** | **103** surfaces (incl. 13 credential-cleared Gate/RGS/3PGS) |
+| Verified credential-blocked | **28** |
+| Creds available, awaiting deploy | **18** |
+| **Recertified @ 6c7de2a** | **0** |
+| Watchdog | `watchdog-2026-09-07T2351Z` |
+| Artifacts | [`UAT_REBASELINE_DEPLOY_BLOCKED.json`](UAT_REBASELINE_DEPLOY_BLOCKED.json) · [`UAT_CURRENT_MAIN_NOT_TESTED.jsonl`](UAT_CURRENT_MAIN_NOT_TESTED.jsonl) · append archives |
+
+**Stop:** `DEPLOY_BLOCKED @ 6c7de2a` only. No `15c59a3f`, `d55306b3`, `c7f4ddf2`, or other stale preview substitution. When exact deploy lands → `credential-prefix-unblock` (13 IDs) → `watchdog-continue` (chronological remainder).
+
+## Lane 7 deploy watchdog — verified BLOCKED @ `15c59a3f` (2026-09-07T21:52Z re-check) — superseded
+
+| Field | Value |
+|---|---|
+| Required SHA | `15c59a3f54c92f2b289bd150005bcd7114b51a93` |
+| Trusted deploy | **ABSENT** — crawl withheld |
+| Vercel status | `failure` — rate limited (100/day free tier) |
+| Credential-cleared, awaiting deploy | **13** IDs: UAT-0003 · 0062–0065 · 0067 · 0082 · 0087 · 0097–0101 |
+| Plus cred-available (Sales etc.) | **18** total awaiting deploy |
+| Verified credential-blocked | **28** |
+| **Recertified @ 15c59a3f** | **0** |
+| Artifact | [`UAT_REBASELINE_DEPLOY_BLOCKED.json`](UAT_REBASELINE_DEPLOY_BLOCKED.json) · append [`UAT_REBASELINE_DEPLOY_BLOCKED_ARCHIVE.jsonl`](UAT_REBASELINE_DEPLOY_BLOCKED_ARCHIVE.jsonl) |
+
+**Stop:** `DEPLOY_BLOCKED @ 15c59a3f` only — credentials materially unblocked for Gate/RGS/3PGS. When exact deploy lands → `credential-prefix-unblock` (13 IDs) → `watchdog-continue` (chronological remainder). No stale preview.
+
+## Credential-prefix-unblock — GHA run [34155840050](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34155840050)
+
+| Field | Value |
+|---|---|
+| Tranche | `credential-prefix-unblock` |
+| Harness fix | `TEST_GATE_*` \|\| `TEST_GATE_SECURITY_*`; `TEST_3PGS_*` \|\| `TEST_PRODUCTION_*` |
+| Secrets present in GHA | **18 / 31** audited (was 10/27) — `TEST_GATE_*`, `TEST_RGS_*`, `TEST_3PGS_*`, `TEST_SALES_*` now wired |
+| Deploy @ `15c59a3f` | **BLOCKED** — crawl withheld (no stale substitution) |
+| Evidence commit | `1d923f10` |
+
+| Metric | Before (34082244745) | After (34155840050) |
+|---|---:|---:|
+| Verified **BLOCKED** (credential) | **46 / 46** | **28 / 131** |
+| Creds available, awaiting deploy/evidence | **0** | **18** (13 Gate/RGS/3PGS + 5 Sales) |
+| **Recertified @ 15c59a3f** | **0** | **0** (deploy blocked) |
+| Prior BLOCKED rows preserved | append-only archive | `UAT_VERIFIED_BLOCKERS_ARCHIVE.jsonl` |
+
+**13 Gate/RGS/3PGS targets cleared credential blockers:** UAT-0003 · 0062–0065 · 0067 · 0082 · 0087 · 0097–0101 — **await trusted deploy** to capture S0–S3 evidence.
+
+**Still credential-blocked (28):** `TEST_BUYER_*` (10) · `TEST_TV_RGS_*` (7) · `TEST_TV_PRODUCTION_*` (1) · `TEST_AI_STUDIO_PREVIEW_URL` (6) · `TEST_TRACE_PREVIEW_URL` (4)
+
+**Next:** Vercel deploy for exact `15c59a3f` → re-run `credential-prefix-unblock`.
+
+## Current-main rebaseline — GHA run [34082244745](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34082244745) @ `15c59a3f` (prior)
+
+| Field | Value |
+|---|---|
+| Tranche | `current-main-rebaseline` |
+| Duration | ~30s (deploy blocked — crawl withheld) |
+| Required deploy | `15c59a3f` — **BLOCKED** (no GitHub/Vercel deployment for exact SHA) |
+| Artifact | `uat-crawl-evidence-34082244745-1` |
+| Evidence commit | `7fe64f8c` |
+
+| Metric | Result |
+|---|---:|
+| **Recertified @ 15c59a3f** (auth S0–S3 + public) | **0 / 85** runnable — deploy blocked |
+| Prior `e2f123b0` evidence preserved | **80 auth + 5 public** (append-only, not substituted) |
+| Verified **BLOCKED** (credential/deploy secrets) | **46 / 46** (re-verified, unchanged) |
+| New FAIL-IDs from crawl | **0** (no crawl executed) |
+| Secrets present in GHA | **10 / 27** (`UAT_SECRET_PRESENCE.json`) |
+
+**Deploy blocker:** `No successful Vercel deployment for 15c59a3f` — see [`UAT_REBASELINE_DEPLOY_BLOCKED.json`](UAT_REBASELINE_DEPLOY_BLOCKED.json). No ace340fe / e2f123b0 substitution.
+
+**Credential blockers unchanged (46):** `TEST_GATE_SECURITY_*` · `TEST_BUYER_*` · `TEST_SALES_*` · `TEST_RGS_*` · `TEST_PRODUCTION_*` · `TEST_TV_RGS_*` · `TEST_TV_PRODUCTION_*` · `TEST_AI_STUDIO_PREVIEW_URL` · `TEST_TRACE_PREVIEW_URL`
+
+**Next action:** Vercel deploy for `15c59a3f` (or `TEST_PREVIEW_URL` at exact SHA) → re-run `current-main-rebaseline`. Then wire missing `TEST_*` secrets for remaining 46 IDs.
+
+## Watchdog continue — GHA run [34046709938](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34046709938) @ `e2f123b0` (prior baseline — preserved)
+
+| Field | Value |
+|---|---|
+| Tranche | `watchdog-continue` (all executable surfaces, skip UAT-005 re-cert) |
+| Duration | ~16m |
+| Deploy | `e2f123b0` @ current-main Vercel URL |
+| Artifact | `uat-crawl-evidence-34046709938-1` |
+| Evidence commit | `f512371a` |
+
+| Metric | Before (34037424554) | After (34046709938) |
+|---|---:|---:|
+| Authenticated S0–S3 (manifest) | **80 / 131** | **80 / 131** (unchanged — no credential unlock) |
+| UAT-005 current-main cert | PASS | **Preserved** (not re-run) |
+| Public continuation | **5 / 5** | **5 / 5** (checksum refresh) |
+| Verified **BLOCKED** | **46 / 46** | **46 / 46** (runtime re-verified) |
+| Secrets present in GHA | — | **10 / 27** audited (`UAT_SECRET_PRESENCE.json`) |
+
+**Executed:** post-fix-483 · auth-rerun · tranche-03..08 · buyer-mobile · AI-UAT · public continuation · S2 gap deepening · blocker re-registry.
+
+**Evidence delta:** current-main checksum refresh on all 80 auth rows; new S2 `auth-overlay-open` captures for **UAT-0037** / **UAT-0038**; secret presence audit append-only; blocker registry updated with current-main provenance (no ace340fe stale label).
+
+**No credential/deploy blocker cleared** — buyer (`TEST_BUYER_*`), sales/post-fix-483 (`TEST_SALES_*`), gate security, RGS, production, TV, AI Studio, Trace remain **BLOCKED** with exact secret names per ID.
+
+**Stop condition:** `ONLY_TEST_SECRET_BLOCKERS` — see [`UAT_PHYSICAL_READINESS_RECONCILIATION.md`](UAT_PHYSICAL_READINESS_RECONCILIATION.md).
+
+## Physical readiness reconciliation @ `e2f123b0`
+
+| Automated disposition | Count |
+|---|---:|
+| Auth S0–S3 complete (current-main crawl) | **80 / 131** |
+| Public S0 observed | **5 / 131** |
+| **BLOCKED** — credential/deploy (`TEST_*` only) | **46 / 131** |
+
+**GHA secret audit (run 34046709938):** 10 present / 17 missing — `UAT_SECRET_PRESENCE.json`. Deploy auto-resolved (no `TEST_PREVIEW_URL` required).
+
+**No further automated evidence** until Mission Control wires missing secrets. Physical iPhone/scanner/TV lanes are **not** cleared by desktop Chrome crawl alone.
+
+Preserved append-only: FAIL-493 pre-fix · preview PASS `9715c20d` · current-main UAT-005 PASS run 34037424554.
+
+## Post-#497 merge — current-main certification (`post-merge-497-main`)
+
+| Gate | Status |
+|---|---|
+| #497 merge blocker | **Removed** — merged @ `e2f123b0` |
+| UAT-005 / FAIL-493-001 same-ID retest | **PASS** on current-main deploy (run 34037424554) |
+| Prior preview PASS `9715c20d` | **Preserved** — separate append-only row in `UAT_POST_MERGE_493_PROOF.jsonl` |
+| Full auth crawl on current main | **Completed** after UAT-005 PASS (~17m) |
+| Authenticated S0–S3 (current-main) | **80 / 131** |
+| Verified BLOCKED (credential/deploy) | **46 / 46** — explicit, unchanged |
+
+### GHA run [34037424554](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34037424554) — `post-merge-497-main` @ `e2f123b0`
+
+| Field | Value |
+|---|---|
+| Duration | ~17m |
+| Deploy | `e2f123b0` @ `https://oasis-baklawa-central-8lkgmf1q2-oasisbaklawa2006-6222s-projects.vercel.app` |
+| Provenance | **Current-main #497 merge certification** — NOT substituting `9715c20d` preview |
+| UAT-005 visual | S0 dispatch default · S1 all-tools no Finance · S2 forbidden `/admin/finance` probe · S3 settled redirect |
+| Forbidden probes | `/admin/finance`, `/admin/finance-governance`, `/admin/accounts-release` → `/admin/dispatch-mgmt` |
+| Artifact | `uat-crawl-evidence-34037424554-1` |
+| Evidence commit | `9df732fa` |
+
+**Append-only proof row:** `proof: post-merge-497-main-cert` in `UAT_POST_MERGE_493_PROOF.jsonl` — original FAIL @ `8f042fa` **unchanged**.
+
+## Release hold lifted — targeted post-merge proofs
+
+Prior ace340fe continuation crawl (**80/131** authenticated) preserved with explicit provenance. Current-main rebaseline on `e2f123b0` now has UAT-005 same-ID PASS + full executable auth crawl evidence.
+
+### Continuation crawl (ace340fe fallback)
+
+When `64a107df` has no Vercel deploy, GHA `all` tranche resolves ace340fe continuation URL with provenance in `UAT_DEPLOY_PROVENANCE.json`. Prior ace340fe-era **80/131** evidence preserved append-only.
+
+### GHA run [34023648441](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34023648441) — UAT watchdog `all` tranche (ace340fe continuation)
+
+| Field | Value |
+|---|---|
+| Duration | 11m28s |
+| Deploy | ace340fe `https://oasis-baklawa-central-6zo99hosg-oasisbaklawa2006-6222s-projects.vercel.app` |
+| Provenance | **NOT current-main 64a107df certification** |
+| FAIL-493 evidence | **Preserved unchanged** (FAIL @ `8f042fa` run 34015742110; PASS @ `9715c20d` run 34016393457) |
+| #497 `fa3b879` | **Not re-run** — newer open-PR head; not substituted for preserved repair proof |
+| Artifact | `uat-crawl-evidence-34023648441-1` |
+
+| Tranche | Tests run | Authenticated S0–S3 | Blocked |
+|---|---|---:|---|
+| AI-UAT UAT-001–010 | 10 pass | **10 / 10** | — |
+| post-fix-483 | 2 pass | **0 / 2** | `TEST_SALES_*` |
+| auth-rerun | 13 pass | **10 / 13** | UAT-0003 (`TEST_GATE_SECURITY_*`), UAT-0006/0007 (`TEST_BUYER_*`) |
+| tranche-03 | 10 pass | **10 / 10** | — |
+| tranche-04-auth | 20 pass | **19 / 20** | UAT-0044 (`TEST_SALES_*`) |
+| tranche-05-auth | 20 pass | **15 / 20** | RGS/production creds |
+| tranche-06-auth | 20 pass | **18 / 20** | RGS/production creds |
+| tranche-07-auth | 20 pass | **8 / 20** | TV/RGS creds |
+| tranche-08-auth | 21 pass | **0 / 21** | buyer/AI Studio/Trace creds |
+| buyer-mobile | 1 pass | **0 / 16 surfaces** | `TEST_BUYER_*` — **no fabricated evidence** |
+
+**Totals:** authenticated S0–S3 **80 / 131** · public continuation **5 / 5** (ace340fe) · verified **BLOCKED 46 / 46** · remaining without auth function evidence **46** (credential/deploy authority)
+
+### GHA confirmation — run [34026395129](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34026395129) @ `46eef121`
+
+Full `all` tranche in **11m43s** — counts unchanged; commit job **no file delta** (identical checksums). Artifact: `uat-crawl-evidence-34026395129-1`.
+
+### Watchdog S1 deepening — run [34028658487](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34028658487) @ `bc699a53`
+
+**11m34s** · **78 new S1 `auth-sidebar-hover` screenshots** on authenticated surfaces (80 auth rows; 2 without sidebar — dispatch/TV). Updated `UAT_MANIFEST_AUTH.jsonl` SHA256 rows. Artifact: `uat-crawl-evidence-34028658487-1`. FAIL-493 not re-run.
+
+### Watchdog S2 deepening — run [34029358388](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34029358388) @ `fe92cfb5`
+
+**13m23s** · ace340fe continuation · artifact `uat-crawl-evidence-34029358388-1` · commit `81272445`
+
+| Metric | Before | After |
+|---|---:|---:|
+| Authenticated S0–S3 | 80 / 131 | **80 / 131** (unchanged) |
+| Authenticated S1 (opened-interactive) | 78 / 80 | **77 / 80** |
+| Authenticated S2 (overlay/tab/row/button/card) | 9 / 80 | **72 / 80** |
+| Public continuation S0 | 5 / 5 | **5 / 5** |
+| Verified BLOCKED | 46 / 46 | **46 / 46** (unchanged) |
+| FAIL-493 evidence | preserved | **preserved** — not re-run |
+
+**New S2 screenshots:** 63 authenticated `*S2-auth-*` PNGs with SHA256 manifest rows.
+
+**S1 still absent (no matching nav/sidebar/main control):** UAT-0002 `/operations-controller`, UAT-0080 `/admin/execution/production`, UAT-0094 `/admin/dispatch-mgmt`.
+
+**S2 still absent (full-bleed/TV/war-room layouts):** UAT-0002, UAT-0037, UAT-0038, UAT-0052, UAT-0053, UAT-0061, UAT-0080, UAT-0094.
+
+**Public continuation:** login surfaces redirect before form/link selectors settle — S0 + UAT-0009 S2 only; UAT-0008 S1/S2 remains NOT captured.
+
+**GHA commit-evidence:** succeeded (artifact copy fix).
+
+### S2 gap deepening — run [34034836575](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34034836575) @ `fbcfb504`
+
+**17m17s** · ace340fe continuation · artifact `uat-crawl-evidence-34034836575-1` · commit `8d0d45b9`
+
+| Metric | Before | After |
+|---|---:|---:|
+| Authenticated S0–S3 | 80 / 131 | **80 / 131** (unchanged) |
+| Authenticated S1 | 77 / 80 | **80 / 80** |
+| Authenticated S2 | 72 / 80 | **80 / 80** |
+| S2 gap targets (8) | 0 / 8 | **8 / 8** |
+| Verified BLOCKED | 46 / 46 | **46 / 46** (unchanged) |
+| FAIL-493 evidence | preserved | **preserved** — not re-run |
+
+**Gap targets closed:** UAT-0002 (PHH tab), UAT-0037/0038 (page-button-focus on operator inbox), UAT-0052/0053 (overlay-open post-redirect), UAT-0061 (row-hover on TV column), UAT-0080 (PHH tab post-redirect), UAT-0094 (dispatch-order-focus filter-empty).
+
+**Manifest:** `UAT_S2_GAP_DEEPENING_SUMMARY.json` · `UAT_INDEX_S2_GAP_DEEPENING.md`
+
+### Public continuation — ace340fe unblocked surfaces
+
+| UAT ID | Route | Deploy SHA | Result |
+|---|---|---|---|
+| UAT-0001 | /splash | ace340fe | **OBSERVED** + UX partial (4/148) |
+| UAT-0004 | / | ace340fe | **OBSERVED** + UX partial |
+| UAT-0005 | /customer-app-redirect | ace340fe | **OBSERVED** + UX partial |
+| UAT-0008 | /login | ace340fe | **OBSERVED** + UX partial |
+| UAT-0009 | /reset-password | ace340fe | **OBSERVED** + S2 form-focused + UX partial |
+
+**Manifest:** `UAT_MANIFEST_PUBLIC_CONTINUATION.jsonl` · **Screenshots:** `uat-evidence/screenshots/public-continuation/` (SHA256 per row)  
+**Provenance:** NOT current-main 64a107df certification · pre-auth tranche-01 preserved
+
+### Verified BLOCKED registry — 46 remaining surfaces
+
+**File:** `UAT_VERIFIED_BLOCKERS.jsonl` · **Summary:** `UAT_VERIFIED_BLOCKERS_SUMMARY.json`  
+All 46 credential/deploy-blocked IDs mapped to exact secret names — no fabricated PASS. Buyer mobile (`TEST_BUYER_*`) and post-fix-483 (`TEST_SALES_*`) unchanged.
+
+### FAST PATH A — #493 security (`8f042fa`)
+
+| Field | Value |
+|---|---|
+| Merge SHA | `3bebf39c7327ed28951d4ad68a8db4c19e0f6717` |
+| GitHub deployment ID | **6289603800** |
+| Vercel deployment | `BCyAHAee6qn7rg2Cjop91pYaGK93` |
+| Verified preview URL | `https://oasis-baklawa-central-omgfjj6e3-oasisbaklawa2006-6222s-projects.vercel.app` |
+| Label | **#493 security regression ONLY — NOT current-main certification** |
+| Sequence | UAT-005 first → UAT-006–010 if PASS |
+
+### FAST PATH B — #491 KPI (`efd1419`)
+
+| Field | Value |
+|---|---|
+| Merge on main | `64a107dfc167be76673a3d18f177a72472dcb241` |
+| GitHub deployment ID | **6289622998** |
+| Verified preview URL | `https://oasis-baklawa-central-adpz5kw86-oasisbaklawa2006-6222s-projects.vercel.app` |
+| Target | FAIL-485-001 KPI convergence on **synthetic fixture only** |
+| Blocker if absent | `TEST_SALES_*` or cert pending fixture `dc370b46` |
+
+### GHA run [34016393457](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34016393457) — FAIL-493-001 repair retest (#497 @ `9715c20d`)
+
+| UAT ID | Result | Deploy |
+|---|---|---|
+| UAT-005 | **PASS** | #497 preview `7GCAJ79HNbN5oLDKtbVfefvjkg6q` |
+| UAT-006–010 | **PASS (5/5)** | same |
+
+**Artifact:** `uat-crawl-evidence-34016393457-1` · Prior FAIL row @ `8f042fa` preserved in `UAT_POST_MERGE_493_PROOF.jsonl`
+
+### GHA run [34015742110](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/34015742110) — post-merge-proofs (original)
+
+| Path | UAT-005 | UAT-006–010 | FAIL-485-001 |
+|---|---|---|---|
+| FAST PATH A #493 | **FAIL** (5.3s) | **NOT RUN** | — |
+| FAST PATH B #491 | — | — | **BLOCKED** (`TEST_SALES_*`) |
+
+**UAT-005 failure:** `/admin/finance must not remain on the forbidden route` on deploy `8f042fa` — **#493 fix NOT proven PASS**.
+
+**Artifact:** `uat-crawl-evidence-34015742110-1`
+
+### Evidence paths (append-only)
+
+- `docs/uat-crawl/UAT_POST_MERGE_493_PROOF.jsonl`
+- `docs/uat-crawl/UAT_POST_MERGE_493_SUMMARY.json`
+- `docs/uat-crawl/UAT_POST_MERGE_491_PROOF.jsonl`
+- `docs/uat-crawl/UAT_POST_MERGE_491_SUMMARY.json`
+- `docs/uat-crawl/UAT_GHA_RUN.json`
+- `uat-evidence/screenshots/post-merge-491-kpi/` *(empty — FAST PATH B blocked)*
+
+### Prior evidence preserved
+
+Ace340fe-era **80/131** authenticated crawl + all pre-fix/post-fix tranche screenshots unchanged.
+
+## Blocked secret names (values never logged)
+
+| Secret | Blocks |
+|---|---|
+| `TEST_SALES_*` | FAST PATH B, post-fix-483, buyer-mobile, lane1 sales |
+| `TEST_DISPATCH_*` / `TEST_ASSEMBLY_*` | FAST PATH A AI-UAT |
+| `TEST_BUYER_*` | buyer-mobile |
+| Trusted deploy for `64a107df` | full 131-surface rebaseline |

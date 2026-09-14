@@ -1,0 +1,28 @@
+{
+  "generatedAt": "2026-09-09T04:43:57.260Z",
+  "runId": "34242121280",
+  "runTranche": "watchdog-continue",
+  "requiredSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
+  "requiredShaStatus": "TRUSTED — current Central main (#558 @ a619a7a2)",
+  "resolvedSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
+  "resolvedUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
+  "githubDeploymentId": "6329154505",
+  "status": "CURRENT_MAIN_REBASELINE",
+  "continuationFallback": false,
+  "priorCurrentMainHoldSha": "6c7de2a69cec960f709a66fb85d25049dfcc2ae0",
+  "priorCurrentMainHoldSha507": "15c59a3f54c92f2b289bd150005bcd7114b51a93",
+  "priorEvidenceSha": "e2f123b0fe257b8a1f39ec40d5f544fff1ebe313",
+  "label": "Current-main authority @ a619a7a2 (#558) — prior 6c7de2a/15c59a3f/e2f123b0 evidence preserved append-only",
+  "policy": "Append-only: e2f123b0 + 15c59a3f + 6c7de2a watchdog evidence + FAIL-493 proof chain preserved; not substituted.",
+  "fail493EvidencePreserved": {
+    "originalFailRun": "34015742110",
+    "originalFailSha": "8f042fa",
+    "previewPassRun": "34016393457",
+    "previewPassSha": "9715c20d",
+    "priorMainEvidenceSha": "e2f123b0fe257b8a1f39ec40d5f544fff1ebe313",
+    "priorCurrentMainHoldSha": "6c7de2a69cec960f709a66fb85d25049dfcc2ae0",
+    "priorCurrentMainHoldSha507": "15c59a3f54c92f2b289bd150005bcd7114b51a93",
+    "currentMainRebaselineSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
+    "note": "9715c20d preview PASS, e2f123b0, 15c59a3f, and 6c7de2a rows are NOT substituted by a619a7a2 rebaseline rows"
+  }
+}
