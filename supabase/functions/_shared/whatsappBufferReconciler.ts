@@ -6,6 +6,7 @@ import type { SupabaseClient } from "npm:@supabase/supabase-js@2.45.0";
 import {
   BUFFER_IDLE_SECONDS,
   type BufferRow,
+  earliestCreatedAtBySender,
   isStaleFlushingRow,
   latestCreatedAtBySender,
   normalizeSenderPhoneLast10,
@@ -17,6 +18,7 @@ export {
   BUFFER_IDLE_SECONDS,
   BUFFER_FLUSHING_STALE_SECONDS,
   type BufferRow,
+  earliestCreatedAtBySender,
   isStaleFlushingRow,
   latestCreatedAtBySender,
   normalizeSenderPhoneLast10,
@@ -36,13 +38,18 @@ async function contactIdForSender(admin: SupabaseClient, senderLast10: string): 
   return String(data.id);
 }
 
-/** True when at least one inbound message for the sender is stitched to a packet. */
-export async function senderHasStitchedPacket(admin: SupabaseClient, senderLast10: string): Promise<{
+/** True when an inbound message for this pending buffer window is stitched to a packet. */
+export async function senderHasStitchedPacket(
+  admin: SupabaseClient,
+  senderLast10: string,
+  sinceIso: string,
+): Promise<{
   hasPacket: boolean;
   packetIds: string[];
 }> {
   const contactId = await contactIdForSender(admin, senderLast10);
   if (!contactId) return { hasPacket: false, packetIds: [] };
+  if (!Number.isFinite(Date.parse(sinceIso))) return { hasPacket: false, packetIds: [] };
 
   const { data, error } = await admin
     .from("whatsapp_messages")
@@ -50,6 +57,7 @@ export async function senderHasStitchedPacket(admin: SupabaseClient, senderLast1
     .eq("contact_id", contactId)
     .eq("direction", "inbound")
     .not("packet_id", "is", null)
+    .gte("created_at", sinceIso)
     .order("created_at", { ascending: false })
     .limit(20);
   if (error) throw new Error(`BUFFER_PACKET_LOOKUP_FAILED: ${error.message}`);
@@ -118,6 +126,7 @@ export async function flushGovernedWhatsappBuffer(
   }
 
   const senderLatest = latestCreatedAtBySender(pendingRows);
+  const senderEarliest = earliestCreatedAtBySender(pendingRows);
   const idleSenders = new Set(pickIdleSenders(senderLatest, cutoffIso));
   const sendersToProcess = targetBufferIds.length > 0
     ? [...new Set(pendingRows.map((row) => normalizeSenderPhoneLast10(row.sender_phone)).filter(Boolean))]
@@ -144,7 +153,13 @@ export async function flushGovernedWhatsappBuffer(
       continue;
     }
 
-    const { hasPacket, packetIds } = await senderHasStitchedPacket(admin, sender);
+    const earliestPendingAt = senderEarliest.get(sender);
+    if (!earliestPendingAt) {
+      sendersWaiting += 1;
+      continue;
+    }
+
+    const { hasPacket, packetIds } = await senderHasStitchedPacket(admin, sender, earliestPendingAt);
     if (!hasPacket) {
       if (!targetBufferIds.length) sendersWaiting += 1;
       continue;
