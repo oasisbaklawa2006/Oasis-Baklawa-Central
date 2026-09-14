@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Loader2, Mail, MessageCircle, Phone, PhoneCall, ShieldCheck } from "lucide-react";
+import { ArrowLeft, Loader2, Mail, MessageCircle, Phone, PhoneCall, RefreshCw, ShieldCheck } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
@@ -20,30 +20,37 @@ import {
 import { mapBuyerOtpProviderError, mapBuyerPostMintAuthError } from "@/lib/buyer-login-errors";
 import { extractEdgeFunctionErrorCode } from "@/lib/edge-function-errors";
 import { createAuthAttemptId, logAuthEvent, type AuthAttemptMethod } from "@/lib/auth-logging";
-import {
-  isEmailIdentifier,
-  normalizeIdentifier,
-  normalizePhone,
-} from "@/lib/auth-identity";
+import { isEmailIdentifier, normalizeIdentifier, normalizePhone } from "@/lib/auth-identity";
 import { signOutAndClearSession } from "@/utils/authSession";
 
-// MSG91 "Widget ID" and "Auth Token" are the browser OTP-widget configuration
-// required by MSG91's Web SDK. They are not the MSG91 account provider secret;
-// the provider credential used for server verification remains Edge-only.
+// MSG91 "Widget ID" and "Auth Token" are browser widget configuration,
+// not the MSG91 provider authkey. Server credentials remain Edge-only.
 const MSG91_WIDGET_ID = "3664766e464b383030383331";
 const MSG91_TOKEN_AUTH = "509994T6SRbi4LqM69ea72d0P1";
 const MSG91_PROVIDER_SCRIPT_ID = "msg91-otp-provider";
 const MSG91_CAPTCHA_ID = "msg91-captcha";
 const MSG91_CAPTCHA_REQUIRED_MESSAGE = "Please complete the security check above before requesting an OTP.";
-const MSG91_PROVIDER_CALL_TIMEOUT_MS = 20_000;
+const MSG91_PROVIDER_CALL_TIMEOUT_MS = 12_000;
 const MSG91_EDGE_TIMEOUT_MS = 15_000;
+const MSG91_SDK_POLL_INTERVAL_MS = 125;
+const MSG91_SDK_POLL_ATTEMPTS = 64;
 
 const SUPPORT_EMAIL = "support@oasisbaklawa.com";
 const SUPPORT_WHATSAPP = (import.meta.env.VITE_B2B_SUPPORT_WHATSAPP || "").replace(/\D/g, "");
 const SUPPORT_PHONE = import.meta.env.VITE_B2B_SUPPORT_PHONE || "";
 
 type BuyerLoginChannel = "mobile" | "email" | null;
+type EligibilityState = "approved" | "pending" | "employee" | "rejected" | "unknown" | "ambiguous" | null;
 type Msg91Callback = (payload: unknown) => void;
+
+type PreflightResponse = {
+  ok?: boolean;
+  state?: Exclude<EligibilityState, null>;
+  allowOtp?: boolean;
+  message?: string;
+  error?: string;
+  provider?: string;
+};
 
 declare global {
   interface Window {
@@ -51,18 +58,7 @@ declare global {
     sendOtp?: (identifier: string, success?: Msg91Callback, failure?: Msg91Callback) => void;
     verifyOtp?: (otp: number | string, success?: Msg91Callback, failure?: Msg91Callback, reqId?: string) => void;
     retryOtp?: (channel: string | null, success?: Msg91Callback, failure?: Msg91Callback, reqId?: string) => void;
-    /** Present when MSG91 captcha is enabled for this widget (official Web SDK). */
     isCaptchaVerified?: () => boolean;
-  }
-}
-
-/** MSG91 docs: call before sendOtp when captchaRenderId is configured. */
-function isMsg91CaptchaRequiredAndUnverified() {
-  if (typeof window === "undefined" || typeof window.isCaptchaVerified !== "function") return false;
-  try {
-    return !window.isCaptchaVerified();
-  } catch {
-    return true;
   }
 }
 
@@ -76,6 +72,15 @@ function firstNonEmptyString(...values: unknown[]) {
 function maskMintEmail(email: string) {
   const [name, domain] = email.split("@");
   return domain ? `${name.slice(0, 2)}***@${domain}` : "***";
+}
+
+function isMsg91CaptchaRequiredAndUnverified() {
+  if (typeof window === "undefined" || typeof window.isCaptchaVerified !== "function") return false;
+  try {
+    return !window.isCaptchaVerified();
+  } catch {
+    return true;
+  }
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -130,8 +135,10 @@ const BuyerLogin = () => {
   const [emailOtpSent, setEmailOtpSent] = useState(false);
   const [authStatus, setAuthStatus] = useState<AuthStatus>("idle");
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [eligibilityState, setEligibilityState] = useState<EligibilityState>(null);
   const [loading, setLoading] = useState(false);
   const [isMsg91Ready, setIsMsg91Ready] = useState(false);
+  const [securityRetryNonce, setSecurityRetryNonce] = useState(0);
   const controllerRef = useRef(createAuthStateController("idle"));
   const attemptRef = useRef<{ id: string; method: AuthAttemptMethod; identifier: string | null } | null>(null);
   const providerLoadRef = useRef<Promise<void> | null>(null);
@@ -185,8 +192,23 @@ const BuyerLogin = () => {
     });
   };
 
-  const loadMsg91Script = useCallback(() => {
+  const resetMsg91Provider = useCallback(() => {
+    providerLoadRef.current = null;
+    providerInitializedRef.current = false;
+    setIsMsg91Ready(false);
+    if (typeof document !== "undefined") document.getElementById(MSG91_PROVIDER_SCRIPT_ID)?.remove();
+    if (typeof window !== "undefined") {
+      delete window.initSendOTP;
+      delete window.sendOtp;
+      delete window.verifyOtp;
+      delete window.retryOtp;
+      delete window.isCaptchaVerified;
+    }
+  }, []);
+
+  const loadMsg91Script = useCallback((force = false) => {
     if (typeof window === "undefined") return Promise.resolve();
+    if (force) resetMsg91Provider();
     if (typeof window.initSendOTP === "function") return Promise.resolve();
     if (providerLoadRef.current) return providerLoadRef.current;
 
@@ -199,12 +221,12 @@ const BuyerLogin = () => {
           if (typeof window.initSendOTP === "function") {
             window.clearInterval(poll);
             resolve();
-          } else if (attempts >= 160) {
+          } else if (attempts >= MSG91_SDK_POLL_ATTEMPTS) {
             window.clearInterval(poll);
             providerLoadRef.current = null;
             reject(new Error("msg91_provider_load_timeout"));
           }
-        }, 125);
+        }, MSG91_SDK_POLL_INTERVAL_MS);
       };
 
       if (existing) {
@@ -218,20 +240,10 @@ const BuyerLogin = () => {
 
       const script = document.createElement("script");
       script.id = MSG91_PROVIDER_SCRIPT_ID;
-      script.src = "https://verify.msg91.com/otp-provider.js";
+      script.src = `https://verify.msg91.com/otp-provider.js?oasis=${Date.now()}`;
       script.async = true;
-
-      const scriptTagTimeout = window.setTimeout(() => {
-        providerLoadRef.current = null;
-        reject(new Error("msg91_provider_script_tag_timeout"));
-      }, MSG91_PROVIDER_CALL_TIMEOUT_MS);
-
-      script.onload = () => {
-        window.clearTimeout(scriptTagTimeout);
-        awaitSdk();
-      };
+      script.onload = awaitSdk;
       script.onerror = () => {
-        window.clearTimeout(scriptTagTimeout);
         providerLoadRef.current = null;
         reject(new Error("msg91_provider_load_failed"));
       };
@@ -239,18 +251,15 @@ const BuyerLogin = () => {
     });
 
     return providerLoadRef.current;
-  }, []);
+  }, [resetMsg91Provider]);
 
-  const ensureMsg91CustomUi = useCallback(async () => {
+  const initializeMsg91CustomUi = useCallback(async () => {
     await loadMsg91Script();
     if (typeof window === "undefined" || typeof window.initSendOTP !== "function") {
       throw new Error("msg91_provider_unavailable");
     }
 
     if (!providerInitializedRef.current) {
-      // MSG91 otp-provider.js throws if `success` is missing at init time (even with
-      // exposeMethods). sendOtp/verifyOtp callbacks drive Buyer UX; these init hooks
-      // satisfy the SDK contract and avoid duplicate handling on verify.
       window.initSendOTP({
         widgetId: MSG91_WIDGET_ID,
         tokenAuth: MSG91_TOKEN_AUTH,
@@ -278,21 +287,84 @@ const BuyerLogin = () => {
           window.clearInterval(poll);
           setIsMsg91Ready(true);
           resolve();
-        } else if (attempts >= 160) {
+        } else if (attempts >= MSG91_SDK_POLL_ATTEMPTS) {
           window.clearInterval(poll);
           providerInitializedRef.current = false;
           reject(new Error("msg91_custom_methods_unavailable"));
         }
-      }, 125);
+      }, MSG91_SDK_POLL_INTERVAL_MS);
     });
   }, [loadMsg91Script]);
 
+  const ensureMsg91CustomUi = useCallback(async () => {
+    try {
+      await initializeMsg91CustomUi();
+    } catch {
+      resetMsg91Provider();
+      await loadMsg91Script(true);
+      await initializeMsg91CustomUi();
+    }
+  }, [initializeMsg91CustomUi, loadMsg91Script, resetMsg91Provider]);
+
   useEffect(() => {
-    void loadMsg91Script().catch(() => setIsMsg91Ready(false));
     updateStatus("entering_identifier", { result: "info" });
     return () => controllerRef.current.finalize();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadMsg91Script]);
+  }, []);
+
+  useEffect(() => {
+    if (channel !== "mobile") return;
+    void ensureMsg91CustomUi().catch(() => {
+      setIsMsg91Ready(false);
+      setStatusMessage("The security check is taking too long to load. Tap Retry security check.");
+    });
+  }, [channel, ensureMsg91CustomUi, securityRetryNonce]);
+
+  const invokePreflight = async (targetChannel: "mobile" | "email", identifier: string, attemptId: string) => {
+    const { data, error } = await supabase.functions.invoke("buyer-login-gateway", {
+      body: { mode: "preflight", channel: targetChannel, identifier, attemptId },
+    });
+    if (error) throw new Error(error.message);
+    return (data || {}) as PreflightResponse;
+  };
+
+  const applyEligibility = (result: PreflightResponse) => {
+    const state = result.state ?? "ambiguous";
+    setEligibilityState(state);
+    if (result.message) setStatusMessage(result.message);
+    if (result.allowOtp) return true;
+    updateStatus("failed", { result: "info", error: state });
+    setLoading(false);
+    return false;
+  };
+
+  const runApprovedClaim = async (attemptId: string, method: AuthAttemptMethod, identifier: string, requireBound: boolean) => {
+    logAuthEvent("APPROVED_B2B_CLAIM_STARTED", {
+      attemptId,
+      method,
+      identifier,
+      result: "started",
+    });
+    const currentSession = (await supabase.auth.getSession()).data.session;
+    const claimOutcome = await claimApprovedB2bIdentityForAuthenticatedSession(
+      invokeApprovedB2bIdentityClaimRpc,
+      async () => Boolean(currentSession?.access_token || (await supabase.auth.getSession()).data.session?.access_token),
+    );
+    assertApprovedB2bClaimBound(claimOutcome, requireBound);
+    logAuthEvent("APPROVED_B2B_CLAIM_SUCCESS", {
+      attemptId,
+      method,
+      identifier,
+      result: "success",
+      details: {
+        claimed: claimOutcome.claimed,
+        alreadyActive: claimOutcome.alreadyActive,
+        applicationId: claimOutcome.applicationId,
+        companyId: claimOutcome.companyId,
+      },
+    });
+    return claimOutcome;
+  };
 
   const verifiedMobileSession = async (payload: unknown, identifier: string, attemptId: string) => {
     const method: AuthAttemptMethod = "mobile_otp";
@@ -304,8 +376,13 @@ const BuyerLogin = () => {
 
     updateStatus("verifying_otp", { result: "started" });
     const abortController = controllerRef.current.createAbortController();
-    const edgeTimeout = controllerRef.current.registerTimer(window.setTimeout(() => abortController.abort(), MSG91_EDGE_TIMEOUT_MS));
+    let edgeTimedOut = false;
+    const edgeTimeout = controllerRef.current.registerTimer(window.setTimeout(() => {
+      edgeTimedOut = true;
+      abortController.abort();
+    }, MSG91_EDGE_TIMEOUT_MS));
     let edgeVerified = false;
+
     try {
       const invokeResult = await supabase.functions.invoke("msg91-otp", {
         body: { mode: "verify_widget", accessToken, phone: identifier, attemptId },
@@ -348,6 +425,7 @@ const BuyerLogin = () => {
           ...(mintEmail ? { mintEmail: maskMintEmail(mintEmail) } : {}),
         },
       });
+
       const { data: sessionData, error: sessionError } = await supabase.auth.verifyOtp({
         token_hash: verifyRes.token_hash,
         type: "email",
@@ -377,48 +455,18 @@ const BuyerLogin = () => {
         details: { userId: sessionData.user.id, edgeIsNew: Boolean(verifyRes?.is_new) },
       });
 
-      logAuthEvent("APPROVED_B2B_CLAIM_STARTED", {
-        attemptId,
-        method,
-        identifier: normalizedIdentifier,
-        result: "started",
-        details: { userId: sessionData.user.id },
-      });
-      const mintedSession = sessionData.session;
-      const claimOutcome = await claimApprovedB2bIdentityForAuthenticatedSession(
-        invokeApprovedB2bIdentityClaimRpc,
-        async () => Boolean(
-          mintedSession?.access_token || (await supabase.auth.getSession()).data.session?.access_token,
-        ),
-      );
-      assertApprovedB2bClaimBound(claimOutcome, Boolean(verifyRes?.approved_b2b_pending_claim));
-      logAuthEvent("APPROVED_B2B_CLAIM_SUCCESS", {
-        attemptId,
-        method,
-        identifier: normalizedIdentifier,
-        result: "success",
-        details: {
-          userId: sessionData.user.id,
-          claimed: claimOutcome.claimed,
-          alreadyActive: claimOutcome.alreadyActive,
-          applicationId: claimOutcome.applicationId,
-          companyId: claimOutcome.companyId,
-        },
-      });
-
+      await runApprovedClaim(attemptId, method, normalizedIdentifier, Boolean(verifyRes?.approved_b2b_pending_claim));
       await runRedirectAfterAuth(normalizedIdentifier, method, sessionData.user.id, attemptId);
       controllerRef.current.finalize();
       setLoading(false);
     } catch (error) {
       controllerRef.current.clearTimer(edgeTimeout);
-      const raw = abortController.signal.aborted
+      const raw = edgeTimedOut
         ? "session_token_mint_timeout"
         : error instanceof Error
           ? error.message
           : "mobile_session_failed";
-      const mapped = mapBuyerPostMintAuthError(
-        abortController.signal.aborted ? new Error("session_token_mint_timeout") : error,
-      );
+      const mapped = mapBuyerPostMintAuthError(edgeTimedOut ? new Error("session_token_mint_timeout") : error);
       if (mapped.stage === "approved_b2b_claim") {
         logAuthEvent("APPROVED_B2B_CLAIM_FAILED", {
           attemptId,
@@ -464,12 +512,15 @@ const BuyerLogin = () => {
     const method: AuthAttemptMethod = "mobile_otp";
     attemptRef.current = { id: attemptId, method, identifier: phone.e164 || identifier };
     setLoading(true);
+    setEligibilityState(null);
     setStatusMessage(null);
     updateStatus("sending_otp", { result: "started" });
     logAuthEvent("AUTH_START", { attemptId, method, identifier: phone.e164 || identifier, result: "started" });
-    logAuthEvent("OTP_REQUEST_STARTED", { attemptId, method, identifier: phone.e164 || identifier, result: "started" });
 
     try {
+      const preflight = await invokePreflight("mobile", phone.e164 || identifier, attemptId);
+      if (!applyEligibility(preflight)) return;
+
       await ensureMsg91CustomUi();
       if (isMsg91CaptchaRequiredAndUnverified()) {
         updateStatus("failed", { result: "failed", error: "msg91_captcha_required" });
@@ -485,11 +536,19 @@ const BuyerLogin = () => {
         return;
       }
       if (typeof window.sendOtp !== "function") throw new Error("msg91_send_method_unavailable");
+
+      logAuthEvent("OTP_REQUEST_STARTED", { attemptId, method, identifier: phone.e164 || identifier, result: "started" });
       const callbackTimeout = controllerRef.current.registerTimer(window.setTimeout(() => {
         if (attemptRef.current?.id !== attemptId) return;
         attemptRef.current = null;
-        logAuthEvent("OTP_REQUEST_FAILED", { attemptId, method, identifier: phone.e164 || identifier, result: "failed", error: "msg91_send_timeout" });
-        void finalizeFailure("OTP request timed out. Please retry.");
+        logAuthEvent("OTP_REQUEST_FAILED", {
+          attemptId,
+          method,
+          identifier: phone.e164 || identifier,
+          result: "failed",
+          error: "msg91_send_timeout",
+        });
+        void finalizeFailure("OTP request timed out. Retry the security check and try again.");
       }, MSG91_PROVIDER_CALL_TIMEOUT_MS));
 
       window.sendOtp(
@@ -508,22 +567,34 @@ const BuyerLogin = () => {
             method,
             identifier: phone.e164 || identifier,
             result: "success",
-            details: { requestIdPresent: Boolean(reqId) },
+            details: { requestIdPresent: Boolean(reqId), providerAcknowledged: true },
           });
-          setStatusMessage("OTP sent to your registered mobile number.");
+          setStatusMessage("OTP request accepted by MSG91. Check your phone for a fresh code before continuing.");
         },
         (error) => {
           if (attemptRef.current?.id !== attemptId) return;
           controllerRef.current.clearTimer(callbackTimeout);
           const message = providerErrorMessage(error);
-          logAuthEvent("OTP_REQUEST_FAILED", { attemptId, method, identifier: phone.e164 || identifier, result: "failed", error: message });
+          logAuthEvent("OTP_REQUEST_FAILED", {
+            attemptId,
+            method,
+            identifier: phone.e164 || identifier,
+            result: "failed",
+            error: message,
+          });
           void finalizeFailure(mapBuyerOtpProviderError(message));
         },
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : "otp_request_failed";
-      logAuthEvent("OTP_REQUEST_FAILED", { attemptId, method, identifier: phone.e164 || identifier, result: "failed", error: message });
-      await finalizeFailure("Mobile verification could not start. Please try again shortly.");
+      logAuthEvent("OTP_REQUEST_FAILED", {
+        attemptId,
+        method,
+        identifier: phone.e164 || identifier,
+        result: "failed",
+        error: message,
+      });
+      await finalizeFailure("Mobile verification could not start. Retry the security check and try again.");
     }
   };
 
@@ -532,7 +603,7 @@ const BuyerLogin = () => {
     const phone = normalizePhone(mobile);
     if (!mobileOtpSent || !phone.last10 || otp.length < 4 || otp.length > 8) {
       setAuthStatus("failed");
-      setStatusMessage("Enter the OTP sent to your registered mobile number.");
+      setStatusMessage("Enter the OTP received on your registered mobile number.");
       return;
     }
 
@@ -551,9 +622,16 @@ const BuyerLogin = () => {
       const callbackTimeout = controllerRef.current.registerTimer(window.setTimeout(() => {
         if (attemptRef.current?.id !== attemptId) return;
         attemptRef.current = null;
-        logAuthEvent("OTP_VERIFY_FAILED", { attemptId, method, identifier: phone.e164 || identifier, result: "failed", error: "msg91_verify_timeout" });
+        logAuthEvent("OTP_VERIFY_FAILED", {
+          attemptId,
+          method,
+          identifier: phone.e164 || identifier,
+          result: "failed",
+          error: "msg91_verify_timeout",
+        });
         void finalizeFailure("OTP verification timed out. Please retry.");
       }, MSG91_PROVIDER_CALL_TIMEOUT_MS));
+
       window.verifyOtp(
         otp,
         (payload) => {
@@ -565,7 +643,13 @@ const BuyerLogin = () => {
           if (attemptRef.current?.id !== attemptId) return;
           controllerRef.current.clearTimer(callbackTimeout);
           const message = providerErrorMessage(error);
-          logAuthEvent("OTP_VERIFY_FAILED", { attemptId, method, identifier: phone.e164 || identifier, result: "failed", error: message });
+          logAuthEvent("OTP_VERIFY_FAILED", {
+            attemptId,
+            method,
+            identifier: phone.e164 || identifier,
+            result: "failed",
+            error: message,
+          });
           void finalizeFailure(mapBuyerOtpProviderError(message));
         },
         mobileReqId ?? undefined,
@@ -608,7 +692,7 @@ const BuyerLogin = () => {
           setMobileReqId(reqId);
           setMobileOtp("");
           setLoading(false);
-          setStatusMessage("A fresh OTP has been requested.");
+          setStatusMessage("A fresh OTP request was accepted. Check your phone before continuing.");
         },
         (error) => {
           if (attemptRef.current?.id !== attemptId) return;
@@ -637,35 +721,50 @@ const BuyerLogin = () => {
     const identifier = normalizeIdentifier(trimmedEmail).normalized;
     attemptRef.current = { id: attemptId, method, identifier };
     setLoading(true);
+    setEligibilityState(null);
     setStatusMessage(null);
     updateStatus("sending_otp", { result: "started" });
     logAuthEvent("AUTH_START", { attemptId, method, identifier, result: "started" });
     logAuthEvent("OTP_REQUEST_STARTED", { attemptId, method, identifier, result: "started" });
 
-    const { error } = await supabase.auth.signInWithOtp({
-      email: trimmedEmail,
-      options: { shouldCreateUser: false },
-    });
+    try {
+      const { data, error } = await supabase.functions.invoke("buyer-login-gateway", {
+        body: { mode: "email_otp_send", channel: "email", identifier: trimmedEmail, attemptId },
+      });
+      if (error) throw new Error(error.message);
+      const result = (data || {}) as PreflightResponse;
+      if (!result.ok) {
+        if (result.state) applyEligibility(result);
+        else await finalizeFailure("We couldn't send an email OTP. Please use Mobile OTP or try again shortly.");
+        return;
+      }
 
-    if (error) {
-      logAuthEvent("OTP_REQUEST_FAILED", { attemptId, method, identifier, result: "failed", error: error.message });
-      await finalizeFailure("We couldn't send an email OTP. Please check the address or use Mobile OTP.");
-      return;
+      setEligibilityState("approved");
+      logAuthEvent("OTP_REQUEST_SUCCESS", {
+        attemptId,
+        method,
+        identifier,
+        result: "success",
+        details: { provider: result.provider || "email_provider" },
+      });
+      updateStatus("otp_sent", { result: "success" });
+      setEmailOtpSent(true);
+      setEmailOtp("");
+      setStatusMessage(result.message || "A verification code has been sent to your registered email address.");
+      setLoading(false);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "email_otp_send_failed";
+      logAuthEvent("OTP_REQUEST_FAILED", { attemptId, method, identifier, result: "failed", error: message });
+      await finalizeFailure("We couldn't send an email OTP. Please use Mobile OTP or try again shortly.");
     }
-
-    logAuthEvent("OTP_REQUEST_SUCCESS", { attemptId, method, identifier, result: "success" });
-    updateStatus("otp_sent", { result: "success" });
-    setEmailOtpSent(true);
-    setStatusMessage("A 6-digit OTP has been sent to your registered email address.");
-    setLoading(false);
   };
 
   const verifyEmailOtp = async () => {
     const trimmedEmail = email.trim().toLowerCase();
     const token = emailOtp.replace(/\D/g, "");
-    if (!isEmailIdentifier(trimmedEmail) || token.length !== 6) {
+    if (!isEmailIdentifier(trimmedEmail) || token.length < 4 || token.length > 8) {
       setAuthStatus("failed");
-      setStatusMessage("Enter the 6-digit OTP sent to your email.");
+      setStatusMessage("Enter the verification code sent to your email.");
       return;
     }
 
@@ -680,18 +779,46 @@ const BuyerLogin = () => {
 
     const { data, error } = await supabase.auth.verifyOtp({ email: trimmedEmail, token, type: "email" });
     if (error || !data.user) {
-      logAuthEvent("OTP_VERIFY_FAILED", { attemptId, method, identifier, result: "failed", error: error?.message || "email_otp_verify_failed" });
+      logAuthEvent("OTP_VERIFY_FAILED", {
+        attemptId,
+        method,
+        identifier,
+        result: "failed",
+        error: error?.message || "email_otp_verify_failed",
+      });
       await finalizeFailure("The email OTP is invalid or expired. Please request a new code.", true);
       return;
     }
 
-    logAuthEvent("OTP_VERIFY_SUCCESS", { attemptId, method, identifier, result: "success", details: { userId: data.user.id } });
+    logAuthEvent("OTP_VERIFY_SUCCESS", {
+      attemptId,
+      method,
+      identifier,
+      result: "success",
+      details: { userId: data.user.id },
+    });
+    logAuthEvent("SESSION_CREATE_SUCCESS", {
+      attemptId,
+      method,
+      identifier,
+      result: "success",
+      details: { userId: data.user.id },
+    });
     updateStatus("verification_success", { result: "success" });
+
     try {
+      await runApprovedClaim(attemptId, method, identifier, true);
       await runRedirectAfterAuth(identifier, method, data.user.id, attemptId);
       controllerRef.current.finalize();
       setLoading(false);
     } catch (authError) {
+      logAuthEvent("APPROVED_B2B_CLAIM_FAILED", {
+        attemptId,
+        method,
+        identifier,
+        result: "failed",
+        error: authError instanceof Error ? authError.message : "approved_b2b_claim_failed",
+      });
       await finalizeFailure(getCustomerAuthUserMessage(authError), true);
     }
   };
@@ -706,6 +833,7 @@ const BuyerLogin = () => {
     setEmailOtpSent(false);
     setEmailOtp("");
     setStatusMessage(null);
+    setEligibilityState(null);
     setAuthStatus("entering_identifier");
     setLoading(false);
   };
@@ -722,6 +850,12 @@ const BuyerLogin = () => {
     toast.info(`Support contact is unavailable right now. Email ${SUPPORT_EMAIL}.`);
   };
 
+  const retrySecurityCheck = () => {
+    resetMsg91Provider();
+    setStatusMessage("Reloading the security check…");
+    setSecurityRetryNonce((value) => value + 1);
+  };
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-5 bg-background">
       {isMinting && (
@@ -734,22 +868,22 @@ const BuyerLogin = () => {
       <div className="w-full max-w-sm space-y-7 py-8">
         <div className="text-center space-y-3">
           <img src={logoImg} alt="Oasis Baklawa" width={134} height={96} fetchPriority="high" decoding="async" className="h-12 w-auto mx-auto object-contain" />
-          <h1 className="text-3xl text-foreground">Log in to your account</h1>
-          <p className="text-sm text-muted-foreground">Use your registered mobile number or registered email. No password is required.</p>
+          <h1 className="text-3xl text-foreground">B2B Client Login</h1>
+          <p className="text-sm text-muted-foreground">Use the mobile number or email approved with your Oasis B2B access request.</p>
         </div>
 
         {channel === null && (
           <div className="space-y-3">
-            <button type="button" onClick={() => { setChannel("mobile"); setStatusMessage(null); }} className="w-full rounded-2xl border border-border bg-card p-5 text-left shadow-sm hover:border-primary/40">
+            <button type="button" onClick={() => { setChannel("mobile"); setStatusMessage(null); setEligibilityState(null); }} className="w-full rounded-2xl border border-border bg-card p-5 text-left shadow-sm hover:border-primary/40">
               <span className="flex items-center gap-4">
                 <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary"><Phone size={21} /></span>
-                <span><span className="block text-sm font-bold text-foreground">Mobile OTP</span><span className="mt-1 block text-xs text-muted-foreground">Verify your registered mobile through MSG91.</span></span>
+                <span><span className="block text-sm font-bold text-foreground">Mobile OTP</span><span className="mt-1 block text-xs text-muted-foreground">Approved Buyers verify through MSG91.</span></span>
               </span>
             </button>
-            <button type="button" onClick={() => { setChannel("email"); setStatusMessage(null); }} className="w-full rounded-2xl border border-border bg-card p-5 text-left shadow-sm hover:border-primary/40">
+            <button type="button" onClick={() => { setChannel("email"); setStatusMessage(null); setEligibilityState(null); }} className="w-full rounded-2xl border border-border bg-card p-5 text-left shadow-sm hover:border-primary/40">
               <span className="flex items-center gap-4">
                 <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary"><Mail size={21} /></span>
-                <span><span className="block text-sm font-bold text-foreground">Email OTP</span><span className="mt-1 block text-xs text-muted-foreground">Receive a 6-digit code on your registered email.</span></span>
+                <span><span className="block text-sm font-bold text-foreground">Email OTP</span><span className="mt-1 block text-xs text-muted-foreground">Receive a code on your approved B2B email.</span></span>
               </span>
             </button>
           </div>
@@ -761,9 +895,16 @@ const BuyerLogin = () => {
             <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-center space-y-2">
               <ShieldCheck size={28} className="mx-auto text-primary" />
               <p className="text-sm font-bold text-foreground">Secure Mobile Verification</p>
-              <p className="text-xs text-muted-foreground">OTP is sent and verified through MSG91 before Oasis creates the Buyer session.</p>
+              <p className="text-xs text-muted-foreground">We first confirm B2B eligibility, then MSG91 verifies your mobile OTP.</p>
             </div>
+
             <div id={MSG91_CAPTCHA_ID} />
+            {!isMsg91Ready && !mobileOtpSent && (
+              <button type="button" onClick={retrySecurityCheck} className="w-full rounded-xl border border-border py-2.5 text-xs font-semibold text-foreground flex items-center justify-center gap-2">
+                <RefreshCw size={14} /> Retry security check
+              </button>
+            )}
+
             <div className="space-y-2">
               <label htmlFor="buyer-mobile" className="text-xs font-semibold text-foreground">Registered mobile number</label>
               <Input id="buyer-mobile" inputMode="tel" autoComplete="tel" placeholder="+91 98765 43210" value={mobile} disabled={mobileOtpSent} onChange={(event) => setMobile(event.target.value)} className="rounded-xl" />
@@ -772,20 +913,20 @@ const BuyerLogin = () => {
             {!mobileOtpSent ? (
               <button type="button" onClick={() => void sendMobileOtp()} disabled={loading} className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm flex items-center justify-center gap-2 shadow-sm disabled:opacity-60">
                 {loading ? <Loader2 size={18} className="animate-spin" /> : <ShieldCheck size={18} />}
-                {loading ? "Sending OTP…" : isMsg91Ready ? "Send mobile OTP" : "Send mobile OTP"}
+                {loading ? "Checking access…" : "Continue with mobile OTP"}
               </button>
             ) : (
-              <>
+              <div className="space-y-3">
                 <div className="space-y-2">
                   <label htmlFor="buyer-mobile-otp" className="text-xs font-semibold text-foreground">Mobile OTP</label>
-                  <Input id="buyer-mobile-otp" inputMode="numeric" autoComplete="one-time-code" maxLength={8} placeholder="Enter OTP" value={mobileOtp} onChange={(event) => setMobileOtp(event.target.value.replace(/\D/g, "").slice(0, 8))} onKeyDown={(event) => event.key === "Enter" && void verifyMobileOtp()} className="rounded-xl text-center tracking-[0.3em]" />
+                  <Input id="buyer-mobile-otp" inputMode="numeric" autoComplete="one-time-code" placeholder="Enter OTP" value={mobileOtp} onChange={(event) => setMobileOtp(event.target.value.replace(/\D/g, "").slice(0, 8))} className="rounded-xl tracking-[0.25em] text-center" />
                 </div>
-                <button type="button" onClick={() => void verifyMobileOtp()} disabled={loading || mobileOtp.length < 4} className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm flex items-center justify-center gap-2 shadow-sm disabled:opacity-60">
+                <button type="button" onClick={() => void verifyMobileOtp()} disabled={loading} className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-60">
                   {loading ? <Loader2 size={18} className="animate-spin" /> : <ShieldCheck size={18} />}
-                  {loading ? "Verifying…" : "Verify and continue"}
+                  Verify and continue
                 </button>
-                <button type="button" onClick={() => void resendMobileOtp()} disabled={loading} className="w-full text-xs font-semibold text-primary hover:underline disabled:opacity-60">Resend mobile OTP</button>
-              </>
+                <button type="button" onClick={() => void resendMobileOtp()} disabled={loading} className="w-full py-2 text-xs font-semibold text-primary disabled:opacity-60">Resend mobile OTP</button>
+              </div>
             )}
           </div>
         )}
@@ -793,45 +934,56 @@ const BuyerLogin = () => {
         {channel === "email" && (
           <div className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-5">
             <button type="button" onClick={goBackToChannelChoice} className="inline-flex items-center gap-2 text-xs font-semibold text-muted-foreground hover:text-foreground"><ArrowLeft size={15} /> Change login method</button>
+            <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-center space-y-2">
+              <Mail size={28} className="mx-auto text-primary" />
+              <p className="text-sm font-bold text-foreground">Secure Email Verification</p>
+              <p className="text-xs text-muted-foreground">Only an approved B2B email can receive a login code. No external portal link is used.</p>
+            </div>
             <div className="space-y-2">
-              <label htmlFor="buyer-email" className="text-xs font-semibold text-foreground">Registered email address</label>
+              <label htmlFor="buyer-email" className="text-xs font-semibold text-foreground">Registered email</label>
               <Input id="buyer-email" type="email" autoComplete="email" placeholder="buyer@company.com" value={email} disabled={emailOtpSent} onChange={(event) => setEmail(event.target.value)} className="rounded-xl" />
             </div>
+
             {!emailOtpSent ? (
-              <button type="button" onClick={() => void sendEmailOtp()} disabled={loading} className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm flex items-center justify-center gap-2 shadow-sm disabled:opacity-60">
+              <button type="button" onClick={() => void sendEmailOtp()} disabled={loading} className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-60">
                 {loading ? <Loader2 size={18} className="animate-spin" /> : <Mail size={18} />}
-                {loading ? "Sending OTP…" : "Send email OTP"}
+                {loading ? "Checking access…" : "Continue with email OTP"}
               </button>
             ) : (
-              <>
+              <div className="space-y-3">
                 <div className="space-y-2">
-                  <label htmlFor="buyer-email-otp" className="text-xs font-semibold text-foreground">6-digit email OTP</label>
-                  <Input id="buyer-email-otp" inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="000000" value={emailOtp} onChange={(event) => setEmailOtp(event.target.value.replace(/\D/g, "").slice(0, 6))} onKeyDown={(event) => event.key === "Enter" && void verifyEmailOtp()} className="rounded-xl text-center tracking-[0.35em]" />
+                  <label htmlFor="buyer-email-otp" className="text-xs font-semibold text-foreground">Email OTP</label>
+                  <Input id="buyer-email-otp" inputMode="numeric" autoComplete="one-time-code" placeholder="Enter code" value={emailOtp} onChange={(event) => setEmailOtp(event.target.value.replace(/\D/g, "").slice(0, 8))} className="rounded-xl tracking-[0.25em] text-center" />
                 </div>
-                <button type="button" onClick={() => void verifyEmailOtp()} disabled={loading || emailOtp.length !== 6} className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm flex items-center justify-center gap-2 shadow-sm disabled:opacity-60">
+                <button type="button" onClick={() => void verifyEmailOtp()} disabled={loading} className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-60">
                   {loading ? <Loader2 size={18} className="animate-spin" /> : <ShieldCheck size={18} />}
-                  {loading ? "Verifying…" : "Verify and continue"}
+                  Verify and continue
                 </button>
-                <button type="button" onClick={() => void sendEmailOtp()} disabled={loading} className="w-full text-xs font-semibold text-primary hover:underline disabled:opacity-60">Resend email OTP</button>
-              </>
+                <button type="button" onClick={() => { setEmailOtpSent(false); setEmailOtp(""); void sendEmailOtp(); }} disabled={loading} className="w-full py-2 text-xs font-semibold text-primary disabled:opacity-60">Resend email OTP</button>
+              </div>
             )}
           </div>
         )}
 
-        {statusMessage && !isMinting && (
-          <div role={authStatus === "failed" ? "alert" : "status"} aria-live="polite" className={`rounded-xl border px-4 py-3 text-sm ${authStatus === "failed" ? "border-destructive/30 bg-destructive/5 text-destructive" : "border-border bg-muted/50 text-muted-foreground"}`}>{statusMessage}</div>
+        {statusMessage && (
+          <div aria-live="polite" className="rounded-xl border border-border bg-muted/40 p-4 text-sm text-foreground space-y-3">
+            <p>{statusMessage}</p>
+            {eligibilityState === "employee" && (
+              <button type="button" onClick={() => navigate("/staff/login")} className="w-full rounded-lg bg-primary px-3 py-2 text-xs font-bold text-primary-foreground">Go to Admin Login</button>
+            )}
+            {(eligibilityState === "unknown" || eligibilityState === "rejected") && (
+              <button type="button" onClick={() => navigate("/buyer/access-request")} className="w-full rounded-lg bg-primary px-3 py-2 text-xs font-bold text-primary-foreground">Request B2B Access</button>
+            )}
+          </div>
         )}
 
-        <div className="space-y-4 border-t border-border pt-5 text-center">
-          <p className="text-sm text-muted-foreground">New distributor?{" "}<button onClick={() => navigate("/buyer/access-request")} className="text-primary font-semibold hover:underline">Request B2B Access</button></p>
-          <div className="space-y-2">
-            <p className="text-xs text-muted-foreground">Need assistance?</p>
-            <div className="grid grid-cols-2 gap-3">
-              <button type="button" onClick={() => openSupport("whatsapp")} className="inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-card py-3 text-xs font-semibold"><MessageCircle size={16} /> WhatsApp Oasis</button>
-              <button type="button" onClick={() => openSupport("call")} className="inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-card py-3 text-xs font-semibold"><PhoneCall size={16} /> Call Oasis</button>
-            </div>
+        <div className="border-t border-border pt-5 space-y-3 text-center">
+          <button type="button" onClick={() => navigate("/buyer/access-request")} className="text-sm font-semibold text-primary">Request B2B Access</button>
+          <div className="flex items-center justify-center gap-4 text-xs">
+            <button type="button" onClick={() => openSupport("whatsapp")} className="inline-flex items-center gap-1.5 text-muted-foreground hover:text-foreground"><MessageCircle size={14} /> WhatsApp Oasis</button>
+            <button type="button" onClick={() => openSupport("call")} className="inline-flex items-center gap-1.5 text-muted-foreground hover:text-foreground"><PhoneCall size={14} /> Call Oasis</button>
           </div>
-          <button type="button" onClick={() => navigate("/staff/login")} className="w-full py-2 text-xs font-semibold text-muted-foreground hover:text-foreground">Admin Access</button>
+          <button type="button" onClick={() => navigate("/staff/login")} className="text-xs font-semibold text-muted-foreground hover:text-foreground">Admin Access</button>
         </div>
       </div>
     </div>
