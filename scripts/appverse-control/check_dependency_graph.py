@@ -9,6 +9,26 @@ from pathlib import Path
 
 GRAPH = Path("appverse-control/dependency-graph.json")
 
+MANDATORY_POINT100_UPSTREAMS = {
+    "CENTRAL-AUTH-01",
+    "CENTRAL-GOVERNANCE",
+    "CORE-FINANCE-LEDGER",
+    "TRACE-POINT95-99",
+    "CORE-WA-CONSUMER",
+    "CORE-WA-IDENTITY",
+    "AI-POINT49",
+    "AI-POINT50",
+    "AI-POINT51",
+    "BUYER-APP-RECERT",
+}
+
+MANDATORY_PRODUCTION_READINESS_UPSTREAMS = {
+    "POINT100",
+    "CORE-SECURITY-HARDENING",
+    "WHATSAPP-LIVE-CERT",
+    "PHYSICAL-UAT",
+}
+
 
 def fail(message: str) -> None:
     print(f"ERROR: {message}", file=sys.stderr)
@@ -144,16 +164,36 @@ def main() -> None:
     if "production" not in trace_gate or "core" not in trace_gate:
         fail("Trace merge gate must explicitly require Core production release/verification")
 
-    # Point100 and production readiness must fail closed on their declared mandatory sets.
+    # Point100 and production readiness must fail closed on immutable mission floors.
     point100_required = set(data["invariants"]["point100_must_not_be_finally_certified_before"])
+    if not MANDATORY_POINT100_UPSTREAMS.issubset(point100_required):
+        fail(
+            "Point100 invariant list has dropped mandatory entries: "
+            f"{sorted(MANDATORY_POINT100_UPSTREAMS - point100_required)}"
+        )
     point100_upstream = set(by_id["POINT100"].get("upstream", []))
     if not point100_required.issubset(point100_upstream):
         fail(f"Point100 is missing mandatory upstreams: {sorted(point100_required - point100_upstream)}")
+    if not MANDATORY_POINT100_UPSTREAMS.issubset(point100_upstream):
+        fail(
+            "Point100 node is missing immutable mandatory upstreams: "
+            f"{sorted(MANDATORY_POINT100_UPSTREAMS - point100_upstream)}"
+        )
 
     readiness_required = set(data["invariants"]["production_readiness_must_not_clear_before"])
+    if not MANDATORY_PRODUCTION_READINESS_UPSTREAMS.issubset(readiness_required):
+        fail(
+            "Production Readiness invariant list has dropped mandatory entries: "
+            f"{sorted(MANDATORY_PRODUCTION_READINESS_UPSTREAMS - readiness_required)}"
+        )
     readiness_upstream = set(by_id["PRODUCTION-READINESS"].get("upstream", []))
     if not readiness_required.issubset(readiness_upstream):
         fail(f"Production Readiness is missing mandatory upstreams: {sorted(readiness_required - readiness_upstream)}")
+    if not MANDATORY_PRODUCTION_READINESS_UPSTREAMS.issubset(readiness_upstream):
+        fail(
+            "Production Readiness node is missing immutable mandatory upstreams: "
+            f"{sorted(MANDATORY_PRODUCTION_READINESS_UPSTREAMS - readiness_upstream)}"
+        )
 
     if by_id["APPVERSE-COMPLETE"].get("upstream") != ["PRODUCTION-READINESS"]:
         fail("APPVERSE-COMPLETE must have exactly one direct upstream: PRODUCTION-READINESS")
