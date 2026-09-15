@@ -8,12 +8,17 @@ describe("AUTH-01 post-claim Buyer role reconciliation", () => {
     expect(routeGuard).toContain("if (!user) {");
     expect(routeGuard).toContain("const record = await fetchAuthRoleRecord(user.id)");
     expect(routeGuard).toContain('if (!normalizedRole || normalizedRole === "PENDING") {');
-    expect(routeGuard).toContain("if (serverRole && serverRole !== normalizedRole) {");
+    expect(routeGuard).toContain('if (serverRole && serverRole !== "PENDING" && serverRole !== normalizedRole) {');
     expect(routeGuard).toContain("window.location.replace(getRoleDestination(serverRole));");
   });
 
+  it("does not reload when both the client and authoritative server are still unresolved", () => {
+    expect(routeGuard).toContain('serverRole !== "PENDING"');
+    expect(routeGuard).toContain("setServerVerified(true);");
+  });
+
   it("keeps unresolved users fail-closed only after the authoritative server-role check has completed", () => {
-    const reconciliation = routeGuard.indexOf("if (serverRole && serverRole !== normalizedRole)");
+    const reconciliation = routeGuard.indexOf('if (serverRole && serverRole !== "PENDING" && serverRole !== normalizedRole)');
     const unresolvedRedirect = routeGuard.lastIndexOf('return <Navigate to="/customer-app-redirect" replace />');
 
     expect(reconciliation).toBeGreaterThan(-1);
