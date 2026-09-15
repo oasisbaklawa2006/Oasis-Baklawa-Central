@@ -1,23 +1,20 @@
-import { ReactNode, useEffect, useMemo, useState } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { fetchAuthRoleRecord, getRoleDestination, normalizeRole } from "@/lib/auth-routing";
 import { signOutAndClearSession } from "@/lib/auth/sessionLifecycle";
 
-interface Props {
+type Props = {
   allowedRoles: string[];
   children: ReactNode;
-}
+};
 
 export default function RoleProtectedRoute({ allowedRoles, children }: Props) {
   const { user, role, loading, profileReady } = useAuth();
   const location = useLocation();
   const normalizedRole = normalizeRole(role);
-  const normalizedAllowedRoles = useMemo(
-    () => allowedRoles.map((allowedRole) => normalizeRole(allowedRole)).filter(Boolean) as string[],
-    [allowedRoles],
-  );
+  const normalizedAllowedRoles = allowedRoles.map((allowedRole) => normalizeRole(allowedRole));
   const [serverVerified, setServerVerified] = useState(false);
 
   useEffect(() => {
