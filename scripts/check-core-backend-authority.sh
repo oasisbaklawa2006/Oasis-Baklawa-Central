@@ -40,7 +40,11 @@ is_core_owned_path() {
 
 is_guard_artifact_path() {
   case "$1" in
-    .github/workflows/core-backend-authority.yml|scripts/check-core-backend-authority.sh|scripts/tests/verify-core-backend-authority.sh)
+    .github/workflows/core-backend-authority.yml|\
+    .github/workflows/secret-exposure-guard.yml|\
+    scripts/check-core-backend-authority.sh|\
+    scripts/check-tracked-secret-exposure.sh|\
+    scripts/tests/verify-core-backend-authority.sh)
       return 0
       ;;
     *)
@@ -60,56 +64,79 @@ record_guard_artifact_violation() {
 }
 
 violations=()
-while IFS= read -r -d '' status; do
-  IFS= read -r -d '' path1 || fail "invalid diff pathname record"
-  [[ -n "$status" ]] || continue
 
-  path2=""
-  if [[ "$status" == R* || "$status" == C* ]]; then
-    IFS= read -r -d '' path2 || fail "invalid rename/copy pathname record"
-  fi
+process_diff_records() {
+  local records_file="$1"
+  while IFS= read -r -d '' status; do
+    IFS= read -r -d '' path1 || fail "invalid diff pathname record"
+    [[ -n "$status" ]] || continue
 
-  if is_guard_artifact_path "$path1" || { [[ -n "$path2" ]] && is_guard_artifact_path "$path2"; }; then
-    if guard_artifact_exists_at_base "$path1" || { [[ -n "$path2" ]] && guard_artifact_exists_at_base "$path2"; }; then
-      if [[ -n "$path2" ]]; then
-        record_guard_artifact_violation "$status $path1 -> $path2"
-      else
-        record_guard_artifact_violation "$status $path1"
+    path2=""
+    if [[ "$status" == R* || "$status" == C* ]]; then
+      IFS= read -r -d '' path2 || fail "invalid rename/copy pathname record"
+    fi
+
+    if is_guard_artifact_path "$path1" || { [[ -n "$path2" ]] && is_guard_artifact_path "$path2"; }; then
+      if guard_artifact_exists_at_base "$path1" || { [[ -n "$path2" ]] && guard_artifact_exists_at_base "$path2"; }; then
+        if [[ -n "$path2" ]]; then
+          record_guard_artifact_violation "$status $path1 -> $path2"
+        else
+          record_guard_artifact_violation "$status $path1"
+        fi
+        continue
+      fi
+      if [[ "$status" != A ]]; then
+        if [[ -n "$path2" ]]; then
+          record_guard_artifact_violation "bootstrap-only addition allowed; got $status $path1 -> $path2"
+        else
+          record_guard_artifact_violation "bootstrap-only addition allowed; got $status $path1"
+        fi
+        continue
       fi
       continue
     fi
-    if [[ "$status" != A ]]; then
-      if [[ -n "$path2" ]]; then
-        record_guard_artifact_violation "bootstrap-only addition allowed; got $status $path1 -> $path2"
-      else
-        record_guard_artifact_violation "bootstrap-only addition allowed; got $status $path1"
-      fi
-      continue
-    fi
-    continue
-  fi
 
-  case "$status" in
-    R*|C*)
-      if is_core_owned_path "$path1" || is_core_owned_path "$path2"; then
-        violations+=("$status $path1 -> $path2")
-      fi
-      ;;
-    *)
-      if is_core_owned_path "$path1"; then
-        violations+=("$status $path1")
-      fi
-      ;;
-  esac
-done < <(git diff --name-status -z -M -C --find-copies-harder "$base_ref" "$target_ref")
+    case "$status" in
+      R*|C*)
+        if is_core_owned_path "$path1" || is_core_owned_path "$path2"; then
+          violations+=("$status $path1 -> $path2")
+        fi
+        ;;
+      *)
+        if is_core_owned_path "$path1"; then
+          violations+=("$status $path1")
+        fi
+        ;;
+    esac
+  done < "$records_file"
+}
+
+tmp_dir="$(mktemp -d)"
+trap 'rm -rf "$tmp_dir"' EXIT
+
+commit_diff="$tmp_dir/commit-diff.z"
+if ! git diff --name-status -z -M -C --find-copies-harder "$base_ref" "$target_ref" > "$commit_diff"; then
+  fail "git diff failed for $base_ref..$target_ref"
+fi
+process_diff_records "$commit_diff"
 
 if [[ "$target_is_head" == true ]]; then
+  working_diff="$tmp_dir/working-diff.z"
+  if ! git diff --name-status -z -M -C --find-copies-harder HEAD -- > "$working_diff"; then
+    fail "git diff failed while inspecting staged/unstaged working-tree changes"
+  fi
+  process_diff_records "$working_diff"
+
+  untracked_file="$tmp_dir/untracked.z"
+  if ! git ls-files -z --others --exclude-standard > "$untracked_file"; then
+    fail "git ls-files failed while inspecting untracked paths"
+  fi
   while IFS= read -r -d '' path; do
     [[ -n "$path" ]] || continue
     if is_core_owned_path "$path"; then
       violations+=("untracked $path")
     fi
-  done < <(git ls-files -z --others --exclude-standard)
+  done < "$untracked_file"
 fi
 
 if ((${#violations[@]})); then
