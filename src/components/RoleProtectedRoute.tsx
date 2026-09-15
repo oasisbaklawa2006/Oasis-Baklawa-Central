@@ -1,21 +1,24 @@
-import { useEffect, useState } from "react";
+import { ReactNode, useEffect, useMemo, useState } from "react";
 import { Navigate, useLocation } from "react-router-dom";
-import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { getRoleDestination, normalizeRole, isStaffRole, isPathWithinRoleDestination, fetchAuthRoleRecord } from "@/lib/auth-routing";
-import { signOutAndClearSession } from "@/utils/authSession";
+import { fetchAuthRoleRecord, getRoleDestination, normalizeRole } from "@/lib/auth-routing";
+import { signOutAndClearSession } from "@/lib/auth/sessionLifecycle";
 
 interface Props {
-  allowedRoles: (string | null)[];
-  children: React.ReactNode;
+  allowedRoles: string[];
+  children: ReactNode;
 }
 
 export default function RoleProtectedRoute({ allowedRoles, children }: Props) {
+  const { user, role, loading, profileReady } = useAuth();
   const location = useLocation();
-  const { user, loading: authLoading, role, profileReady } = useAuth();
-  const [serverVerified, setServerVerified] = useState(false);
   const normalizedRole = normalizeRole(role);
+  const normalizedAllowedRoles = useMemo(
+    () => allowedRoles.map((allowedRole) => normalizeRole(allowedRole)).filter(Boolean) as string[],
+    [allowedRoles],
+  );
+  const [serverVerified, setServerVerified] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -60,7 +63,8 @@ export default function RoleProtectedRoute({ allowedRoles, children }: Props) {
         }
 
         setServerVerified(true);
-      } catch {
+      } catch (error) {
+        console.error("[RoleProtectedRoute] Failed to verify server role", error);
         if (!cancelled) setServerVerified(true);
       }
     })();
@@ -70,45 +74,16 @@ export default function RoleProtectedRoute({ allowedRoles, children }: Props) {
     };
   }, [normalizedRole, user]);
 
-  if (authLoading || (user && !profileReady)) {
+  if (loading || (user && !profileReady)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="w-8 h-8 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: "#C5A059", borderTopColor: "transparent" }} />
+        <Loader2 size={24} className="animate-spin text-primary" />
       </div>
     );
   }
 
   if (!user) {
-    return <Navigate to="/login" replace />;
-  }
-
-  const destination = getRoleDestination(normalizedRole);
-  const isAllowed = allowedRoles.some((ar) => {
-    if (ar === null) return normalizedRole === null;
-    return ar.toUpperCase() === normalizedRole;
-  });
-  const isWithinDestination = isPathWithinRoleDestination(location.pathname, normalizedRole);
-
-  const bounce = (to: string) => {
-    if (location.pathname !== to) {
-      toast.error("Unauthorized Access — redirecting to your dashboard.");
-    }
-    return <Navigate to={to} replace />;
-  };
-
-  if (normalizedRole && isStaffRole(normalizedRole)) {
-    if (!serverVerified) {
-      return (
-        <div className="min-h-screen flex items-center justify-center bg-background">
-          <Loader2 size={24} className="animate-spin text-primary" />
-        </div>
-      );
-    }
-
-    if (!isAllowed && !isWithinDestination) {
-      return bounce(destination);
-    }
-    return <>{children}</>;
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
   if (!normalizedRole || normalizedRole === "PENDING") {
@@ -130,8 +105,8 @@ export default function RoleProtectedRoute({ allowedRoles, children }: Props) {
     );
   }
 
-  if (!isAllowed && !isWithinDestination) {
-    return bounce(destination);
+  if (!normalizedAllowedRoles.includes(normalizedRole)) {
+    return <Navigate to={getRoleDestination(normalizedRole)} replace />;
   }
 
   return <>{children}</>;
