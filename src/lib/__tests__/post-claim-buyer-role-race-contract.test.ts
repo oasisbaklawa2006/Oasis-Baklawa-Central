@@ -20,4 +20,14 @@ describe("AUTH-01 post-claim Buyer role reconciliation", () => {
     expect(unresolvedRedirect).toBeGreaterThan(reconciliation);
     expect(routeGuard).toContain("if (!serverVerified) {");
   });
+
+  it("does not let a superseded mismatch effect redirect a newer auth session after asynchronous sign-out", () => {
+    const signOut = routeGuard.indexOf('await signOutAndClearSession({ reason: "role_mismatch" })');
+    const cancellationRecheck = routeGuard.indexOf("if (cancelled) return;", signOut);
+    const loginRedirect = routeGuard.indexOf('window.location.replace("/login")', signOut);
+
+    expect(signOut).toBeGreaterThan(-1);
+    expect(cancellationRecheck).toBeGreaterThan(signOut);
+    expect(loginRedirect).toBeGreaterThan(cancellationRecheck);
+  });
 });
