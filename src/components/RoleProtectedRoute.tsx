@@ -3,7 +3,7 @@ import { Navigate, useLocation } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { fetchAuthRoleRecord, getRoleDestination, normalizeRole } from "@/lib/auth-routing";
-import { signOutAndClearSession } from "@/lib/auth/sessionLifecycle";
+import { signOutAndClearSession } from "@/utils/authSession";
 
 type Props = {
   allowedRoles: string[];
