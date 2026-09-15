@@ -54,6 +54,7 @@ export default function RoleProtectedRoute({ allowedRoles, children }: Props) {
         if (!serverRole || serverRole !== normalizedRole) {
           console.warn("[RoleProtectedRoute] Server role mismatch — forcing logout");
           await signOutAndClearSession({ reason: "role_mismatch" });
+          if (cancelled) return;
           window.location.replace("/login");
           return;
         }
