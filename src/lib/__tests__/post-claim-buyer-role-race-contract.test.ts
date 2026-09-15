@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 const routeGuard = readFileSync("src/components/RoleProtectedRoute.tsx", "utf8");
 
 describe("AUTH-01 post-claim Buyer role reconciliation", () => {
-  it("server-verifies an authenticated unresolved client role instead of immediately bouncing Buyer UAT to the customer redirect", () => {
+  it("server-verifies an authenticated unresolved client role before deciding its destination", () => {
     expect(routeGuard).toContain("if (!user) {");
     expect(routeGuard).toContain("const record = await fetchAuthRoleRecord(user.id)");
     expect(routeGuard).toContain('if (!normalizedRole || normalizedRole === "PENDING") {');
@@ -17,13 +17,22 @@ describe("AUTH-01 post-claim Buyer role reconciliation", () => {
     expect(routeGuard).toContain("setServerVerified(true);");
   });
 
-  it("keeps unresolved users fail-closed only after the authoritative server-role check has completed", () => {
+  it("never routes an authenticated unresolved or pending buyer back into B2B application intake", () => {
     const reconciliation = routeGuard.indexOf('if (serverRole && serverRole !== "PENDING" && serverRole !== normalizedRole)');
-    const unresolvedRedirect = routeGuard.lastIndexOf('return <Navigate to="/customer-app-redirect" replace />');
+    const recoveryState = routeGuard.indexOf("Buyer access is being verified");
 
     expect(reconciliation).toBeGreaterThan(-1);
-    expect(unresolvedRedirect).toBeGreaterThan(reconciliation);
-    expect(routeGuard).toContain("if (!serverVerified) {");
+    expect(recoveryState).toBeGreaterThan(reconciliation);
+    expect(routeGuard).not.toContain('return <Navigate to="/customer-app-redirect" replace />');
+    expect(routeGuard).not.toContain('/buyer/access-request');
+    expect(routeGuard).toContain("Your authenticated account does not need another B2B application.");
+    expect(routeGuard).toContain('window.location.replace("/buyer")');
+  });
+
+  it("preserves existing staff RBAC and governed dashboard bounce behaviour", () => {
+    expect(routeGuard).toContain("isStaffRole(normalizedRole)");
+    expect(routeGuard).toContain("isPathWithinRoleDestination(location.pathname, normalizedRole)");
+    expect(routeGuard).toContain('toast.error("Unauthorized Access — redirecting to your dashboard.")');
   });
 
   it("does not let a superseded mismatch effect redirect a newer auth session after asynchronous sign-out", () => {
