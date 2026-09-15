@@ -41,7 +41,7 @@ export default function RoleProtectedRoute({ allowedRoles, children }: Props) {
         // server role and reload the governed destination so AuthProvider
         // rehydrates role + company from the already-persisted session/cache.
         if (!normalizedRole || normalizedRole === "PENDING") {
-          if (serverRole && serverRole !== normalizedRole) {
+          if (serverRole && serverRole !== "PENDING" && serverRole !== normalizedRole) {
             console.info("[RoleProtectedRoute] Client role stale after auth transition — reloading authoritative destination");
             window.location.replace(getRoleDestination(serverRole));
             return;
