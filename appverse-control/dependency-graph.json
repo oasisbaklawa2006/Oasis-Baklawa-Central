@@ -190,7 +190,7 @@
       "base": null,
       "state": "LOCKED_ON_CORE_WA_RELEASES",
       "upstream": ["CORE-WA-CONSUMER", "CORE-WA-IDENTITY"],
-      "downstream": ["POINT100", "PRODUCTION-READINESS"],
+      "downstream": ["PRODUCTION-READINESS"],
       "merge_gate": [],
       "release_gate": ["live provider zero-loss certification", "media/provider evidence", "fallback recovery verification"]
     },
