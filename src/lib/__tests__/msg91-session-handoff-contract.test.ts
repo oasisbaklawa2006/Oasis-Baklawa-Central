@@ -107,8 +107,11 @@ describe("msg91-otp / scalable fail-closed identity resolution", () => {
     })).toBe("duplicate_phone_identity");
   });
 
-  it("trims MSG91_AUTH_KEY to avoid AuthenticationFailure from trailing whitespace", () => {
-    expect(source).toContain('(Deno.env.get("MSG91_AUTH_KEY") || "509994A5pbHkTLr69ea2a63P1").trim()');
+  it("reads MSG91_AUTH_KEY from environment only and fails closed when unset", () => {
+    expect(source).toContain('(Deno.env.get("MSG91_AUTH_KEY") || "").trim()');
+    expect(source).toContain("Missing configuration fails closed; no credential fallback is embedded in source.");
+    expect(source).toContain("const MSG91_ENABLED = Boolean(AUTH_KEY)");
+    expect(source).not.toMatch(/MSG91_AUTH_KEY[^\n]*\|\|\s*"[A-Za-z0-9]+"/);
   });
 
   it("keeps duplicate and lookup failures fail-closed", () => {
