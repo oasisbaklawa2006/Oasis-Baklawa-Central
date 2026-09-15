@@ -6,20 +6,31 @@ set -euo pipefail
 ROOT="${1:-.}"
 cd "$ROOT"
 
-mapfile -t FILES < <(git ls-files)
+fail() {
+  echo "TRACKED_SECRET_EXPOSURE_SCAN_FAILED: $*" >&2
+  exit 1
+}
 
-if [ "${#FILES[@]}" -eq 0 ]; then
+tracked_list="$(mktemp)"
+trap 'rm -f "$tracked_list"' EXIT
+if ! git ls-files -z > "$tracked_list"; then
+  fail 'git ls-files failed while enumerating tracked files'
+fi
+
+if [[ ! -s "$tracked_list" ]]; then
   echo "No tracked files to scan."
   exit 0
 fi
 
-python3 - "$ROOT" "${FILES[@]}" <<'PY'
+python3 - "$tracked_list" <<'PY'
 import os
 import re
 import sys
 
-root = sys.argv[1]
-files = sys.argv[2:]
+root = os.getcwd()
+tracked_list = sys.argv[1]
+with open(tracked_list, "rb") as handle:
+    files = [os.fsdecode(raw) for raw in handle.read().split(b"\0") if raw]
 
 patterns = [
     ("resend_api_key", re.compile(r"\bre_[A-Za-z0-9]{20,}\b")),
@@ -35,7 +46,7 @@ patterns = [
 
 skip_ext = {
     ".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico",
-    ".woff", ".woff2", ".ttf", ".eot", ".pdf", ".zip", ".lock",
+    ".woff", ".woff2", ".ttf", ".eot", ".pdf", ".zip",
 }
 
 findings = []
@@ -49,8 +60,9 @@ for rel in files:
     try:
         with open(path, "r", encoding="utf-8", errors="ignore") as handle:
             text = handle.read()
-    except OSError:
-        continue
+    except OSError as exc:
+        print(f"TRACKED_SECRET_EXPOSURE_SCAN_FAILED: cannot read {rel}: {exc}", file=sys.stderr)
+        sys.exit(1)
     for label, pattern in patterns:
         if pattern.search(text):
             findings.append((label, rel))
