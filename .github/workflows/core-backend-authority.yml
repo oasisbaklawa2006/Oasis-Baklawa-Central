@@ -78,6 +78,7 @@ jobs:
           git show "$PR_HEAD_SHA:scripts/check-core-backend-authority.sh" > scripts/check-core-backend-authority.sh
           git show "$PR_HEAD_SHA:scripts/check-tracked-secret-exposure.sh" > scripts/check-tracked-secret-exposure.sh
           git show "$PR_HEAD_SHA:scripts/tests/verify-core-backend-authority.sh" > scripts/tests/verify-core-backend-authority.sh
+          git show "$PR_HEAD_SHA:.github/workflows/core-backend-authority.yml" > .github/workflows/core-backend-authority.yml
           git show "$PR_HEAD_SHA:.github/workflows/secret-exposure-guard.yml" > .github/workflows/secret-exposure-guard.yml
           chmod +x scripts/check-core-backend-authority.sh scripts/check-tracked-secret-exposure.sh scripts/tests/verify-core-backend-authority.sh
           bash scripts/tests/verify-core-backend-authority.sh
