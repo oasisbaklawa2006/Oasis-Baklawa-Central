@@ -10,8 +10,10 @@ from pathlib import Path
 GRAPH = Path("appverse-control/dependency-graph.json")
 
 MANDATORY_POINT100_UPSTREAMS = {
+    "CORE-AUTH-01",
     "CENTRAL-AUTH-01",
     "CENTRAL-GOVERNANCE",
+    "CENTRAL-POINT55-PUBLISHED-PRODUCTS",
     "CORE-FINANCE-LEDGER",
     "TRACE-POINT95-99",
     "CORE-WA-CONSUMER",
@@ -19,6 +21,9 @@ MANDATORY_POINT100_UPSTREAMS = {
     "AI-POINT49",
     "AI-POINT50",
     "AI-POINT51",
+    "CORE-AI-CHAT-CAPTURE",
+    "CENTRAL-AI-CHAT-CONSUMER",
+    "AI-ALIAS-SESSION",
     "BUYER-APP-RECERT",
 }
 
@@ -69,8 +74,10 @@ def main() -> None:
         by_id[node_id] = node
 
     required_nodes = {
+        "CORE-AUTH-01",
         "CENTRAL-AUTH-01",
         "CENTRAL-GOVERNANCE",
+        "CENTRAL-POINT55-PUBLISHED-PRODUCTS",
         "CORE-FINANCE-LEDGER",
         "CORE-TRACE-AUTHORITY",
         "CORE-SECURITY-HARDENING",
@@ -79,6 +86,9 @@ def main() -> None:
         "AI-POINT49",
         "AI-POINT50",
         "AI-POINT51",
+        "CORE-AI-CHAT-CAPTURE",
+        "CENTRAL-AI-CHAT-CONSUMER",
+        "AI-ALIAS-SESSION",
         "TRACE-POINT95-99",
         "BUYER-APP-RECERT",
         "WHATSAPP-LIVE-CERT",
