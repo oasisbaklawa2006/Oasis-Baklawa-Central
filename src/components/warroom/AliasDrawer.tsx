@@ -136,19 +136,18 @@ export default function AliasDrawer({ open, onOpenChange, pendingToken, onAliase
     setSuggesting(true);
     setSuggestions([]);
     try {
+      const prompt =
+        `Suggest 5-10 short B2B WhatsApp nicknames / shorthand a sweet-shop owner might type ` +
+        `for the product "${selected.name}". Existing aliases: ${(selected.aliases ?? []).join(", ") || "none"}. ` +
+        `Return ONLY a JSON array of lowercase strings, no prose.`;
       const { data, error } = await supabase.functions.invoke("oasis-ai-chat", {
         body: {
-          mode: "alias_suggest",
-          product_name: selected.name,
-          existing_aliases: selected.aliases ?? [],
-          prompt:
-            `Suggest 5-10 short B2B WhatsApp nicknames / shorthand a sweet-shop owner might type ` +
-            `for the product "${selected.name}". Return ONLY a JSON array of lowercase strings, no prose.`,
+          messages: [{ role: "user", content: prompt }],
         },
       });
       if (error) throw error;
       let list: string[] = [];
-      const raw = (data?.reply || data?.text || data?.content || "").toString();
+      const raw = (data?.reply || data?.text || data?.content || data || "").toString();
       const match = raw.match(/\[[\s\S]*\]/);
       if (match) {
         try { list = JSON.parse(match[0]); } catch { /* ignore */ }
