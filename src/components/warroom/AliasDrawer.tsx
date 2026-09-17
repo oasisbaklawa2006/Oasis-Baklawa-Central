@@ -1,11 +1,11 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Check, Loader2, Plus, Search, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
-import { Plus, X, Check, Search, Sparkles, Loader2 } from "lucide-react";
 
 interface ProductRow {
   id: string;
@@ -31,7 +31,12 @@ interface AliasDrawerProps {
  *   3. Save = (a) append to products.aliases[], (b) insert into product_aliases for parser pickup.
  *   4. AI Suggest = ask edge function for 5–10 nicknames; admin one-click approves each.
  */
-export default function AliasDrawer({ open, onOpenChange, pendingToken, onAliasesChanged }: AliasDrawerProps) {
+export default function AliasDrawer({
+  open,
+  onOpenChange,
+  pendingToken,
+  onAliasesChanged,
+}: AliasDrawerProps) {
   const [products, setProducts] = useState<ProductRow[]>([]);
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<ProductRow | null>(null);
@@ -42,7 +47,7 @@ export default function AliasDrawer({ open, onOpenChange, pendingToken, onAliase
 
   useEffect(() => {
     if (!open) return;
-    (async () => {
+    void (async () => {
       const { data } = await supabase
         .from("products")
         .select("id, name, aliases")
@@ -86,16 +91,18 @@ export default function AliasDrawer({ open, onOpenChange, pendingToken, onAliase
       }
       const next = [...current, clean];
 
-      // 1) products.aliases[] — array column update
+      // 1) products.aliases[] — array column update. Generated types lag this column.
       const { error: pErr } = await supabase
         .from("products")
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .update({ aliases: next } as any)
         .eq("id", selected.id);
       if (pErr) throw pErr;
 
-      // 2) product_aliases lookup — used by parser
+      // 2) product_aliases lookup — used by parser. Generated types lag this relation.
       await supabase
         .from("product_aliases")
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .insert({ alias_text: clean, canonical_name: selected.name } as any);
 
       toast.success(`"${clean}" → ${selected.name}`);
@@ -103,8 +110,8 @@ export default function AliasDrawer({ open, onOpenChange, pendingToken, onAliase
       setSuggestions((s) => s.filter((x) => x.toLowerCase() !== clean.toLowerCase()));
       await refreshSelected(selected.id);
       onAliasesChanged?.();
-    } catch (e: any) {
-      toast.error(e?.message || "Failed to save alias");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Failed to save alias");
     }
     setSaving(false);
   };
@@ -114,13 +121,13 @@ export default function AliasDrawer({ open, onOpenChange, pendingToken, onAliase
     const next = (selected.aliases ?? []).filter((a) => a !== alias);
     const { error } = await supabase
       .from("products")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .update({ aliases: next } as any)
       .eq("id", selected.id);
     if (error) {
       toast.error("Failed to remove");
       return;
     }
-    // Best-effort: also remove from lookup
     await supabase
       .from("product_aliases")
       .delete()
@@ -150,16 +157,25 @@ export default function AliasDrawer({ open, onOpenChange, pendingToken, onAliase
       const raw = (data?.reply || data?.text || data?.content || data || "").toString();
       const match = raw.match(/\[[\s\S]*\]/);
       if (match) {
-        try { list = JSON.parse(match[0]); } catch { /* ignore */ }
+        try {
+          list = JSON.parse(match[0]);
+        } catch {
+          // Ignore malformed provider content and fail to an empty suggestion set.
+        }
       }
       list = list
-        .map((s) => String(s).trim())
+        .map((value) => String(value).trim())
         .filter(Boolean)
-        .filter((s) => !(selected.aliases ?? []).some((a) => a.toLowerCase() === s.toLowerCase()))
+        .filter(
+          (value) =>
+            !(selected.aliases ?? []).some(
+              (alias) => alias.toLowerCase() === value.toLowerCase(),
+            ),
+        )
         .slice(0, 10);
       if (list.length === 0) toast.info("No new suggestions");
       setSuggestions(list);
-    } catch (e: any) {
+    } catch {
       toast.error("AI suggest unavailable");
     }
     setSuggesting(false);
@@ -176,29 +192,28 @@ export default function AliasDrawer({ open, onOpenChange, pendingToken, onAliase
         </SheetHeader>
 
         <div className="mt-4 space-y-3">
-          {/* Search */}
           <div className="relative">
             <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(event) => setSearch(event.target.value)}
               placeholder="Search SKU…"
               className="pl-8"
             />
           </div>
 
-          {/* Product list */}
           {!selected && (
             <div className="border rounded-md max-h-64 overflow-y-auto">
-              {filtered.map((p) => (
+              {filtered.map((product) => (
                 <button
-                  key={p.id}
-                  onClick={() => setSelected(p)}
+                  key={product.id}
+                  onClick={() => setSelected(product)}
                   className="w-full text-left px-3 py-2 text-sm hover:bg-accent flex items-center justify-between border-b last:border-b-0"
                 >
-                  <span className="truncate">{p.name}</span>
+                  <span className="truncate">{product.name}</span>
                   <span className="text-[10px] text-muted-foreground ml-2">
-                    {(p.aliases ?? []).length} alias{(p.aliases ?? []).length !== 1 ? "es" : ""}
+                    {(product.aliases ?? []).length} alias
+                    {(product.aliases ?? []).length !== 1 ? "es" : ""}
                   </span>
                 </button>
               ))}
@@ -208,62 +223,87 @@ export default function AliasDrawer({ open, onOpenChange, pendingToken, onAliase
             </div>
           )}
 
-          {/* Selected SKU panel */}
           {selected && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-semibold">{selected.name}</p>
                   <p className="text-[10px] text-muted-foreground">
-                    {(selected.aliases ?? []).length} active alias{(selected.aliases ?? []).length !== 1 ? "es" : ""}
+                    {(selected.aliases ?? []).length} active alias
+                    {(selected.aliases ?? []).length !== 1 ? "es" : ""}
                   </p>
                 </div>
-                <Button variant="ghost" size="sm" onClick={() => { setSelected(null); setSuggestions([]); }}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setSelected(null);
+                    setSuggestions([]);
+                  }}
+                >
                   Change
                 </Button>
               </div>
 
-              {/* Existing aliases */}
               <div className="flex flex-wrap gap-1.5">
-                {(selected.aliases ?? []).map((a) => (
-                  <Badge key={a} variant="secondary" className="gap-1">
-                    {a}
-                    <button onClick={() => removeAlias(a)} className="hover:text-destructive">
+                {(selected.aliases ?? []).map((alias) => (
+                  <Badge key={alias} variant="secondary" className="gap-1">
+                    {alias}
+                    <button onClick={() => void removeAlias(alias)} className="hover:text-destructive">
                       <X className="h-3 w-3" />
                     </button>
                   </Badge>
                 ))}
                 {(selected.aliases ?? []).length === 0 && (
-                  <p className="text-[11px] text-muted-foreground italic">No aliases yet — add one below.</p>
+                  <p className="text-[11px] text-muted-foreground italic">
+                    No aliases yet — add one below.
+                  </p>
                 )}
               </div>
 
-              {/* Add new */}
               <div className="flex gap-2">
                 <Input
                   value={newAlias}
-                  onChange={(e) => setNewAlias(e.target.value)}
+                  onChange={(event) => setNewAlias(event.target.value)}
                   placeholder="e.g. kitta, mix tart"
-                  onKeyDown={(e) => { if (e.key === "Enter") saveAlias(newAlias); }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") void saveAlias(newAlias);
+                  }}
                 />
-                <Button onClick={() => saveAlias(newAlias)} disabled={saving || !newAlias.trim()} size="sm">
+                <Button
+                  onClick={() => void saveAlias(newAlias)}
+                  disabled={saving || !newAlias.trim()}
+                  size="sm"
+                >
                   {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                 </Button>
               </div>
 
-              {/* AI suggest */}
               <div>
-                <Button onClick={aiSuggest} disabled={suggesting} variant="outline" size="sm" className="w-full">
-                  {suggesting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
+                <Button
+                  onClick={() => void aiSuggest()}
+                  disabled={suggesting}
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                >
+                  {suggesting ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : (
+                    <Sparkles className="h-4 w-4 mr-2" />
+                  )}
                   AI: Suggest 5-10 nicknames
                 </Button>
                 {suggestions.length > 0 && (
                   <div className="mt-2 space-y-1">
-                    {suggestions.map((s) => (
-                      <div key={s} className="flex items-center justify-between gap-2 text-xs px-2 py-1 rounded border">
-                        <span className="truncate">{s}</span>
+                    {suggestions.map((suggestion) => (
+                      <div
+                        key={suggestion}
+                        className="flex items-center justify-between gap-2 text-xs px-2 py-1 rounded border"
+                      >
+                        <span className="truncate">{suggestion}</span>
                         <button
-                          onClick={() => saveAlias(s)}
+                          onClick={() => void saveAlias(suggestion)}
                           className="text-emerald-600 hover:text-emerald-700 flex items-center gap-1"
                         >
                           <Check className="h-3.5 w-3.5" /> Approve
