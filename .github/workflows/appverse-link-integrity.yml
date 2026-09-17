@@ -1,0 +1,38 @@
+name: Appverse Link Integrity
+
+on:
+  pull_request:
+    paths:
+      - 'APPVERSE_MISSION_CONTROL.md'
+      - 'appverse-control/**'
+      - 'scripts/appverse-control/check_dependency_graph.py'
+      - '.github/workflows/appverse-link-integrity.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'APPVERSE_MISSION_CONTROL.md'
+      - 'appverse-control/**'
+      - 'scripts/appverse-control/check_dependency_graph.py'
+      - '.github/workflows/appverse-link-integrity.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-final-linking:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Validate dependency graph
+        run: python3 scripts/appverse-control/check_dependency_graph.py
+
+      - name: Validate machine-readable JSON
+        run: |
+          python3 -m json.tool appverse-control/dependency-graph.json >/dev/null
+          python3 -m json.tool appverse-control/state.json >/dev/null
