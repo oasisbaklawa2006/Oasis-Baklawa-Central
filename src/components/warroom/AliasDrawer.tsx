@@ -143,9 +143,19 @@ export default function AliasDrawer({
     setSuggesting(true);
     setSuggestions([]);
     try {
+      const promptAliases: string[] = [];
+      let promptAliasChars = 0;
+      for (const alias of (selected.aliases ?? []).slice(0, 50)) {
+        const separatorChars = promptAliases.length > 0 ? 2 : 0;
+        const nextChars = promptAliasChars + separatorChars + alias.length;
+        if (nextChars > 2000) break;
+        promptAliases.push(alias);
+        promptAliasChars = nextChars;
+      }
+
       const prompt =
         `Suggest 5-10 short B2B WhatsApp nicknames / shorthand a sweet-shop owner might type ` +
-        `for the product "${selected.name}". Existing aliases: ${(selected.aliases ?? []).join(", ") || "none"}. ` +
+        `for the product "${selected.name}". Existing aliases: ${promptAliases.join(", ") || "none"}. ` +
         `Return ONLY a JSON array of lowercase strings, no prose.`;
       const { data, error } = await supabase.functions.invoke("oasis-ai-chat", {
         body: {
