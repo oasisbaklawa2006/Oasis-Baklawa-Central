@@ -53,36 +53,34 @@ Non-production branch synchronization is allowed when it only brings the feature
 
 **Cross-repository linking is semantic/release linking, not Git-base linking.** A PR head/base pair stays inside one repository. Cross-repo dependencies are recorded as `producer → consumer` release edges in the Mission Control graph. A consumer that depends on a Core mutation authority must remain fail-closed until the required Core merge/release/runtime verification is complete.
 
-**The only intentional stacked feature PR in the current final graph is AI Studio Point50 #211 on Point49 #210.** After Point49 merges, Point50 must be retargeted to AI Studio `main`, reconciled with then-current `main`, and run through fresh normal CI before review/merge. No other final lane may silently become stacked.
+**There is no intentional stacked PR in the current final graph.** AI Point49 #210 is already merged; active replacements #217, #218 and #219 all target AI Studio `main`. Any future non-main PR base must be declared explicitly in the machine-readable graph and recertified.
 
 ## Current final completion graph
 
 The canonical exact graph is machine-readable in `appverse-control/dependency-graph.json`. The major final dependency edges are:
 
 ```text
-AI #210 Point49
-    └──> AI #211 Point50 (temporary same-repo stack)
+Core #326 AUTH-01 -> Central #588 AUTH-01 ------------------+
+Central #589 governance ------------------------------------|
+Central #590 Point55 publication consumer ------------------|
+Core #321 Finance (merged; runtime-gated) ------------------|
+Core #300 Trace authority (merged; release-gated) -> Trace #38 --|
+Core #328 WhatsApp consumer (merged; DB deployed/runtime-gated) --|
+Core #309 WhatsApp identity (merged; provider-gated) -------|
+AI #210 Point49 (merged; runtime-evidence-gated) ------------|
+AI #217 Point50 ---------------------------------------------|
+AI #218 Point51 ---------------------------------------------|
+Core #329 AI-chat source -> Central #591 caller ------------|
+                         -> AI #219 session security --------|
+Buyer App current-main recert -------------------------------|
+                                                             +--> Point100 #559
 
-Core #300 Trace write authority
-    └── protected merge/release/runtime proof
-        └──> Trace #38 consumer recertification/merge
-             └──> Point100 #559
-
-Core #308 durable WhatsApp consumer ─┐
-Core #309 sender≠customer identity ──┴──> live-provider WhatsApp certification ──> Production Readiness
-
-Central #588 AUTH-01 ────────────────┐
-Central #589 governance ─────────────┤
-Core #289 Finance ledger ────────────┤
-Trace #38 ───────────────────────────┤
-AI #210/#211/#212 ──────────────────┤──> Point100 #559 final software rehearsal
-Buyer App current-main recert ──────┤
-Core #308/#309 software authority ──┘
-
-Point100 #559 ───────────────────────┐
-Core #307 security hardening ───────┤
-WhatsApp live certification ────────┤──> Production Readiness ──> APPVERSE COMPLETE
-Physical/provider UAT ──────────────┘
+Core #328 + Core #309 -> WhatsApp live certification -------+
+AI #218 + Trace #38 + Buyer recert -> Physical UAT ---------|
+Core #307 security (merged; release-gated) ------------------|
+Point100 #559 ------------------------------------------------|
+Central #589 governance + Core #321 Finance -----------------|
+                                                              +--> Production Readiness -> APPVERSE COMPLETE
 ```
 
 Point100 is therefore a **convergence consumer**, not an authority source. Before final rehearsal it must be reconciled onto then-current Central `main` and update its exact authority pins/evidence to the final Core/Trace/AI/Buyer state. It must not be used to bless stale upstream commits.
@@ -91,23 +89,27 @@ Point100 is therefore a **convergence consumer**, not an authority source. Befor
 
 | Lane | Repository / PR | State | Required next gate |
 |---|---|---|---|
-| AUTH-01 | Central #588 | 🟠 IN PROCESS | independent review → protected merge → production Buyer-login/runtime verification |
-| Central governance | Central #589 | 🟠 IN PROCESS | Release Quality exact-head PASS → independent review → protected merge |
-| Finance ledger | Core #289 | 🟠 IN PROCESS | exact-head Core gates/review → protected exact-SHA release → production Finance runtime proof |
-| Trace write authority | Core #300 | 🟠 IN PROCESS | exact-head Core gates/review → protected Production Migration Release → production semantic/runtime proof |
-| Core security | Core #307 | 🟠 IN PROCESS | review/merge → protected migration → production advisor/runtime verification |
-| WhatsApp durable consumer | Core #308 | 🟠 IN PROCESS | exact-head gates/review/merge → migration + Edge deploy → Vault URL → queue-drain proof |
-| WhatsApp identity | Core #309 | 🟠 IN PROCESS | exact-head gates/review/merge → governed webhook release → live-provider identity/zero-loss proof |
-| AI Point49 | AI #210 | 🟠 IN PROCESS | independent review → protected merge → runtime multilingual evidence |
-| AI Point50 | AI #211 | 🟡 BLOCKED | wait Point49 merge → retarget to `main` → reconcile → fresh CI/review/merge |
-| AI Point51 | AI #212 | 🟠 IN PROCESS | independent review/merge + real-device camera/mobile UAT |
-| Trace Point95/99 | Trace #38 | 🟡 BLOCKED | Core #300 production release/verification → Trace exact-head recertification → review/merge |
-| Buyer App | current `main`, no open PR at census | 🔴 NOT CLEARED | recertify current Buyer journeys against canonical Core; open a bounded Buyer PR only for an evidenced defect |
-| Point100 | Central #559 draft | ⚪ LOCKED | wait declared software upstreams → reconcile current authority pins → final exact-head rehearsal/review |
-| Physical/provider UAT | cross-programme evidence | 🔴 NOT CLEARED | scanner/printer/TV/handheld/Security Gate/Buyer phone/payment/provider evidence as applicable |
-| Production Readiness | Mission Control | ⚪ LOCKED | Point100 + security + WhatsApp live + external evidence + deployment/rollback/observability reconciliation |
+| Core AUTH-01 | Core #326 | 🟠 IN PROCESS | exact-head green -> independent review -> protected merge -> production semantic/runtime reconciliation |
+| Central AUTH-01 | Central #588 | 🟠 IN PROCESS | Core AUTH authority -> review/merge -> live Buyer login certification |
+| Central governance | Central #589 | 🟠 IN PROCESS | exact-head guards/RQG -> review -> protected merge |
+| Point55 publication consumer | Central #590 | 🟠 IN PROCESS | exact-head recertification -> review -> runtime published-products consumer verification |
+| Finance ledger | Core #321 | 🟡 RELEASE-GATED | merged; exact-SHA Edge deploy -> runtime proof -> schedule restoration |
+| Trace write authority | Core #300 | 🟡 RELEASE-GATED | merged; protected Production Migration Release -> semantic/runtime proof |
+| Core security | Core #307 | 🟡 RELEASE-GATED | merged; protected migration/advisor verification |
+| WhatsApp durable consumer | Core #328 | 🟡 RUNTIME-GATED | DB migrations deployed; consumer+worker -> Vault activation -> controlled reconciliation |
+| WhatsApp identity | Core #309 | 🟡 PROVIDER-GATED | merged; governed webhook verification -> live Click2API/Meta identity/zero-loss proof |
+| AI Point49 | AI #210 | 🟡 RUNTIME-EVIDENCE-GATED | merged; multilingual human-review/runtime evidence |
+| AI Point50 | AI #217 | 🟠 IN PROCESS | exact-head CI/review -> protected merge -> runtime channel-copy evidence |
+| AI Point51 | AI #218 | 🟠 IN PROCESS | exact-head CI/review -> protected merge + real-device camera/mobile UAT |
+| Core AI chat | Core #329 | 🟠 IN PROCESS | Edge registry/governance green -> review -> protected merge; no production deploy for identical source capture |
+| Central AI-chat caller | Central #591 | 🟠 IN PROCESS | SSE caller exact-head green/review -> protected merge -> staff/non-staff runtime proof |
+| AI alias session | AI #219 | 🟠 IN PROCESS | exact-head release/security/lint green -> review -> runtime session proof |
+| Trace Point95/99 | Trace #38 | 🟡 BLOCKED | Core #300 production release/verification -> Trace recertification -> review/merge |
+| Buyer App | current main | 🔴 NOT CLEARED | current-main AUTH/session/payment/tracking recertification + real phone evidence |
+| Point100 | Central #559 draft | ⚪ LOCKED | wait declared software upstreams -> reconcile current main -> final exact-head rehearsal/review |
+| Physical/provider UAT | cross-programme evidence | 🔴 NOT CLEARED | scanner/printer/TV/handheld/Gatekeeper/Buyer phone/payment/provider evidence |
+| Production Readiness | Mission Control | ⚪ LOCKED | Point100 + security + Finance + WhatsApp live + physical/provider + deployment/rollback/observability |
 | APPVERSE COMPLETE | Mission Control | ⚪ LOCKED | Production Readiness CLEARED and no launch blocker |
-
 ## Buyer App rule
 
 No open PR existed in `oasisbaklawa2006/oasis-baklawa` at the final-linking census. Mission Control must **not invent a Buyer PR for symmetry**. Buyer App must first be recertified on its current `main` against canonical Core authority. Only an evidenced Buyer-owned defect may generate a bounded Buyer ASM item/PR.
@@ -134,7 +136,7 @@ The guard fails on:
 - missing or one-sided dependency edges;
 - dependency cycles;
 - undeclared stacked feature branches;
-- any second final stacked PR besides AI Point50 → Point49;
+- any undeclared stacked feature branch;
 - missing Core #300 → Trace #38 release ordering;
 - Point100 omitting a mandatory software upstream;
 - Production Readiness omitting Point100, Core security, WhatsApp live certification, or physical/provider UAT;
