@@ -55,12 +55,13 @@ interface MappingRow {
   sync_status: CatalogueSyncStatus;
   last_synced_at: string | null;
   product_name: string | null;
-  published_operationally: boolean;
+  published_operationally: boolean | null;
 }
 
 export default function AdminCatalogueSyncStatus() {
   const [rows, setRows] = useState<MappingRow[]>([]);
   const [publishedIndex, setPublishedIndex] = useState<PublishedOperationalProductIndex | null>(null);
+  const [publicationUnavailable, setPublicationUnavailable] = useState(false);
   const [loading, setLoading] = useState(true);
   const [jsonInput, setJsonInput] = useState("");
   const [importing, setImporting] = useState(false);
@@ -71,29 +72,36 @@ export default function AdminCatalogueSyncStatus() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    setPublicationUnavailable(false);
     try {
-      const [mappingsResult, published] = await Promise.all([
-        supabase
-          .from("catalogue_product_mappings")
-          .select(
-            "id, sku, external_catalogue_product_id, central_product_id, source_version, sync_status, last_synced_at",
-          )
-          .order("last_synced_at", { ascending: false, nullsFirst: false })
-          .limit(200),
-        fetchPublishedOperationalProducts(supabase),
-      ]);
+      const mappingsResult = await supabase
+        .from("catalogue_product_mappings")
+        .select(
+          "id, sku, external_catalogue_product_id, central_product_id, source_version, sync_status, last_synced_at",
+        )
+        .order("last_synced_at", { ascending: false, nullsFirst: false })
+        .limit(200);
 
       const { data, error } = mappingsResult;
       if (error) throw error;
 
-      setPublishedIndex(published);
-      const mappings = data ?? [];
+      let published: PublishedOperationalProductIndex | null = null;
+      try {
+        published = await fetchPublishedOperationalProducts(supabase);
+        setPublishedIndex(published);
+      } catch (publicationError) {
+        console.error("[AdminCatalogueSyncStatus:publication]", publicationError);
+        setPublishedIndex(null);
+        setPublicationUnavailable(true);
+      }
 
+      const mappings = data ?? [];
       setRows(
         mappings.map((m) => {
-          const publishedProduct = m.central_product_id
-            ? published.byProductId.get(m.central_product_id) ?? null
-            : null;
+          const publishedProduct =
+            published && m.central_product_id
+              ? published.byProductId.get(m.central_product_id) ?? null
+              : null;
           return {
             id: m.id,
             sku: m.sku,
@@ -103,14 +111,17 @@ export default function AdminCatalogueSyncStatus() {
             sync_status: m.sync_status as CatalogueSyncStatus,
             last_synced_at: m.last_synced_at,
             product_name: publishedProduct?.productName ?? null,
-            published_operationally: isProductPublishedOperational(published, m.central_product_id),
+            published_operationally: published
+              ? isProductPublishedOperational(published, m.central_product_id)
+              : null,
           };
         }),
       );
     } catch (e) {
-      console.error("[AdminCatalogueSyncStatus]", e);
+      console.error("[AdminCatalogueSyncStatus:mappings]", e);
       setRows([]);
       setPublishedIndex(null);
+      setPublicationUnavailable(false);
     } finally {
       setLoading(false);
     }
@@ -184,6 +195,12 @@ export default function AdminCatalogueSyncStatus() {
               Published operational projection: {publishedIndex.products.length} product
               {publishedIndex.products.length === 1 ? "" : "s"} at{" "}
               {new Date(publishedIndex.loadedAt).toLocaleString()}
+            </p>
+          )}
+          {publicationUnavailable && (
+            <p className="text-xs text-destructive mt-1">
+              Publication projection is currently unavailable. Catalogue mappings are retained; publication
+              state is not inferred locally.
             </p>
           )}
         </div>
@@ -299,9 +316,13 @@ export default function AdminCatalogueSyncStatus() {
                     <TableCell>{row.source_version}</TableCell>
                     <TableCell>
                       {row.central_product_id ? (
-                        <Badge variant={row.published_operationally ? "default" : "outline"}>
-                          {row.published_operationally ? "Published" : "Not published"}
-                        </Badge>
+                        row.published_operationally === null ? (
+                          <Badge variant="outline">Unavailable</Badge>
+                        ) : (
+                          <Badge variant={row.published_operationally ? "default" : "outline"}>
+                            {row.published_operationally ? "Published" : "Not published"}
+                          </Badge>
+                        )
                       ) : (
                         <span className="text-muted-foreground text-sm">—</span>
                       )}
