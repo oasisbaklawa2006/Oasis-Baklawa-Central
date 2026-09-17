@@ -1,0 +1,584 @@
+{
+  "schema_version": 1,
+  "authority": "APPVERSE_MISSION_CONTROL",
+  "generated_from_live_census_at": "2026-09-18T04:08:00+05:30",
+  "mission": {
+    "asm_id": "APPVERSE-LINK-01",
+    "thread_id": "appverse-completion-final-linking-20260915",
+    "repository": "oasisbaklawa2006/Oasis-Baklawa-Central",
+    "scope": "programme-control-only",
+    "objective": "Make every active Appverse completion branch/repository dependency explicit, fail-closed, independently reviewable, and sequenced to Point100/production completion without creating parallel backend authority.",
+    "stop_condition": "All graph invariants pass; every active completion lane has an explicit repository boundary, upstream/downstream relation and release gate; Point100 remains locked until all declared software and external gates clear."
+  },
+  "production_safety_gate": {
+    "enabled": true,
+    "rule": "Mission Control may inspect, route, branch, test and prepare non-production governance changes. It must not merge protected production branches, apply production migrations, deploy production functions/apps, mutate production data/configuration, create billable infrastructure, or manufacture physical/provider evidence without the separately governed authorization/evidence required by the owning lane.",
+    "non_production_branch_sync_allowed": true,
+    "cross_repo_code_mutation_allowed": false
+  },
+  "authority_model": {
+    "core": "oasisbaklawa2006/oasis-supabase-core owns canonical shared backend contracts, Supabase schema/migrations, governed RPC/Edge authority and release pins.",
+    "central": "oasisbaklawa2006/Oasis-Baklawa-Central owns Mission Control plus internal Admin/Operational Control Tower consumers.",
+    "buyer": "oasisbaklawa2006/oasis-baklawa owns the customer-facing/mobile Buyer App and consumes canonical Core authority; it does not define parallel backend truth.",
+    "ai_studio": "oasisbaklawa2006/oasis-ai-studio owns AI/knowledge-plane behavior and consumes governed Core contracts for transactional handoff.",
+    "trace": "oasisbaklawa2006/oasis-trace owns Trace client/domain behavior and consumes Core mutation authority.",
+    "cross_repo_git_rule": "A pull request base must belong to the same repository as its head. Cross-repository dependencies are semantic/release edges, never cross-repository Git branch bases."
+  },
+  "repositories": {
+    "central": "oasisbaklawa2006/Oasis-Baklawa-Central",
+    "core": "oasisbaklawa2006/oasis-supabase-core",
+    "buyer": "oasisbaklawa2006/oasis-baklawa",
+    "ai_studio": "oasisbaklawa2006/oasis-ai-studio",
+    "trace": "oasisbaklawa2006/oasis-trace"
+  },
+  "nodes": [
+    {
+      "id": "CORE-AUTH-01",
+      "repository": "core",
+      "pr": 326,
+      "branch": "fix/auth01-buyer-rpc-identity-gate-20260917",
+      "base": "main",
+      "state": "OPEN_REVIEW_GATED",
+      "upstream": [],
+      "downstream": [
+        "CENTRAL-AUTH-01",
+        "POINT100"
+      ],
+      "merge_gate": [
+        "exact-head Core CI green",
+        "independent review",
+        "protected merge"
+      ],
+      "release_gate": [
+        "reconcile existing production migration evidence to merged authority",
+        "production Buyer RPC/RLS semantic verification",
+        "Buyer login runtime certification"
+      ],
+      "notes": "Canonical Buyer RPC identity hardening. Production migration evidence exists from the prior AUTH-01 checkpoint, but final authority still requires protected merge and runtime reconciliation."
+    },
+    {
+      "id": "CENTRAL-AUTH-01",
+      "repository": "central",
+      "pr": 588,
+      "branch": "fix/auth01-post-claim-role-race",
+      "base": "main",
+      "state": "OPEN_REVIEW_GATED",
+      "upstream": [
+        "CORE-AUTH-01"
+      ],
+      "downstream": [
+        "POINT100"
+      ],
+      "merge_gate": [
+        "exact-head CI green",
+        "independent review",
+        "protected merge"
+      ],
+      "release_gate": [
+        "production Buyer login/post-claim route verification",
+        "approved/pending/unknown/staff negative-path certification"
+      ],
+      "notes": "Consumer-side post-claim Buyer role reconciliation; canonical identity remains Core-owned."
+    },
+    {
+      "id": "CENTRAL-GOVERNANCE",
+      "repository": "central",
+      "pr": 589,
+      "branch": "reconcile/central-governance-point3-point25-20260915",
+      "base": "main",
+      "state": "OPEN_EXACT_HEAD_RECERT_GATED",
+      "upstream": [],
+      "downstream": [
+        "POINT100",
+        "PRODUCTION-READINESS"
+      ],
+      "merge_gate": [
+        "Release Quality Gate green",
+        "ownership/security guards green",
+        "zero unresolved review threads",
+        "independent review",
+        "protected merge"
+      ],
+      "release_gate": [],
+      "notes": "Repository governance, secret-exposure guard and Core-backend ownership boundary."
+    },
+    {
+      "id": "CENTRAL-POINT55-PUBLISHED-PRODUCTS",
+      "repository": "central",
+      "pr": 590,
+      "branch": "reconcile/point55-published-products-20260915",
+      "base": "main",
+      "state": "OPEN_EXACT_HEAD_RECERT_GATED",
+      "upstream": [],
+      "downstream": [
+        "POINT100"
+      ],
+      "merge_gate": [
+        "Release Quality Gate green",
+        "publication-outage behavior verified",
+        "independent review",
+        "protected merge"
+      ],
+      "release_gate": [
+        "runtime published_products_v1() consumer verification"
+      ]
+    },
+    {
+      "id": "CORE-FINANCE-LEDGER",
+      "repository": "core",
+      "pr": 321,
+      "branch": "fix/finance-authority-current-main-20260916",
+      "base": "main",
+      "state": "MERGED_PRODUCTION_RUNTIME_GATED",
+      "upstream": [],
+      "downstream": [
+        "POINT100",
+        "PRODUCTION-READINESS"
+      ],
+      "merge_gate": [
+        "merged current-main authority"
+      ],
+      "release_gate": [
+        "protected exact-SHA deployment of both ledger Edge Functions",
+        "unauthenticated/bad-secret/non-Finance denial",
+        "Finance/Admin dry-run success",
+        "duplicate-delivery claim verification",
+        "restore 1st/16th 09:00 IST schedules only after runtime certification"
+      ],
+      "notes": "Supersedes stale #289; repository authority merged, live Finance restoration remains separate."
+    },
+    {
+      "id": "CORE-TRACE-AUTHORITY",
+      "repository": "core",
+      "pr": 300,
+      "branch": "fix/trace-reprint-approval-authority-20260914",
+      "base": "main",
+      "state": "MERGED_PRODUCTION_RELEASE_GATED",
+      "upstream": [],
+      "downstream": [
+        "TRACE-POINT95-99"
+      ],
+      "merge_gate": [
+        "merged current-main authority"
+      ],
+      "release_gate": [
+        "protected Production Migration Release",
+        "production semantic/runtime verification"
+      ],
+      "notes": "Core write-boundary reprint approval must be live before Trace consumer merge."
+    },
+    {
+      "id": "CORE-SECURITY-HARDENING",
+      "repository": "core",
+      "pr": 307,
+      "branch": "security/core-supabase-advisor-hardening-20260915",
+      "base": "main",
+      "state": "MERGED_PRODUCTION_RELEASE_GATED",
+      "upstream": [],
+      "downstream": [
+        "PRODUCTION-READINESS"
+      ],
+      "merge_gate": [
+        "merged current-main authority"
+      ],
+      "release_gate": [
+        "protected Production Migration Release",
+        "production advisor/runtime verification"
+      ]
+    },
+    {
+      "id": "CORE-WA-CONSUMER",
+      "repository": "core",
+      "pr": 328,
+      "branch": "cursor/wa-direct-path-outbox-reconcile-4b85",
+      "base": "main",
+      "state": "MERGED_DB_DEPLOYED_RUNTIME_ACTIVATION_GATED",
+      "upstream": [],
+      "downstream": [
+        "WHATSAPP-LIVE-CERT",
+        "POINT100"
+      ],
+      "merge_gate": [
+        "merged current hardened consumer authority"
+      ],
+      "release_gate": [
+        "verify/deploy production whatsapp-packet-ai-consumer and worker from governed SHA",
+        "activate consumer Vault URL/secret only after deployment verification",
+        "controlled queue reconciliation",
+        "no blind backlog replay",
+        "prove durable queue drain and direct-path/consumer race safety"
+      ],
+      "notes": "#308 introduced the durable consumer; #328 is the later merged race/reconciliation authority. Hardened database migrations are already deployed; runtime activation remains."
+    },
+    {
+      "id": "CORE-WA-IDENTITY",
+      "repository": "core",
+      "pr": 309,
+      "branch": "fix/point66-webhook-identity-current-main-20260915",
+      "base": "main",
+      "state": "MERGED_PRODUCTION_PROVIDER_GATED",
+      "upstream": [],
+      "downstream": [
+        "WHATSAPP-LIVE-CERT",
+        "POINT100"
+      ],
+      "merge_gate": [
+        "merged current-main governed sender-not-customer authority"
+      ],
+      "release_gate": [
+        "governed production webhook release/verification",
+        "live Click2API/Meta sender-not-customer identity certification"
+      ]
+    },
+    {
+      "id": "AI-POINT49",
+      "repository": "ai_studio",
+      "pr": 210,
+      "branch": "completion/point49-current-main",
+      "base": "main",
+      "state": "MERGED_RUNTIME_EVIDENCE_GATED",
+      "upstream": [],
+      "downstream": [
+        "AI-POINT50",
+        "POINT100"
+      ],
+      "merge_gate": [
+        "merged current-main multilingual authority"
+      ],
+      "release_gate": [
+        "runtime multilingual human-review evidence"
+      ]
+    },
+    {
+      "id": "AI-POINT50",
+      "repository": "ai_studio",
+      "pr": 217,
+      "branch": "completion/point50-current-main-restack-20260918",
+      "base": "main",
+      "state": "OPEN_REVIEW_GATED",
+      "upstream": [
+        "AI-POINT49"
+      ],
+      "downstream": [
+        "POINT100"
+      ],
+      "merge_gate": [
+        "exact-head/merge-ref CI green",
+        "channel-copy factual-fidelity regression green",
+        "independent review",
+        "protected merge"
+      ],
+      "release_gate": [
+        "runtime channel-copy evidence"
+      ],
+      "notes": "Clean current-main replacement for stale Point50 branches."
+    },
+    {
+      "id": "AI-POINT51",
+      "repository": "ai_studio",
+      "pr": 218,
+      "branch": "completion/point51-current-main-restack-20260918",
+      "base": "main",
+      "state": "OPEN_REVIEW_DEVICE_GATED",
+      "upstream": [],
+      "downstream": [
+        "POINT100",
+        "PHYSICAL-UAT"
+      ],
+      "merge_gate": [
+        "exact-head/merge-ref CI green",
+        "independent review",
+        "protected merge"
+      ],
+      "release_gate": [
+        "real-device camera/mobile product-creation UAT"
+      ],
+      "notes": "Clean current-main replacement for stale #212."
+    },
+    {
+      "id": "CORE-AI-CHAT-CAPTURE",
+      "repository": "core",
+      "pr": 329,
+      "branch": "security/oasis-ai-chat-canonical-capture-20260918",
+      "base": "main",
+      "state": "OPEN_CI_REVIEW_GATED",
+      "upstream": [],
+      "downstream": [
+        "CENTRAL-AI-CHAT-CONSUMER",
+        "AI-ALIAS-SESSION",
+        "POINT100"
+      ],
+      "merge_gate": [
+        "exact-head Edge governance/registry/Core merge governance green",
+        "independent review",
+        "protected merge"
+      ],
+      "release_gate": [
+        "no production deploy required for source capture if exact source remains byte-equivalent to live v86",
+        "future changes require named-function governed release and auth/runtime recertification"
+      ],
+      "notes": "Captures already-contained live v86 under canonical Core authority; intentionally excluded from preview auto-deploy config."
+    },
+    {
+      "id": "CENTRAL-AI-CHAT-CONSUMER",
+      "repository": "central",
+      "pr": 591,
+      "branch": "security/oasis-ai-chat-staff-auth-20260915",
+      "base": "main",
+      "state": "OPEN_CI_REVIEW_GATED",
+      "upstream": [
+        "CORE-AI-CHAT-CAPTURE"
+      ],
+      "downstream": [
+        "POINT100"
+      ],
+      "merge_gate": [
+        "exact-head Release Quality/ownership green",
+        "SSE alias-suggestion parsing verified",
+        "independent review",
+        "protected merge"
+      ],
+      "release_gate": [
+        "authenticated staff positive path",
+        "anonymous/buyer/non-staff fail-closed runtime checks"
+      ],
+      "notes": "Central carries caller compatibility only; backend source authority is Core #329."
+    },
+    {
+      "id": "AI-ALIAS-SESSION",
+      "repository": "ai_studio",
+      "pr": 219,
+      "branch": "security/oasis-ai-chat-session-auth-current-main-20260918",
+      "base": "main",
+      "state": "OPEN_REVIEW_GATED",
+      "upstream": [
+        "CORE-AI-CHAT-CAPTURE"
+      ],
+      "downstream": [
+        "POINT100"
+      ],
+      "merge_gate": [
+        "exact-head release/security/lint CI green",
+        "independent review",
+        "protected merge"
+      ],
+      "release_gate": [
+        "staff-session alias enrichment runtime verification"
+      ],
+      "notes": "Clean current-main replacement for stale #213."
+    },
+    {
+      "id": "TRACE-POINT95-99",
+      "repository": "trace",
+      "pr": 38,
+      "branch": "fix/trace-point95-99-post-macro-recovery",
+      "base": "main",
+      "state": "BLOCKED_BY_CORE_PRODUCTION_RELEASE",
+      "upstream": [
+        "CORE-TRACE-AUTHORITY"
+      ],
+      "downstream": [
+        "POINT100",
+        "PHYSICAL-UAT"
+      ],
+      "merge_gate": [
+        "CORE-TRACE-AUTHORITY merged and production-released",
+        "production Core semantic/runtime verification",
+        "Trace exact-head recertification",
+        "independent review",
+        "protected merge"
+      ],
+      "release_gate": [
+        "device/scanner/print UAT"
+      ]
+    },
+    {
+      "id": "BUYER-APP-RECERT",
+      "repository": "buyer",
+      "pr": null,
+      "branch": "main",
+      "base": "main",
+      "state": "CURRENT_MAIN_RECERT_REQUIRED",
+      "upstream": [],
+      "downstream": [
+        "POINT100",
+        "PHYSICAL-UAT"
+      ],
+      "merge_gate": [
+        "no shadow backend authority",
+        "current Buyer journey census against canonical Core",
+        "open bounded Buyer PR only if a concrete defect is evidenced"
+      ],
+      "release_gate": [
+        "approved/pending/unknown/staff login paths",
+        "real Buyer-phone session recovery/deep-link behavior",
+        "payment/provider evidence where applicable"
+      ],
+      "notes": "No PR is invented solely for symmetry; recertify current Buyer main after AUTH-01 authority converges."
+    },
+    {
+      "id": "WHATSAPP-LIVE-CERT",
+      "repository": "core",
+      "pr": null,
+      "branch": null,
+      "base": null,
+      "state": "LOCKED_ON_RUNTIME_ACTIVATION",
+      "upstream": [
+        "CORE-WA-CONSUMER",
+        "CORE-WA-IDENTITY"
+      ],
+      "downstream": [
+        "PRODUCTION-READINESS"
+      ],
+      "merge_gate": [],
+      "release_gate": [
+        "production consumer/worker active",
+        "Vault machine credential active",
+        "controlled queue reconciliation zero-loss",
+        "live Click2API/Meta send/receive/identity/media certification",
+        "legacy direct stitcher AI authority removed only after canonical consumer path is proven live"
+      ]
+    },
+    {
+      "id": "PHYSICAL-UAT",
+      "repository": "central",
+      "pr": null,
+      "branch": null,
+      "base": null,
+      "state": "EXTERNAL_EVIDENCE_GATED",
+      "upstream": [
+        "AI-POINT51",
+        "TRACE-POINT95-99",
+        "BUYER-APP-RECERT"
+      ],
+      "downstream": [
+        "PRODUCTION-READINESS"
+      ],
+      "merge_gate": [],
+      "release_gate": [
+        "scanner",
+        "barcode printer/physical print proof",
+        "TV",
+        "handheld/mobile",
+        "Security Gate/Gatekeeper",
+        "Buyer phone",
+        "payment/bank/provider evidence as applicable"
+      ]
+    },
+    {
+      "id": "POINT100",
+      "repository": "central",
+      "pr": 559,
+      "branch": "cursor/macro-point100-integration-e2e",
+      "base": "main",
+      "state": "DRAFT_LOCKED_ON_CURRENT_UPSTREAMS",
+      "upstream": [
+        "CORE-AUTH-01",
+        "CENTRAL-AUTH-01",
+        "CENTRAL-GOVERNANCE",
+        "CENTRAL-POINT55-PUBLISHED-PRODUCTS",
+        "CORE-FINANCE-LEDGER",
+        "TRACE-POINT95-99",
+        "CORE-WA-CONSUMER",
+        "CORE-WA-IDENTITY",
+        "AI-POINT49",
+        "AI-POINT50",
+        "AI-POINT51",
+        "CORE-AI-CHAT-CAPTURE",
+        "CENTRAL-AI-CHAT-CONSUMER",
+        "AI-ALIAS-SESSION",
+        "BUYER-APP-RECERT"
+      ],
+      "downstream": [
+        "PRODUCTION-READINESS"
+      ],
+      "merge_gate": [
+        "all declared software upstreams merged/released as required",
+        "rebase/reconcile Point100 onto then-current Central main",
+        "update exact Core/Trace/AI/Buyer authority pins",
+        "final exact-head software rehearsal green",
+        "independent review",
+        "protected merge"
+      ],
+      "release_gate": [
+        "does not by itself clear physical/provider evidence"
+      ]
+    },
+    {
+      "id": "PRODUCTION-READINESS",
+      "repository": "central",
+      "pr": null,
+      "branch": null,
+      "base": null,
+      "state": "LOCKED",
+      "upstream": [
+        "CENTRAL-GOVERNANCE",
+        "CORE-FINANCE-LEDGER",
+        "CORE-SECURITY-HARDENING",
+        "WHATSAPP-LIVE-CERT",
+        "POINT100",
+        "PHYSICAL-UAT"
+      ],
+      "downstream": [
+        "APPVERSE-COMPLETE"
+      ],
+      "merge_gate": [],
+      "release_gate": [
+        "production migration parity",
+        "deployment reconciliation",
+        "observability",
+        "rollback/recovery evidence",
+        "operator signoff"
+      ]
+    },
+    {
+      "id": "APPVERSE-COMPLETE",
+      "repository": "central",
+      "pr": null,
+      "branch": null,
+      "base": null,
+      "state": "LOCKED",
+      "upstream": [
+        "PRODUCTION-READINESS"
+      ],
+      "downstream": [],
+      "merge_gate": [],
+      "release_gate": [
+        "every mandatory upstream gate cleared",
+        "no launch-blocking blocker"
+      ]
+    }
+  ],
+  "invariants": {
+    "allowed_stacked_edges": [],
+    "required_release_before_consumer_merge": [
+      {
+        "producer": "CORE-TRACE-AUTHORITY",
+        "consumer": "TRACE-POINT95-99"
+      }
+    ],
+    "point100_must_not_be_finally_certified_before": [
+      "CORE-AUTH-01",
+      "CENTRAL-AUTH-01",
+      "CENTRAL-GOVERNANCE",
+      "CENTRAL-POINT55-PUBLISHED-PRODUCTS",
+      "CORE-FINANCE-LEDGER",
+      "TRACE-POINT95-99",
+      "CORE-WA-CONSUMER",
+      "CORE-WA-IDENTITY",
+      "AI-POINT49",
+      "AI-POINT50",
+      "AI-POINT51",
+      "CORE-AI-CHAT-CAPTURE",
+      "CENTRAL-AI-CHAT-CONSUMER",
+      "AI-ALIAS-SESSION",
+      "BUYER-APP-RECERT"
+    ],
+    "production_readiness_must_not_clear_before": [
+      "POINT100",
+      "CORE-SECURITY-HARDENING",
+      "WHATSAPP-LIVE-CERT",
+      "PHYSICAL-UAT"
+    ]
+  }
+}
