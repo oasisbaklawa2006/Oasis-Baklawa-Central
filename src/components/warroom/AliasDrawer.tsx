@@ -153,8 +153,61 @@ export default function AliasDrawer({
         },
       });
       if (error) throw error;
+      let raw = "";
+      if (data instanceof Response) {
+        if (!data.body) throw new Error("AI stream unavailable");
+        const reader = data.body.getReader();
+        const decoder = new TextDecoder();
+        let pending = "";
+        let done = false;
+        while (!done) {
+          const { value, done: streamDone } = await reader.read();
+          done = streamDone;
+          pending += decoder.decode(value, { stream: !done });
+          const records = pending.split(/\r?\n\r?\n/);
+          pending = records.pop() ?? "";
+          for (const record of records) {
+            for (const line of record.split(/\r?\n/)) {
+              const trimmed = line.trim();
+              if (!trimmed.startsWith("data:")) continue;
+              const payload = trimmed.slice(5).trim();
+              if (!payload || payload === "[DONE]") continue;
+              try {
+                const event = JSON.parse(payload) as {
+                  choices?: Array<{ delta?: { content?: string }; message?: { content?: string } }>;
+                };
+                raw += event.choices?.[0]?.delta?.content ?? event.choices?.[0]?.message?.content ?? "";
+              } catch {
+                // Ignore non-JSON keepalive/event records.
+              }
+            }
+          }
+        }
+        if (pending.trim()) {
+          for (const line of pending.split(/\r?\n/)) {
+            const trimmed = line.trim();
+            if (!trimmed.startsWith("data:")) continue;
+            const payload = trimmed.slice(5).trim();
+            if (!payload || payload === "[DONE]") continue;
+            try {
+              const event = JSON.parse(payload) as {
+                choices?: Array<{ delta?: { content?: string }; message?: { content?: string } }>;
+              };
+              raw += event.choices?.[0]?.delta?.content ?? event.choices?.[0]?.message?.content ?? "";
+            } catch {
+              // Ignore incomplete/non-JSON trailing records.
+            }
+          }
+        }
+      } else if (typeof data === "string") {
+        raw = data;
+      } else if (data && typeof data === "object") {
+        const responseData = data as Record<string, unknown>;
+        const fallback = responseData.reply ?? responseData.text ?? responseData.content;
+        raw = typeof fallback === "string" ? fallback : "";
+      }
+
       let list: string[] = [];
-      const raw = (data?.reply || data?.text || data?.content || data || "").toString();
       const match = raw.match(/\[[\s\S]*\]/);
       if (match) {
         try {
