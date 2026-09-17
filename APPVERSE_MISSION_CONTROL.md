@@ -149,30 +149,29 @@ This check is deliberately programme-control-only. It does not grant Mission Con
 
 | ID | Stage | State | Active authority / PR | Immediate next gate |
 |---|---|---|---|---|
-| 00 | Architecture & Governance | 🟠 IN PROCESS | Central #589; APPVERSE-LINK-01 | merge current graph/guard; clear Central governance |
-| 01 | Database / Schema / Migrations | 🟠 IN PROCESS | Core #300/#307 | exact-head review + protected release + production verification |
-| 02 | Authentication / RBAC | 🟠 IN PROCESS | Central #588 | protected merge + live Buyer login verification |
-| 03 | Core Backend Authority | 🟠 IN PROCESS | Core #289/#300/#307/#308/#309 | close independent Core release lanes |
-| 04 | Central App Foundation | 🟠 IN PROCESS | Central #588/#589/#559 | clear #588/#589; Point100 remains downstream |
-| 05 | Order / Pre-Factory Commercial Flow | 🔴 NOT CLEARED | Central #559 downstream | final authority-bound Point100 rehearsal |
-| 06 | WhatsApp | 🟠 IN PROCESS | Core #308/#309 | protected releases + live provider zero-loss certification |
-| 07 | RGS | 🔴 NOT CLEARED | — | remaining physical handheld/TV/operator UAT |
-| 08 | 3PGS | 🔴 NOT CLEARED | — | final whole-chain/physical confirmation |
-| 09 | Packing & Assembly | 🔴 NOT CLEARED | — | physical-device UAT + whole-chain confirmation |
-| 10 | Production Departments | 🔴 NOT CLEARED | — | real TV/handheld/operator certification |
-| 11 | Dispatch | 🔴 NOT CLEARED | Core #300; Trace #38; Central #559 | Core release → Trace recert → Point100 + physical Gate/scan proof |
-| 12 | Finance & Accounts | 🟠 IN PROCESS | Core #289; Central #559 | Core release/runtime proof → Point100 Finance recertification |
-| 13 | Buyer App | 🔴 NOT CLEARED | current main; no open PR | current-main journey recertification + real-phone/provider evidence |
-| 14 | AI Studio | 🟠 IN PROCESS | AI #210/#211/#212 | Point49 → retarget Point50; Point51 review/device evidence |
-| 15 | Trace | 🟠 IN PROCESS | Core #300; Trace #38 | Core production authority first, Trace consumer second |
-| 16 | Cross-App Integration | 🟠 IN PROCESS | APPVERSE-LINK-01; Central #559 | enforce graph; converge producers before consumers |
-| 17 | Automated Testing / Certification | 🟠 IN PROCESS | active exact-head lanes + Point100 | finish exact-head gates then final rehearsal |
-| 18 | Security / Governance | 🟠 IN PROCESS | Central #589; Core #307 | clear governance/security protected release evidence |
-| 19 | UI / UX Completion | 🔴 NOT CLEARED | Central #588; AI #212; Trace #38 | finish software surfaces + device evidence |
-| 20 | End-to-End Certification | ⚪ LOCKED | Central #559 | unlock after mandatory software upstream convergence |
+| 00 | Architecture & Governance | 🟠 IN PROCESS | Central #589/#592 | exact-head governance + refreshed graph/link-integrity review |
+| 01 | Database / Schema / Migrations | 🟠 IN PROCESS | Core #326; merged #300/#307 release gates | AUTH reconciliation + protected release/semantic verification |
+| 02 | Authentication / RBAC | 🟠 IN PROCESS | Core #326; Central #588 | protected merges -> live Buyer approved/pending/unknown/staff paths |
+| 03 | Core Backend Authority | 🟠 IN PROCESS | Core #326/#329; merged #321/#300/#307/#328/#309 runtime gates | finish open PRs and declared release/runtime gates |
+| 04 | Central App Foundation | 🟠 IN PROCESS | Central #588/#589/#590/#591/#559 | clear current Central lanes; Point100 remains downstream |
+| 05 | Order / Pre-Factory Commercial Flow | 🔴 NOT CLEARED | Central #559 downstream | final current-authority E2E rehearsal |
+| 06 | WhatsApp | 🟠 IN PROCESS | merged Core #328/#309 | consumer/worker + Vault + controlled queue + Click2API/Meta zero-loss |
+| 07 | RGS | 🔴 NOT CLEARED | software present; physical evidence pending | handheld/TV/operator UAT |
+| 08 | 3PGS | 🔴 NOT CLEARED | software present; physical evidence pending | whole-chain/physical confirmation |
+| 09 | Packing & Assembly | 🔴 NOT CLEARED | software present; physical evidence pending | device/operator UAT |
+| 10 | Production Departments | 🔴 NOT CLEARED | software present; physical evidence pending | TV/handheld/operator certification |
+| 11 | Dispatch | 🔴 NOT CLEARED | merged Core #300; Trace #38; Central #559 | Core production release -> Trace recert -> Gate/scan/print proof |
+| 12 | Finance & Accounts | 🟠 IN PROCESS | merged Core #321; Central #559 | exact-SHA Edge runtime proof -> schedules -> Point100 |
+| 13 | Buyer App | 🔴 NOT CLEARED | current main | current-main journey recertification + real-phone/provider evidence |
+| 14 | AI Studio | 🟠 IN PROCESS | AI #210 merged; #217/#218/#219; Core #329; Central #591 | merge open replacements and collect runtime/device evidence |
+| 15 | Trace | 🟠 IN PROCESS | merged Core #300; Trace #38 | Core production release first, Trace consumer second |
+| 16 | Cross-App Integration | 🟠 IN PROCESS | APPVERSE-LINK-01; Central #559 | enforce refreshed graph; converge producers before consumers |
+| 17 | Automated Testing / Certification | 🟠 IN PROCESS | current exact-head lanes + Point100 | finish open CI/review and merged-lane runtime evidence |
+| 18 | Security / Governance | 🟠 IN PROCESS | Central #589; merged Core #307; Core #329 | governance review + production advisor verification + Core source authority |
+| 19 | UI / UX Completion | 🔴 NOT CLEARED | Central #588/#590/#591; AI #218; Trace #38 | software surfaces + real-device evidence |
+| 20 | End-to-End Certification | ⚪ LOCKED | Central #559 | unlock after refreshed mandatory software floor converges |
 | 21 | Production Readiness | ⚪ LOCKED | Mission Control | Point100 + live/provider/physical + release reconciliation |
 | 22 | **APPVERSE COMPLETE** | ⚪ LOCKED | Mission Control | Production Readiness CLEARED |
-
 ## Live evidence
 
 Objective GitHub facts may be refreshed under `appverse-control/generated/` on the dedicated `mission-control/live-state` branch. Generated live facts may change evidence/alerts, but they must never silently overwrite semantic clearance in `state.json`.
