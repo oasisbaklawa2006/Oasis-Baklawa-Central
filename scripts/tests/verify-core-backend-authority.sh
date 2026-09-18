@@ -176,7 +176,6 @@ head="$(git -C "$root" rev-parse HEAD)"
 expect_fail_with "$root" "$base" 'CORE BACKEND AUTHORITY VIOLATION' "$head"
 
 root="$(new_fixture moving-base-tip)"
-branch_point="$(git -C "$root" rev-parse HEAD)"
 git -C "$root" checkout -qb target-branch
 printf '%s\n' 'benign target change' > "$root/README.target"
 git -C "$root" add README.target
