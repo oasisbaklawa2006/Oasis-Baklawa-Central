@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "authority": "APPVERSE_MISSION_CONTROL",
   "objective": "Complete the Oasis Baklawa Appverse. PR completion is subordinate to application completion.",
   "status_vocabulary": {
@@ -11,6 +11,18 @@
     "LOCKED": "Deliberately cannot begin until upstream programme gates clear."
   },
   "clearance_rule": "A merged PR is evidence only. It MUST NOT automatically set a stage or substage to CLEARED. CLEARED requires every mandatory gate declared for that item.",
+  "current_mission": {
+    "asm_id": "APPVERSE-LINK-01",
+    "thread_id": "appverse-completion-final-linking-20260915",
+    "repository": "oasisbaklawa2006/Oasis-Baklawa-Central",
+    "mission": "Final cross-repository dependency control, exact completion sequencing and fail-closed convergence to Point100/production readiness.",
+    "dependencies": "See appverse-control/dependency-graph.json",
+    "stop_condition": "The dependency graph and its CI invariants are green; every active completion lane is routed to its owning repository; final completion remains locked only on explicit software review/release and external production/physical/provider gates."
+  },
+  "production_safety_gate": {
+    "enabled": true,
+    "rule": "Mission Control may prepare and validate non-production governance changes. Protected production merges, production migrations/deployments/data/config mutation, billable infrastructure creation and physical/provider evidence require the separately governed authorization/evidence of the owning lane."
+  },
   "repositories": [
     "oasisbaklawa2006/Oasis-Baklawa-Central",
     "oasisbaklawa2006/oasis-supabase-core",
@@ -18,39 +30,521 @@
     "oasisbaklawa2006/oasis-trace",
     "oasisbaklawa2006/oasis-baklawa"
   ],
+  "dependency_graph": {
+    "file": "appverse-control/dependency-graph.json",
+    "validator": "scripts/appverse-control/check_dependency_graph.py",
+    "workflow": ".github/workflows/appverse-link-integrity.yml",
+    "rule": "Cross-repository dependencies are semantic/release edges and Git branch bases remain repository-local. All current final feature/security PRs target main; no stacked PR exception remains."
+  },
   "critical_path": {
-    "mode": "parallel-convergence",
-    "current_primary_blocker": "No single universal blocker. App completion currently converges through migration/schema governance, WhatsApp certification, 3PGS closure, and pre-factory commercial/payment authority.",
-    "active_heads": ["MIG-01", "WA-01", "3PGS-01", "PF-01"],
-    "final_sequence": ["remaining-module-closure", "cross-app-integration", "ui-ux-completion", "automated-e2e", "physical-uat", "production-readiness", "APP-COMPLETE"]
+    "mode": "final-parallel-convergence",
+    "current_primary_blocker": "No single universal blocker. Final completion now converges through Core/Central AUTH-01, Central governance/Point55/AI caller, Core Finance/Trace/security/WhatsApp/AI-chat release lanes, AI Studio Point50/51/session security, Buyer recertification, Trace #38, Point100, then physical/provider and production-readiness gates.",
+    "active_heads": [
+      "CORE-AUTH-01",
+      "CENTRAL-AUTH-01",
+      "CENTRAL-GOVERNANCE",
+      "CENTRAL-POINT55-PUBLISHED-PRODUCTS",
+      "CORE-FINANCE-LEDGER",
+      "CORE-TRACE-AUTHORITY",
+      "CORE-SECURITY-HARDENING",
+      "CORE-WA-CONSUMER",
+      "CORE-WA-IDENTITY",
+      "AI-POINT49",
+      "AI-POINT50",
+      "AI-POINT51",
+      "CORE-AI-CHAT-CAPTURE",
+      "CENTRAL-AI-CHAT-CONSUMER",
+      "AI-ALIAS-SESSION",
+      "TRACE-POINT95-99",
+      "BUYER-APP-RECERT",
+      "POINT100"
+    ],
+    "final_sequence": [
+      "active-software-lanes",
+      "protected-merge-and-release-by-owner",
+      "consumer-recertification",
+      "Point100-final-software-rehearsal",
+      "physical-and-provider-uat",
+      "production-readiness-reconciliation",
+      "APPVERSE-COMPLETE"
+    ]
   },
   "stages": [
-    {"id":"00","name":"Architecture & Governance","status":"IN_PROCESS","owner":"Mission Control + repo governance","active_prs":["Central#411","Core#133"],"gates":["single migration authority","repo ownership boundaries","thread routing guardrails","dependency enforcement","ASM automation"],"next":"Merge and propagate Mission Control/guardrail control plane; finish bounded schema governance."},
-    {"id":"01","name":"Database / Schema / Migrations","status":"IN_PROCESS","owner":"Core migration lane","active_prs":["Core#133"],"gates":["clean replay","pgTAP","migration monotonicity","production ledger parity","semantic drift sentinel"],"next":"Close Core#133 and verify the bounded semantic census remains green."},
-    {"id":"02","name":"Authentication / RBAC","status":"NOT_CLEARED","owner":null,"active_prs":[],"gates":["all operational roles provisionable","route-role parity","Core RLS parity","cross-app login certification"],"next":"Run final cross-Appverse RBAC census after active schema lanes settle.","evidence_note":"Several role-parity repairs are merged, but no whole-Appverse final clearance has been established."},
-    {"id":"03","name":"Core Backend Authority","status":"IN_PROCESS","owner":"Core lanes","active_prs":["Core#130","Core#133","Core#134"],"gates":["canonical authority only","no dead mutation surfaces","idempotency","RLS/RBAC","contract tests"],"next":"Complete active Core authority slices and recensus remaining dead/un-governed paths."},
-    {"id":"04","name":"Central App Foundation","status":"NOT_CLEARED","owner":"Central","active_prs":["Central#411"],"gates":["build","route census","ownership boundaries","no shadow schema","final module reachability"],"next":"Close #411, then final route/module census.","evidence_note":"Foundation is mature, but final Appverse clearance is not yet established."},
-    {"id":"05","name":"Order / Pre-Factory Commercial Flow","status":"IN_PROCESS","owner":"Core pre-factory lane","active_prs":["Core#130"],"gates":["SO commercial freeze","PI authority","payment evidence","finance verification","release authority","Central callers","E2E"],"next":"Complete PF-6A payment authority, then continue the governed pre-factory chain."},
-    {"id":"06","name":"WhatsApp","status":"IN_PROCESS","owner":"WhatsApp certification lane","active_prs":["Core#126","Core#134"],"gates":["ingress","identity","interpretation","clarification","autonomous SO continuation","non-order resolution","multimodal media","protected corpus","provider proof","load/chaos","release certification"],"next":"Merge/fix #134 as appropriate and continue isolated #126 certification through real provider/release gates."},
-    {"id":"07","name":"RGS","status":"NOT_CLEARED","owner":null,"active_prs":[],"gates":["governed stock lifecycle","production handoff","escalation","software certification","physical handheld/TV UAT"],"next":"Software evidence is strong; perform remaining physical-device UAT and final scope census.","evidence_note":"Factory certification recorded RGS custody assertions green; physical UAT remained explicitly separate."},
-    {"id":"08","name":"3PGS","status":"IN_PROCESS","owner":"Central R4 lane","active_prs":["Central#410"],"gates":["priority queue","P&A shortfall bridge","vendor receipt truth","put-away/GRN reachability","discrepancy workspace","satellite visibility","E2E","physical UAT"],"next":"Close Central#410; continue R4.3 put-away allocation reachability and discrepancy closure."},
-    {"id":"09","name":"Packing & Assembly","status":"NOT_CLEARED","owner":null,"active_prs":[],"gates":["component reservation","3PGS handoff","assembly execution","custody","software certification","physical UAT"],"next":"Retain merged software closure; complete final physical-device UAT and whole-chain confirmation.","evidence_note":"Software custody certification is green, but physical UAT was explicitly left outside autonomous certification."},
-    {"id":"10","name":"Production Departments","status":"NOT_CLEARED","owner":null,"active_prs":[],"gates":["department routing","job execution","issues/escalation","day-end","TV truth","software certification","physical UAT"],"next":"Software certification is green; complete real TV/handheld certification before stage clearance."},
-    {"id":"11","name":"Dispatch","status":"NOT_CLEARED","owner":null,"active_prs":[],"gates":["governed consignment","carton lifecycle","packing evidence","finance release","shipment","gate","legacy cutover","E2E","physical UAT"],"next":"Recensus the intentionally deferred carton/status/legacy cutover gaps and continue governed migration."},
-    {"id":"12","name":"Finance & Accounts","status":"IN_PROCESS","owner":"Core pre-factory lane","active_prs":["Core#130"],"gates":["PI","payment proof","finance verification","clearance","credit/wallet policy","dispatch release integration","E2E"],"next":"Finish canonical payment evidence and downstream finance-clearance authority."},
-    {"id":"13","name":"Buyer App","status":"NOT_CLEARED","owner":null,"active_prs":[],"gates":["catalogue","cart/MOQ","SO","payments","tracking","documents","support","mobile UX","E2E"],"next":"Perform current repository census and map every buyer journey to canonical Core authority."},
-    {"id":"14","name":"AI Studio","status":"NOT_CLEARED","owner":null,"active_prs":[],"gates":["knowledge plane","catalogue provenance","Core handoff","review/activation","runtime consumption","E2E"],"next":"Verify current AI Studio head against merged Core knowledge bridge and establish final clearance gaps."},
-    {"id":"15","name":"Trace","status":"NOT_CLEARED","owner":null,"active_prs":[],"gates":["governed mutations","scan contracts","DPL/PI carton membership","Central integration","device/scanner UAT","E2E"],"next":"Reconcile latest Trace state; software contracts have passing evidence but final operational/device clearance is still required."},
-    {"id":"16","name":"Cross-App Integration","status":"LOCKED","owner":"Mission Control","active_prs":[],"gates":["Core-Central","Core-Buyer","AI-Core","Trace-Core/Central","shared identity","end-to-end data lineage"],"next":"Unlock progressively as upstream module gates reach software-complete state."},
-    {"id":"17","name":"Automated Testing / Certification","status":"IN_PROCESS","owner":"Certification lanes","active_prs":["Core#126"],"gates":["unit","contract","clean replay","browser runtime","cross-repo","failure injection","load/chaos","release evidence"],"next":"Extend existing Factory certification pattern to the remaining Appverse critical journeys."},
-    {"id":"18","name":"Security / Governance","status":"IN_PROCESS","owner":"Governance lanes","active_prs":["Central#411","Core#133"],"gates":["repo boundaries","least privilege","AAL2 where required","secret safety","supply-chain pinning","schema drift protection"],"next":"Close current governance PRs and make control-plane checks required."},
-    {"id":"19","name":"UI / UX Completion","status":"NOT_CLEARED","owner":null,"active_prs":[],"gates":["role-appropriate surfaces","mobile/handheld","TV","error states","navigation","buyer UX","accessibility","visual consistency"],"next":"Run module-by-module UI completion census after functional authority lanes converge."},
-    {"id":"20","name":"End-to-End Certification","status":"LOCKED","owner":"Mission Control","active_prs":[],"gates":["golden business journeys","negative paths","cross-app propagation","retries/idempotency","failure recovery","festival/load"],"next":"Unlock once required upstream functional slices are software-complete."},
-    {"id":"21","name":"Production Readiness","status":"LOCKED","owner":"Mission Control","active_prs":[],"gates":["production migration parity","deployment","observability","rollback/recovery","physical devices","operator UAT","release signoff"],"next":"Unlock after E2E certification."},
-    {"id":"22","name":"APPVERSE COMPLETE","status":"LOCKED","owner":"Mission Control","active_prs":[],"gates":["all mandatory stage gates CLEARED","no launch-blocking blocker","production readiness CLEARED"],"next":"Final release closure."}
+    {
+      "id": "00",
+      "name": "Architecture & Governance",
+      "status": "IN_PROCESS",
+      "owner": "Mission Control + repo governance",
+      "active_prs": [
+        "Central#589",
+        "Central#592"
+      ],
+      "gates": [
+        "single backend authority",
+        "repo ownership boundaries",
+        "thread routing guardrails",
+        "dependency enforcement",
+        "machine-readable graph",
+        "link-integrity CI"
+      ],
+      "next": "Clear Central #589 exact-head governance and merge the refreshed Mission Control graph after link-integrity/review."
+    },
+    {
+      "id": "01",
+      "name": "Database / Schema / Migrations",
+      "status": "IN_PROCESS",
+      "owner": "Core migration lanes",
+      "active_prs": [
+        "Core#300 (merged/release-gated)",
+        "Core#307 (merged/release-gated)",
+        "Core#326"
+      ],
+      "gates": [
+        "clean replay",
+        "pgTAP",
+        "migration monotonicity",
+        "production ledger parity",
+        "protected release",
+        "production semantic verification"
+      ],
+      "next": "Reconcile #326 protected authority, then complete protected production release/semantic verification for merged #300/#307 without rewriting migration history."
+    },
+    {
+      "id": "02",
+      "name": "Authentication / RBAC",
+      "status": "IN_PROCESS",
+      "owner": "Central AUTH-01 + canonical Core authority",
+      "active_prs": [
+        "Core#326",
+        "Central#588"
+      ],
+      "gates": [
+        "approved Buyer login",
+        "post-claim role reconciliation",
+        "staff/client isolation",
+        "route-role parity",
+        "Core RLS parity",
+        "live login certification"
+      ],
+      "next": "Clear Core #326 and Central #588 reviews in order, then run live Buyer approved/pending/unknown/staff login certification."
+    },
+    {
+      "id": "03",
+      "name": "Core Backend Authority",
+      "status": "IN_PROCESS",
+      "owner": "Core completion lanes",
+      "active_prs": [
+        "Core#326",
+        "Core#321 (merged/runtime-gated)",
+        "Core#300 (merged/release-gated)",
+        "Core#307 (merged/release-gated)",
+        "Core#328 (merged/runtime-gated)",
+        "Core#309 (merged/provider-gated)",
+        "Core#329"
+      ],
+      "gates": [
+        "canonical authority only",
+        "no dead mutation surfaces",
+        "idempotency",
+        "RLS/RBAC",
+        "contract tests",
+        "protected release"
+      ],
+      "next": "Finish open Core #326/#329; separately complete the declared release/runtime gates for already-merged #321/#300/#307/#328/#309."
+    },
+    {
+      "id": "04",
+      "name": "Central App Foundation",
+      "status": "IN_PROCESS",
+      "owner": "Central",
+      "active_prs": [
+        "Central#588",
+        "Central#589",
+        "Central#590",
+        "Central#591",
+        "Central#559"
+      ],
+      "gates": [
+        "build",
+        "route census",
+        "ownership boundaries",
+        "no shadow schema",
+        "final module reachability",
+        "Point100 current-main reconciliation"
+      ],
+      "next": "Clear #588/#589/#590/#591, then reconcile draft Point100 #559 against the final merged authorities."
+    },
+    {
+      "id": "05",
+      "name": "Order / Pre-Factory Commercial Flow",
+      "status": "NOT_CLEARED",
+      "owner": "Core/Central/Buyer governed chain",
+      "active_prs": [
+        "Central#559"
+      ],
+      "gates": [
+        "SO commercial freeze",
+        "PI authority",
+        "payment evidence",
+        "finance verification",
+        "release authority",
+        "Buyer/Central callers",
+        "E2E"
+      ],
+      "next": "Final Point100 rehearsal must bind the then-current canonical Core/Buyer/Central authority and negative paths."
+    },
+    {
+      "id": "06",
+      "name": "WhatsApp",
+      "status": "IN_PROCESS",
+      "owner": "Core WhatsApp completion lanes",
+      "active_prs": [
+        "Core#328 (merged/runtime-gated)",
+        "Core#309 (merged/provider-gated)"
+      ],
+      "gates": [
+        "ingress",
+        "sender-not-customer identity",
+        "interpretation",
+        "clarification",
+        "durable AI consumer",
+        "non-order resolution",
+        "multimodal media",
+        "provider proof",
+        "zero-loss release certification"
+      ],
+      "next": "Verify/deploy canonical consumer/worker, activate Vault machine credential, reconcile queue without blind replay, prove zero-loss live Click2API/Meta flow, then retire legacy direct stitcher AI authority."
+    },
+    {
+      "id": "07",
+      "name": "RGS",
+      "status": "NOT_CLEARED",
+      "owner": "Factory/operations chain",
+      "active_prs": [],
+      "gates": [
+        "governed stock lifecycle",
+        "production handoff",
+        "escalation",
+        "software certification",
+        "physical handheld/TV UAT"
+      ],
+      "next": "Retain software evidence and complete required physical handheld/TV/operator UAT before final clearance."
+    },
+    {
+      "id": "08",
+      "name": "3PGS",
+      "status": "NOT_CLEARED",
+      "owner": "Central/operations chain",
+      "active_prs": [],
+      "gates": [
+        "priority queue",
+        "P&A shortfall bridge",
+        "vendor receipt truth",
+        "put-away/GRN reachability",
+        "discrepancy workspace",
+        "satellite visibility",
+        "E2E",
+        "physical UAT"
+      ],
+      "next": "Final whole-chain/physical confirmation remains required; do not resurrect stale historical PRs as current authority."
+    },
+    {
+      "id": "09",
+      "name": "Packing & Assembly",
+      "status": "NOT_CLEARED",
+      "owner": "Factory/operations chain",
+      "active_prs": [],
+      "gates": [
+        "component reservation",
+        "3PGS handoff",
+        "assembly execution",
+        "custody",
+        "software certification",
+        "physical UAT"
+      ],
+      "next": "Complete final physical-device UAT and Point100/whole-chain confirmation."
+    },
+    {
+      "id": "10",
+      "name": "Production Departments",
+      "status": "NOT_CLEARED",
+      "owner": "Factory/operations chain",
+      "active_prs": [],
+      "gates": [
+        "department routing",
+        "job execution",
+        "issues/escalation",
+        "day-end",
+        "TV truth",
+        "software certification",
+        "physical UAT"
+      ],
+      "next": "Complete real TV/handheld/operator certification before stage clearance."
+    },
+    {
+      "id": "11",
+      "name": "Dispatch",
+      "status": "NOT_CLEARED",
+      "owner": "Central/Core/Trace governed chain",
+      "active_prs": [
+        "Core#300 (merged/release-gated)",
+        "Trace#38",
+        "Central#559"
+      ],
+      "gates": [
+        "governed consignment",
+        "carton lifecycle",
+        "packing evidence",
+        "finance release",
+        "shipment",
+        "gate",
+        "Trace handover",
+        "E2E",
+        "physical UAT"
+      ],
+      "next": "Production-release and verify Core #300 first; then recertify/merge Trace #38 and complete Gate/scan/print physical evidence."
+    },
+    {
+      "id": "12",
+      "name": "Finance & Accounts",
+      "status": "IN_PROCESS",
+      "owner": "Core Finance lane + Central consumers",
+      "active_prs": [
+        "Core#321 (merged/runtime-gated)",
+        "Central#559"
+      ],
+      "gates": [
+        "PI",
+        "payment proof",
+        "finance verification",
+        "ledger authority",
+        "credit/wallet policy",
+        "dispatch release integration",
+        "E2E",
+        "production schedule/runtime proof"
+      ],
+      "next": "Deploy exact merged Finance authority, certify auth/duplicate-delivery paths, restore schedules only after certification, then recertify Point100 Finance path."
+    },
+    {
+      "id": "13",
+      "name": "Buyer App",
+      "status": "NOT_CLEARED",
+      "owner": "oasisbaklawa2006/oasis-baklawa",
+      "active_prs": [],
+      "gates": [
+        "catalogue",
+        "cart/MOQ",
+        "SO",
+        "payments",
+        "tracking",
+        "documents",
+        "support",
+        "mobile UX",
+        "canonical Core consumption",
+        "real-phone UAT",
+        "E2E"
+      ],
+      "next": "No open Buyer PR existed at the final-linking census. Recertify current Buyer main against canonical Core; open a bounded Buyer PR only if a concrete defect is evidenced."
+    },
+    {
+      "id": "14",
+      "name": "AI Studio",
+      "status": "IN_PROCESS",
+      "owner": "AI Studio",
+      "active_prs": [
+        "AI#210 (merged/runtime-evidence-gated)",
+        "AI#217",
+        "AI#218",
+        "AI#219",
+        "Core#329",
+        "Central#591"
+      ],
+      "gates": [
+        "knowledge plane",
+        "catalogue provenance",
+        "Core handoff",
+        "multilingual",
+        "channel copy",
+        "mobile creation",
+        "review/activation",
+        "runtime consumption",
+        "device UAT",
+        "E2E"
+      ],
+      "next": "Clear Point50 #217, Point51 #218 and session-security #219; reconcile Core #329/Central #591 AI-chat authority; then collect multilingual/channel/mobile/session runtime evidence."
+    },
+    {
+      "id": "15",
+      "name": "Trace",
+      "status": "IN_PROCESS",
+      "owner": "Core mutation authority + Trace client",
+      "active_prs": [
+        "Core#300 (merged/release-gated)",
+        "Trace#38"
+      ],
+      "gates": [
+        "governed mutations",
+        "scan contracts",
+        "DPL/PI carton membership",
+        "Core approval authority",
+        "device/scanner/print UAT",
+        "E2E"
+      ],
+      "next": "Complete Core #300 production release/verification, then recertify and merge Trace #38 before device/scanner/print UAT."
+    },
+    {
+      "id": "16",
+      "name": "Cross-App Integration",
+      "status": "IN_PROCESS",
+      "owner": "Mission Control",
+      "active_prs": [
+        "MissionControl:APPVERSE-LINK-01",
+        "Central#559"
+      ],
+      "gates": [
+        "Core-Central",
+        "Core-Buyer",
+        "AI-Core",
+        "Trace-Core/Central",
+        "shared identity",
+        "end-to-end data lineage",
+        "dependency-order enforcement"
+      ],
+      "next": "Use dependency-graph.json as the canonical sequencing map; no cross-repo Git bases or opportunistic cross-repo code edits."
+    },
+    {
+      "id": "17",
+      "name": "Automated Testing / Certification",
+      "status": "IN_PROCESS",
+      "owner": "Certification lanes",
+      "active_prs": [
+        "Central#559",
+        "Core#326",
+        "Core#329",
+        "Central#588",
+        "Central#589",
+        "Central#590",
+        "Central#591",
+        "AI#217",
+        "AI#218",
+        "AI#219",
+        "Trace#38"
+      ],
+      "gates": [
+        "unit",
+        "contract",
+        "clean replay",
+        "browser/runtime",
+        "cross-repo",
+        "failure injection",
+        "load/chaos",
+        "release evidence",
+        "link-integrity"
+      ],
+      "next": "Finish exact-head open-lane gates and merged-lane release evidence, then run Point100 only after the refreshed dependency graph is satisfied."
+    },
+    {
+      "id": "18",
+      "name": "Security / Governance",
+      "status": "IN_PROCESS",
+      "owner": "Central/Core governance lanes",
+      "active_prs": [
+        "Central#589",
+        "Core#307 (merged/release-gated)",
+        "Core#329"
+      ],
+      "gates": [
+        "repo boundaries",
+        "least privilege",
+        "secret safety",
+        "supply-chain pinning",
+        "RLS/search_path hardening",
+        "schema drift protection",
+        "production advisor verification"
+      ],
+      "next": "Clear Central governance, verify merged Core security hardening in production, and complete Core AI-chat canonical capture without broad preview/production deployment."
+    },
+    {
+      "id": "19",
+      "name": "UI / UX Completion",
+      "status": "NOT_CLEARED",
+      "owner": "Owning UI repositories",
+      "active_prs": [
+        "Central#588",
+        "Central#590",
+        "Central#591",
+        "AI#218",
+        "Trace#38"
+      ],
+      "gates": [
+        "role-appropriate surfaces",
+        "mobile/handheld",
+        "TV",
+        "error states",
+        "navigation",
+        "buyer UX",
+        "accessibility",
+        "visual consistency",
+        "real-device evidence"
+      ],
+      "next": "Finish current UI-affecting software lanes, then real-device Buyer/mobile/camera/handheld/TV/scanner/printer/Gatekeeper evidence."
+    },
+    {
+      "id": "20",
+      "name": "End-to-End Certification",
+      "status": "LOCKED",
+      "owner": "Mission Control",
+      "active_prs": [
+        "Central#559"
+      ],
+      "gates": [
+        "golden business journeys",
+        "negative paths",
+        "cross-app propagation",
+        "retries/idempotency",
+        "failure recovery",
+        "festival/load",
+        "current authority pins"
+      ],
+      "next": "Unlock final Point100 rehearsal only after every mandatory software upstream in dependency-graph.json reaches its declared merge/release state."
+    },
+    {
+      "id": "21",
+      "name": "Production Readiness",
+      "status": "LOCKED",
+      "owner": "Mission Control + owning release lanes",
+      "active_prs": [],
+      "gates": [
+        "Point100",
+        "Core security hardening",
+        "WhatsApp live certification",
+        "production migration parity",
+        "deployment reconciliation",
+        "observability",
+        "rollback/recovery",
+        "physical devices",
+        "operator/provider UAT",
+        "release signoff"
+      ],
+      "next": "Unlock only after Point100 software convergence and mandatory external/provider/device evidence."
+    },
+    {
+      "id": "22",
+      "name": "APPVERSE COMPLETE",
+      "status": "LOCKED",
+      "owner": "Mission Control",
+      "active_prs": [],
+      "gates": [
+        "all mandatory stage gates CLEARED",
+        "no launch-blocking blocker",
+        "production readiness CLEARED"
+      ],
+      "next": "Final release closure only after Production Readiness is CLEARED."
+    }
   ],
   "live_evidence": {
     "generated_file": "appverse-control/generated/github-state.json",
+    "live_state_branch": "mission-control/live-state",
     "rule": "Automatically refreshed GitHub facts may change active evidence and alerts, but never semantic CLEARED status by themselves."
   }
 }
