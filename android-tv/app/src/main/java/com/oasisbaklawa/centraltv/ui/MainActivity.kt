@@ -35,7 +35,9 @@ import com.oasisbaklawa.centraltv.session.DisplayConfigClient
 import com.oasisbaklawa.centraltv.util.EnrollmentQrEncoder
 import com.oasisbaklawa.centraltv.util.OasisDeviceAdminReceiver
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
 /**
@@ -54,6 +56,7 @@ class MainActivity : AppCompatActivity() {
     private var retryAttempt = 0
     private var retryRunnable: Runnable? = null
     private var configRefreshRunnable: Runnable? = null
+    private var assignmentRefreshJob: Job? = null
     private var lastSuccessfulLoadAt: Long = 0L
     private var kioskInitialized = false
 
@@ -265,21 +268,28 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun refreshRemoteAssignment() {
-        lifecycleScope.launch(Dispatchers.IO) {
-            when (val result = configClient.fetchAssignment(deviceConfig.deviceId)) {
-                is DisplayConfigClient.FetchResult.Assigned -> {
-                    val previous = deviceConfig.assignment?.configVersion
-                    deviceConfig.assignment = result.assignment
-                    launch(Dispatchers.Main) {
-                        if (previous != result.assignment.configVersion || !kioskInitialized) {
-                            ensureAssignedAndEnterKiosk(forceReload = true)
+        if (assignmentRefreshJob?.isActive == true) return
+        assignmentRefreshJob = lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                when (val result = configClient.fetchAssignment(deviceConfig.deviceId)) {
+                    is DisplayConfigClient.FetchResult.Assigned -> {
+                        val previous = deviceConfig.assignment?.configVersion
+                        deviceConfig.assignment = result.assignment
+                        withContext(Dispatchers.Main) {
+                            if (previous != result.assignment.configVersion || !kioskInitialized) {
+                                ensureAssignedAndEnterKiosk(forceReload = true)
+                            }
                         }
                     }
+                    is DisplayConfigClient.FetchResult.PendingEnrollment -> withContext(Dispatchers.Main) {
+                        if (deviceConfig.targetUrl() == null) showEnrollmentState()
+                    }
+                    else -> Unit
                 }
-                is DisplayConfigClient.FetchResult.PendingEnrollment -> launch(Dispatchers.Main) {
-                    if (deviceConfig.targetUrl() == null) showEnrollmentState()
+            } finally {
+                withContext(Dispatchers.Main) {
+                    assignmentRefreshJob = null
                 }
-                else -> Unit
             }
         }
     }
