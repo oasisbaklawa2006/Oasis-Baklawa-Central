@@ -10,7 +10,7 @@
 
 | Gate | State |
 |------|-------|
-| **TV SHELL SOFTWARE** | **NOT CERTIFIED** until exact-head `android-tv-ci` is green on merge candidate |
+| **TV SHELL SOFTWARE** | **CERTIFIED** (exact-head `android-tv-ci` green @ `2b2e724f`; unsigned release artifact) |
 | **ANDROID TV PHYSICAL UAT** | **PENDING** — requires real Android TV hardware (`oasis-trace/docs/TASK2_ANDROID_TV_UAT.md`) |
 | Release APK signing | **OWNER GATE** — CI produces unsigned release only (`android-tv/RELEASE_SIGNING.md`) |
 | Remote assignment API | **TASK 4** — client polls; server not implemented here |
