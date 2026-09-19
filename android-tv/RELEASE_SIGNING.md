@@ -1,31 +1,64 @@
-# Release signing — owner action required
+# Android TV signing gates
 
-No keystore or signing secret is committed to this repository (rule: never
-commit signing material). CI produces an **unsigned** release build only,
-to validate that the project compiles and lints cleanly.
+No keystore or signing secret is committed to this repository.
 
-To produce a distributable, installable release APK/AAB:
+CI always validates the Android TV project with an **unsigned release build**. That artifact proves build/lint/test integrity, but Android TV cannot install an unsigned APK.
 
-1. Generate a release keystore once, offline, and store it outside version
-   control (a password manager / secrets vault, not this repo):
-   ```sh
-   keytool -genkeypair -v -keystore oasis-central-tv-release.keystore \
-     -alias oasis-central-tv -keyalg RSA -keysize 2048 -validity 10000
-   ```
-2. Provide the following as CI secrets (GitHub Actions repository secrets)
-   if automated signed builds are wanted later:
-   `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`,
-   `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`. None of these exist yet —
-   the current `android-tv-ci.yml` workflow intentionally does not reference
-   them, so it keeps working (unsigned) whether or not they are ever added.
-3. Until then, sign locally with a developer machine that holds the
-   keystore:
-   ```sh
-   ./gradlew :app:assembleRelease \
-     -PCENTRAL_WEB_ORIGIN=https://app.oasisbaklawacentral.com
-   # then align + sign with apksigner using the keystore above
-   ```
+## Physical UAT signing — non-production key
 
-This is intentionally left as an explicit owner-side step rather than
-something this session can complete — release signing key custody is a
-security decision, not an engineering default.
+Physical UAT must use an **installable APK signed with a controlled non-production UAT/test key**.
+
+The UAT key:
+- must stay outside version control;
+- must not be the owner production keystore;
+- should be kept stable for the duration of UAT so upgrade/install-over tests use the same signer;
+- may be discarded after UAT is complete.
+
+Example one-time UAT key creation on the controlled test machine:
+
+```sh
+keytool -genkeypair -v \
+  -keystore oasis-central-tv-uat.keystore \
+  -alias oasis-central-tv-uat \
+  -keyalg RSA -keysize 2048 -validity 365
+```
+
+Build the release variant using the production-like origins:
+
+```sh
+./gradlew :app:assembleRelease \
+  -PCENTRAL_WEB_ORIGIN=https://app.oasisbaklawacentral.com \
+  -PTRACE_WEB_ORIGIN=https://trace.oasisbaklawa.com
+```
+
+Then align/sign the unsigned release APK with Android build tools using the UAT key. Record:
+- APK SHA-256;
+- package/version;
+- signer certificate fingerprint;
+- test-device model/OS;
+- installation result.
+
+This UAT-signed APK is for physical certification only and is **not** the production-distribution artifact.
+
+## Production distribution signing — owner gate
+
+Production sideload/distribution requires a long-lived owner-controlled release keystore.
+
+Generate it once, offline, and store it outside version control in an owner-controlled password manager/secrets vault:
+
+```sh
+keytool -genkeypair -v \
+  -keystore oasis-central-tv-release.keystore \
+  -alias oasis-central-tv \
+  -keyalg RSA -keysize 2048 -validity 10000
+```
+
+If automated production signing is later approved, use protected CI secrets such as:
+- `ANDROID_KEYSTORE_BASE64`
+- `ANDROID_KEYSTORE_PASSWORD`
+- `ANDROID_KEY_ALIAS`
+- `ANDROID_KEY_PASSWORD`
+
+The current CI workflow intentionally does not require these owner secrets, so ordinary PR validation remains non-production and secret-free.
+
+**Never commit either the UAT key or owner production keystore to this repository.**

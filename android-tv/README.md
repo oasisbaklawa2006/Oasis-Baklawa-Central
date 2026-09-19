@@ -1,72 +1,85 @@
-# Oasis Central TV (Android)
+# Oasis Display (Android TV)
 
-A dedicated, installable Android TV / Google TV application for the owner's
-six-TV production/RGS estate (Central issue #368). This is **not** a PWA and
-**not** a general browser pointed at Central — it is a single-purpose kiosk
-app: one WebView, one allowlisted origin, one assigned department per
-device, fullscreen immersive, auto-launch on boot, fail-closed on auth or
-network failure.
+One installable Android TV / Google TV application hosts **all** governed Oasis
+operational display surfaces (Central production lines, RGS, 3PGS, Trace gate/dispatch,
+and future CMD surfaces). This is **not** a browser URL entry workflow and **not**
+a separate APK per screen.
 
-Core remains the backend authority for every number shown. Trace remains
-the label/barcode/printer authority — this app never talks to a printer.
-Central (this WebView's content) supplies only the display UI; the app adds
-no write capability beyond what the loaded web page itself allows a
-read-scoped TV session to do.
+Core remains the backend authority for every number shown. Trace remains the
+label/barcode/printer authority — this app never talks to a printer. Central
+(Display Management + web `/tv/*` routes) supplies display UI; the APK adds kiosk
+behaviour, device enrollment, and origin allowlisting only.
+
+## Architecture
+
+```
+Oasis Display APK (com.oasisbaklawa.centraltv)
+  → stable device ID + enrollment code (first launch)
+  → Central Display Management assignment (admin)
+  → governed surface key → resolved HTTPS route
+  → fullscreen read-only kiosk WebView
+  → optional remote config poll (Task 4 API)
+```
+
+Changing RGS TV → Dispatch TV is a **configuration change**, not an APK reinstall.
 
 ## Structure
 
 ```
 android-tv/
-  app/
-    src/main/java/com/oasisbaklawa/centraltv/
-      OasisTvApplication.kt     — installs crash-recovery handler
-      ui/MainActivity.kt        — the kiosk: WebView, immersive mode, retry/backoff, network state
-      ui/DiagnosticsActivity.kt — on-site troubleshooting screen (hidden 5x-BACK gesture)
-      net/AllowlistPolicy.kt    — HTTPS-only, single-origin navigation allowlist
-      net/NetworkStateMonitor.kt— Wi-Fi / connectivity flow
-      session/DeviceConfig.kt   — per-device department assignment + device id
-      util/BootReceiver.kt      — auto-launch after boot/power recovery
-      util/CrashRecoveryHandler.kt — process-level crash -> scheduled restart
-  DEPARTMENTS.md   — how to provision a device to one of the six TVs
-  RELEASE_SIGNING.md — why CI only builds unsigned, and what signing requires
+  app/src/main/java/com/oasisbaklawa/centraltv/
+    ui/MainActivity.kt           — kiosk WebView, enrollment, config refresh
+    ui/DiagnosticsActivity.kt    — admin diagnostics (5× BACK gesture)
+    session/DisplaySurfaceRegistry.kt — unified surface catalog
+    session/DisplayAssignment.kt      — v1 assignment JSON contract
+    session/DisplayConfigClient.kt      — remote assignment poll (Task 4)
+    session/DeviceConfig.kt             — device id, enrollment, assignment
+    net/AllowlistPolicy.kt              — HTTPS Central + Trace allowlist
+    net/NetworkStateMonitor.kt
+    util/BootReceiver.kt
+    util/CrashRecoveryHandler.kt
+    util/EnrollmentQrEncoder.kt
+  DEPARTMENTS.md        — enrollment + assignment (v2)
+  RELEASE_SIGNING.md    — owner keystore; CI builds unsigned release only
 ```
+
+## Build config
+
+| Field | Purpose |
+|-------|---------|
+| `CENTRAL_WEB_ORIGIN` | Central web host (default production) |
+| `TRACE_WEB_ORIGIN` | Trace web host for `/tv/gate`, `/tv/dispatch` |
+| `DISPLAY_CONFIG_BOOTSTRAP_URL` | Optional Task 4 assignment API base |
+
+Set via Gradle property, env var at build time, or CI workflow env.
 
 ## Building
 
-Requires a local Android SDK (not present in this session's environment —
-see the root Lane 1 report for what that means for verification). With one
-installed:
+Requires Android SDK + Gradle 8.7. CI uses `gradle/actions/setup-gradle` and does
+not require a committed wrapper JAR.
 
 ```sh
 cd android-tv
-./gradlew :app:assembleDebug
-./gradlew :app:lintRelease :app:testDebugUnitTest
+gradle :app:lintRelease :app:testDebugUnitTest :app:assembleRelease
 ```
 
-The `./gradlew` wrapper script is checked in, but its wrapper JAR is not
-(binary files aren't hand-authored) — run `gradle wrapper --gradle-version
-8.7` once locally to regenerate it, or let CI provision Gradle directly (see
-`.github/workflows/android-tv-ci.yml`, which uses
-`gradle/actions/setup-gradle` and does not depend on the wrapper jar being
-present).
+Artifact: `app/build/outputs/apk/release/app-release-unsigned.apk` (rename to
+`Oasis-TV-2.0.0-unsigned.apk` in CI). Owner signing per `RELEASE_SIGNING.md`.
 
 ## What is PHYSICAL-DEVICE-ONLY
 
-Everything about compiling, lint-checking, and reasoning about this app's
-behavior is done in software and covered above. What cannot be verified
-without the actual hardware:
+- Installing APK on Android TV hardware and confirming kiosk boot
+- OEM-specific autostart / lock-task behaviour
+- Real remote-control navigation and 5× BACK diagnostics
+- TV resolution/overscan rendering of web layouts
+- Physical UAT matrix: `oasis-trace/docs/TASK2_ANDROID_TV_UAT.md`
 
-- installing the APK on the selected TV / Android HDMI player and
-  confirming it boots into the kiosk view;
-- manufacturer-specific autostart/boot behaviour (some OEM Android TV
-  builds restrict `RECEIVE_BOOT_COMPLETED` further than stock AOSP);
-- real remote-control navigation and the 5x-BACK diagnostics gesture on
-  actual remote hardware;
-- Device Owner / lock-task provisioning via MDM or `dpm set-device-owner`
-  (a physical/ADB step per unit, not something CI can do);
-- factory Wi-Fi recovery timing, power-failure/reboot behaviour, and
-  long-duration burn-in;
-- actual TV resolution/overscan rendering of the existing web `/tv/*`
-  layouts (those layouts were built and tested for browsers, not
-  necessarily audited yet for real TV overscan — flagged as a follow-up in
-  the Lane 1 report, not silently assumed fine).
+Browser emulation does **not** satisfy Android TV physical certification.
+
+## Task 4 dependencies (not in this client)
+
+- Remote assignment API persistence (`GET …/v1/devices/{deviceId}/assignment`)
+- Display-device read-only credential (Core/Central — no staff password in APK)
+- Display Management device registry (last seen, health, remote reassignment)
+
+See `src/lib/displayDevice/displayAssignmentContract.ts` for the shared contract.
