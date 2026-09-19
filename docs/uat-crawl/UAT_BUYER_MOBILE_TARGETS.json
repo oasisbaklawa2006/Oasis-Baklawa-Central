@@ -1,0 +1,22 @@
+{
+  "baselineSha": "0015e7b56532826a40c7beb3f33b028271c2c2f5",
+  "certHeadSha": "0f81448cf6f92b0ca0db667b757ca9f05ff3f542",
+  "surfaces": [
+    { "uatId": "UAT-0114", "route": "/buyer", "state": "dashboard-default", "surface": "Dashboard" },
+    { "uatId": "UAT-0115", "route": "/buyer/catalogue", "state": "catalogue-default", "surface": "Catalogue" },
+    { "uatId": "UAT-0115", "route": "/buyer/catalogue", "state": "catalogue-search", "surface": "Catalogue search" },
+    { "uatId": "UAT-0115", "route": "/buyer/catalogue", "state": "favourites-toggle", "surface": "Favourites" },
+    { "uatId": "UAT-0115", "route": "/buyer/catalogue/{productId}", "state": "product-detail", "surface": "Product Detail" },
+    { "uatId": "UAT-0116", "route": "/buyer/cart", "state": "cart-default", "surface": "Cart" },
+    { "uatId": "UAT-0117", "route": "/buyer/orders", "state": "orders-list", "surface": "Orders" },
+    { "uatId": "UAT-0117", "route": "/buyer/orders/{orderId}", "state": "order-detail", "surface": "Order Detail" },
+    { "uatId": "UAT-0120", "route": "/buyer/documents", "state": "documents-default", "surface": "Documents" },
+    { "uatId": "UAT-0120", "route": "/buyer/documents", "state": "statement-facts", "surface": "Statement" },
+    { "uatId": "UAT-0119", "route": "/buyer/support", "state": "support-default", "surface": "Support" },
+    { "uatId": "UAT-0119", "route": "/buyer/support", "state": "general-enquiry", "surface": "General enquiry" },
+    { "uatId": "UAT-0118", "route": "/buyer/account", "state": "account-default", "surface": "Account" },
+    { "uatId": "UAT-0121", "route": "/buyer/access-request", "state": "access-request-approved", "surface": "Access request (approved buyer)" },
+    { "uatId": "UAT-0006", "route": "/buyer/access-request", "state": "access-request-auth", "surface": "Access request auth surface" },
+    { "uatId": "UAT-0007", "route": "/buyer/catalogue", "state": "buyer-wildcard", "surface": "Buyer golden-path entry" }
+  ]
+}
