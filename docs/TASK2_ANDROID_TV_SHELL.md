@@ -10,9 +10,10 @@
 
 | Gate | State |
 |------|-------|
-| **TV SHELL SOFTWARE** | **CERTIFIED** (exact-head `android-tv-ci` green @ `2b2e724f`; unsigned release artifact) |
-| **ANDROID TV PHYSICAL UAT** | **PENDING** — requires real Android TV hardware (`oasis-trace/docs/TASK2_ANDROID_TV_UAT.md`) |
-| Release APK signing | **OWNER GATE** — CI produces unsigned release only (`android-tv/RELEASE_SIGNING.md`) |
+| **TV SHELL SOFTWARE** | **CERTIFIED** when `android-tv-ci` is green on the current PR exact head; CI artifact is build-only and unsigned |
+| **ANDROID TV PHYSICAL UAT** | **PENDING** — requires real Android TV hardware plus a controlled UAT/test-signed installable APK (`oasis-trace/docs/TASK2_ANDROID_TV_UAT.md`) |
+| UAT APK signing | **PHYSICAL-UAT PRECONDITION** — non-production UAT/test key, kept outside the repo (`android-tv/RELEASE_SIGNING.md`) |
+| Production APK signing | **OWNER RELEASE GATE** — owner-controlled long-lived production keystore (`android-tv/RELEASE_SIGNING.md`) |
 | Remote assignment API | **TASK 4** — client polls; server not implemented here |
 | Display-device credential | **TASK 4** — Core/Central; no staff password in APK |
 
