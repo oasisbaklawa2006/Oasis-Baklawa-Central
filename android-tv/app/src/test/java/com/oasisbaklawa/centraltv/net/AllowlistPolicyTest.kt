@@ -10,6 +10,7 @@ class AllowlistPolicyTest {
         val allowed = setOf("app.oasisbaklawacentral.com", "trace.oasisbaklawa.com")
         assertTrue(AllowlistPolicy.isHostAllowed("app.oasisbaklawacentral.com", allowed))
         assertTrue(AllowlistPolicy.isNavigationAllowed("https://app.oasisbaklawacentral.com/tv/rgs"))
+        assertTrue(AllowlistPolicy.isNavigationAllowed("https://trace.oasisbaklawa.com/tv/gate"))
     }
 
     @Test
