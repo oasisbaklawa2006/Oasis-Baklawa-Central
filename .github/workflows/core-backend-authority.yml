@@ -1,0 +1,92 @@
+name: Core Backend Authority
+
+on:
+  pull_request_target:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: core-backend-authority-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request_target' }}
+
+jobs:
+  trusted-guard:
+    if: github.event_name == 'pull_request_target'
+    name: Enforce oasis-supabase-core backend authority (trusted)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Materialize trusted base and inert PR head objects
+        shell: bash
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]] || {
+            echo '::error::Invalid PR number' >&2
+            exit 1
+          }
+          [[ "$PR_BASE_SHA" =~ ^[0-9a-f]{40}$ ]] || {
+            echo '::error::Invalid PR base SHA' >&2
+            exit 1
+          }
+          [[ "$PR_HEAD_SHA" =~ ^[0-9a-f]{40}$ ]] || {
+            echo '::error::Invalid PR head SHA' >&2
+            exit 1
+          }
+
+          git init .
+          git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          git -c protocol.file.allow=never fetch --no-tags --no-write-fetch-head origin "$PR_BASE_SHA"
+          git update-ref refs/remotes/origin/trusted-base "$PR_BASE_SHA"
+          git -c protocol.file.allow=never fetch --no-tags --no-write-fetch-head origin \
+            "refs/pull/${PR_NUMBER}/head:refs/remotes/origin/pr-head"
+
+          fetched_head="$(git rev-parse refs/remotes/origin/pr-head)"
+          [[ "$fetched_head" == "$PR_HEAD_SHA" ]] || {
+            echo '::error::Fetched PR head does not match event SHA' >&2
+            exit 1
+          }
+
+          git checkout --detach refs/remotes/origin/trusted-base
+          [[ "$(git rev-parse HEAD)" == "$PR_BASE_SHA" ]] || {
+            echo '::error::Trusted base checkout mismatch' >&2
+            exit 1
+          }
+      - name: Enforce Core backend authority from trusted base code
+        shell: bash
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          bash scripts/check-core-backend-authority.sh "$PR_BASE_SHA" "$PR_HEAD_SHA"
+
+  push-guard:
+    if: github.event_name == 'push'
+    name: Enforce oasis-supabase-core backend authority
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Resolve auditable base and enforce boundary
+        shell: bash
+        env:
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          bash scripts/check-core-backend-authority.sh "$PUSH_BEFORE"
+      - name: Regression-test core backend authority guard
+        run: bash scripts/tests/verify-core-backend-authority.sh
