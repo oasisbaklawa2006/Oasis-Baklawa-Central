@@ -28,6 +28,21 @@ The final convergence mission is now explicitly routed:
 - **DEPENDENCIES:** [`appverse-control/dependency-graph.json`](appverse-control/dependency-graph.json)
 - **STOP CONDITION:** the dependency graph and link-integrity CI are green; every active lane is routed to its owning repository; final completion remains blocked only by explicit software review/release and external production/physical/provider gates.
 
+## Routed repository work item — APPVERSE-AI-FINAL-01
+
+Mission Control explicitly assigns the following bounded AI Studio completion work item:
+
+- **ASM-ID:** `APPVERSE-AI-FINAL-01`
+- **THREAD-ID:** `ai-studio-finalisation-20260919`
+- **REPOSITORY:** `oasisbaklawa2006/oasis-ai-studio`
+- **MISSION:** reconcile current AI Studio main against the AI/knowledge-plane scope; complete remaining AI Studio-owned product/media/catalogue/mobile/channel-copy/publication software; repair current AI Studio-owned defects; reconcile stale/superseded AI Studio PRs; verify AI Studio-side integration contracts to Core/Central/Buyer/Trace/website without mutating foreign repositories; and return exact-head certification evidence to Mission Control.
+- **DEPENDENCIES:** current `oasis-ai-studio/main`; Core canonical backend authority; Task 5 canonical defect ledger; existing programme nodes `AI-POINT49`, `AI-POINT50`, `AI-POINT51`, `AI-ALIAS-SESSION`, `CORE-AI-CHAT-CAPTURE`, `CENTRAL-AI-CHAT-CONSUMER`; current Central/Buyer/Trace publication/consumption contracts.
+- **STOP CONDITION:** AI Studio repository-owned software is exact-head green and maximally certified within repository authority; no current AI Studio-owned P0/P1 remains; stale/superseded AI Studio PRs are classified; AI Studio-side integration/runtime evidence is recorded; any remaining blockers are explicit cross-repository release, protected-production, provider, or physical-device gates and are returned to Mission Control.
+
+Execution authority remains repository-local. This assignment does **not** authorize AI Studio to create Core migrations, mutate Central/Buyer/Trace code, bypass protected production controls, or manufacture external/device/provider evidence. Cross-scope defects must be evidenced and routed back to Mission Control.
+
+Canonical assignment record: [`docs/APPVERSE_ASM_AI_STUDIO_FINAL_2026-09-19.md`](docs/APPVERSE_ASM_AI_STUDIO_FINAL_2026-09-19.md).
+
 The machine-readable programme state remains [`appverse-control/state.json`](appverse-control/state.json). The cross-repository dependency graph is [`appverse-control/dependency-graph.json`](appverse-control/dependency-graph.json). `state.json` owns semantic stage truth; the dependency graph owns final convergence sequencing.
 
 ## Production change safety gate
