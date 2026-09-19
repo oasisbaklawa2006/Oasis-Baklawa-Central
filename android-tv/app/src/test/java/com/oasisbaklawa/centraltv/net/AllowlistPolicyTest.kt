@@ -7,7 +7,8 @@ import org.junit.Test
 class AllowlistPolicyTest {
     @Test
     fun allowsCentralAndTraceHostsWhenConfigured() {
-        // BuildConfig is unavailable in pure JVM tests; exercise parsing logic indirectly via URL shape.
+        val allowed = setOf("app.oasisbaklawacentral.com", "trace.oasisbaklawa.com")
+        assertTrue(AllowlistPolicy.isHostAllowed("app.oasisbaklawacentral.com", allowed))
         assertTrue(AllowlistPolicy.isNavigationAllowed("https://app.oasisbaklawacentral.com/tv/rgs"))
     }
 
