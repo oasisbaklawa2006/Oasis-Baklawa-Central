@@ -53,6 +53,7 @@ class MainActivity : AppCompatActivity() {
     private val retryHandler = Handler(Looper.getMainLooper())
     private var retryAttempt = 0
     private var retryRunnable: Runnable? = null
+    private var configRefreshRunnable: Runnable? = null
     private var lastSuccessfulLoadAt: Long = 0L
     private var kioskInitialized = false
 
@@ -252,15 +253,15 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun scheduleConfigRefresh() {
-        retryHandler.postDelayed(
-            object : Runnable {
-                override fun run() {
-                    refreshRemoteAssignment()
-                    retryHandler.postDelayed(this, CONFIG_REFRESH_INTERVAL_MS)
-                }
-            },
-            CONFIG_REFRESH_INTERVAL_MS,
-        )
+        if (configRefreshRunnable != null) return
+        val runnable = object : Runnable {
+            override fun run() {
+                refreshRemoteAssignment()
+                retryHandler.postDelayed(this, CONFIG_REFRESH_INTERVAL_MS)
+            }
+        }
+        configRefreshRunnable = runnable
+        retryHandler.postDelayed(runnable, CONFIG_REFRESH_INTERVAL_MS)
     }
 
     private fun refreshRemoteAssignment() {
@@ -270,7 +271,7 @@ class MainActivity : AppCompatActivity() {
                     val previous = deviceConfig.assignment?.configVersion
                     deviceConfig.assignment = result.assignment
                     launch(Dispatchers.Main) {
-                        if (previous != result.assignment.configVersion || deviceConfig.targetUrl() != null) {
+                        if (previous != result.assignment.configVersion || !kioskInitialized) {
                             ensureAssignedAndEnterKiosk(forceReload = true)
                         }
                     }
