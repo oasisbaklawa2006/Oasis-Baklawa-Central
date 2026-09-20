@@ -137,7 +137,8 @@ Programme Progress: X/100
 ### Point 54a — Oasis Connect: Governed Multi-Channel Publication & Consumer Contract
 
 **Parent:** Point 54 — Implement the approved-product publication contract  
-**Status:** IN PROGRESS / CONNECT-1  
+**Status:** IN PROGRESS  
+**Current stage:** CONNECT-1 — census and contract freeze  
 **ASM work item:** `ASM-OC-01 — OASIS CONNECT`  
 **Owner:** Mission Control / `Oasis-Baklawa-Central`  
 **Repositories:** `oasis-supabase-core`, `oasis-ai-studio`, `Oasis-Baklawa-Central`, `oasis-trace`
