@@ -45,6 +45,24 @@ Canonical assignment record: [`docs/APPVERSE_ASM_AI_STUDIO_FINAL_2026-09-19.md`]
 
 The machine-readable programme state remains [`appverse-control/state.json`](appverse-control/state.json). The cross-repository dependency graph is [`appverse-control/dependency-graph.json`](appverse-control/dependency-graph.json). `state.json` owns semantic stage truth; the dependency graph owns final convergence sequencing.
 
+## Routed repository work item — ASM-OC-01
+
+Mission Control explicitly registers the bounded Oasis Connect programme item:
+
+- **ASM-ID:** `ASM-OC-01`
+- **THREAD-ID:** `oasis-connect-20260920`
+- **PROGRAMME ANCHOR:** Point 54a — Oasis Connect: governed multi-channel publication & consumer contract
+- **CONTROL REPOSITORY:** `oasisbaklawa2006/Oasis-Baklawa-Central`
+- **IMPLEMENTATION REPOSITORIES:** `oasisbaklawa2006/oasis-supabase-core`, `oasisbaklawa2006/oasis-ai-studio`, `oasisbaklawa2006/Oasis-Baklawa-Central`, `oasisbaklawa2006/oasis-trace`
+- **MISSION:** establish one governed, plug-and-play product/channel distribution layer so websites, B2C/B2B apps, WhatsApp catalogue, Trace label printing and future consumers can bind to one approved product source through consumer identity, scoped tokens, channel profiles, publication versions and authority-preserving projections.
+- **DEPENDENCIES:** current Point 54 approved-product publication contract; Core `published_products_v1()`; Core `buyer_product_prices_v1()`; AI Studio approved catalogue/version/snapshot contracts; existing Trace printer/reprint authority; Central commercial/operational authority; repository-local security/release controls.
+- **DEPENDENCY EXCEPTION:** CONNECT-1 architecture/census and repository-local non-production contract work may begin early. Production activation, production schema mutation and cross-app runtime dependency activation remain gated by the owning repository and normal predecessor/linked-point requirements.
+- **STOP CONDITION:** Oasis Connect architecture and reusable contracts are implemented in their owning repositories; each consumer receives only its governed projection; existing Core/Central/Trace authority is preserved; Trace label resolution bridges rather than replaces existing print/reprint authority; exact-head CI/security tests are green; remaining blockers, if any, are only protected production release, external credentials or physical-device UAT.
+
+Execution remains repository-local. This ASM does not authorize one repository/thread to mutate another repository opportunistically. Core backend changes require a Core-routed implementation item; AI Studio owns configuration/projection UX; Central owns commercial/operational truth; Trace owns physical execution.
+
+Canonical assignment record: [`docs/APPVERSE_ASM_OASIS_CONNECT_2026-09-20.md`](docs/APPVERSE_ASM_OASIS_CONNECT_2026-09-20.md).
+
 ## Production change safety gate
 
 Mission Control may inspect, route, branch, test, compare and prepare non-production governance changes. It must **not** use programme-control authority to bypass the owning repository's production controls.
