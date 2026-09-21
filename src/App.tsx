@@ -345,11 +345,11 @@ const App = () => (
                       }
                     />
                     <Route path="cmd-war-room" element={<Navigate to="/admin/central-pool" replace />} />
-                    <Route path="inventory-command-center" element={<InventoryCommandCenter />} />
+                    <Route path="inventory-command-center" element={<Navigate to="/admin/ready-goods" replace />} />
                     <Route path="inventory-receiving" element={<InventoryReceiving />} />
                     <Route path="carton-explorer" element={<CartonExplorer />} />
                     <Route path="reservation-board" element={<ReservationBoard />} />
-                    <Route path="inventory-risk-board" element={<InventoryRiskBoard />} />
+                    <Route path="inventory-risk-board" element={<Navigate to="/admin/inventory" replace />} />
                     <Route path="scan-timeline" element={<ScanTimeline />} />
                     <Route path="assembly-tasks" element={<AssemblyManagement />} />
                     <Route path="assembly-tv" element={<AssemblyTV />} />
@@ -394,28 +394,13 @@ const App = () => (
                       }
                     />
                     <Route
-                      path="queue-execution-preview"
-                      element={
-                        <AdminModuleRoute moduleKey="cmd_war_room">
-                          <QueueExecutionPreview />
-                        </AdminModuleRoute>
-                      }
+                      path="queue-execution-preview" element={<Navigate to="/admin/live-work-queues" replace />}
                     />
                     <Route
-                      path="barcode-execution-preview"
-                      element={
-                        <AdminModuleRoute moduleKey="cmd_war_room">
-                          <BarcodeExecutionPreview />
-                        </AdminModuleRoute>
-                      }
+                      path="barcode-execution-preview" element={<Navigate to="/admin/golden-chain-operator" replace />}
                     />
                     <Route
-                      path="product-intelligence-prototype"
-                      element={
-                        <AdminModuleRoute moduleKey="cmd_war_room">
-                          <ProductIntelligencePrototype />
-                        </AdminModuleRoute>
-                      }
+                      path="product-intelligence-prototype" element={<Navigate to="/admin/products" replace />}
                     />
                     <Route
                       path="management-command-center"
@@ -426,28 +411,13 @@ const App = () => (
                       }
                     />
                     <Route
-                      path="execution-command-center"
-                      element={
-                        <AdminModuleRoute moduleKey="cmd_war_room">
-                          <ExecutionCommandCenter />
-                        </AdminModuleRoute>
-                      }
+                      path="execution-command-center" element={<Navigate to="/admin/live-work-queues" replace />}
                     />
                     <Route
-                      path="execution-risk"
-                      element={
-                        <AdminModuleRoute moduleKey="cmd_war_room">
-                          <ExecutionRiskBoard />
-                        </AdminModuleRoute>
-                      }
+                      path="execution-risk" element={<Navigate to="/admin/exceptions" replace />}
                     />
                     <Route
-                      path="execution-bottlenecks"
-                      element={
-                        <AdminModuleRoute moduleKey="cmd_war_room">
-                          <ExecutionBottlenecks />
-                        </AdminModuleRoute>
-                      }
+                      path="execution-bottlenecks" element={<Navigate to="/admin/live-work-queues" replace />}
                     />
                     {/*
                       execution/production, execution/assembly and
@@ -477,20 +447,10 @@ const App = () => (
                       }
                     />
                     <Route
-                      path="execution/retail"
-                      element={
-                        <AdminModuleRoute moduleKey="inventory">
-                          <RetailExecutionBoard />
-                        </AdminModuleRoute>
-                      }
+                      path="execution/retail" element={<Navigate to="/admin/store-coordination" replace />}
                     />
                     <Route
-                      path="execution/complaints"
-                      element={
-                        <AdminModuleRoute moduleKey="support">
-                          <ComplaintsExecutionBoard />
-                        </AdminModuleRoute>
-                      }
+                      path="execution/complaints" element={<Navigate to="/admin/support" replace />}
                     />
                     <Route path="rgs-tv" element={<ReadyGoodsTV />} />
                     <Route path="golden-chain-operator" element={<GoldenChainOperatorWizard />} />
@@ -541,7 +501,7 @@ const App = () => (
                         </AdminModuleRoute>
                       }
                     />
-                    <Route path="verification" element={<Navigate to="/admin/execution-command-center" replace />} />
+                    <Route path="verification" element={<Navigate to="/admin/live-work-queues" replace />} />
                     <Route path="announcements" element={<AdminAnnouncements />} />
                   </Route>
                   </Route>
