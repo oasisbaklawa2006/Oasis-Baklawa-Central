@@ -11,6 +11,7 @@ import {
   buildDisplayAssignmentIntentCommand,
   buildDisplayAssignmentPayload,
 } from "@/lib/displayDevice/displayAssignmentContract";
+import { assignDisplayDevice } from "@/lib/displayDevice/displayDeviceAdmin";
 
 const AssemblyTV = lazy(() => import("@/pages/admin/AssemblyTV"));
 const DispatchTV = lazy(() => import("@/pages/admin/DispatchTV"));
@@ -36,6 +37,8 @@ const DisplayManagement = () => {
   const [friendlyName, setFriendlyName] = useState("");
   const [location, setLocation] = useState("");
   const [copied, setCopied] = useState(false);
+  const [assigning, setAssigning] = useState(false);
+  const [remoteStatus, setRemoteStatus] = useState<string | null>(null);
 
   const assignmentPayload = useMemo(
     () => buildDisplayAssignmentPayload({ surfaceKey, friendlyName: friendlyName || undefined, location: location || undefined }),
@@ -51,6 +54,29 @@ const DisplayManagement = () => {
     await navigator.clipboard.writeText(provisioningCommand);
     setCopied(true);
     window.setTimeout(() => setCopied(false), 2000);
+  };
+
+  const assignRemotely = async () => {
+    if (!deviceId.trim() || !enrollCode.trim()) {
+      setRemoteStatus("Device ID and enrollment code are required for remote assignment.");
+      return;
+    }
+    setAssigning(true);
+    setRemoteStatus(null);
+    try {
+      await assignDisplayDevice({
+        deviceId,
+        enrollmentCode: enrollCode,
+        surfaceKey,
+        friendlyName: friendlyName || undefined,
+        location: location || undefined,
+      });
+      setRemoteStatus("Remote assignment saved. The TV will pick it up on its next config refresh.");
+    } catch (error) {
+      setRemoteStatus(error instanceof Error ? error.message : "Remote assignment failed.");
+    } finally {
+      setAssigning(false);
+    }
   };
 
   return (
@@ -73,7 +99,7 @@ const DisplayManagement = () => {
           <h2 className="text-sm font-semibold text-foreground">Oasis Display APK — TV enrollment</h2>
         </div>
         <p className="text-xs text-muted-foreground">
-          TVs show an enrollment code on first launch. Assign a governed read-only surface here and apply the generated command over ADB/network ADB until the Task 4 remote-config API is live.
+          TVs show an enrollment code on first launch. Assign a governed read-only surface remotely; the ADB command remains an explicit fallback for commissioning and recovery.
         </p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
@@ -109,8 +135,21 @@ const DisplayManagement = () => {
             <Input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Ready Goods Store — Wall 1" />
           </div>
         </div>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            size="sm"
+            onClick={() => void assignRemotely()}
+            disabled={assigning || !deviceId.trim() || !enrollCode.trim()}
+          >
+            {assigning ? <Loader2 size={14} className="mr-2 animate-spin" /> : null}
+            Assign remotely
+          </Button>
+          {remoteStatus ? (
+            <p className="text-[11px] text-muted-foreground self-center">{remoteStatus}</p>
+          ) : null}
+        </div>
         <div className="rounded-lg border border-border bg-muted/30 p-3">
-          <p className="text-[11px] font-semibold text-foreground mb-2">Provisioning command (ADB)</p>
+          <p className="text-[11px] font-semibold text-foreground mb-2">Provisioning fallback (ADB)</p>
           <pre className="text-[10px] whitespace-pre-wrap break-all font-mono text-muted-foreground">{provisioningCommand}</pre>
           <Button size="sm" variant="outline" className="mt-3 gap-2" onClick={() => void copyCommand()}>
             {copied ? <Check size={14} /> : <Copy size={14} />}
