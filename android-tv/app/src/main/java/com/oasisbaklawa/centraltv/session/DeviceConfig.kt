@@ -16,9 +16,19 @@ class DeviceConfig(context: Context) {
     val deviceId: String
         get() = prefs.getString(KEY_DEVICE_ID, null) ?: generateAndStoreDeviceId()
 
-    /** Short operator-facing enrollment code derived from device id. */
+    /** Random operator-facing enrollment secret, generated once and stored privately. */
     val enrollmentCode: String
-        get() = deviceId.replace("-", "").take(8).uppercase()
+        get() = prefs.getString(KEY_ENROLLMENT_CODE, null) ?: generateAndStoreEnrollmentCode()
+
+    /** Read-only remote-config token returned once after governed enrollment. */
+    var deviceToken: String?
+        get() = prefs.getString(KEY_DEVICE_TOKEN, null)
+        set(value) {
+            val editor = prefs.edit()
+            if (value.isNullOrBlank()) editor.remove(KEY_DEVICE_TOKEN)
+            else editor.putString(KEY_DEVICE_TOKEN, value)
+            editor.apply()
+        }
 
     var assignment: DisplayAssignment?
         get() {
@@ -106,9 +116,21 @@ class DeviceConfig(context: Context) {
         return id
     }
 
+    private fun generateAndStoreEnrollmentCode(): String {
+        val code = java.util.UUID.randomUUID()
+            .toString()
+            .replace("-", "")
+            .take(12)
+            .uppercase()
+        prefs.edit().putString(KEY_ENROLLMENT_CODE, code).apply()
+        return code
+    }
+
     companion object {
         private const val PREFS_NAME = "oasis_tv_device_config"
         private const val KEY_DEVICE_ID = "device_id"
+        private const val KEY_ENROLLMENT_CODE = "enrollment_code"
+        private const val KEY_DEVICE_TOKEN = "device_token"
         private const val KEY_ASSIGNMENT_JSON = "assignment_json"
         private const val KEY_FRIENDLY_NAME = "friendly_name"
         private const val KEY_LOCATION = "location"
