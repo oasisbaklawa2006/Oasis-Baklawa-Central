@@ -21,7 +21,7 @@ export const DEMO_AUTHORITY_QUARANTINE_REGISTRY: DemoAuthorityQuarantineEntry[] 
   { route: "/admin/queue-execution-preview", label: "Queue execution preview", canonicalRedirect: "/admin/live-work-queues", matrixDisposition: "QUARANTINED" },
   { route: "/admin/barcode-execution-preview", label: "Barcode execution preview", canonicalRedirect: "/admin/golden-chain-operator", matrixDisposition: "QUARANTINED" },
   { route: "/admin/product-intelligence-prototype", label: "Product intelligence prototype", canonicalRedirect: "/admin/products", matrixDisposition: "QUARANTINED" },
-  { route: "/admin/execution/retail", label: "Retail execution board", canonicalRedirect: "/admin/store-coordination", matrixDisposition: "QUARANTINED" },
+  { route: "/admin/execution/retail", label: "Retail execution board", canonicalRedirect: "/admin/reservation-board", matrixDisposition: "QUARANTINED" },
   { route: "/admin/execution/complaints", label: "Complaints execution board", canonicalRedirect: "/admin/support", matrixDisposition: "QUARANTINED" },
   { route: "/admin/inventory-command-center", label: "Inventory command center", canonicalRedirect: "/admin/ready-goods", matrixDisposition: "QUARANTINED" },
   { route: "/admin/inventory-risk-board", label: "Inventory risk board", canonicalRedirect: "/admin/inventory", matrixDisposition: "QUARANTINED" },
