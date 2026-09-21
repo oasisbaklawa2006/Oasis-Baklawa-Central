@@ -447,7 +447,7 @@ const App = () => (
                       }
                     />
                     <Route
-                      path="execution/retail" element={<Navigate to="/admin/store-coordination" replace />}
+                      path="execution/retail" element={<Navigate to="/admin/reservation-board" replace />}
                     />
                     <Route
                       path="execution/complaints" element={<Navigate to="/admin/support" replace />}
