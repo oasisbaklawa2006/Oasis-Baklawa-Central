@@ -60,10 +60,10 @@ export function findDisplaySurface(key: string): DisplaySurfaceDefinition | unde
   return OASIS_DISPLAY_SURFACES.find((surface) => surface.key === key);
 }
 
-/** Remote config contract (Central Task 4 — not implemented server-side in this PR). */
+/** Remote config contract — Core Task 4 authority is implemented by Core PR #343. */
 export const DISPLAY_CONFIG_API_CONTRACT = {
   bootstrapPath: "/v1/devices/{deviceId}/assignment",
   methods: ["GET"],
-  auth: "display-device read token (Task 4)",
+  auth: "one-time enrollment code -> hashed read-only display-device token",
   failClosed: true,
 } as const;

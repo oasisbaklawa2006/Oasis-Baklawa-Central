@@ -4,11 +4,13 @@ import com.oasisbaklawa.centraltv.BuildConfig
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
 /**
- * Polls the governed display-config bootstrap authority (Central Task 4).
- * Fail-closed: malformed, revoked, or unavailable responses are ignored.
+ * Polls the governed display-config bootstrap authority.
+ * Fail-closed: invalid URL/TLS/auth, revoked devices, malformed payloads, and
+ * unavailable responses never replace a previously governed assignment.
  */
 class DisplayConfigClient(
     private val http: OkHttpClient = OkHttpClient.Builder()
@@ -18,7 +20,12 @@ class DisplayConfigClient(
         .followSslRedirects(false)
         .build(),
 ) {
-    fun fetchAssignment(deviceId: String): FetchResult {
+    fun fetchAssignment(
+        deviceId: String,
+        enrollmentCode: String,
+        deviceToken: String?,
+        apkVersion: String,
+    ): FetchResult {
         val base = BuildConfig.DISPLAY_CONFIG_BOOTSTRAP_URL.trim()
         if (base.isBlank()) return FetchResult.Unconfigured
 
@@ -30,18 +37,36 @@ class DisplayConfigClient(
             .addPathSegment(deviceId)
             .addPathSegment("assignment")
             .build()
-        val request = Request.Builder().url(url).get().build()
+
+        val requestBuilder = Request.Builder()
+            .url(url)
+            .get()
+            .header("X-Oasis-Apk-Version", apkVersion)
+
+        if (!deviceToken.isNullOrBlank()) {
+            requestBuilder.header("Authorization", "Bearer " + deviceToken)
+        } else {
+            requestBuilder.header("X-Oasis-Enrollment-Code", enrollmentCode)
+        }
+
         return runCatching {
-            http.newCall(request).execute().use { response ->
+            http.newCall(requestBuilder.build()).execute().use { response ->
                 when {
                     response.code == 404 -> FetchResult.PendingEnrollment
-                    !response.isSuccessful -> FetchResult.Unavailable("HTTP ${response.code}")
+                    response.code == 401 -> FetchResult.Unauthorized
+                    response.code == 403 -> FetchResult.Revoked
+                    !response.isSuccessful -> FetchResult.Unavailable("HTTP " + response.code)
                     else -> {
                         val body = response.body?.string().orEmpty()
                         val assignment = DisplayAssignment.fromJson(body)
                             ?.takeIf { it.surface != null }
                             ?: return FetchResult.Unavailable("malformed or unknown assignment payload")
-                        FetchResult.Assigned(assignment)
+                        val token = runCatching {
+                            JSONObject(body).optString("deviceToken")
+                                .trim()
+                                .takeIf { it.isNotEmpty() }
+                        }.getOrNull()
+                        FetchResult.Assigned(assignment, token)
                     }
                 }
             }
@@ -51,7 +76,12 @@ class DisplayConfigClient(
     sealed interface FetchResult {
         data object Unconfigured : FetchResult
         data object PendingEnrollment : FetchResult
-        data class Assigned(val assignment: DisplayAssignment) : FetchResult
+        data object Unauthorized : FetchResult
+        data object Revoked : FetchResult
+        data class Assigned(
+            val assignment: DisplayAssignment,
+            val deviceToken: String?,
+        ) : FetchResult
         data class Unavailable(val reason: String) : FetchResult
     }
 }
