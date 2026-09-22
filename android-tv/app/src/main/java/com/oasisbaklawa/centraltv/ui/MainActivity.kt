@@ -271,9 +271,17 @@ class MainActivity : AppCompatActivity() {
         if (assignmentRefreshJob?.isActive == true) return
         assignmentRefreshJob = lifecycleScope.launch(Dispatchers.IO) {
             try {
-                when (val result = configClient.fetchAssignment(deviceConfig.deviceId)) {
+                when (
+                    val result = configClient.fetchAssignment(
+                        deviceId = deviceConfig.deviceId,
+                        enrollmentCode = deviceConfig.enrollmentCode,
+                        deviceToken = deviceConfig.deviceToken,
+                        apkVersion = BuildConfig.VERSION_NAME,
+                    )
+                ) {
                     is DisplayConfigClient.FetchResult.Assigned -> {
                         val previous = deviceConfig.assignment?.configVersion
+                        result.deviceToken?.let { deviceConfig.deviceToken = it }
                         deviceConfig.assignment = result.assignment
                         withContext(Dispatchers.Main) {
                             if (previous != result.assignment.configVersion || !kioskInitialized) {
@@ -283,6 +291,12 @@ class MainActivity : AppCompatActivity() {
                     }
                     is DisplayConfigClient.FetchResult.PendingEnrollment -> withContext(Dispatchers.Main) {
                         if (deviceConfig.targetUrl() == null) showEnrollmentState()
+                    }
+                    is DisplayConfigClient.FetchResult.Unauthorized,
+                    is DisplayConfigClient.FetchResult.Revoked -> withContext(Dispatchers.Main) {
+                        deviceConfig.deviceToken = null
+                        deviceConfig.assignment = null
+                        showEnrollmentState()
                     }
                     else -> Unit
                 }
