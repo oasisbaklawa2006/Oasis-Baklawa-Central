@@ -18,8 +18,13 @@ import {
 export const ROOT = path.resolve(import.meta.dirname, "../..");
 /** Pre-UAT programme baseline (tranche-01 pre-auth). Preserved — not reused as current deploy evidence. */
 export const BASELINE_SHA = "08ccb1cfd4a3624103f0681b5515e26727e77cd2";
-/** Current Central main (#558) — governed current-main deploy target for rebaseline. */
-export const CURRENT_MAIN_SHA = "a619a7a2ef01ee889d32fffebb5ff13fe3181252";
+/**
+ * Current Central main — resolved at run time via UAT_TARGET_SHA, which the workflow's
+ * dynamic main-SHA resolution step (gh api repos/.../commits/main) always sets before any
+ * spec that imports this module runs. The literal below is a last-resort fallback for local/
+ * offline invocation only and must never be treated as "current main" inside CI.
+ */
+export const CURRENT_MAIN_SHA = process.env.UAT_TARGET_SHA?.trim() || "a619a7a2ef01ee889d32fffebb5ff13fe3181252";
 /** Watchdog continue dispatch — 2026-09-08T18:05Z resume @ exact deploy a619a7a2. */
 export const WATCHDOG_CONTINUE_DISPATCH = "2026-09-08T18:05Z";
 /** Superseded current-main hold (#556 @ 6c7de2a) — preserved append-only, not substituted. */
@@ -346,6 +351,17 @@ export function writeTrancheIndex(
   writeFileSync(indexPath, lines.join("\n"));
 }
 
+/**
+ * Append new failure rows to the master ledger.
+ *
+ * Idempotency (FAIL-LEDGER-DUP tooling defect): re-running the same tranche against
+ * unchanged evidence produced byte-identical table rows, and this function used to append
+ * them under a fresh dated section every time — producing the same FAIL-ID/UAT-ID blocks
+ * repeated 4-6x across the ledger. A row is now only appended if its exact table-row text
+ * is not already present anywhere earlier in the file. No existing content is ever removed
+ * or rewritten, so all unique historical evidence is preserved unchanged. If a run produces
+ * zero genuinely new rows, no section (and no header) is written at all.
+ */
 export function appendFailureLedger(
   ledgerPath: string,
   tranche: string,
@@ -353,6 +369,14 @@ export function appendFailureLedger(
   uxFailures: string[],
 ) {
   const existing = readFileSync(ledgerPath, "utf8");
+
+  const newFunctional = functionalFailures.filter((row) => !existing.includes(row));
+  const newUx = uxFailures.filter((row) => !existing.includes(row));
+
+  if (newFunctional.length === 0 && newUx.length === 0) {
+    return;
+  }
+
   const section = [
     "",
     `---`,
@@ -361,24 +385,24 @@ export function appendFailureLedger(
     "",
   ];
 
-  if (functionalFailures.length > 0) {
+  if (newFunctional.length > 0) {
     section.push(
       "### Functional / access / blocked",
       "",
       "| FAIL-ID | UAT-ID | App | Role | Device | Route/Page | Function | Expected | Actual | Severity | Screenshot(s) | Console/Network | Repro | Owning repo | Layer | Fix dependency |",
       "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
-      ...functionalFailures,
+      ...newFunctional,
       "",
     );
   }
 
-  if (uxFailures.length > 0) {
+  if (newUx.length > 0) {
     section.push(
       "### Automated UX heuristic failures",
       "",
       "| FAIL-ID | UAT-ID | App | Role | Device | Route/Page | Function | Expected | Actual | Severity | Screenshot(s) | Console/Network | Repro | Owning repo | Layer | Fix dependency |",
       "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
-      ...uxFailures,
+      ...newUx,
       "",
     );
   }

@@ -23,7 +23,7 @@ const CURRENT_MAIN_HOLD =
   process.env.UAT_TARGET_SHA?.trim() || "a619a7a2ef01ee889d32fffebb5ff13fe3181252";
 const DEPLOY_PROVENANCE =
   process.env.UAT_DEPLOY_PROVENANCE_LABEL?.trim() ||
-  "Current-main authority @ a619a7a2 (#558) — prior 6c7de2a/15c59a3f/e2f123b0 evidence preserved append-only.";
+  "Current-main authority (resolved dynamically at run time) — prior pinned-SHA evidence preserved append-only.";
 
 const PUBLIC_RUNNABLE = new Set(["UAT-0001", "UAT-0004", "UAT-0005", "UAT-0008", "UAT-0009"]);
 
@@ -118,8 +118,17 @@ function loadPublicCompleteIds() {
 const census = JSON.parse(
   fs.readFileSync(path.join(ROOT, "docs/uat-crawl/UAT_ROUTE_CENSUS.json"), "utf8"),
 );
-const authenticated = loadCompleteAuthIds();
-const publicComplete = loadPublicCompleteIds();
+
+// Denominator-reconciliation fix (UAT-DENOM-MISMATCH tooling defect): manifest files are
+// append-only across the programme's history and can retain UAT IDs that no longer exist in
+// the current route census (a route renamed/removed, or a stale re-run against an older
+// census snapshot). Counting those IDs inflated `authenticated`/`publicComplete` beyond what
+// the per-entry loop below actually accounts for, so the published summary's categories no
+// longer summed to the census total. Every count in this script is now intersected against
+// the CURRENT census entries before it is reported.
+const censusIds = new Set(census.entries.map((e) => e.uatId));
+const authenticated = new Set([...loadCompleteAuthIds()].filter((id) => censusIds.has(id)));
+const publicComplete = new Set([...loadPublicCompleteIds()].filter((id) => censusIds.has(id)));
 const now = new Date().toISOString();
 const outPath = path.join(ROOT, "docs/uat-crawl/UAT_VERIFIED_BLOCKERS.jsonl");
 const summaryPath = path.join(ROOT, "docs/uat-crawl/UAT_VERIFIED_BLOCKERS_SUMMARY.json");
@@ -127,10 +136,18 @@ const summaryPath = path.join(ROOT, "docs/uat-crawl/UAT_VERIFIED_BLOCKERS_SUMMAR
 const rows = [];
 let blockedCount = 0;
 let credsAvailableNoEvidence = 0;
+// Explicit count of census entries actually skipped via the public-continuation branch below —
+// this, not publicComplete.size, is the number that must reconcile against the census total,
+// since publicComplete can (correctly) contain IDs outside PUBLIC_RUNNABLE that this loop does
+// not skip on.
+let publicSkipped = 0;
 
 for (const entry of census.entries) {
   if (authenticated.has(entry.uatId)) continue;
-  if (publicComplete.has(entry.uatId) && PUBLIC_RUNNABLE.has(entry.uatId)) continue;
+  if (publicComplete.has(entry.uatId) && PUBLIC_RUNNABLE.has(entry.uatId)) {
+    publicSkipped += 1;
+    continue;
+  }
 
   const { blockers, failId } = resolveBlocker(entry);
   const missing = missingSecrets(blockers);
@@ -164,6 +181,18 @@ for (const entry of census.entries) {
   });
 }
 
+// Reconciliation guard: every census entry must land in exactly one of authenticated /
+// publicSkipped / blocked / credsAvailable. If it doesn't, refuse to silently publish an
+// inconsistent summary — fail this (continue-on-error) CI step loudly instead so the mismatch
+// is visible in the run rather than only discoverable by manual arithmetic later.
+const reconciledTotal = authenticated.size + publicSkipped + blockedCount + credsAvailableNoEvidence;
+const reconciled = reconciledTotal === census.entries.length;
+if (!reconciled) {
+  console.error(
+    `::error::UAT denominator reconciliation failed: authenticated(${authenticated.size}) + publicSkipped(${publicSkipped}) + blocked(${blockedCount}) + credsAvailable(${credsAvailableNoEvidence}) = ${reconciledTotal}, expected census total ${census.entries.length}.`,
+  );
+}
+
 fs.mkdirSync(path.dirname(outPath), { recursive: true });
 const archivePath = path.join(ROOT, "docs/uat-crawl/UAT_VERIFIED_BLOCKERS_ARCHIVE.jsonl");
 if (fs.existsSync(outPath)) {
@@ -179,16 +208,18 @@ const summary = {
   crawlBaseUrl: RESOLVED_URL,
   deployProvenance: DEPLOY_PROVENANCE,
   authenticatedComplete: authenticated.size,
-  publicContinuationComplete: publicComplete.size,
-  remainingWithoutAuthEvidence: census.entries.length - authenticated.size - publicComplete.size,
+  publicContinuationComplete: publicSkipped,
+  remainingWithoutAuthEvidence: blockedCount + credsAvailableNoEvidence,
   verifiedBlocked: blockedCount,
   credentialsAvailableAwaitingEvidence: credsAvailableNoEvidence,
+  denominatorReconciled: reconciled,
   counts: {
     authenticated: authenticated.size,
-    publicFunctionObserved: publicComplete.size,
+    publicFunctionObserved: publicSkipped,
     blocked: blockedCount,
     credsAvailableNoEvidence: credsAvailableNoEvidence,
     totalCensus: census.entries.length,
+    reconciledTotal,
   },
   policy:
     "No fabricated PASS. FAIL-493 pre-fix + preview + current-main cert evidence preserved append-only.",
@@ -196,5 +227,9 @@ const summary = {
 
 fs.writeFileSync(summaryPath, `${JSON.stringify(summary, null, 2)}\n`, "utf8");
 console.log(
-  `Recorded ${rows.length} verified BLOCKED rows (auth complete ${authenticated.size}/131, ${credsAvailableNoEvidence} cred-available awaiting evidence).`,
+  `Recorded ${rows.length} verified BLOCKED rows (auth complete ${authenticated.size}/${census.entries.length}, ${credsAvailableNoEvidence} cred-available awaiting evidence, reconciled=${reconciled}).`,
 );
+
+if (!reconciled) {
+  process.exitCode = 1;
+}
