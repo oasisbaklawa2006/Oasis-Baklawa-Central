@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-09-09T04:48:34.034Z",
-  "postFixDeploySha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-  "crawlBaseUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
+  "generatedAt": "2026-09-25T09:15:46.777Z",
+  "postFixDeploySha": "ea56500e5373515f283a79742a9a014be206c55e",
+  "crawlBaseUrl": "https://oasis-baklawa-central-8tx98gbzh-oasisbaklawa2006-6222s-projects.vercel.app",
   "targets": [
     "UAT-0018",
     "UAT-0020"
@@ -13,7 +13,16 @@
     "FAIL-UX-481-002"
   ],
   "authenticatedComplete": [],
-  "blockedTargets": [],
+  "blockedTargets": [
+    {
+      "uatId": "UAT-0018",
+      "missingSecretNames": []
+    },
+    {
+      "uatId": "UAT-0020",
+      "missingSecretNames": []
+    }
+  ],
   "closedFailIds": [],
   "retestDispositionByUatId": {
     "UAT-0018": {
