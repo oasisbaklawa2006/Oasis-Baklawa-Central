@@ -1,0 +1,52 @@
+{
+  "generatedAt": "2026-09-25T10:30:57.419Z",
+  "tranche": "s2-gap-deepening",
+  "targetIds": [
+    "UAT-0002",
+    "UAT-0037",
+    "UAT-0038",
+    "UAT-0052",
+    "UAT-0053",
+    "UAT-0061",
+    "UAT-0080",
+    "UAT-0094"
+  ],
+  "authenticatedComplete": [],
+  "s1Captured": [],
+  "s2Captured": [],
+  "s2StillMissing": [],
+  "blockedTargets": [
+    {
+      "uatId": "UAT-0002",
+      "missingSecretNames": []
+    },
+    {
+      "uatId": "UAT-0037",
+      "missingSecretNames": []
+    },
+    {
+      "uatId": "UAT-0038",
+      "missingSecretNames": []
+    },
+    {
+      "uatId": "UAT-0052",
+      "missingSecretNames": []
+    },
+    {
+      "uatId": "UAT-0053",
+      "missingSecretNames": []
+    },
+    {
+      "uatId": "UAT-0061",
+      "missingSecretNames": []
+    },
+    {
+      "uatId": "UAT-0080",
+      "missingSecretNames": []
+    },
+    {
+      "uatId": "UAT-0094",
+      "missingSecretNames": []
+    }
+  ]
+}

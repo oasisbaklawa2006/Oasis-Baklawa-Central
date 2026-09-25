@@ -8,7 +8,7 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
-    include: ["src/**/*.{test,spec}.{ts,tsx}"],
+    include: ["src/**/*.{test,spec}.{ts,tsx}", "tests/uat-crawl/**/*.test.ts"],
     // Playwright specs (e.g. visual-audit) use @playwright/test, not Vitest.
     exclude: ["src/test/tests/**"],
     // Dummy values so modules that construct the Supabase client at import

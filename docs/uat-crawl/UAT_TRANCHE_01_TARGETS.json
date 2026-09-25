@@ -1,0 +1,122 @@
+[
+  {
+    "uatId": "UAT-0001",
+    "app": "central",
+    "route": "/splash",
+    "state": "default",
+    "classification": "ROUTED_COMPONENT",
+    "persona": "UNAUTHENTICATED",
+    "device": "desktop",
+    "repo": "Oasis-Baklawa-Central",
+    "baselineSha": "08ccb1cfd4a3624103f0681b5515e26727e77cd2",
+    "notes": ""
+  },
+  {
+    "uatId": "UAT-0002",
+    "app": "central",
+    "route": "/operations-controller",
+    "state": "default",
+    "classification": "ROUTED_COMPONENT",
+    "persona": "ADMIN_STAFF",
+    "device": "desktop",
+    "repo": "Oasis-Baklawa-Central",
+    "baselineSha": "08ccb1cfd4a3624103f0681b5515e26727e77cd2",
+    "notes": ""
+  },
+  {
+    "uatId": "UAT-0003",
+    "app": "central",
+    "route": "/security-gate",
+    "state": "default",
+    "classification": "ROUTED_COMPONENT",
+    "persona": "GATE_SECURITY",
+    "device": "desktop",
+    "repo": "Oasis-Baklawa-Central",
+    "baselineSha": "08ccb1cfd4a3624103f0681b5515e26727e77cd2",
+    "notes": ""
+  },
+  {
+    "uatId": "UAT-0004",
+    "app": "central",
+    "route": "/",
+    "state": "default",
+    "classification": "ROUTED_COMPONENT",
+    "persona": "UNAUTHENTICATED",
+    "device": "desktop",
+    "repo": "Oasis-Baklawa-Central",
+    "baselineSha": "08ccb1cfd4a3624103f0681b5515e26727e77cd2",
+    "notes": ""
+  },
+  {
+    "uatId": "UAT-0005",
+    "app": "central",
+    "route": "/customer-app-redirect",
+    "state": "default",
+    "classification": "ROUTED_COMPONENT",
+    "persona": "ADMIN_STAFF",
+    "device": "desktop",
+    "repo": "Oasis-Baklawa-Central",
+    "baselineSha": "08ccb1cfd4a3624103f0681b5515e26727e77cd2",
+    "notes": ""
+  },
+  {
+    "uatId": "UAT-0006",
+    "app": "central",
+    "route": "/buyer/access-request",
+    "state": "default",
+    "classification": "ROUTED_COMPONENT",
+    "persona": "BUYER",
+    "device": "phone",
+    "repo": "Oasis-Baklawa-Central",
+    "baselineSha": "08ccb1cfd4a3624103f0681b5515e26727e77cd2",
+    "notes": ""
+  },
+  {
+    "uatId": "UAT-0007",
+    "app": "central",
+    "route": "/buyer/*",
+    "state": "default",
+    "classification": "ROUTED_COMPONENT",
+    "persona": "BUYER",
+    "device": "phone",
+    "repo": "Oasis-Baklawa-Central",
+    "baselineSha": "08ccb1cfd4a3624103f0681b5515e26727e77cd2",
+    "notes": ""
+  },
+  {
+    "uatId": "UAT-0008",
+    "app": "central",
+    "route": "/login",
+    "state": "default",
+    "classification": "ROUTED_COMPONENT",
+    "persona": "UNAUTHENTICATED",
+    "device": "desktop",
+    "repo": "Oasis-Baklawa-Central",
+    "baselineSha": "08ccb1cfd4a3624103f0681b5515e26727e77cd2",
+    "notes": ""
+  },
+  {
+    "uatId": "UAT-0009",
+    "app": "central",
+    "route": "/reset-password",
+    "state": "default",
+    "classification": "ROUTED_COMPONENT",
+    "persona": "UNAUTHENTICATED",
+    "device": "desktop",
+    "repo": "Oasis-Baklawa-Central",
+    "baselineSha": "08ccb1cfd4a3624103f0681b5515e26727e77cd2",
+    "notes": ""
+  },
+  {
+    "uatId": "UAT-0010",
+    "app": "central",
+    "route": "/admin",
+    "state": "default",
+    "classification": "ROUTED_COMPONENT",
+    "persona": "ADMIN_STAFF",
+    "device": "desktop",
+    "repo": "Oasis-Baklawa-Central",
+    "baselineSha": "08ccb1cfd4a3624103f0681b5515e26727e77cd2",
+    "notes": ""
+  }
+]
