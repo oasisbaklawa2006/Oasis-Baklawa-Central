@@ -52,7 +52,9 @@ const currentRunRows = [];
 let priorRunArchived = false;
 
 try {
-  const prior = JSON.parse(fs.readFileSync(destSummary, "utf8"));
+  const prior = JSON.parse(
+    fs.readFileSync(path.join(ROOT, "docs/uat-crawl/UAT_AI_UAT_SUMMARY.json"), "utf8"),
+  );
   if (prior.runId && prior.runId !== RUN_ID) {
     appendJsonl(archiveSummary, { ...prior, archivedAt: new Date().toISOString(), archiveReason: "prior-run" });
     priorRunArchived = true;
@@ -162,7 +164,11 @@ const summary = {
 };
 
 fs.mkdirSync(path.dirname(destSummary), { recursive: true });
-fs.writeFileSync(destSummary, `${JSON.stringify(summary, null, 2)}\n`, "utf8");
+fs.writeFileSync(
+  path.join(ROOT, "docs/uat-crawl/UAT_AI_UAT_SUMMARY.json"),
+  `${JSON.stringify(summary, null, 2)}\n`,
+  "utf8",
+);
 
 console.log(
   `Archived AI-UAT evidence run ${RUN_ID}: PASS ${counts.PASS} FAIL ${counts.FAIL} BLOCKED ${counts.BLOCKED} NOT_EXECUTED ${counts.NOT_EXECUTED}`,
