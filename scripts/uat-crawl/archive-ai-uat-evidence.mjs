@@ -5,12 +5,14 @@
  */
 import fs from "node:fs";
 import path from "node:path";
+import { createRequire } from "node:module";
 import {
   CENTRAL_PUBLIC_PRODUCTION_ALIAS,
   buildDeployProvenanceLabel,
 } from "./crawl-target-policy.mjs";
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
+const requireJson = createRequire(import.meta.url);
 const RUN_ID = process.env.GITHUB_RUN_ID || "local";
 const RUN_ATTEMPT = process.env.GITHUB_RUN_ATTEMPT || "1";
 const RUN_TRANCHE = process.env.RUN_TRANCHE || "ai-uat";
@@ -52,9 +54,7 @@ const currentRunRows = [];
 let priorRunArchived = false;
 
 try {
-  const prior = JSON.parse(
-    fs.readFileSync(new URL("../../docs/uat-crawl/UAT_AI_UAT_SUMMARY.json", import.meta.url), "utf8"),
-  );
+  const prior = requireJson("../../docs/uat-crawl/UAT_AI_UAT_SUMMARY.json");
   if (prior.runId && prior.runId !== RUN_ID) {
     appendJsonl(archiveSummary, { ...prior, archivedAt: new Date().toISOString(), archiveReason: "prior-run" });
     priorRunArchived = true;

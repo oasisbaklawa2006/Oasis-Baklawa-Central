@@ -5,9 +5,11 @@
  */
 import fs from "node:fs";
 import path from "node:path";
+import { createRequire } from "node:module";
 import { resolveCredentialBlocker } from "./credential-prefix-aliases.mjs";
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
+const requireJson = createRequire(import.meta.url);
 const RUN_ID = process.env.GITHUB_RUN_ID || "local";
 
 const VERIFICATION_NOTE =
@@ -29,9 +31,7 @@ const PUBLIC_RUNNABLE = new Set(["UAT-0001", "UAT-0004", "UAT-0005", "UAT-0008",
 
 function loadSecretPresenceMap() {
   try {
-    const payload = JSON.parse(
-      fs.readFileSync(new URL("../../docs/uat-crawl/UAT_SECRET_PRESENCE.json", import.meta.url), "utf8"),
-    );
+    const payload = requireJson("../../docs/uat-crawl/UAT_SECRET_PRESENCE.json");
     if (payload.runId && payload.runId !== RUN_ID) return null;
     return new Map(payload.secrets.map((entry) => [entry.name, entry.present]));
   } catch {
