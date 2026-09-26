@@ -1,4 +1,4 @@
-import { isDispatchRole } from "@/lib/auth/securityGatePolicy";
+import { canAccessSecurityGate, isDispatchRole } from "@/lib/auth/securityGatePolicy";
 import { canAccessCentralOrderPool } from "@/lib/centralOrderPool/centralOrderPoolAccess";
 import { getRoleDestination } from "@/lib/auth-routing";
 import {
@@ -150,6 +150,9 @@ export function getUnauthorizedAdminRedirect(role: string | null | undefined): s
 
 /** Complete AdminRouteGuard authorization for a concrete /admin path and role. */
 export function isAuthorizedForAdminPath(pathname: string, role: string | null | undefined): boolean {
+  if (pathname === "/security-gate" || pathname.startsWith("/security-gate/")) {
+    return canAccessSecurityGate(role);
+  }
   if (!pathname.startsWith("/admin")) return true;
   if (isCentralOrderPoolPath(pathname)) return canAccessCentralOrderPool(role);
   if (isGoldenChainOperatorPath(pathname)) return canAccessGoldenChainOperatorRoute(role);
