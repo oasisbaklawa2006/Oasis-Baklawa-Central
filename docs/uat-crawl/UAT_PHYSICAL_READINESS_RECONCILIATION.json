@@ -1,78 +1,47 @@
 {
-  "generatedAt": "2026-09-08T15:26:13.276Z",
-  "runId": "audit-continue-local",
-  "lastGhaRun": "34242121280",
-  "currentMainSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-  "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-  "deployProvenance": "Current-main authority @ a619a7a2 (#558) — prior 6c7de2a/15c59a3f/e2f123b0 evidence preserved append-only",
+  "generatedAt": "2026-09-26T22:12:52.872Z",
+  "runId": "36274726002",
+  "runAttempt": "1",
+  "runTranche": "watchdog-continue",
+  "lastGhaRun": "36274726002",
+  "currentMainSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+  "deployUrl": "https://oasis-baklawa-central.vercel.app",
+  "deployProvenance": "Current-main authority @ d3f57a7cce274534a6cb3a29e8f5edf0d9797e10 (resolved dynamically at run time) — prior pinned-SHA evidence preserved append-only.",
   "policy": "Evidence-only PR #462 — no remediation. Physical device PASS requires human artifacts; automated S0–S3 ≠ physical PASS.",
   "counts": {
     "censusTotal": 131,
-    "authS0S3Complete": 96,
+    "authS0S3Complete": 0,
     "publicS0Observed": 5,
-    "blockedCredentialOrDeploy": 28,
+    "blockedCredentialOrDeploy": 0,
     "notClassified": 2
   },
   "byDevice": {
     "desktop": {
       "total": 105,
-      "authComplete": 96,
+      "authComplete": 0,
       "publicS0": 5,
-      "blocked": 4
+      "blocked": 0
     },
     "phone": {
       "total": 14,
       "authComplete": 0,
       "publicS0": 0,
-      "blocked": 12
+      "blocked": 0
     },
     "tv": {
       "total": 8,
       "authComplete": 0,
       "publicS0": 0,
-      "blocked": 8
+      "blocked": 0
     },
     "scanner": {
       "total": 4,
       "authComplete": 0,
       "publicS0": 0,
-      "blocked": 4
+      "blocked": 0
     }
   },
   "byMissingSecret": {
-    "TEST_BUYER_EMAIL, TEST_BUYER_PASSWORD": {
-      "count": 10,
-      "uatIds": [
-        "UAT-0006",
-        "UAT-0007",
-        "UAT-0114",
-        "UAT-0115",
-        "UAT-0116",
-        "UAT-0117",
-        "UAT-0118",
-        "UAT-0119",
-        "UAT-0120",
-        "UAT-0121"
-      ]
-    },
-    "TEST_TV_RGS_EMAIL, TEST_TV_RGS_PASSWORD": {
-      "count": 7,
-      "uatIds": [
-        "UAT-0106",
-        "UAT-0107",
-        "UAT-0108",
-        "UAT-0109",
-        "UAT-0110",
-        "UAT-0111",
-        "UAT-0112"
-      ]
-    },
-    "TEST_TV_PRODUCTION_EMAIL, TEST_TV_PRODUCTION_PASSWORD": {
-      "count": 1,
-      "uatIds": [
-        "UAT-0113"
-      ]
-    },
     "TEST_AI_STUDIO_PREVIEW_URL": {
       "count": 6,
       "uatIds": [
@@ -95,22 +64,10 @@
     }
   },
   "ghaSecretPresence": {
-    "presentCount": 18,
-    "missingCount": 13,
+    "presentCount": 30,
+    "missingCount": 1,
     "missingNames": [
-      "TEST_PREVIEW_URL",
-      "TEST_BUYER_EMAIL",
-      "TEST_BUYER_PASSWORD",
-      "TEST_GATE_SECURITY_EMAIL",
-      "TEST_GATE_SECURITY_PASSWORD",
-      "TEST_PRODUCTION_EMAIL",
-      "TEST_PRODUCTION_PASSWORD",
-      "TEST_TV_RGS_EMAIL",
-      "TEST_TV_RGS_PASSWORD",
-      "TEST_TV_PRODUCTION_EMAIL",
-      "TEST_TV_PRODUCTION_PASSWORD",
-      "TEST_AI_STUDIO_PREVIEW_URL",
-      "TEST_TRACE_PREVIEW_URL"
+      "TEST_PREVIEW_URL"
     ]
   },
   "stopCondition": "ONLY_TEST_SECRET_BLOCKERS — no further automated crawl until repo secrets wired",
@@ -122,8 +79,8 @@
       "state": "default",
       "role": "UNAUTHENTICATED",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
       "disposition": "PUBLIC_S0_OBSERVED",
       "s0s3Runnable": "PUBLIC_ONLY",
       "missingSecretNames": [],
@@ -137,12 +94,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0003",
@@ -151,12 +109,13 @@
       "state": "default",
       "role": "GATE_SECURITY",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0004",
@@ -165,8 +124,8 @@
       "state": "default",
       "role": "UNAUTHENTICATED",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
       "disposition": "PUBLIC_S0_OBSERVED",
       "s0s3Runnable": "PUBLIC_ONLY",
       "missingSecretNames": [],
@@ -180,8 +139,8 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
       "disposition": "PUBLIC_S0_OBSERVED",
       "s0s3Runnable": "PUBLIC_ONLY",
       "missingSecretNames": [],
@@ -195,16 +154,13 @@
       "state": "default",
       "role": "BUYER",
       "device": "phone",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "BLOCKED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
       "s0s3Runnable": "BLOCKED",
-      "missingSecretNames": [
-        "TEST_BUYER_EMAIL",
-        "TEST_BUYER_PASSWORD"
-      ],
-      "failId": "FAIL-AUTH-CRED-0006",
-      "evidenceSource": "UAT_VERIFIED_BLOCKERS.jsonl"
+      "missingSecretNames": [],
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0007",
@@ -213,16 +169,13 @@
       "state": "default",
       "role": "BUYER",
       "device": "phone",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "BLOCKED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
       "s0s3Runnable": "BLOCKED",
-      "missingSecretNames": [
-        "TEST_BUYER_EMAIL",
-        "TEST_BUYER_PASSWORD"
-      ],
-      "failId": "FAIL-AUTH-CRED-0007",
-      "evidenceSource": "UAT_VERIFIED_BLOCKERS.jsonl"
+      "missingSecretNames": [],
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0008",
@@ -231,8 +184,8 @@
       "state": "default",
       "role": "UNAUTHENTICATED",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
       "disposition": "PUBLIC_S0_OBSERVED",
       "s0s3Runnable": "PUBLIC_ONLY",
       "missingSecretNames": [],
@@ -246,8 +199,8 @@
       "state": "default",
       "role": "UNAUTHENTICATED",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
       "disposition": "PUBLIC_S0_OBSERVED",
       "s0s3Runnable": "PUBLIC_ONLY",
       "missingSecretNames": [],
@@ -261,12 +214,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0011",
@@ -275,12 +229,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0012",
@@ -289,12 +244,13 @@
       "state": "default",
       "role": "P_AND_A",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0013",
@@ -303,12 +259,13 @@
       "state": "default",
       "role": "FINANCE",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0014",
@@ -317,12 +274,13 @@
       "state": "default",
       "role": "FINANCE",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0015",
@@ -331,12 +289,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0016",
@@ -345,12 +304,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0017",
@@ -359,12 +319,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0018",
@@ -373,8 +334,8 @@
       "state": "sheet-review-open",
       "role": "ADMIN_SALES",
       "device": "phone",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
       "disposition": "NOT_CLASSIFIED",
       "s0s3Runnable": "UNKNOWN",
       "missingSecretNames": [],
@@ -387,12 +348,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0020",
@@ -401,8 +363,8 @@
       "state": "sheet-review-open",
       "role": "ADMIN_SALES",
       "device": "phone",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
       "disposition": "NOT_CLASSIFIED",
       "s0s3Runnable": "UNKNOWN",
       "missingSecretNames": [],
@@ -415,12 +377,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0022",
@@ -429,12 +392,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0023",
@@ -443,12 +407,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0024",
@@ -457,12 +422,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0025",
@@ -471,12 +437,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0026",
@@ -485,12 +452,13 @@
       "state": "default",
       "role": "DISPATCH",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0027",
@@ -499,12 +467,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0028",
@@ -513,12 +482,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0029",
@@ -527,12 +497,13 @@
       "state": "default",
       "role": "DISPATCH",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0030",
@@ -541,12 +512,13 @@
       "state": "default",
       "role": "FINANCE",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0031",
@@ -555,12 +527,13 @@
       "state": "default",
       "role": "FINANCE",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0032",
@@ -569,12 +542,13 @@
       "state": "default",
       "role": "FINANCE",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0033",
@@ -583,12 +557,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0034",
@@ -597,12 +572,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0035",
@@ -611,12 +587,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0036",
@@ -625,12 +602,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0037",
@@ -639,12 +617,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0038",
@@ -653,12 +632,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0039",
@@ -667,12 +647,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0040",
@@ -681,12 +662,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0041",
@@ -695,12 +677,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0042",
@@ -709,12 +692,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0043",
@@ -723,12 +707,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0044",
@@ -737,12 +722,13 @@
       "state": "default",
       "role": "SALES",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0045",
@@ -751,12 +737,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0046",
@@ -765,12 +752,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0047",
@@ -779,12 +767,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0048",
@@ -793,12 +782,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0049",
@@ -807,12 +797,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0050",
@@ -821,12 +812,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0051",
@@ -835,12 +827,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0052",
@@ -849,12 +842,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0053",
@@ -863,12 +857,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0054",
@@ -877,12 +872,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0055",
@@ -891,12 +887,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0056",
@@ -905,12 +902,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0057",
@@ -919,12 +917,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0058",
@@ -933,12 +932,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0059",
@@ -947,12 +947,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0060",
@@ -961,12 +962,13 @@
       "state": "default",
       "role": "P_AND_A",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0061",
@@ -975,12 +977,13 @@
       "state": "default",
       "role": "P_AND_A",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0062",
@@ -989,12 +992,13 @@
       "state": "default",
       "role": "RGS",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0063",
@@ -1003,12 +1007,13 @@
       "state": "default",
       "role": "RGS",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0064",
@@ -1017,12 +1022,13 @@
       "state": "default",
       "role": "RGS",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0065",
@@ -1031,12 +1037,13 @@
       "state": "default",
       "role": "RGS",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0066",
@@ -1045,12 +1052,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0067",
@@ -1059,12 +1067,13 @@
       "state": "default",
       "role": "3PGS",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0068",
@@ -1073,12 +1082,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0069",
@@ -1087,12 +1097,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0070",
@@ -1101,12 +1112,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0071",
@@ -1115,12 +1127,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0072",
@@ -1129,12 +1142,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0073",
@@ -1143,12 +1157,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0074",
@@ -1157,12 +1172,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0075",
@@ -1171,12 +1187,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0076",
@@ -1185,12 +1202,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0077",
@@ -1199,12 +1217,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0078",
@@ -1213,12 +1232,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0079",
@@ -1227,12 +1247,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0080",
@@ -1241,12 +1262,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0081",
@@ -1255,12 +1277,13 @@
       "state": "default",
       "role": "P_AND_A",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0082",
@@ -1269,12 +1292,13 @@
       "state": "default",
       "role": "RGS",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0083",
@@ -1283,12 +1307,13 @@
       "state": "default",
       "role": "DISPATCH",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0084",
@@ -1297,12 +1322,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0085",
@@ -1311,12 +1337,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0086",
@@ -1325,12 +1352,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0087",
@@ -1339,12 +1367,13 @@
       "state": "default",
       "role": "RGS",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0088",
@@ -1353,12 +1382,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0089",
@@ -1367,12 +1397,13 @@
       "state": "default",
       "role": "DISPATCH",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0090",
@@ -1381,12 +1412,13 @@
       "state": "default",
       "role": "DISPATCH",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0091",
@@ -1395,12 +1427,13 @@
       "state": "default",
       "role": "DISPATCH",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0092",
@@ -1409,12 +1442,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0093",
@@ -1423,12 +1457,13 @@
       "state": "default",
       "role": "DISPATCH",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0094",
@@ -1437,12 +1472,13 @@
       "state": "filter-empty",
       "role": "DISPATCH",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0095",
@@ -1451,12 +1487,13 @@
       "state": "default",
       "role": "DISPATCH",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0096",
@@ -1465,12 +1502,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0097",
@@ -1479,12 +1517,13 @@
       "state": "default",
       "role": "3PGS",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0098",
@@ -1493,12 +1532,13 @@
       "state": "default",
       "role": "3PGS",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0099",
@@ -1507,12 +1547,13 @@
       "state": "default",
       "role": "3PGS",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0100",
@@ -1521,12 +1562,13 @@
       "state": "default",
       "role": "3PGS",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0101",
@@ -1535,12 +1577,13 @@
       "state": "default",
       "role": "3PGS",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0102",
@@ -1549,12 +1592,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0103",
@@ -1563,12 +1607,13 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0104",
@@ -1577,12 +1622,13 @@
       "state": "default",
       "role": "SALES",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0105",
@@ -1591,12 +1637,13 @@
       "state": "default",
       "role": "SALES",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
+      "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0106",
@@ -1605,16 +1652,13 @@
       "state": "default",
       "role": "TV",
       "device": "tv",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "BLOCKED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
       "s0s3Runnable": "BLOCKED",
-      "missingSecretNames": [
-        "TEST_TV_RGS_EMAIL",
-        "TEST_TV_RGS_PASSWORD"
-      ],
-      "failId": "FAIL-AUTH-CRED-0106",
-      "evidenceSource": "UAT_VERIFIED_BLOCKERS.jsonl"
+      "missingSecretNames": [],
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0107",
@@ -1623,16 +1667,13 @@
       "state": "default",
       "role": "TV",
       "device": "tv",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "BLOCKED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
       "s0s3Runnable": "BLOCKED",
-      "missingSecretNames": [
-        "TEST_TV_RGS_EMAIL",
-        "TEST_TV_RGS_PASSWORD"
-      ],
-      "failId": "FAIL-AUTH-CRED-0107",
-      "evidenceSource": "UAT_VERIFIED_BLOCKERS.jsonl"
+      "missingSecretNames": [],
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0108",
@@ -1641,16 +1682,13 @@
       "state": "default",
       "role": "TV",
       "device": "tv",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "BLOCKED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
       "s0s3Runnable": "BLOCKED",
-      "missingSecretNames": [
-        "TEST_TV_RGS_EMAIL",
-        "TEST_TV_RGS_PASSWORD"
-      ],
-      "failId": "FAIL-AUTH-CRED-0108",
-      "evidenceSource": "UAT_VERIFIED_BLOCKERS.jsonl"
+      "missingSecretNames": [],
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0109",
@@ -1659,16 +1697,13 @@
       "state": "default",
       "role": "TV",
       "device": "tv",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "BLOCKED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
       "s0s3Runnable": "BLOCKED",
-      "missingSecretNames": [
-        "TEST_TV_RGS_EMAIL",
-        "TEST_TV_RGS_PASSWORD"
-      ],
-      "failId": "FAIL-AUTH-CRED-0109",
-      "evidenceSource": "UAT_VERIFIED_BLOCKERS.jsonl"
+      "missingSecretNames": [],
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0110",
@@ -1677,16 +1712,13 @@
       "state": "default",
       "role": "TV",
       "device": "tv",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "BLOCKED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
       "s0s3Runnable": "BLOCKED",
-      "missingSecretNames": [
-        "TEST_TV_RGS_EMAIL",
-        "TEST_TV_RGS_PASSWORD"
-      ],
-      "failId": "FAIL-AUTH-CRED-0110",
-      "evidenceSource": "UAT_VERIFIED_BLOCKERS.jsonl"
+      "missingSecretNames": [],
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0111",
@@ -1695,16 +1727,13 @@
       "state": "default",
       "role": "TV",
       "device": "tv",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "BLOCKED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
       "s0s3Runnable": "BLOCKED",
-      "missingSecretNames": [
-        "TEST_TV_RGS_EMAIL",
-        "TEST_TV_RGS_PASSWORD"
-      ],
-      "failId": "FAIL-AUTH-CRED-0111",
-      "evidenceSource": "UAT_VERIFIED_BLOCKERS.jsonl"
+      "missingSecretNames": [],
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0112",
@@ -1713,16 +1742,13 @@
       "state": "default",
       "role": "RGS",
       "device": "tv",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "BLOCKED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
       "s0s3Runnable": "BLOCKED",
-      "missingSecretNames": [
-        "TEST_TV_RGS_EMAIL",
-        "TEST_TV_RGS_PASSWORD"
-      ],
-      "failId": "FAIL-AUTH-CRED-0112",
-      "evidenceSource": "UAT_VERIFIED_BLOCKERS.jsonl"
+      "missingSecretNames": [],
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0113",
@@ -1731,16 +1757,13 @@
       "state": "default",
       "role": "3PGS",
       "device": "tv",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "BLOCKED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
       "s0s3Runnable": "BLOCKED",
-      "missingSecretNames": [
-        "TEST_TV_PRODUCTION_EMAIL",
-        "TEST_TV_PRODUCTION_PASSWORD"
-      ],
-      "failId": "FAIL-AUTH-CRED-0113",
-      "evidenceSource": "UAT_VERIFIED_BLOCKERS.jsonl"
+      "missingSecretNames": [],
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0114",
@@ -1749,16 +1772,13 @@
       "state": "default",
       "role": "BUYER",
       "device": "phone",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "BLOCKED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
       "s0s3Runnable": "BLOCKED",
-      "missingSecretNames": [
-        "TEST_BUYER_EMAIL",
-        "TEST_BUYER_PASSWORD"
-      ],
-      "failId": "FAIL-AUTH-CRED-0114",
-      "evidenceSource": "UAT_VERIFIED_BLOCKERS.jsonl"
+      "missingSecretNames": [],
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0115",
@@ -1767,16 +1787,13 @@
       "state": "default",
       "role": "BUYER",
       "device": "phone",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "BLOCKED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
       "s0s3Runnable": "BLOCKED",
-      "missingSecretNames": [
-        "TEST_BUYER_EMAIL",
-        "TEST_BUYER_PASSWORD"
-      ],
-      "failId": "FAIL-AUTH-CRED-0115",
-      "evidenceSource": "UAT_VERIFIED_BLOCKERS.jsonl"
+      "missingSecretNames": [],
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0116",
@@ -1785,16 +1802,13 @@
       "state": "default",
       "role": "BUYER",
       "device": "phone",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "BLOCKED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
       "s0s3Runnable": "BLOCKED",
-      "missingSecretNames": [
-        "TEST_BUYER_EMAIL",
-        "TEST_BUYER_PASSWORD"
-      ],
-      "failId": "FAIL-AUTH-CRED-0116",
-      "evidenceSource": "UAT_VERIFIED_BLOCKERS.jsonl"
+      "missingSecretNames": [],
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0117",
@@ -1803,16 +1817,13 @@
       "state": "default",
       "role": "BUYER",
       "device": "phone",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "BLOCKED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
       "s0s3Runnable": "BLOCKED",
-      "missingSecretNames": [
-        "TEST_BUYER_EMAIL",
-        "TEST_BUYER_PASSWORD"
-      ],
-      "failId": "FAIL-AUTH-CRED-0117",
-      "evidenceSource": "UAT_VERIFIED_BLOCKERS.jsonl"
+      "missingSecretNames": [],
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0118",
@@ -1821,16 +1832,13 @@
       "state": "default",
       "role": "BUYER",
       "device": "phone",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "BLOCKED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
       "s0s3Runnable": "BLOCKED",
-      "missingSecretNames": [
-        "TEST_BUYER_EMAIL",
-        "TEST_BUYER_PASSWORD"
-      ],
-      "failId": "FAIL-AUTH-CRED-0118",
-      "evidenceSource": "UAT_VERIFIED_BLOCKERS.jsonl"
+      "missingSecretNames": [],
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0119",
@@ -1839,16 +1847,13 @@
       "state": "default",
       "role": "BUYER",
       "device": "phone",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "BLOCKED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
       "s0s3Runnable": "BLOCKED",
-      "missingSecretNames": [
-        "TEST_BUYER_EMAIL",
-        "TEST_BUYER_PASSWORD"
-      ],
-      "failId": "FAIL-AUTH-CRED-0119",
-      "evidenceSource": "UAT_VERIFIED_BLOCKERS.jsonl"
+      "missingSecretNames": [],
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0120",
@@ -1857,16 +1862,13 @@
       "state": "default",
       "role": "BUYER",
       "device": "phone",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "BLOCKED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
       "s0s3Runnable": "BLOCKED",
-      "missingSecretNames": [
-        "TEST_BUYER_EMAIL",
-        "TEST_BUYER_PASSWORD"
-      ],
-      "failId": "FAIL-AUTH-CRED-0120",
-      "evidenceSource": "UAT_VERIFIED_BLOCKERS.jsonl"
+      "missingSecretNames": [],
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0121",
@@ -1875,16 +1877,13 @@
       "state": "default",
       "role": "BUYER",
       "device": "phone",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "BLOCKED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "AUTH_CONTRACT_MISMATCH",
       "s0s3Runnable": "BLOCKED",
-      "missingSecretNames": [
-        "TEST_BUYER_EMAIL",
-        "TEST_BUYER_PASSWORD"
-      ],
-      "failId": "FAIL-AUTH-CRED-0121",
-      "evidenceSource": "UAT_VERIFIED_BLOCKERS.jsonl"
+      "missingSecretNames": [],
+      "blockClassification": "AUTH_CONTRACT_MISMATCH",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0122",
@@ -1893,15 +1892,15 @@
       "state": "default",
       "role": "AI_CATALOGUE",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "BLOCKED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "DEPLOY_BLOCKED",
       "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [
         "TEST_AI_STUDIO_PREVIEW_URL"
       ],
-      "failId": "FAIL-AUTH-DEPLOY-0122",
-      "evidenceSource": "UAT_VERIFIED_BLOCKERS.jsonl"
+      "blockClassification": "DEPLOY_BLOCKED",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0123",
@@ -1910,15 +1909,15 @@
       "state": "default",
       "role": "AI_CATALOGUE",
       "device": "phone",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "BLOCKED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "DEPLOY_BLOCKED",
       "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [
         "TEST_AI_STUDIO_PREVIEW_URL"
       ],
-      "failId": "FAIL-AUTH-DEPLOY-0123",
-      "evidenceSource": "UAT_VERIFIED_BLOCKERS.jsonl"
+      "blockClassification": "DEPLOY_BLOCKED",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0124",
@@ -1927,15 +1926,15 @@
       "state": "default",
       "role": "AI_APPROVER",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "BLOCKED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "DEPLOY_BLOCKED",
       "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [
         "TEST_AI_STUDIO_PREVIEW_URL"
       ],
-      "failId": "FAIL-AUTH-DEPLOY-0124",
-      "evidenceSource": "UAT_VERIFIED_BLOCKERS.jsonl"
+      "blockClassification": "DEPLOY_BLOCKED",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0125",
@@ -1944,15 +1943,15 @@
       "state": "default",
       "role": "AI_CATALOGUE",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "BLOCKED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "DEPLOY_BLOCKED",
       "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [
         "TEST_AI_STUDIO_PREVIEW_URL"
       ],
-      "failId": "FAIL-AUTH-DEPLOY-0125",
-      "evidenceSource": "UAT_VERIFIED_BLOCKERS.jsonl"
+      "blockClassification": "DEPLOY_BLOCKED",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0126",
@@ -1961,15 +1960,15 @@
       "state": "default",
       "role": "AI_CATALOGUE",
       "device": "desktop",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "BLOCKED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "DEPLOY_BLOCKED",
       "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [
         "TEST_AI_STUDIO_PREVIEW_URL"
       ],
-      "failId": "FAIL-AUTH-DEPLOY-0126",
-      "evidenceSource": "UAT_VERIFIED_BLOCKERS.jsonl"
+      "blockClassification": "DEPLOY_BLOCKED",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0127",
@@ -1978,15 +1977,15 @@
       "state": "camera-capture-flow",
       "role": "AI_CATALOGUE",
       "device": "phone",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "BLOCKED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "DEPLOY_BLOCKED",
       "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [
         "TEST_AI_STUDIO_PREVIEW_URL"
       ],
-      "failId": "FAIL-AUTH-DEPLOY-0127",
-      "evidenceSource": "UAT_VERIFIED_BLOCKERS.jsonl"
+      "blockClassification": "DEPLOY_BLOCKED",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0128",
@@ -1995,15 +1994,15 @@
       "state": "scan-home",
       "role": "TRACE_SCANNER",
       "device": "scanner",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "BLOCKED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "DEPLOY_BLOCKED",
       "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [
         "TEST_TRACE_PREVIEW_URL"
       ],
-      "failId": "FAIL-AUTH-DEPLOY-0128",
-      "evidenceSource": "UAT_VERIFIED_BLOCKERS.jsonl"
+      "blockClassification": "DEPLOY_BLOCKED",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0129",
@@ -2012,15 +2011,15 @@
       "state": "gate-scan",
       "role": "TRACE_SCANNER",
       "device": "scanner",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "BLOCKED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "DEPLOY_BLOCKED",
       "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [
         "TEST_TRACE_PREVIEW_URL"
       ],
-      "failId": "FAIL-AUTH-DEPLOY-0129",
-      "evidenceSource": "UAT_VERIFIED_BLOCKERS.jsonl"
+      "blockClassification": "DEPLOY_BLOCKED",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0130",
@@ -2029,15 +2028,15 @@
       "state": "carton-scan",
       "role": "TRACE_SCANNER",
       "device": "scanner",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "BLOCKED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "DEPLOY_BLOCKED",
       "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [
         "TEST_TRACE_PREVIEW_URL"
       ],
-      "failId": "FAIL-AUTH-DEPLOY-0130",
-      "evidenceSource": "UAT_VERIFIED_BLOCKERS.jsonl"
+      "blockClassification": "DEPLOY_BLOCKED",
+      "evidenceSource": "auth manifest (current run)"
     },
     {
       "uatId": "UAT-0131",
@@ -2046,15 +2045,15 @@
       "state": "offline-queue",
       "role": "TRACE_SCANNER",
       "device": "scanner",
-      "buildSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-      "deployUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
-      "disposition": "BLOCKED",
+      "buildSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+      "deployUrl": "https://oasis-baklawa-central.vercel.app",
+      "disposition": "DEPLOY_BLOCKED",
       "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [
         "TEST_TRACE_PREVIEW_URL"
       ],
-      "failId": "FAIL-AUTH-DEPLOY-0131",
-      "evidenceSource": "UAT_VERIFIED_BLOCKERS.jsonl"
+      "blockClassification": "DEPLOY_BLOCKED",
+      "evidenceSource": "auth manifest (current run)"
     }
   ]
 }
