@@ -492,7 +492,7 @@ jobs:
       - name: Audit screenshot hash wall signals
         if: always() && env.UAT_DEPLOY_BLOCKED != 'true'
         continue-on-error: true
-        run: node scripts/uat-crawl/detect-screenshot-wall.mjs
+        run: node scripts/uat-crawl/record-verified-blockers.mjs screenshot-wall
 
       - name: Write run metadata for commit job
         if: always()
@@ -555,7 +555,7 @@ jobs:
 
       - name: Aggregate crawl certification verdict (fail closed)
         if: always()
-        run: node scripts/uat-crawl/evaluate-crawl-verdict.mjs
+        run: node scripts/uat-crawl/record-verified-blockers.mjs verdict
 
       - name: Upload UAT evidence bundle
         if: always()

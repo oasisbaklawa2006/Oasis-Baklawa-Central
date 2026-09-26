@@ -50,15 +50,13 @@ const counts = { PASS: 0, FAIL: 0, BLOCKED: 0, NOT_EXECUTED: 0 };
 const uatIds = [];
 const currentRunRows = [];
 
-if (fs.existsSync(destSummary)) {
-  try {
-    const prior = JSON.parse(fs.readFileSync(destSummary, "utf8"));
-    if (prior.runId && prior.runId !== RUN_ID) {
-      appendJsonl(archiveSummary, { ...prior, archivedAt: new Date().toISOString(), archiveReason: "prior-run" });
-    }
-  } catch {
-    /* ignore malformed prior summary */
+try {
+  const prior = JSON.parse(fs.readFileSync(destSummary, "utf8"));
+  if (prior.runId && prior.runId !== RUN_ID) {
+    appendJsonl(archiveSummary, { ...prior, archivedAt: new Date().toISOString(), archiveReason: "prior-run" });
   }
+} catch {
+  /* no prior summary or malformed — safe on first run */
 }
 
 if (fs.existsSync(srcJsonl)) {
