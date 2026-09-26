@@ -112,18 +112,35 @@ function parseJsonlText(raw) {
 
 function loadAuthGateById() {
   const map = new Map();
-  const sources = [
-    new URL("../../docs/uat-crawl/UAT_MANIFEST_AUTH.jsonl", import.meta.url),
-    new URL("../../docs/uat-crawl/UAT_MANIFEST_BUYER_MOBILE.jsonl", import.meta.url),
-    new URL("../../docs/uat-crawl/UAT_MANIFEST_AI_UAT.jsonl", import.meta.url),
-  ];
-  for (const sourceUrl of sources) {
-    let rows = [];
-    try {
-      rows = parseJsonlText(fs.readFileSync(sourceUrl, "utf8"));
-    } catch {
-      rows = [];
-    }
+  const rowSets = [];
+  try {
+    rowSets.push(
+      parseJsonlText(
+        fs.readFileSync(new URL("../../docs/uat-crawl/UAT_MANIFEST_AUTH.jsonl", import.meta.url), "utf8"),
+      ),
+    );
+  } catch {
+    rowSets.push([]);
+  }
+  try {
+    rowSets.push(
+      parseJsonlText(
+        fs.readFileSync(new URL("../../docs/uat-crawl/UAT_MANIFEST_BUYER_MOBILE.jsonl", import.meta.url), "utf8"),
+      ),
+    );
+  } catch {
+    rowSets.push([]);
+  }
+  try {
+    rowSets.push(
+      parseJsonlText(
+        fs.readFileSync(new URL("../../docs/uat-crawl/UAT_MANIFEST_AI_UAT.jsonl", import.meta.url), "utf8"),
+      ),
+    );
+  } catch {
+    rowSets.push([]);
+  }
+  for (const rows of rowSets) {
     for (const row of rows) {
       if (row.runId && row.runId !== RUN_ID) continue;
       if (row.authenticated) continue;
