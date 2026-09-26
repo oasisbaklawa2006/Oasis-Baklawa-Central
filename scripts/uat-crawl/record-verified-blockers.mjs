@@ -28,10 +28,9 @@ const DEPLOY_PROVENANCE =
 const PUBLIC_RUNNABLE = new Set(["UAT-0001", "UAT-0004", "UAT-0005", "UAT-0008", "UAT-0009"]);
 
 function loadSecretPresenceMap() {
-  if (!fs.existsSync(path.join(ROOT, "docs/uat-crawl/UAT_SECRET_PRESENCE.json"))) return null;
   try {
     const payload = JSON.parse(
-      fs.readFileSync(path.join(ROOT, "docs/uat-crawl/UAT_SECRET_PRESENCE.json"), "utf8"),
+      fs.readFileSync(new URL("../../docs/uat-crawl/UAT_SECRET_PRESENCE.json", import.meta.url), "utf8"),
     );
     if (payload.runId && payload.runId !== RUN_ID) return null;
     return new Map(payload.secrets.map((entry) => [entry.name, entry.present]));

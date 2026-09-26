@@ -53,7 +53,7 @@ let priorRunArchived = false;
 
 try {
   const prior = JSON.parse(
-    fs.readFileSync(path.join(ROOT, "docs/uat-crawl/UAT_AI_UAT_SUMMARY.json"), "utf8"),
+    fs.readFileSync(new URL("../../docs/uat-crawl/UAT_AI_UAT_SUMMARY.json", import.meta.url), "utf8"),
   );
   if (prior.runId && prior.runId !== RUN_ID) {
     appendJsonl(archiveSummary, { ...prior, archivedAt: new Date().toISOString(), archiveReason: "prior-run" });
@@ -165,7 +165,7 @@ const summary = {
 
 fs.mkdirSync(path.dirname(destSummary), { recursive: true });
 fs.writeFileSync(
-  path.join(ROOT, "docs/uat-crawl/UAT_AI_UAT_SUMMARY.json"),
+  new URL("../../docs/uat-crawl/UAT_AI_UAT_SUMMARY.json", import.meta.url),
   `${JSON.stringify(summary, null, 2)}\n`,
   "utf8",
 );
