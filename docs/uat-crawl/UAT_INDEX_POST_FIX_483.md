@@ -1,18 +1,18 @@
 # UAT Visual + UX Crawl Index — post-fix-483
 
 **UAT range:** UAT-0018 + UAT-0020 (current main #490 @ 67b3d1cc)
-**Crawl base URL:** https://oasis-baklawa-central-8tx98gbzh-oasisbaklawa2006-6222s-projects.vercel.app
+**Crawl base URL:** https://oasis-baklawa-central-jc8jxvcf8-oasisbaklawa2006-6222s-projects.vercel.app
 **Central baseline SHA:** `08ccb1cfd4a3624103f0681b5515e26727e77cd2`
 **UX matrix:** [UAT_UX_FAILURE_MATRIX.md](./UAT_UX_FAILURE_MATRIX.md) (148 criteria)
-**Captured:** 2026-09-25T09:15:46.776Z
+**Captured:** 2026-09-26T02:38:24.239Z
 
 | UAT ID | S0 | Route | State | Visual | Function | UX | Evaluated | Failures | Notes |
 |---|---|---|---|---|---|---|---:|---:|---|
-| UAT-0018 | [UAT-0018_central_admin_sales_admin-clients-sheet-review-open_S0-default.png (pre-fix preserved)](../../uat-evidence/screenshots/tranche-02/UAT-0018_central_admin_sales_admin-clients-sheet-review-open_S0-default.png (pre-fix preserved)) | /admin/clients | sheet-review-open | BLOCKED | BLOCKED | BLOCKED | 0/148 | 0 | Post-fix #483 deploy ea56500e. Fixture ref dc370b46-ae3 |
-| UAT-0020 | [UAT-0020_central_admin_sales_admin-approvals-sheet-review-open_S0-default.png (pre-fix preserved)](../../uat-evidence/screenshots/tranche-02/UAT-0020_central_admin_sales_admin-approvals-sheet-review-open_S0-default.png (pre-fix preserved)) | /admin/approvals | sheet-review-open | BLOCKED | BLOCKED | BLOCKED | 0/148 | 0 | Post-fix #483 deploy ea56500e. Fixture ref dc370b46-ae3 |
+| UAT-0018 | [UAT-0018_central_admin_sales_admin-clients-sheet-review-open_S0-default.png (pre-fix preserved)](../../uat-evidence/screenshots/tranche-02/UAT-0018_central_admin_sales_admin-clients-sheet-review-open_S0-default.png (pre-fix preserved)) | /admin/clients | sheet-review-open | BLOCKED | BLOCKED | BLOCKED | 0/148 | 0 | Post-fix #483 deploy d3f57a7c. Fixture ref dc370b46-ae3 |
+| UAT-0020 | [UAT-0020_central_admin_sales_admin-approvals-sheet-review-open_S0-default.png (pre-fix preserved)](../../uat-evidence/screenshots/tranche-02/UAT-0020_central_admin_sales_admin-approvals-sheet-review-open_S0-default.png (pre-fix preserved)) | /admin/approvals | sheet-review-open | BLOCKED | BLOCKED | BLOCKED | 0/148 | 0 | Post-fix #483 deploy d3f57a7c. Fixture ref dc370b46-ae3 |
 
 **Pre-fix evidence preserved** in `tranche-02/` — not overwritten.
-**Post-fix deploy SHA:** `ea56500e5373515f283a79742a9a014be206c55e` (current main; ace340fe not reused as post-#490 evidence)
+**Post-fix deploy SHA:** `d3f57a7cce274534a6cb3a29e8f5edf0d9797e10` (current main; ace340fe not reused as post-#490 evidence)
 **Re-tested FAIL-IDs:** FAIL-481-001, FAIL-481-002, FAIL-UX-481-001, FAIL-UX-481-002
 **Authenticated S0–S3 complete:** 0 / 2
 **Blocked:** missing TEST_SALES_EMAIL / TEST_SALES_PASSWORD and/or TEST_PREVIEW_URL — dispatch GHA workflow on main deploy URL.

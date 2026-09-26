@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-09-25T09:15:46.777Z",
-  "postFixDeploySha": "ea56500e5373515f283a79742a9a014be206c55e",
-  "crawlBaseUrl": "https://oasis-baklawa-central-8tx98gbzh-oasisbaklawa2006-6222s-projects.vercel.app",
+  "generatedAt": "2026-09-26T02:38:24.240Z",
+  "postFixDeploySha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+  "crawlBaseUrl": "https://oasis-baklawa-central-jc8jxvcf8-oasisbaklawa2006-6222s-projects.vercel.app",
   "targets": [
     "UAT-0018",
     "UAT-0020"
