@@ -1,16 +1,17 @@
 #!/usr/bin/env node
-/** Reconcile 131-surface census vs current-main automated UAT evidence @ a619a7a2. */
+/** Reconcile 131-surface census vs current-main automated UAT evidence (dynamic SHA). */
 import fs from "node:fs";
 import path from "node:path";
+import { buildDeployProvenanceLabel } from "./crawl-target-policy.mjs";
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
-const CURRENT_MAIN_SHA =
-  process.env.UAT_TARGET_SHA?.trim() || "a619a7a2ef01ee889d32fffebb5ff13fe3181252";
+const CURRENT_MAIN_SHA = process.env.UAT_TARGET_SHA?.trim() || "";
 const PRIOR_CURRENT_MAIN_HOLD_SHA = "6c7de2a69cec960f709a66fb85d25049dfcc2ae0";
 const PRIOR_EVIDENCE_SHA = "e2f123b0fe257b8a1f39ec40d5f544fff1ebe313";
 const DEPLOY_URL = process.env.UAT_CRAWL_BASE_URL?.trim() || "";
 const RUN_ID = process.env.GITHUB_RUN_ID || "reconcile-local";
-const LAST_GHA_RUN = process.env.UAT_LAST_GHA_RUN?.trim() || "34056691981";
+const RUN_TRANCHE = process.env.RUN_TRANCHE || "watchdog-continue";
+const LAST_GHA_RUN = process.env.UAT_LAST_GHA_RUN?.trim() || RUN_ID;
 
 const PUBLIC_RUNNABLE = new Set(["UAT-0001", "UAT-0004", "UAT-0005", "UAT-0008", "UAT-0009"]);
 
@@ -25,20 +26,30 @@ function loadJsonl(relativePath) {
     .map((line) => JSON.parse(line));
 }
 
-function loadAuthCompleteIds() {
+function loadAuthCompleteIds(censusIds) {
   const ids = new Set();
+  const isValid = (row) =>
+    censusIds.has(row.uatId) &&
+    row.wallClassification !== "DEPLOYMENT_PROTECTION" &&
+    row.authenticated &&
+    row.functionStatus === "OBSERVED" &&
+    row.uxEvidence?.s0 &&
+    row.uxEvidence?.s3;
   for (const row of loadJsonl("docs/uat-crawl/UAT_MANIFEST_AUTH.jsonl")) {
-    if (row.authenticated && row.functionStatus === "OBSERVED" && row.uxEvidence?.s0 && row.uxEvidence?.s3) {
-      ids.add(row.uatId);
-    }
+    if (isValid(row)) ids.add(row.uatId);
   }
   for (const row of loadJsonl("docs/uat-crawl/UAT_MANIFEST_BUYER_MOBILE.jsonl")) {
-    if (row.authenticated && row.functionStatus === "OBSERVED" && row.uxEvidence?.s0 && row.uxEvidence?.s3) {
-      ids.add(row.uatId);
-    }
+    if (isValid(row)) ids.add(row.uatId);
   }
   for (const row of loadJsonl("docs/uat-crawl/UAT_MANIFEST_POST_FIX_483.jsonl")) {
-    if (row.functionStatus === "OBSERVED" && row.uxEvidence?.s0 && row.uxEvidence?.s3) {
+    if (
+      censusIds.has(row.uatId) &&
+      row.wallClassification !== "DEPLOYMENT_PROTECTION" &&
+      row.functionStatus === "OBSERVED" &&
+      row.uxEvidence?.s0 &&
+      row.uxEvidence?.s3 &&
+      row.screenshot?.includes("post-fix-483")
+    ) {
       ids.add(row.uatId);
     }
   }
@@ -84,8 +95,9 @@ function classifyEntry(entry, authComplete, blockersById) {
 const census = JSON.parse(
   fs.readFileSync(path.join(ROOT, "docs/uat-crawl/UAT_ROUTE_CENSUS.json"), "utf8"),
 ).entries;
-const authComplete = loadAuthCompleteIds();
-const blockers = loadJsonl("docs/uat-crawl/UAT_VERIFIED_BLOCKERS.jsonl");
+const censusIds = new Set(census.map((e) => e.uatId));
+const authComplete = loadAuthCompleteIds(censusIds);
+const blockers = loadJsonl("docs/uat-crawl/UAT_VERIFIED_BLOCKERS.jsonl").filter((b) => censusIds.has(b.uatId));
 const blockersById = new Map(blockers.map((b) => [b.uatId, b]));
 const secretPresence = fs.existsSync(path.join(ROOT, "docs/uat-crawl/UAT_SECRET_PRESENCE.json"))
   ? JSON.parse(fs.readFileSync(path.join(ROOT, "docs/uat-crawl/UAT_SECRET_PRESENCE.json"), "utf8"))
@@ -130,7 +142,8 @@ const payload = {
   lastGhaRun: LAST_GHA_RUN,
   currentMainSha: CURRENT_MAIN_SHA,
   deployUrl: DEPLOY_URL,
-  deployProvenance: "Current-main authority @ a619a7a2 (#558) — prior 6c7de2a/15c59a3f/e2f123b0 evidence preserved append-only",
+  runTranche: RUN_TRANCHE,
+  deployProvenance: buildDeployProvenanceLabel(CURRENT_MAIN_SHA),
   policy:
     "Evidence-only PR #462 — no remediation. Physical device PASS requires human artifacts; automated S0–S3 ≠ physical PASS.",
   counts: {

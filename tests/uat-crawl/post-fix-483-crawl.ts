@@ -7,9 +7,11 @@ import { mkdirSync } from "node:fs";
 import path from "node:path";
 import type { Page } from "@playwright/test";
 import { login } from "../e2e-helpers";
+import { detectAccessWall, DEPLOYMENT_PROTECTION_CLASS } from "./access-wall";
 import {
   appendFailureLedger,
   appendManifestRow,
+  attachRunMetadata,
   CRAWL_BASE_URL,
   POST_FIX_483_BASELINE_SHA,
   ROOT,
@@ -295,7 +297,13 @@ export async function crawlPostFix483Target(
   await page.goto(target.route, { waitUntil: "domcontentloaded", timeout: 60_000 });
   await page.waitForTimeout(3500);
 
-  const stillOnLogin = Boolean(loginError) || page.url().includes("/login");
+  const wall = await detectAccessWall(page);
+  const stillOnLogin = !wall.blocked && (Boolean(loginError) || page.url().includes("/login"));
+  if (wall.blocked) {
+    failures.push(
+      `| FAIL-DEPLOY-WALL-${target.uatId.slice(-4)} | ${target.uatId} | central | ADMIN_SALES | phone | ${target.route} | Post-fix #483 origin | Oasis application surface | ${wall.reason} | P0 | — | — | Post-fix #483 | Central | Deploy/Auth | Use public production alias |`,
+    );
+  }
   if (stillOnLogin) {
     failures.push(
       `| FAIL-AUTH-LOGIN-${target.uatId.slice(-4)} | ${target.uatId} | central | ADMIN_SALES | phone | ${target.route} | Post-fix #483 login | Session established | ${loginError ?? "Still on login"} | P0 | pre-fix preserved | — | Post-fix #483 | Central | Auth/Network | Verify TEST_SALES_* and crawl target URL |`,
@@ -310,7 +318,7 @@ export async function crawlPostFix483Target(
   let humanGated = true;
   let sheetNote = "";
 
-  if (!stillOnLogin) {
+  if (!wall.blocked && !stillOnLogin) {
     const { opened, note } = await openPendingReviewSheet(page);
     sheetNote = note;
 
@@ -363,22 +371,22 @@ export async function crawlPostFix483Target(
     managerOptionsVisible,
     approveEnabled,
     sheetOpened: sheetNote !== "" && !sheetNote.includes("Could not"),
-    authenticated: !stillOnLogin,
+    authenticated: !wall.blocked && !stillOnLogin,
   });
 
   failures.push(...evalResult.ledgerRows);
 
   const uxFields = buildUxFields(uxEvidence, evalResult.uxFailures, {
-    blocked: stillOnLogin || !uxEvidence.s0,
-    evaluated: stillOnLogin ? 0 : 4,
+    blocked: wall.blocked || stillOnLogin || !uxEvidence.s0,
+    evaluated: wall.blocked || stillOnLogin ? 0 : 4,
     passed: evalResult.disposition["FAIL-UX-481-001"] === "PASS" ? 2 : 0,
     failed: evalResult.uxFailures.length,
-    blockedCount: stillOnLogin ? 148 : 144,
+    blockedCount: wall.blocked || stillOnLogin ? 148 : 144,
   });
 
   const closedFailIds = PRE_FIX_FAIL_IDS.filter((id) => evalResult.disposition[id] === "PASS");
 
-  const row: PostFix483ManifestRow = {
+  const row = attachRunMetadata({
     uatId: target.uatId,
     tranche: "post-fix-483",
     screenshot: uxEvidence.s0 ?? preFixRef,
@@ -391,8 +399,10 @@ export async function crawlPostFix483Target(
     baselineSha: POST_FIX_483_BASELINE_SHA,
     crawlBaseUrl: CRAWL_BASE_URL,
     timestamp: new Date().toISOString(),
-    visualStatus: stillOnLogin ? "BLOCKED" : "OBSERVED",
-    functionStatus: evalResult.functionStatus,
+    blockClassification: wall.blocked ? DEPLOYMENT_PROTECTION_CLASS : null,
+    wallClassification: wall.blocked ? DEPLOYMENT_PROTECTION_CLASS : null,
+    visualStatus: wall.blocked || stillOnLogin ? "BLOCKED" : "OBSERVED",
+    functionStatus: wall.blocked ? "BLOCKED" : evalResult.functionStatus,
     uxStatus: uxFields.uxStatus,
     uxEvidence: uxFields.uxEvidence,
     uxEvidenceSha256,
@@ -406,6 +416,7 @@ export async function crawlPostFix483Target(
     networkErrors: [],
     notes: [
       `Post-fix #483 deploy ${POST_FIX_483_BASELINE_SHA.slice(0, 8)}.`,
+      wall.blocked ? wall.reason : "",
       `Fixture ref ${PENDING_APP_FIXTURE_ID}.`,
       sheetNote,
       humanGated ? "S3 HUMAN-GATED — Approve & Activate NOT clicked (production state protection)." : "",
@@ -418,11 +429,11 @@ export async function crawlPostFix483Target(
     postFixDeploySha: POST_FIX_483_BASELINE_SHA,
     credentialPrefix: "TEST_SALES",
     missingSecretNames: [],
-    authenticated: !stillOnLogin,
+    authenticated: !wall.blocked && !stillOnLogin,
     humanGated,
     retestFailIds: [...PRE_FIX_FAIL_IDS],
     retestDisposition: evalResult.disposition,
-  };
+  } satisfies PostFix483ManifestRow);
 
   return { row, failures, closedFailIds };
 }

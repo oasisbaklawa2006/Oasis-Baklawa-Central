@@ -27,7 +27,23 @@ const DEPLOY_PROVENANCE =
 
 const PUBLIC_RUNNABLE = new Set(["UAT-0001", "UAT-0004", "UAT-0005", "UAT-0008", "UAT-0009"]);
 
+function loadSecretPresenceMap() {
+  const filePath = path.join(ROOT, "docs/uat-crawl/UAT_SECRET_PRESENCE.json");
+  if (!fs.existsSync(filePath)) return null;
+  try {
+    const payload = JSON.parse(fs.readFileSync(filePath, "utf8"));
+    if (payload.runId && payload.runId !== RUN_ID) return null;
+    return new Map(payload.secrets.map((entry) => [entry.name, entry.present]));
+  } catch {
+    return null;
+  }
+}
+
 function missingSecrets(names) {
+  const presence = loadSecretPresenceMap();
+  if (presence) {
+    return names.filter((name) => !presence.get(name));
+  }
   return names.filter((name) => !process.env[name]?.trim());
 }
 
@@ -85,9 +101,11 @@ function loadJsonlIds(relativePath, predicate) {
 
 function loadCompleteAuthIds() {
   const ids = new Set();
-  for (const id of loadJsonlIds("docs/uat-crawl/UAT_MANIFEST_AUTH.jsonl", (row) =>
-    Boolean(row.authenticated && row.functionStatus === "OBSERVED" && row.uxEvidence?.s0 && row.uxEvidence?.s3),
-  )) {
+  const isValidAuthRow = (row) =>
+    row.wallClassification !== "DEPLOYMENT_PROTECTION" &&
+    row.blockClassification !== "DEPLOYMENT_PROTECTION" &&
+    Boolean(row.authenticated && row.functionStatus === "OBSERVED" && row.uxEvidence?.s0 && row.uxEvidence?.s3);
+  for (const id of loadJsonlIds("docs/uat-crawl/UAT_MANIFEST_AUTH.jsonl", isValidAuthRow)) {
     ids.add(id);
   }
   for (const id of loadJsonlIds("docs/uat-crawl/UAT_MANIFEST_BUYER_MOBILE.jsonl", (row) =>
@@ -141,10 +159,24 @@ let credsAvailableNoEvidence = 0;
 // since publicComplete can (correctly) contain IDs outside PUBLIC_RUNNABLE that this loop does
 // not skip on.
 let publicSkipped = 0;
+const categoryById = new Map();
+const duplicateMemberships = [];
+
+function assignCategory(uatId, category) {
+  const prior = categoryById.get(uatId);
+  if (prior && prior !== category) {
+    duplicateMemberships.push({ uatId, prior, next: category });
+  }
+  categoryById.set(uatId, category);
+}
 
 for (const entry of census.entries) {
-  if (authenticated.has(entry.uatId)) continue;
+  if (authenticated.has(entry.uatId)) {
+    assignCategory(entry.uatId, "authenticated");
+    continue;
+  }
   if (publicComplete.has(entry.uatId) && PUBLIC_RUNNABLE.has(entry.uatId)) {
+    assignCategory(entry.uatId, "publicSkipped");
     publicSkipped += 1;
     continue;
   }
@@ -152,10 +184,12 @@ for (const entry of census.entries) {
   const { blockers, failId } = resolveBlocker(entry);
   const missing = missingSecrets(blockers);
   if (missing.length === 0) {
+    assignCategory(entry.uatId, "credsAvailable");
     credsAvailableNoEvidence += 1;
     continue;
   }
 
+  assignCategory(entry.uatId, "blocked");
   blockedCount += 1;
   rows.push({
     uatId: entry.uatId,
@@ -186,10 +220,28 @@ for (const entry of census.entries) {
 // inconsistent summary — fail this (continue-on-error) CI step loudly instead so the mismatch
 // is visible in the run rather than only discoverable by manual arithmetic later.
 const reconciledTotal = authenticated.size + publicSkipped + blockedCount + credsAvailableNoEvidence;
-const reconciled = reconciledTotal === census.entries.length;
+const missingCensusIds = census.entries.filter((e) => !categoryById.has(e.uatId)).map((e) => e.uatId);
+const extraIds = [...categoryById.keys()].filter((id) => !censusIds.has(id));
+const reconciled =
+  reconciledTotal === census.entries.length &&
+  duplicateMemberships.length === 0 &&
+  missingCensusIds.length === 0 &&
+  extraIds.length === 0;
 if (!reconciled) {
   console.error(
     `::error::UAT denominator reconciliation failed: authenticated(${authenticated.size}) + publicSkipped(${publicSkipped}) + blocked(${blockedCount}) + credsAvailable(${credsAvailableNoEvidence}) = ${reconciledTotal}, expected census total ${census.entries.length}.`,
+  );
+}
+if (duplicateMemberships.length > 0) {
+  console.error(
+    `::error::UAT exclusive-category duplication detected: ${duplicateMemberships
+      .map((d) => `${d.uatId}(${d.prior}+${d.next})`)
+      .join(", ")}`,
+  );
+}
+if (missingCensusIds.length > 0 || extraIds.length > 0) {
+  console.error(
+    `::error::UAT census membership mismatch — missing=${missingCensusIds.join(",")} extra=${extraIds.join(",")}`,
   );
 }
 
@@ -213,6 +265,9 @@ const summary = {
   verifiedBlocked: blockedCount,
   credentialsAvailableAwaitingEvidence: credsAvailableNoEvidence,
   denominatorReconciled: reconciled,
+  duplicateMemberships,
+  missingCensusIds,
+  extraCategoryIds: extraIds,
   counts: {
     authenticated: authenticated.size,
     publicFunctionObserved: publicSkipped,

@@ -20,10 +20,15 @@ const payload = {
   runTranche: RUN_TRANCHE,
   presentCount: presence.filter((p) => p.present).length,
   missingCount: presence.filter((p) => !p.present).length,
+  resolvedPreviewUrlSource:
+    process.env.UAT_CRAWL_TARGET_TYPE?.trim() ||
+    (process.env.UAT_CRAWL_BASE_URL?.trim() ? "crawl-base-url" : "unknown"),
+  crawlBaseUrl: process.env.UAT_CRAWL_BASE_URL?.trim() || null,
+  protectedDeploymentUrl: process.env.UAT_PROTECTED_DEPLOYMENT_URL?.trim() || null,
   aliasPolicy:
     "TEST_GATE accepts TEST_GATE_* or TEST_GATE_SECURITY_*; TEST_3PGS accepts TEST_3PGS_* or TEST_PRODUCTION_* at crawl runtime.",
   secrets: presence,
-  policy: "Names only — values never logged.",
+  policy: "Names only — values never logged. Current-run audit — historical blocker rows do not override this.",
 };
 
 fs.mkdirSync(path.dirname(outPath), { recursive: true });
