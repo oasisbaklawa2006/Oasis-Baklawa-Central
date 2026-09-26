@@ -91,11 +91,14 @@ export async function detectAuthArchitecture(page: Page): Promise<AuthArchitectu
   return "legacy";
 }
 
+function hasLeftLoginPath(pathname: string, fromPath: string): boolean {
+  if (fromPath === STAFF_LOGIN_PATH) return !/^\/staff\/login(\/|$|\?)/.test(pathname);
+  if (fromPath === BUYER_LOGIN_PATH) return !/^\/buyer\/login(\/|$|\?)/.test(pathname);
+  return !/^\/login(\/|$|\?)/.test(pathname);
+}
+
 async function waitForAuthenticatedNavigation(page: Page, fromPath: string) {
-  await page.waitForURL(
-    (url) => !new RegExp(`${fromPath.replace(/\//g, "\\/")}(\\/|$|\\?)`).test(url.pathname),
-    { timeout: 120_000 },
-  );
+  await page.waitForURL((url) => hasLeftLoginPath(url.pathname, fromPath), { timeout: 120_000 });
 }
 
 export async function loginStaff(page: Page, email: string, password: string): Promise<LoginAttemptResult> {

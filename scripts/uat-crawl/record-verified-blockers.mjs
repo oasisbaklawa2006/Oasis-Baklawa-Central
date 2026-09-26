@@ -102,11 +102,8 @@ function resolveBlocker(entry) {
   };
 }
 
-function loadJsonl(relativePath) {
-  const filePath = path.join(ROOT, relativePath);
-  if (!fs.existsSync(filePath)) return [];
-  return fs
-    .readFileSync(filePath, "utf8")
+function parseJsonlText(raw) {
+  return raw
     .trim()
     .split("\n")
     .filter(Boolean)
@@ -116,12 +113,18 @@ function loadJsonl(relativePath) {
 function loadAuthGateById() {
   const map = new Map();
   const sources = [
-    "docs/uat-crawl/UAT_MANIFEST_AUTH.jsonl",
-    "docs/uat-crawl/UAT_MANIFEST_BUYER_MOBILE.jsonl",
-    "docs/uat-crawl/UAT_MANIFEST_AI_UAT.jsonl",
+    new URL("../../docs/uat-crawl/UAT_MANIFEST_AUTH.jsonl", import.meta.url),
+    new URL("../../docs/uat-crawl/UAT_MANIFEST_BUYER_MOBILE.jsonl", import.meta.url),
+    new URL("../../docs/uat-crawl/UAT_MANIFEST_AI_UAT.jsonl", import.meta.url),
   ];
-  for (const rel of sources) {
-    for (const row of loadJsonl(rel)) {
+  for (const sourceUrl of sources) {
+    let rows = [];
+    try {
+      rows = parseJsonlText(fs.readFileSync(sourceUrl, "utf8"));
+    } catch {
+      rows = [];
+    }
+    for (const row of rows) {
       if (row.runId && row.runId !== RUN_ID) continue;
       if (row.authenticated) continue;
       if (row.blockClassification && AUTH_GATE_CLASSIFICATIONS.has(row.blockClassification)) {
