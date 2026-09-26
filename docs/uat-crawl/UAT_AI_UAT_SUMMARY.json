@@ -1,24 +1,61 @@
 {
-  "generatedAt": "2026-09-09T04:46:09.311Z",
-  "runId": "34242121280",
-  "targetSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
-  "crawlBaseUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
+  "generatedAt": "2026-09-26T09:21:48.933Z",
+  "runId": "36232475913",
+  "runAttempt": "1",
+  "runTranche": "watchdog-continue",
+  "targetSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+  "deploymentSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
+  "crawlBaseUrl": "https://oasis-baklawa-central.vercel.app",
   "deployStatus": "RESOLVED",
+  "suiteExitCode": 1,
   "counts": {
-    "PASS": 10,
-    "FAIL": 0,
-    "BLOCKED": 0
+    "PASS": 0,
+    "FAIL": 1,
+    "BLOCKED": 0,
+    "NOT_EXECUTED": 9
   },
   "uatIds": [
-    "UAT-001",
-    "UAT-002",
-    "UAT-003",
-    "UAT-004",
-    "UAT-005",
-    "UAT-006",
-    "UAT-007",
-    "UAT-008",
-    "UAT-009",
-    "UAT-010"
-  ]
+    {
+      "uatId": "UAT-001",
+      "status": "FAIL"
+    },
+    {
+      "uatId": "UAT-002",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "uatId": "UAT-003",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "uatId": "UAT-004",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "uatId": "UAT-005",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "uatId": "UAT-006",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "uatId": "UAT-007",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "uatId": "UAT-008",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "uatId": "UAT-009",
+      "status": "NOT_EXECUTED"
+    },
+    {
+      "uatId": "UAT-010",
+      "status": "NOT_EXECUTED"
+    }
+  ],
+  "priorRunArchived": true,
+  "policy": "Current-run summary only — prior PASS rows archived separately; never substitute stale PASS as current truth."
 }

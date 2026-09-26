@@ -1,10 +1,10 @@
 # UAT Visual + UX Crawl Index — credential-prefix-unblock
 
 **UAT range:** UAT-0003, UAT-0062, UAT-0063, UAT-0064, UAT-0065, UAT-0067, UAT-0082, UAT-0087, UAT-0097, UAT-0098, UAT-0099, UAT-0100, UAT-0101
-**Crawl base URL:** https://oasis-baklawa-central-jc8jxvcf8-oasisbaklawa2006-6222s-projects.vercel.app
+**Crawl base URL:** https://oasis-baklawa-central.vercel.app
 **Central baseline SHA:** `08ccb1cfd4a3624103f0681b5515e26727e77cd2`
 **UX matrix:** [UAT_UX_FAILURE_MATRIX.md](./UAT_UX_FAILURE_MATRIX.md) (148 criteria)
-**Captured:** 2026-09-26T03:03:48.659Z
+**Captured:** 2026-09-26T09:29:24.638Z
 
 | UAT ID | S0 | Route | State | Visual | Function | UX | Evaluated | Failures | Notes |
 |---|---|---|---|---|---|---|---:|---:|---|
