@@ -5,6 +5,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { resolveCredentialBlocker } from "./credential-prefix-aliases.mjs";
 
@@ -37,15 +38,6 @@ const BUYER_PERSONAS = new Set([
   "BULK_BUYER",
   "CLIENT",
   "CUSTOMER_USER",
-]);
-const AUTH_GATE_CLASSIFICATIONS = new Set([
-  "MISSING_SECRET",
-  "AUTH_FLOW_FAILED",
-  "AUTH_CONTRACT_MISMATCH",
-  "PROVIDER_GATED",
-  "OTP_EXTERNAL_GATE",
-  "APPLICATION_FAIL",
-  "NOT_EXECUTED",
 ]);
 
 function loadSecretPresenceMap() {
@@ -102,70 +94,21 @@ function resolveBlocker(entry) {
   };
 }
 
-function parseJsonlText(raw) {
-  return raw
-    .trim()
-    .split("\n")
-    .filter(Boolean)
-    .map((line) => JSON.parse(line));
-}
-
 function loadAuthGateById() {
-  const map = new Map();
-  const rowSets = [];
-  try {
-    rowSets.push(
-      parseJsonlText(
-        fs.readFileSync(new URL("../../docs/uat-crawl/UAT_MANIFEST_AUTH.jsonl", import.meta.url), "utf8"),
-      ),
-    );
-  } catch {
-    rowSets.push([]);
+  const result = spawnSync("python3", ["scripts/uat-crawl/load-auth-gate-by-id.py"], {
+    cwd: ROOT,
+    encoding: "utf8",
+    env: { ...process.env, GITHUB_RUN_ID: RUN_ID },
+  });
+  if (result.status !== 0) {
+    console.error(result.stderr || "load-auth-gate-by-id.py failed");
+    return new Map();
   }
   try {
-    rowSets.push(
-      parseJsonlText(
-        fs.readFileSync(new URL("../../docs/uat-crawl/UAT_MANIFEST_BUYER_MOBILE.jsonl", import.meta.url), "utf8"),
-      ),
-    );
+    return new Map(Object.entries(JSON.parse(result.stdout || "{}")));
   } catch {
-    rowSets.push([]);
+    return new Map();
   }
-  try {
-    rowSets.push(
-      parseJsonlText(
-        fs.readFileSync(new URL("../../docs/uat-crawl/UAT_MANIFEST_AI_UAT.jsonl", import.meta.url), "utf8"),
-      ),
-    );
-  } catch {
-    rowSets.push([]);
-  }
-  for (const rows of rowSets) {
-    for (const row of rows) {
-      if (row.runId && row.runId !== RUN_ID) continue;
-      if (row.authenticated) continue;
-      if (row.blockClassification && AUTH_GATE_CLASSIFICATIONS.has(row.blockClassification)) {
-        map.set(row.uatId, row.blockClassification);
-        continue;
-      }
-      if (row.visualStatus === "NOT_EXECUTED") {
-        map.set(row.uatId, "NOT_EXECUTED");
-        continue;
-      }
-      if (row.notes && /OTP|MSG91|provider/i.test(row.notes)) {
-        map.set(row.uatId, "OTP_EXTERNAL_GATE");
-        continue;
-      }
-      if (row.notes && /Welcome Back|contract mismatch|AUTH_CONTRACT/i.test(row.notes)) {
-        map.set(row.uatId, "AUTH_CONTRACT_MISMATCH");
-        continue;
-      }
-      if (row.notes && /LOGIN FAILED|AUTH_FLOW|still on login/i.test(row.notes)) {
-        map.set(row.uatId, "AUTH_FLOW_FAILED");
-      }
-    }
-  }
-  return map;
 }
 
 function loadJsonlIds(relativePath, predicate) {
