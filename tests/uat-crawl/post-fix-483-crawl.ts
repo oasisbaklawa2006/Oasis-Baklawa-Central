@@ -6,7 +6,7 @@
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import type { Page } from "@playwright/test";
-import { login } from "../e2e-helpers";
+import { loginStaff } from "../e2e-helpers";
 import { detectAccessWall, DEPLOYMENT_PROTECTION_CLASS } from "./access-wall";
 import {
   appendFailureLedger,
@@ -290,7 +290,7 @@ export async function crawlPostFix483Target(
   const { email, password } = getCredentials("TEST_SALES");
   let loginError: string | null = null;
   try {
-    await login(page, email, password);
+    await loginStaff(page, email, password);
   } catch (err) {
     loginError = err instanceof Error ? err.message.slice(0, 300) : String(err);
   }

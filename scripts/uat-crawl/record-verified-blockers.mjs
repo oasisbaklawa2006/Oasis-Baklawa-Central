@@ -5,6 +5,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { resolveCredentialBlocker } from "./credential-prefix-aliases.mjs";
 
@@ -28,6 +29,16 @@ const DEPLOY_PROVENANCE =
   "Current-main authority (resolved dynamically at run time) — prior pinned-SHA evidence preserved append-only.";
 
 const PUBLIC_RUNNABLE = new Set(["UAT-0001", "UAT-0004", "UAT-0005", "UAT-0008", "UAT-0009"]);
+const BUYER_PERSONAS = new Set([
+  "BUYER",
+  "B2B_BUYER",
+  "SPECIAL_BUYER",
+  "HORECA_BUYER",
+  "WHOLESALE_BUYER",
+  "BULK_BUYER",
+  "CLIENT",
+  "CUSTOMER_USER",
+]);
 
 function loadSecretPresenceMap() {
   try {
@@ -81,6 +92,23 @@ function resolveBlocker(entry) {
     failId: `FAIL-AUTH-CRED-${entry.uatId.slice(-4)}`,
     wiredPrefix: null,
   };
+}
+
+function loadAuthGateById() {
+  const result = spawnSync("python3", ["scripts/uat-crawl/load-auth-gate-by-id.py"], {
+    cwd: ROOT,
+    encoding: "utf8",
+    env: { ...process.env, GITHUB_RUN_ID: RUN_ID },
+  });
+  if (result.status !== 0) {
+    console.error(result.stderr || "load-auth-gate-by-id.py failed");
+    return new Map();
+  }
+  try {
+    return new Map(Object.entries(JSON.parse(result.stdout || "{}")));
+  } catch {
+    return new Map();
+  }
 }
 
 function loadJsonlIds(relativePath, predicate) {
@@ -154,6 +182,12 @@ const summaryPath = path.join(ROOT, "docs/uat-crawl/UAT_VERIFIED_BLOCKERS_SUMMAR
 const rows = [];
 let blockedCount = 0;
 let credsAvailableNoEvidence = 0;
+let authFlowFailed = 0;
+let authContractMismatch = 0;
+let otpExternalGate = 0;
+let providerGated = 0;
+let notExecutedCount = 0;
+const authGateById = loadAuthGateById();
 // Explicit count of census entries actually skipped via the public-continuation branch below —
 // this, not publicComplete.size, is the number that must reconcile against the census total,
 // since publicComplete can (correctly) contain IDs outside PUBLIC_RUNNABLE that this loop does
@@ -184,6 +218,37 @@ for (const entry of census.entries) {
   const { blockers, failId } = resolveBlocker(entry);
   const missing = missingSecrets(blockers);
   if (missing.length === 0) {
+    const gate = authGateById.get(entry.uatId);
+    if (gate === "AUTH_CONTRACT_MISMATCH") {
+      assignCategory(entry.uatId, "authContractMismatch");
+      authContractMismatch += 1;
+      continue;
+    }
+    if (gate === "AUTH_FLOW_FAILED") {
+      assignCategory(entry.uatId, "authFlowFailed");
+      authFlowFailed += 1;
+      continue;
+    }
+    if (gate === "OTP_EXTERNAL_GATE") {
+      assignCategory(entry.uatId, "otpExternalGate");
+      otpExternalGate += 1;
+      continue;
+    }
+    if (gate === "PROVIDER_GATED") {
+      assignCategory(entry.uatId, "providerGated");
+      providerGated += 1;
+      continue;
+    }
+    if (gate === "NOT_EXECUTED") {
+      assignCategory(entry.uatId, "notExecuted");
+      notExecutedCount += 1;
+      continue;
+    }
+    if (BUYER_PERSONAS.has(entry.persona)) {
+      assignCategory(entry.uatId, "otpExternalGate");
+      otpExternalGate += 1;
+      continue;
+    }
     assignCategory(entry.uatId, "credsAvailable");
     credsAvailableNoEvidence += 1;
     continue;
@@ -207,6 +272,7 @@ for (const entry of census.entries) {
     functionStatus: "BLOCKED",
     uxStatus: "BLOCKED",
     disposition: "BLOCKED",
+    blockClassification: "MISSING_SECRET",
     failId: failId ?? `FAIL-BLOCK-VERIFY-${entry.uatId.slice(-4)}`,
     missingSecretNames: missing,
     deployProvenance: DEPLOY_PROVENANCE,
@@ -219,7 +285,16 @@ for (const entry of census.entries) {
 // publicSkipped / blocked / credsAvailable. If it doesn't, refuse to silently publish an
 // inconsistent summary — fail this (continue-on-error) CI step loudly instead so the mismatch
 // is visible in the run rather than only discoverable by manual arithmetic later.
-const reconciledTotal = authenticated.size + publicSkipped + blockedCount + credsAvailableNoEvidence;
+const reconciledTotal =
+  authenticated.size +
+  publicSkipped +
+  blockedCount +
+  credsAvailableNoEvidence +
+  authFlowFailed +
+  authContractMismatch +
+  otpExternalGate +
+  providerGated +
+  notExecutedCount;
 const missingCensusIds = census.entries.filter((e) => !categoryById.has(e.uatId)).map((e) => e.uatId);
 const extraIds = [...categoryById.keys()].filter((id) => !censusIds.has(id));
 const reconciled =
@@ -261,9 +336,20 @@ const summary = {
   deployProvenance: DEPLOY_PROVENANCE,
   authenticatedComplete: authenticated.size,
   publicContinuationComplete: publicSkipped,
-  remainingWithoutAuthEvidence: blockedCount + credsAvailableNoEvidence,
+  remainingWithoutAuthEvidence:
+    blockedCount +
+    credsAvailableNoEvidence +
+    authFlowFailed +
+    authContractMismatch +
+    otpExternalGate +
+    providerGated,
   verifiedBlocked: blockedCount,
   credentialsAvailableAwaitingEvidence: credsAvailableNoEvidence,
+  authFlowFailed,
+  authContractMismatch,
+  otpExternalGate,
+  providerGated,
+  notExecuted: notExecutedCount,
   denominatorReconciled: reconciled,
   duplicateMemberships,
   missingCensusIds,
@@ -273,6 +359,11 @@ const summary = {
     publicFunctionObserved: publicSkipped,
     blocked: blockedCount,
     credsAvailableNoEvidence: credsAvailableNoEvidence,
+    authFlowFailed,
+    authContractMismatch,
+    otpExternalGate,
+    providerGated,
+    notExecuted: notExecutedCount,
     totalCensus: census.entries.length,
     reconciledTotal,
   },

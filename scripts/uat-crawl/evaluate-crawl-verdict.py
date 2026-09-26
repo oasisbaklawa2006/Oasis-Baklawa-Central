@@ -106,6 +106,8 @@ def main() -> int:
     }
     out_path = DOCS / "UAT_CRAWL_CERTIFICATION_VERDICT.json"
     out_path.write_text(json.dumps(verdict, indent=2) + "\n", encoding="utf-8")
+    alias_path = DOCS / "UAT_CRAWL_VERDICT.json"
+    alias_path.write_text(json.dumps(verdict, indent=2) + "\n", encoding="utf-8")
 
     if failures:
         for failure in failures:

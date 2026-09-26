@@ -10,6 +10,7 @@ const PRIOR_CURRENT_MAIN_HOLD_SHA = "6c7de2a69cec960f709a66fb85d25049dfcc2ae0";
 const PRIOR_EVIDENCE_SHA = "e2f123b0fe257b8a1f39ec40d5f544fff1ebe313";
 const DEPLOY_URL = process.env.UAT_CRAWL_BASE_URL?.trim() || "";
 const RUN_ID = process.env.GITHUB_RUN_ID || "reconcile-local";
+const RUN_ATTEMPT = process.env.GITHUB_RUN_ATTEMPT || "1";
 const RUN_TRANCHE = process.env.RUN_TRANCHE || "watchdog-continue";
 const LAST_GHA_RUN = process.env.UAT_LAST_GHA_RUN?.trim() || RUN_ID;
 
@@ -56,7 +57,27 @@ function loadAuthCompleteIds(censusIds) {
   return ids;
 }
 
-function classifyEntry(entry, authComplete, blockersById) {
+function loadAuthGateById(censusIds) {
+  const map = new Map();
+  const sources = [
+    "docs/uat-crawl/UAT_MANIFEST_AUTH.jsonl",
+    "docs/uat-crawl/UAT_MANIFEST_BUYER_MOBILE.jsonl",
+    "docs/uat-crawl/UAT_MANIFEST_AI_UAT.jsonl",
+  ];
+  for (const rel of sources) {
+    for (const row of loadJsonl(rel)) {
+      if (!censusIds.has(row.uatId)) continue;
+      if (row.runId && row.runId !== RUN_ID) continue;
+      if (row.authenticated) continue;
+      if (row.blockClassification) {
+        map.set(row.uatId, row);
+      }
+    }
+  }
+  return map;
+}
+
+function classifyEntry(entry, authComplete, blockersById, authGateById) {
   if (authComplete.has(entry.uatId)) {
     return {
       disposition: "AUTH_S0_S3_COMPLETE",
@@ -77,11 +98,22 @@ function classifyEntry(entry, authComplete, blockersById) {
   const blocker = blockersById.get(entry.uatId);
   if (blocker) {
     return {
-      disposition: "BLOCKED",
+      disposition: blocker.blockClassification === "MISSING_SECRET" ? "BLOCKED" : blocker.blockClassification,
       s0s3Runnable: "BLOCKED",
-      missingSecretNames: blocker.missingSecretNames,
+      missingSecretNames: blocker.missingSecretNames ?? [],
       failId: blocker.failId,
+      blockClassification: blocker.blockClassification ?? "MISSING_SECRET",
       evidenceSource: "UAT_VERIFIED_BLOCKERS.jsonl",
+    };
+  }
+  const authGate = authGateById.get(entry.uatId);
+  if (authGate?.blockClassification) {
+    return {
+      disposition: authGate.blockClassification,
+      s0s3Runnable: "BLOCKED",
+      missingSecretNames: authGate.missingSecretNames ?? [],
+      blockClassification: authGate.blockClassification,
+      evidenceSource: "auth manifest (current run)",
     };
   }
   return {
@@ -99,6 +131,7 @@ const censusIds = new Set(census.map((e) => e.uatId));
 const authComplete = loadAuthCompleteIds(censusIds);
 const blockers = loadJsonl("docs/uat-crawl/UAT_VERIFIED_BLOCKERS.jsonl").filter((b) => censusIds.has(b.uatId));
 const blockersById = new Map(blockers.map((b) => [b.uatId, b]));
+const authGateById = loadAuthGateById(censusIds);
 const secretPresence = fs.existsSync(path.join(ROOT, "docs/uat-crawl/UAT_SECRET_PRESENCE.json"))
   ? JSON.parse(fs.readFileSync(path.join(ROOT, "docs/uat-crawl/UAT_SECRET_PRESENCE.json"), "utf8"))
   : null;
@@ -112,7 +145,7 @@ const rows = census.map((entry) => ({
   device: entry.device,
   buildSha: CURRENT_MAIN_SHA,
   deployUrl: DEPLOY_URL,
-  ...classifyEntry(entry, authComplete, blockersById),
+  ...classifyEntry(entry, authComplete, blockersById, authGateById),
 }));
 
 const byDevice = {};
@@ -139,10 +172,11 @@ const missingSecretsUnique = secretPresence
 const payload = {
   generatedAt: new Date().toISOString(),
   runId: RUN_ID,
+  runAttempt: RUN_ATTEMPT,
+  runTranche: RUN_TRANCHE,
   lastGhaRun: LAST_GHA_RUN,
   currentMainSha: CURRENT_MAIN_SHA,
   deployUrl: DEPLOY_URL,
-  runTranche: RUN_TRANCHE,
   deployProvenance: buildDeployProvenanceLabel(CURRENT_MAIN_SHA),
   policy:
     "Evidence-only PR #462 — no remediation. Physical device PASS requires human artifacts; automated S0–S3 ≠ physical PASS.",
@@ -179,6 +213,7 @@ const mdLines = [
   "# UAT Physical Readiness Reconciliation",
   "",
   `**Generated:** ${payload.generatedAt}`,
+  `**Run:** ${RUN_ID} (attempt ${RUN_ATTEMPT}, tranche \`${RUN_TRANCHE}\`)`,
   `**Current main:** \`${CURRENT_MAIN_SHA}\``,
   `**Deploy:** ${DEPLOY_URL}`,
   `**Last GHA evidence run:** [${LAST_GHA_RUN}](https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/${LAST_GHA_RUN})`,
