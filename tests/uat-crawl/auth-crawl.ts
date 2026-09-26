@@ -6,9 +6,11 @@ import { readFileSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import type { Page } from "@playwright/test";
 import { login } from "../e2e-helpers";
+import { detectAccessWall, DEPLOYMENT_PROTECTION_CLASS } from "./access-wall";
 import {
   appendFailureLedger,
   appendManifestRow,
+  attachRunMetadata,
   BASELINE_SHA,
   CURRENT_MAIN_SHA,
   CRAWL_BASE_URL,
@@ -19,6 +21,7 @@ import {
   type ManifestRow,
   writeTrancheIndex,
 } from "./crawl-engine";
+import { readRunMetadata } from "./run-metadata";
 import {
   getCredentials,
   resolveCredentials,
@@ -434,7 +437,7 @@ export async function crawlTargetAuthenticated(
     failures.push(
       `| FAIL-AUTH-DEPLOY-${target.uatId.slice(-4)} | ${target.uatId} | ${target.app} | ${target.persona} | ${opts.deviceLabel} | ${target.route} | Authenticated crawl on ${target.app} deploy | Role surface on correct preview host | BLOCKED — missing ${deploySecret} (Central TEST_PREVIEW_URL is not valid for ${target.app}) | P1 | — | — | ${trancheLabel} | ${target.repo} | Deploy | ${deploySecret} |`,
     );
-    const row: AuthManifestRow = {
+    const row = attachRunMetadata({
       uatId: target.uatId,
       tranche: trancheLabel,
       screenshot: "",
@@ -447,6 +450,7 @@ export async function crawlTargetAuthenticated(
       baselineSha: CURRENT_MAIN_SHA,
       crawlBaseUrl: CRAWL_BASE_URL,
       timestamp: new Date().toISOString(),
+      blockClassification: "DEPLOY_BLOCKED",
       visualStatus: "BLOCKED",
       functionStatus: "BLOCKED",
       uxStatus: "BLOCKED",
@@ -466,7 +470,7 @@ export async function crawlTargetAuthenticated(
       credentialPrefix: creds.prefix,
       missingSecretNames: [deploySecret],
       authenticated: false,
-    };
+    } satisfies AuthManifestRow);
     return { row, failures, uxFailures: uxFailureRows };
   }
 
@@ -475,7 +479,7 @@ export async function crawlTargetAuthenticated(
     failures.push(
       `| FAIL-AUTH-CRED-${target.uatId.slice(-4)} | ${target.uatId} | central | ${target.persona} | ${target.device} | ${target.route} | Authenticated crawl | Logged-in role surface | BLOCKED — missing secret(s): ${missing} | P1 | pre-auth preserved | — | Auth rerun | Central | Deploy/Auth | ${missing} |`,
     );
-    const row: AuthManifestRow = {
+    const row = attachRunMetadata({
       uatId: target.uatId,
       tranche: trancheLabel,
       screenshot: preAuthRef(target.uatId) ?? "",
@@ -507,7 +511,7 @@ export async function crawlTargetAuthenticated(
       credentialPrefix: creds.prefix,
       missingSecretNames: creds.missingSecretNames,
       authenticated: false,
-    };
+    } satisfies AuthManifestRow);
     return { row, failures, uxFailures: uxFailureRows };
   }
 
@@ -527,7 +531,14 @@ export async function crawlTargetAuthenticated(
 
   const url = page.url();
   const title = await page.title();
-  const stillOnLogin = Boolean(loginError) || url.includes("/login");
+  const wall = await detectAccessWall(page);
+  const stillOnLogin = !wall.blocked && (Boolean(loginError) || url.includes("/login"));
+
+  if (wall.blocked) {
+    failures.push(
+      `| FAIL-DEPLOY-WALL-${target.uatId.slice(-4)} | ${target.uatId} | central | ${target.persona} | ${opts.deviceLabel} | ${target.route} | Oasis application origin | Application surface | ${wall.reason} | P0 | — | — | Auth rerun | Central | Deploy/Auth | Use public production alias |`,
+    );
+  }
 
   if (stillOnLogin) {
     failures.push(
@@ -545,14 +556,19 @@ export async function crawlTargetAuthenticated(
     opts.relPrefix,
   );
 
-  let functionStatus: AuthManifestRow["functionStatus"] = stillOnLogin ? "BLOCKED" : "OBSERVED";
+  let functionStatus: AuthManifestRow["functionStatus"] =
+    wall.blocked || stillOnLogin ? "BLOCKED" : "OBSERVED";
   let notes = `Authenticated via ${creds.prefix}_* (values not logged).`;
   let uxEvalFailures: UxFailure[] = [];
   let uxEvaluated = 0;
   let uxPassed = 0;
   let uxBlockedCount = 0;
 
-  if (isBuyerSheetBlocked(target) && target.state === "sheet-review-open") {
+  if (wall.blocked) {
+    functionStatus = "BLOCKED";
+    uxBlockedCount = 148;
+    notes = `${notes} ${wall.reason}`.trim();
+  } else if (isBuyerSheetBlocked(target) && target.state === "sheet-review-open") {
     functionStatus = "BLOCKED";
     uxBlockedCount = 148;
     notes = `${notes} Buyer sheet UAT-0018/0020 — use post-fix-483-rerun.spec.ts (deploy ace340fe); not auth-rerun.`;
@@ -567,14 +583,14 @@ export async function crawlTargetAuthenticated(
   }
 
   const uxFields = buildUxFields(uxEvidence, uxEvalFailures, {
-    blocked: stillOnLogin || (isBuyerSheetBlocked(target) && target.state === "sheet-review-open"),
+    blocked: wall.blocked || stillOnLogin || (isBuyerSheetBlocked(target) && target.state === "sheet-review-open"),
     evaluated: uxEvaluated,
     passed: uxPassed,
     failed: uxEvalFailures.length,
     blockedCount: uxBlockedCount,
   });
 
-  const row: AuthManifestRow = {
+  const row = attachRunMetadata({
     uatId: target.uatId,
     tranche: trancheLabel,
     screenshot: uxEvidence.s0!,
@@ -586,8 +602,10 @@ export async function crawlTargetAuthenticated(
     device: opts.deviceLabel,
     baselineSha: CURRENT_MAIN_SHA,
     crawlBaseUrl: CRAWL_BASE_URL,
-    timestamp: new Date().toISOString(),
-    visualStatus: stillOnLogin ? "BLOCKED" : "OBSERVED",
+    timestamp: readRunMetadata().timestamp,
+    blockClassification: wall.blocked ? DEPLOYMENT_PROTECTION_CLASS : null,
+    wallClassification: wall.blocked ? DEPLOYMENT_PROTECTION_CLASS : null,
+    visualStatus: wall.blocked || stillOnLogin ? "BLOCKED" : "OBSERVED",
     functionStatus,
     uxStatus: uxFields.uxStatus,
     uxEvidence: uxFields.uxEvidence,
@@ -605,8 +623,8 @@ export async function crawlTargetAuthenticated(
     preAuthEvidenceRef: preAuthRef(target.uatId),
     credentialPrefix: creds.prefix,
     missingSecretNames: [],
-    authenticated: !stillOnLogin,
-  };
+    authenticated: !wall.blocked && !stillOnLogin,
+  } satisfies AuthManifestRow);
 
   return { row, failures, uxFailures: uxFailureRows };
 }

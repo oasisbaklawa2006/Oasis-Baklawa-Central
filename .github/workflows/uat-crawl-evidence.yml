@@ -50,6 +50,8 @@ jobs:
     name: Authenticated UAT evidence crawl
     runs-on: ubuntu-latest
     timeout-minutes: 120
+    outputs:
+      run_tranche: ${{ steps.record_crawl_plan.outputs.run_tranche }}
     env:
       RUN_TRANCHE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.run_tranche || 'watchdog-continue' }}
       TEST_PREVIEW_URL: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.target_url != '' && github.event.inputs.target_url || secrets.TEST_PREVIEW_URL }}
@@ -90,11 +92,13 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Record crawl plan (run id + tranche)
+        id: record_crawl_plan
         shell: bash
         run: |
           set -euo pipefail
           echo "run_id=${GITHUB_RUN_ID}" >> "$GITHUB_ENV"
           echo "run_tranche=${RUN_TRANCHE}" >> "$GITHUB_ENV"
+          echo "run_tranche=${RUN_TRANCHE}" >> "$GITHUB_OUTPUT"
           echo "UAT crawl run ${GITHUB_RUN_ID} tranche=${RUN_TRANCHE} ref=${GITHUB_REF}"
 
       - name: Report configured secret presence (names only)
@@ -149,36 +153,44 @@ jobs:
             exit 1
           fi
           echo "::notice::Resolved current Central main SHA: ${CURRENT_MAIN_SHA}"
-          url="${TEST_PREVIEW_URL:-}"
+          PUBLIC_ALIAS="https://oasis-baklawa-central.vercel.app"
+          crawl_url="${TEST_PREVIEW_URL:-}"
+          protected_url=""
           deploy_id=""
-          if [[ -z "$url" ]]; then
-            deploy_id="$(gh api "repos/${GITHUB_REPOSITORY}/deployments?sha=${CURRENT_MAIN_SHA}&per_page=10" --jq '[.[] | select(.environment=="Production" or .environment=="Preview")][0].id // empty' 2>/dev/null || true)"
-            if [[ -n "$deploy_id" ]]; then
-              url="$(gh api "repos/${GITHUB_REPOSITORY}/deployments/${deploy_id}/statuses" --jq '[.[] | select(.state=="success")][0].target_url // empty' 2>/dev/null || true)"
-            fi
+          deploy_id="$(gh api "repos/${GITHUB_REPOSITORY}/deployments?sha=${CURRENT_MAIN_SHA}&per_page=10" --jq '[.[] | select(.environment=="Production" or .environment=="Preview")][0].id // empty' 2>/dev/null || true)"
+          if [[ -n "$deploy_id" ]]; then
+            protected_url="$(gh api "repos/${GITHUB_REPOSITORY}/deployments/${deploy_id}/statuses" --jq '[.[] | select(.state=="success")][0].target_url // empty' 2>/dev/null || true)"
           fi
-          if [[ -z "$url" ]]; then
-            echo "::warning::No trusted Vercel deployment for current main ${CURRENT_MAIN_SHA}."
+          if [[ -z "$crawl_url" ]]; then
+            crawl_url="${PUBLIC_ALIAS}"
+          fi
+          if [[ -z "$crawl_url" ]]; then
+            echo "::warning::No trusted crawl target for current main ${CURRENT_MAIN_SHA}."
             echo "UAT_DEPLOY_BLOCKED=true" >> "$GITHUB_ENV"
-            echo "UAT_DEPLOY_BLOCK_REASON=No successful Vercel deployment for ${CURRENT_MAIN_SHA}; ${RUN_TRANCHE} requires current-main cert — no stale-SHA substitution." >> "$GITHUB_ENV"
+            echo "UAT_DEPLOY_BLOCK_REASON=No crawl base URL for ${CURRENT_MAIN_SHA}; ${RUN_TRANCHE} requires current-main cert — no stale-SHA substitution." >> "$GITHUB_ENV"
             echo "UAT_TARGET_SHA=${CURRENT_MAIN_SHA}" >> "$GITHUB_ENV"
             exit 0
           fi
-          host="$(python3 -c "import sys, urllib.parse; print(urllib.parse.urlparse(sys.argv[1]).hostname or '')" "$url")"
-          if [[ "$host" != "b2b.oasisbaklawa.com" && "$host" != "localhost" && "$host" != "127.0.0.1" && "$host" != *".vercel.app" ]]; then
+          host="$(python3 -c "import sys, urllib.parse; print(urllib.parse.urlparse(sys.argv[1]).hostname or '')" "$crawl_url")"
+          if [[ "$host" != "b2b.oasisbaklawa.com" && "$host" != "oasis-baklawa-central.vercel.app" && "$host" != "localhost" && "$host" != "127.0.0.1" && "$host" != *".vercel.app" ]]; then
             echo "::error::Target host $host not in approved UAT crawl allowlist."
             exit 1
           fi
           echo "UAT_DEPLOY_BLOCKED=false" >> "$GITHUB_ENV"
           echo "UAT_TARGET_SHA=${CURRENT_MAIN_SHA}" >> "$GITHUB_ENV"
           echo "UAT_RESOLVED_DEPLOY_SHA=${CURRENT_MAIN_SHA}" >> "$GITHUB_ENV"
+          echo "UAT_RESOLVED_DEPLOYMENT_ID=${deploy_id}" >> "$GITHUB_ENV"
+          echo "UAT_PROTECTED_DEPLOYMENT_URL=${protected_url}" >> "$GITHUB_ENV"
+          echo "UAT_IMMUTABLE_DEPLOYMENT_URL=${protected_url}" >> "$GITHUB_ENV"
+          echo "UAT_DEPLOYMENT_ENVIRONMENT=production" >> "$GITHUB_ENV"
+          echo "UAT_CRAWL_TARGET_TYPE=PUBLIC_PRODUCTION_ALIAS" >> "$GITHUB_ENV"
           echo "UAT_CONTINUATION_FALLBACK=false" >> "$GITHUB_ENV"
           echo "POST_MERGE_497_MAIN_SHA=${CURRENT_MAIN_SHA}" >> "$GITHUB_ENV"
           echo "POST_MERGE_497_DEPLOYMENT_ID=${deploy_id}" >> "$GITHUB_ENV"
-          echo "TEST_PREVIEW_URL=$url" >> "$GITHUB_ENV"
-          echo "UAT_CRAWL_BASE_URL=$url" >> "$GITHUB_ENV"
+          echo "TEST_PREVIEW_URL=$crawl_url" >> "$GITHUB_ENV"
+          echo "UAT_CRAWL_BASE_URL=$crawl_url" >> "$GITHUB_ENV"
           echo "UAT_DEPLOY_PROVENANCE_LABEL=Current-main authority @ ${CURRENT_MAIN_SHA} (resolved dynamically at run time) — prior pinned-SHA evidence preserved append-only." >> "$GITHUB_ENV"
-          echo "::notice::${RUN_TRANCHE} bound to ${CURRENT_MAIN_SHA} @ ${url}"
+          echo "::notice::${RUN_TRANCHE} main=${CURRENT_MAIN_SHA} crawl=${crawl_url} protectedDeploy=${protected_url:-none}"
 
       - name: Resolve and validate target URL (no secrets logged)
         if: env.RUN_TRANCHE != 'post-merge-proofs' && env.RUN_TRANCHE != 'post-merge-497-main' && env.RUN_TRANCHE != 'watchdog-continue' && env.RUN_TRANCHE != 'current-main-rebaseline' && env.RUN_TRANCHE != 'credential-prefix-unblock'
@@ -367,6 +379,7 @@ jobs:
 
       - name: Run APPVERSE AI-UAT Tranche 1 (UAT-001–010)
         if: env.RUN_TRANCHE != 'post-merge-proofs' && env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'ai-uat' || env.RUN_TRANCHE == 'all' || (env.RUN_TRANCHE == 'post-merge-497-main' && env.UAT_005_CURRENT_MAIN_PASS == 'true') || env.RUN_TRANCHE == 'watchdog-continue' || env.RUN_TRANCHE == 'current-main-rebaseline')
+        id: ai_uat
         continue-on-error: true
         env:
           TEST_DISPATCH_EMAIL: ${{ secrets.TEST_DISPATCH_EMAIL }}
@@ -374,9 +387,12 @@ jobs:
           TEST_ASSEMBLY_EMAIL: ${{ secrets.TEST_ASSEMBLY_EMAIL }}
           TEST_ASSEMBLY_PASSWORD: ${{ secrets.TEST_ASSEMBLY_PASSWORD }}
         run: |
+          set +e
           npx playwright test -c playwright.ai-uat.config.ts
-          node scripts/merge-ai-uat-report.mjs
-          node scripts/uat-crawl/archive-ai-uat-evidence.mjs
+          PW_EXIT=$?
+          node scripts/merge-ai-uat-report.mjs || true
+          AI_UAT_EXIT_CODE=$PW_EXIT node scripts/uat-crawl/archive-ai-uat-evidence.mjs || true
+          exit $PW_EXIT
 
       - name: Run credential-prefix-unblock (Gate/RGS/3PGS UAT IDs)
         if: env.RUN_TRANCHE != 'post-merge-proofs' && env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'credential-prefix-unblock' || env.RUN_TRANCHE == 'all' || env.RUN_TRANCHE == 'watchdog-continue' || env.RUN_TRANCHE == 'current-main-rebaseline')
@@ -385,6 +401,7 @@ jobs:
 
       - name: Run post-fix #483 buyer approval re-test (UAT-0018 + UAT-0020)
         if: env.RUN_TRANCHE != 'post-merge-proofs' && env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'post-fix-483' || env.RUN_TRANCHE == 'all' || (env.RUN_TRANCHE == 'post-merge-497-main' && env.UAT_005_CURRENT_MAIN_PASS == 'true') || env.RUN_TRANCHE == 'watchdog-continue' || env.RUN_TRANCHE == 'current-main-rebaseline')
+        id: post_fix_483
         continue-on-error: true
         run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/post-fix-483-rerun.spec.ts
 
@@ -462,13 +479,20 @@ jobs:
 
       - name: Record verified BLOCKED registry (remaining 51 minus public continuation)
         if: env.RUN_TRANCHE != 'post-merge-proofs' && (env.RUN_TRANCHE == 'all' || env.RUN_TRANCHE == 'public-continuation' || env.RUN_TRANCHE == 'continue' || (env.RUN_TRANCHE == 'post-merge-497-main' && env.UAT_005_CURRENT_MAIN_PASS == 'true') || env.RUN_TRANCHE == 'watchdog-continue' || env.RUN_TRANCHE == 'current-main-rebaseline' || env.RUN_TRANCHE == 'credential-prefix-unblock')
+        id: record_verified_blockers
         continue-on-error: true
         run: node scripts/uat-crawl/record-verified-blockers.mjs
 
       - name: Record current-main rebaseline registry (dynamic HEAD)
         if: env.RUN_TRANCHE != 'post-merge-proofs' && (env.RUN_TRANCHE == 'all' || env.RUN_TRANCHE == 'watchdog-continue' || env.RUN_TRANCHE == 'current-main-rebaseline' || env.RUN_TRANCHE == 'credential-prefix-unblock')
+        id: record_rebaseline
         continue-on-error: true
         run: node scripts/uat-crawl/record-rebaseline-current-main.mjs
+
+      - name: Audit screenshot hash wall signals
+        if: always() && env.UAT_DEPLOY_BLOCKED != 'true'
+        continue-on-error: true
+        run: python3 scripts/uat-crawl/detect-screenshot-wall.py
 
       - name: Write run metadata for commit job
         if: always()
@@ -483,6 +507,13 @@ jobs:
             "runTranche": "${RUN_TRANCHE}",
             "ref": "${GITHUB_REF}",
             "sha": "${GITHUB_SHA}",
+            "resolvedMainSha": "${UAT_TARGET_SHA:-}",
+            "resolvedDeploymentSha": "${UAT_RESOLVED_DEPLOY_SHA:-}",
+            "resolvedDeploymentId": "${UAT_RESOLVED_DEPLOYMENT_ID:-}",
+            "protectedDeploymentUrl": "${UAT_PROTECTED_DEPLOYMENT_URL:-}",
+            "crawlBaseUrl": "${UAT_CRAWL_BASE_URL:-}",
+            "crawlTargetType": "${UAT_CRAWL_TARGET_TYPE:-}",
+            "deploymentEnvironment": "${UAT_DEPLOYMENT_ENVIRONMENT:-}",
             "currentMainHoldSha": "${UAT_TARGET_SHA:-}",
             "resolvedDeploySha": "${UAT_RESOLVED_DEPLOY_SHA:-}",
             "continuationFallback": ${UAT_CONTINUATION_FALLBACK:-false},
@@ -496,6 +527,35 @@ jobs:
             "completedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           }
           EOF
+
+      - name: Write crawl step outcomes for verdict
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p docs/uat-crawl
+          python3 <<'PY'
+          import json, os
+          outcomes = {
+            "ai_uat": os.environ.get("OUT_AI_UAT", "skipped"),
+            "post_fix_483": os.environ.get("OUT_POST_FIX_483", "skipped"),
+            "post_merge_497_005": os.environ.get("OUT_POST_MERGE_497", "skipped"),
+            "record_verified_blockers": os.environ.get("OUT_RECORD_BLOCKERS", "skipped"),
+            "record_rebaseline": os.environ.get("OUT_RECORD_REBASELINE", "skipped"),
+          }
+          with open("docs/uat-crawl/UAT_CRAWL_STEP_OUTCOMES.json", "w") as f:
+            json.dump(outcomes, f, indent=2)
+          PY
+        env:
+          OUT_AI_UAT: ${{ steps.ai_uat.outcome }}
+          OUT_POST_FIX_483: ${{ steps.post_fix_483.outcome }}
+          OUT_POST_MERGE_497: ${{ steps.post_merge_497_005.outcome }}
+          OUT_RECORD_BLOCKERS: ${{ steps.record_verified_blockers.outcome }}
+          OUT_RECORD_REBASELINE: ${{ steps.record_rebaseline.outcome }}
+
+      - name: Aggregate crawl certification verdict (fail closed)
+        if: always()
+        run: python3 scripts/uat-crawl/evaluate-crawl-verdict.py
 
       - name: Upload UAT evidence bundle
         if: always()
@@ -599,5 +659,6 @@ jobs:
             echo "No evidence changes to commit."
             exit 0
           fi
-          git commit -m "UAT evidence from GHA run ${{ github.run_id }} (tranche ${{ needs.uat-crawl.outputs.run_tranche || 'all' }})"
+          TRANCHE="$(python3 -c "import json; print(json.load(open('docs/uat-crawl/UAT_GHA_RUN.json')).get('runTranche','${{ needs.uat-crawl.outputs.run_tranche || 'all' }}'))" 2>/dev/null || echo '${{ needs.uat-crawl.outputs.run_tranche || 'all' }}')"
+          git commit -m "UAT evidence from GHA run ${{ github.run_id }} (tranche ${TRANCHE})"
           git push

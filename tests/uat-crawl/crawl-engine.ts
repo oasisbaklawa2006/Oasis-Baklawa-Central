@@ -5,6 +5,8 @@ import { createHash } from "node:crypto";
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { Page } from "@playwright/test";
+import { classifyAccessWallFromSignals, DEPLOYMENT_PROTECTION_CLASS } from "./access-wall";
+import { readRunMetadata, type RunScopedMetadata } from "./run-metadata";
 import {
   buildUxFields,
   emptyUxEvidence,
@@ -14,6 +16,8 @@ import {
   type UxEvidence,
   type UxFailure,
 } from "./ux-helpers";
+
+export const CENTRAL_PUBLIC_PRODUCTION_ALIAS = "https://oasis-baklawa-central.vercel.app";
 
 export const ROOT = path.resolve(import.meta.dirname, "../..");
 /** Pre-UAT programme baseline (tranche-01 pre-auth). Preserved — not reused as current deploy evidence. */
@@ -69,6 +73,13 @@ export type ManifestRow = {
   baselineSha: string;
   crawlBaseUrl: string;
   timestamp: string;
+  runId?: string;
+  runAttempt?: string;
+  runTranche?: string;
+  targetMainSha?: string;
+  deploymentSha?: string;
+  blockClassification?: string | null;
+  wallClassification?: string | null;
   visualStatus: "OBSERVED" | "FAIL" | "BLOCKED" | "NOT-TESTED";
   functionStatus: "NOT-TESTED" | "BLOCKED" | "OBSERVED" | "FAIL";
   uxStatus: "NOT-TESTED" | "PARTIAL" | "PASS" | "FAIL" | "BLOCKED";
@@ -84,6 +95,11 @@ export type ManifestRow = {
   networkErrors: string[];
   notes: string;
 };
+
+export function attachRunMetadata<T extends ManifestRow>(row: T): T & RunScopedMetadata {
+  const meta = readRunMetadata();
+  return { ...row, ...meta };
+}
 
 export type CrawlResult = {
   row: ManifestRow;
@@ -167,18 +183,33 @@ export async function crawlTarget(
   const url = page.url();
   const title = await page.title();
   const bodyText = (await page.locator("body").innerText().catch(() => "")).slice(0, 400);
+  const wall = classifyAccessWallFromSignals(title, url, bodyText);
 
-  const visualStatus: ManifestRow["visualStatus"] = "OBSERVED";
+  let visualStatus: ManifestRow["visualStatus"] = "OBSERVED";
   let functionStatus: ManifestRow["functionStatus"] = "NOT-TESTED";
   let notes = target.notes ?? "";
+  let blockClassification: string | null = null;
+  let wallClassification: string | null = null;
+
+  if (wall.blocked) {
+    visualStatus = "BLOCKED";
+    functionStatus = "BLOCKED";
+    blockClassification = DEPLOYMENT_PROTECTION_CLASS;
+    wallClassification = DEPLOYMENT_PROTECTION_CLASS;
+    notes = `${notes} ${wall.reason}`.trim();
+    failures.push(
+      `| FAIL-DEPLOY-WALL-${target.uatId.slice(-4)} | ${target.uatId} | central | ${target.persona} | ${opts.deviceLabel} | ${target.route} | Oasis application origin | Application surface | ${wall.reason} | P0 | ${s0File} | — | Reload ${routePath} | Central | Deploy/Auth | Use public production alias |`,
+    );
+  }
   if (target.route.includes("*")) notes = `${notes} Wildcard route visited as /buyer/catalogue substitute`.trim();
   if (target.classification === "LEGACY_REDIRECT") {
     notes = `${notes} Legacy redirect — finalUrl captured for function crawl`.trim();
   }
 
   const needsAuth = !PUBLIC_ROUTES.has(target.route) && !target.route.startsWith("/login");
-  const authBlocked = needsAuth && (url.includes("/login") || bodyText.toLowerCase().includes("sign in"));
-  const buyerSheetBlocked = isBuyerSheetBlocked(target);
+  const authBlocked =
+    !wall.blocked && needsAuth && (url.includes("/login") || bodyText.toLowerCase().includes("sign in"));
+  const buyerSheetBlocked = !wall.blocked && isBuyerSheetBlocked(target);
 
   let uxEvalFailures: UxFailure[] = [];
   let uxEvaluated = 0;
@@ -192,6 +223,9 @@ export async function crawlTarget(
     failures.push(
       `| FAIL-BLOCK-483-${target.uatId.slice(-4)} | ${target.uatId} | central | ${target.persona} | ${target.device} | ${target.route} [${target.state}] | Buyer approval sheet UX (#483) | Sheet open with visible Select overlays | BLOCKED pending #483 deploy + credentials + fixture | **P0** | ${s0File} | pre-fix evidence preserved | Do not re-test until #483 lands | Central | UI/UX | Issue **#483** deploy |`,
     );
+  } else if (wall.blocked) {
+    functionStatus = "BLOCKED";
+    uxBlockedCount = 148;
   } else if (authBlocked) {
     functionStatus = "BLOCKED";
     notes = `${notes} Unauthenticated gate — CREDENTIAL_REQUIRED for function+UX crawl`.trim();
@@ -269,7 +303,7 @@ export async function crawlTarget(
     );
   }
 
-  const row: ManifestRow = {
+  const row = attachRunMetadata({
     uatId: target.uatId,
     tranche: opts.tranche,
     screenshot: uxEvidence.s0!,
@@ -282,6 +316,8 @@ export async function crawlTarget(
     baselineSha: BASELINE_SHA,
     crawlBaseUrl: CRAWL_BASE_URL,
     timestamp: new Date().toISOString(),
+    blockClassification,
+    wallClassification,
     visualStatus,
     functionStatus,
     uxStatus: uxFields.uxStatus,
@@ -296,7 +332,7 @@ export async function crawlTarget(
     consoleErrors: consoleErrors.slice(0, 5),
     networkErrors: networkErrors.slice(0, 5),
     notes: `${notes} title="${title}" finalUrl=${url} shots=${shotNames.join(",")}`.trim(),
-  };
+  });
 
   return { row, failures, uxFailures: uxFailureRows };
 }
