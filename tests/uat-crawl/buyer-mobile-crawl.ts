@@ -6,7 +6,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { Page } from "@playwright/test";
-import { login } from "../e2e-helpers";
+import { AUTH_BLOCK_CLASSIFICATIONS, loginBuyer } from "../auth/auth-contract";
 import {
   appendFailureLedger,
   appendManifestRow,
@@ -68,6 +68,7 @@ export type BuyerMobileManifestRow = {
   evidencePhase: "buyer-mobile-authenticated";
   authenticated: boolean;
   missingSecretNames: string[];
+  blockClassification?: string | null;
 };
 
 const TRANCHE = "buyer-mobile-auth";
@@ -136,7 +137,15 @@ async function captureFour(page: Page, target: BuyerSurfaceTarget, labels: [stri
   return { uxEvidence, uxEvidenceSha256, shotNames };
 }
 
-function blockedRow(target: BuyerSurfaceTarget, missing: string[], notes: string): BuyerMobileManifestRow {
+function blockedRow(
+  target: BuyerSurfaceTarget,
+  missing: string[],
+  notes: string,
+  blockClassification?: string | null,
+): BuyerMobileManifestRow {
+  const classification =
+    blockClassification ??
+    (missing.length > 0 ? AUTH_BLOCK_CLASSIFICATIONS.MISSING_SECRET : AUTH_BLOCK_CLASSIFICATIONS.AUTH_FLOW_FAILED);
   return {
     uatId: target.uatId,
     tranche: TRANCHE,
@@ -169,6 +178,7 @@ function blockedRow(target: BuyerSurfaceTarget, missing: string[], notes: string
     evidencePhase: "buyer-mobile-authenticated",
     authenticated: false,
     missingSecretNames: missing,
+    blockClassification: classification,
   };
 }
 
@@ -212,29 +222,28 @@ export async function crawlBuyerMobileSurfaces(page: Page): Promise<{
 
   const email = process.env.TEST_BUYER_EMAIL!.trim();
   const password = process.env.TEST_BUYER_PASSWORD!.trim();
-  let sessionOk = false;
-  try {
-    await login(page, email, password);
-    sessionOk = !page.url().includes("/login");
-  } catch (err) {
-    const msg = err instanceof Error ? err.message.slice(0, 200) : String(err);
+  const loginResult = await loginBuyer(page, email, password);
+  if (!loginResult.ok) {
+    const classification = loginResult.classification;
+    const msg = loginResult.message.slice(0, 200);
     for (const target of targets) {
       failures.push(
-        `| FAIL-AUTH-LOGIN-${target.uatId.slice(-4)} | ${target.uatId} | buyer-mobile | BUYER | iphone-14 | ${target.route} | Buyer login | Session on /buyer | ${msg} | P1 | — | — | ${TRANCHE} | Central | Auth | Verify TEST_BUYER_* and deploy URL |`,
+        `| FAIL-AUTH-${classification}-${target.uatId.slice(-4)} | ${target.uatId} | buyer-mobile | BUYER | iphone-14 | ${target.route} | Buyer login (/buyer/login) | Session on /buyer | ${classification}: ${msg} | P1 | — | — | ${TRANCHE} | Central | Auth/Provider | ${classification} |`,
       );
-      rows.push(blockedRow(target, [], `LOGIN FAILED — ${msg}`));
+      rows.push(blockedRow(target, [], `${classification} — ${msg}`, classification));
       appendManifestRow(MANIFEST_PATH, rows[rows.length - 1] as never);
     }
     writeSummary(rows, []);
     return { rows, failures, uxFailures: uxFailureRows };
   }
 
+  const sessionOk = !/\/(?:buyer\/)?login(\/|$|\?)/i.test(new URL(page.url()).pathname);
   if (!sessionOk) {
     for (const target of targets) {
       failures.push(
-        `| FAIL-AUTH-LOGIN-${target.uatId.slice(-4)} | ${target.uatId} | buyer-mobile | BUYER | iphone-14 | ${target.route} | Buyer login | Session established | Still on login after TEST_BUYER_* | P1 | — | — | ${TRANCHE} | Central | Auth | Verify TEST_BUYER_* |`,
+        `| FAIL-AUTH-FLOW-${target.uatId.slice(-4)} | ${target.uatId} | buyer-mobile | BUYER | iphone-14 | ${target.route} | Buyer login | Session established | Still on login after buyer auth attempt | P1 | — | — | ${TRANCHE} | Central | Auth | AUTH_FLOW_FAILED |`,
       );
-      rows.push(blockedRow(target, [], "LOGIN BLOCKED — still on login after credential use."));
+      rows.push(blockedRow(target, [], "AUTH_FLOW_FAILED — still on login after buyer auth attempt.", AUTH_BLOCK_CLASSIFICATIONS.AUTH_FLOW_FAILED));
       appendManifestRow(MANIFEST_PATH, rows[rows.length - 1] as never);
     }
     writeSummary(rows, []);

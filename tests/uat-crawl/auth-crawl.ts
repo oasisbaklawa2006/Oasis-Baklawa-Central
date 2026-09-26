@@ -5,7 +5,13 @@
 import { readFileSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import type { Page } from "@playwright/test";
-import { login } from "../e2e-helpers";
+import {
+  AUTH_BLOCK_CLASSIFICATIONS,
+  authKindForPersona,
+  classifyLoginFailure,
+  loginForPersona,
+  type AuthBlockClassification,
+} from "../auth/auth-contract";
 import { detectAccessWall, DEPLOYMENT_PROTECTION_CLASS } from "./access-wall";
 import {
   appendFailureLedger,
@@ -42,6 +48,7 @@ export type AuthManifestRow = ManifestRow & {
   preAuthEvidenceRef: string | null;
   credentialPrefix: CredentialPrefix | null;
   missingSecretNames: string[];
+  blockClassification?: AuthBlockClassification | null;
   authenticated: boolean;
 };
 
@@ -517,10 +524,20 @@ export async function crawlTargetAuthenticated(
 
   const { email, password } = getCredentials(creds.wiredPrefix ?? creds.prefix!);
   let loginError: string | null = null;
-  try {
-    await login(page, email, password);
-  } catch (err) {
-    loginError = err instanceof Error ? err.message.slice(0, 300) : String(err);
+  let loginClassification: AuthBlockClassification | null = null;
+  const loginResult = await loginForPersona(page, target.persona, email, password);
+  if (!loginResult.ok) {
+    loginError = loginResult.message;
+    loginClassification = classifyLoginFailure(loginResult, creds.missingSecretNames);
+    if (
+      authKindForPersona(target.persona) === "staff" &&
+      loginResult.classification === AUTH_BLOCK_CLASSIFICATIONS.AUTH_CONTRACT_MISMATCH
+    ) {
+      loginClassification = AUTH_BLOCK_CLASSIFICATIONS.AUTH_CONTRACT_MISMATCH;
+    }
+    if (authKindForPersona(target.persona) === "buyer") {
+      loginClassification = loginResult.classification;
+    }
   }
   await page.goto(routePath, { waitUntil: "domcontentloaded", timeout: 60_000 });
   if (target.classification === "LEGACY_REDIRECT") {
@@ -532,7 +549,9 @@ export async function crawlTargetAuthenticated(
   const url = page.url();
   const title = await page.title();
   const wall = await detectAccessWall(page);
-  const stillOnLogin = !wall.blocked && (Boolean(loginError) || url.includes("/login"));
+  const stillOnLogin =
+    !wall.blocked &&
+    (Boolean(loginError) || /\/(?:staff\/|buyer\/)?login(\/|$|\?)/i.test(new URL(url).pathname));
 
   if (wall.blocked) {
     failures.push(
@@ -603,7 +622,11 @@ export async function crawlTargetAuthenticated(
     baselineSha: CURRENT_MAIN_SHA,
     crawlBaseUrl: CRAWL_BASE_URL,
     timestamp: readRunMetadata().timestamp,
-    blockClassification: wall.blocked ? DEPLOYMENT_PROTECTION_CLASS : null,
+    blockClassification: wall.blocked
+      ? DEPLOYMENT_PROTECTION_CLASS
+      : stillOnLogin
+        ? loginClassification ?? AUTH_BLOCK_CLASSIFICATIONS.AUTH_FLOW_FAILED
+        : null,
     wallClassification: wall.blocked ? DEPLOYMENT_PROTECTION_CLASS : null,
     visualStatus: wall.blocked || stillOnLogin ? "BLOCKED" : "OBSERVED",
     functionStatus,
@@ -622,7 +645,7 @@ export async function crawlTargetAuthenticated(
     evidencePhase: "authenticated",
     preAuthEvidenceRef: preAuthRef(target.uatId),
     credentialPrefix: creds.prefix,
-    missingSecretNames: [],
+    missingSecretNames: stillOnLogin || wall.blocked ? [] : [],
     authenticated: !wall.blocked && !stillOnLogin,
   } satisfies AuthManifestRow);
 

@@ -489,6 +489,11 @@ jobs:
         continue-on-error: true
         run: node scripts/uat-crawl/record-rebaseline-current-main.mjs
 
+      - name: Generate physical readiness reconciliation (current run)
+        if: always() && env.UAT_DEPLOY_BLOCKED != 'true'
+        continue-on-error: true
+        run: node scripts/uat-crawl/generate-physical-readiness-reconciliation.mjs
+
       - name: Audit screenshot hash wall signals
         if: always() && env.UAT_DEPLOY_BLOCKED != 'true'
         continue-on-error: true
@@ -596,6 +601,11 @@ jobs:
             uat-evidence/screenshots/public-continuation/
             uat-evidence/screenshots/post-merge-491-kpi/
             test-results/ai-uat-evidence.jsonl
+            docs/uat-crawl/UAT_CRAWL_STEP_OUTCOMES.json
+            docs/uat-crawl/UAT_CRAWL_CERTIFICATION_VERDICT.json
+            docs/uat-crawl/UAT_CRAWL_VERDICT.json
+            docs/uat-crawl/UAT_PHYSICAL_READINESS_RECONCILIATION.json
+            docs/uat-crawl/UAT_PHYSICAL_READINESS_RECONCILIATION.md
           if-no-files-found: warn
           retention-days: 30
 
@@ -649,6 +659,7 @@ jobs:
             docs/uat-crawl/UAT_MANIFEST_PUBLIC_CONTINUATION.jsonl docs/uat-crawl/UAT_INDEX_PUBLIC_CONTINUATION.md \
             docs/uat-crawl/UAT_VERIFIED_BLOCKERS.jsonl docs/uat-crawl/UAT_VERIFIED_BLOCKERS_SUMMARY.json docs/uat-crawl/UAT_SECRET_PRESENCE.json \
             docs/uat-crawl/UAT_REBASELINE_CURRENT_MAIN.json docs/uat-crawl/UAT_PHYSICAL_READINESS_RECONCILIATION.json docs/uat-crawl/UAT_PHYSICAL_READINESS_RECONCILIATION.md \
+            docs/uat-crawl/UAT_CRAWL_STEP_OUTCOMES.json docs/uat-crawl/UAT_CRAWL_CERTIFICATION_VERDICT.json docs/uat-crawl/UAT_CRAWL_VERDICT.json \
             docs/uat-crawl/UAT_MANIFEST_PUBLIC_CONTINUATION_ARCHIVE.jsonl \
             docs/uat-crawl/UAT_REBASE_490_SUMMARY.json uat-evidence/screenshots/post-merge-491-kpi \
             uat-evidence/screenshots/post-merge-497-main \

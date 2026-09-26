@@ -31,7 +31,9 @@
     "check:boundaries": "bash scripts/check-repo-boundaries.sh",
     "test:release-controller": "bash .github/scripts/tests/appverse-release-controller.test.sh",
     "test:uat-pipeline-repair": "vitest run tests/uat-crawl/pipeline-repair.test.ts",
-    "test:uat-evidence-integrity": "vitest run tests/uat-crawl/pipeline-repair.test.ts tests/uat-crawl/evidence-integrity-repair.test.ts"
+    "test:uat-evidence-integrity": "vitest run tests/uat-crawl/pipeline-repair.test.ts tests/uat-crawl/evidence-integrity-repair.test.ts",
+    "test:uat-login-contract": "vitest run tests/uat-crawl/uat-login-contract-repair.test.ts",
+    "test:uat-auth-harness": "vitest run tests/uat-crawl/uat-login-contract-repair.test.ts tests/uat-crawl/pipeline-repair.test.ts tests/uat-crawl/evidence-integrity-repair.test.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

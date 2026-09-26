@@ -1,7 +1,8 @@
 import fs from "node:fs";
 import { expect, type Locator, type Page } from "@playwright/test";
 import type { AiUatCase, AiUatStatus } from "../../src/lib/ai-uat/catalogue";
-import { getPreviewUrl, login } from "../e2e-helpers";
+import { getPreviewUrl, loginStaff } from "../e2e-helpers";
+import { expectUnauthenticatedSession } from "../auth/auth-contract";
 import {
   aiPlannerEnabled,
   requestAiPlannerAction,
@@ -101,8 +102,10 @@ export async function loginWithPrefix(page: Page, prefix: "TEST_DISPATCH" | "TES
   const email = process.env[`${prefix}_EMAIL`]?.trim();
   const password = process.env[`${prefix}_PASSWORD`]?.trim();
   if (!email || !password) throw new Error(`${prefix}_EMAIL and ${prefix}_PASSWORD are required for this UAT case.`);
-  await login(page, email, password);
+  await loginStaff(page, email, password);
 }
+
+export { expectUnauthenticatedSession };
 
 /** Attach bounded console/network diagnostics and return a detachable accumulator. */
 export function attachSafeDiagnostics(page: Page) {
