@@ -109,19 +109,21 @@ export function detectScreenshotHashWall(
   rows: ScreenshotHashRow[],
   opts: { minRoutes: number; excludeHashes?: Set<string> } = { minRoutes: 5 },
 ): { wallDetected: boolean; dominantHash: string | null; affectedIds: string[] } {
-  const byHash = new Map<string, string[]>();
+  const byHash = new Map<string, { uatIds: string[]; routes: Set<string> }>();
   for (const row of rows) {
     if (!row.screenshotSha256 || row.visualStatus === "BLOCKED") continue;
     if (opts.excludeHashes?.has(row.screenshotSha256)) continue;
-    const list = byHash.get(row.screenshotSha256) ?? [];
-    list.push(row.uatId);
-    byHash.set(row.screenshotSha256, list);
+    const bucket = byHash.get(row.screenshotSha256) ?? { uatIds: [], routes: new Set<string>() };
+    bucket.uatIds.push(row.uatId);
+    if (row.route) bucket.routes.add(row.route);
+    byHash.set(row.screenshotSha256, bucket);
   }
 
   let dominantHash: string | null = null;
   let affectedIds: string[] = [];
-  for (const [hash, ids] of byHash) {
-    const uniqueRoutes = new Set(rows.filter((r) => r.screenshotSha256 === hash).map((r) => r.route));
+  for (const [hash, bucket] of byHash) {
+    const ids = bucket.uatIds;
+    const uniqueRoutes = bucket.routes;
     if (ids.length >= opts.minRoutes && uniqueRoutes.size >= opts.minRoutes) {
       if (ids.length > affectedIds.length) {
         dominantHash = hash;

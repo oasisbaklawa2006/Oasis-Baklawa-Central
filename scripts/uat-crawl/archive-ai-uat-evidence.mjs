@@ -49,11 +49,13 @@ function appendJsonl(filePath, row) {
 const counts = { PASS: 0, FAIL: 0, BLOCKED: 0, NOT_EXECUTED: 0 };
 const uatIds = [];
 const currentRunRows = [];
+let priorRunArchived = false;
 
 try {
   const prior = JSON.parse(fs.readFileSync(destSummary, "utf8"));
   if (prior.runId && prior.runId !== RUN_ID) {
     appendJsonl(archiveSummary, { ...prior, archivedAt: new Date().toISOString(), archiveReason: "prior-run" });
+    priorRunArchived = true;
   }
 } catch {
   /* no prior summary or malformed — safe on first run */
@@ -155,7 +157,7 @@ const summary = {
       ? currentRunRows.find((r) => r.uatId === id)?.visualStatus || "UNKNOWN"
       : "NOT_EXECUTED",
   })),
-  priorRunArchived: fs.existsSync(archiveSummary),
+  priorRunArchived,
   policy: "Current-run summary only — prior PASS rows archived separately; never substitute stale PASS as current truth.",
 };
 

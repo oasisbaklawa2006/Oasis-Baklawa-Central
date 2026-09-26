@@ -53,10 +53,10 @@ describe("UAT evidence integrity repair regressions", () => {
 
   it("5 — final workflow verdict step exists and fails closed", () => {
     expect(workflowYaml).toContain("Aggregate crawl certification verdict (fail closed)");
-    expect(workflowYaml).toContain("record-verified-blockers.mjs verdict");
-    const script = readFileSync(join(REPO_ROOT, "scripts/uat-crawl/record-verified-blockers.mjs"), "utf8");
-    expect(script).toContain("runCrawlVerdict");
-    expect(script).toContain("process.exitCode = 1");
+    expect(workflowYaml).toContain("evaluate-crawl-verdict.py");
+    const script = readFileSync(join(REPO_ROOT, "scripts/uat-crawl/evaluate-crawl-verdict.py"), "utf8");
+    expect(script).toContain("return 1");
+    expect(script).toContain("DEPLOYMENT_PROTECTION");
   });
 
   it("6 — continue-on-error collection cannot end with unconditional success", () => {
