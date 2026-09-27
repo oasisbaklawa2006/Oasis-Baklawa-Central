@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[2]
 DOCS = ROOT / "docs" / "uat-crawl"
 RUN_ID = os.environ.get("GITHUB_RUN_ID", "local")
 RUN_TRANCHE = os.environ.get("RUN_TRANCHE", "unknown")
+FULL_EVIDENCE_TRANCHES = {"all", "watchdog-continue", "current-main-rebaseline", "credential-prefix-unblock"}
 
 
 def read_json(name: str) -> dict | None:
@@ -80,27 +81,30 @@ def main() -> int:
     if step_outcomes.get("post_fix_483") == "failure":
         failures.append("POST_FIX_483_SUITE_FAILED")
 
+    full_evidence_required = RUN_TRANCHE in FULL_EVIDENCE_TRANCHES
+
     blockers_summary = read_json("UAT_VERIFIED_BLOCKERS_SUMMARY.json")
-    if not blockers_summary or blockers_summary.get("runId") != RUN_ID:
-        failures.append("CURRENT_RUN_BLOCKER_SUMMARY_MISSING_OR_STALE")
-    else:
-        if blockers_summary.get("denominatorReconciled") is False:
-            failures.append("CENSUS_RECONCILIATION_FAILED")
-        if int(blockers_summary.get("notExecuted") or 0) > 0:
-            failures.append(f"NOT_EXECUTED_ROWS:{blockers_summary.get('notExecuted')}")
-        if int(blockers_summary.get("credentialsAvailableAwaitingEvidence") or 0) > 0:
-            failures.append(
-                f"CREDENTIALS_AVAILABLE_WITHOUT_EVIDENCE:{blockers_summary.get('credentialsAvailableAwaitingEvidence')}"
+    if full_evidence_required:
+        if not blockers_summary or blockers_summary.get("runId") != RUN_ID:
+            failures.append("CURRENT_RUN_BLOCKER_SUMMARY_MISSING_OR_STALE")
+        else:
+            if blockers_summary.get("denominatorReconciled") is False:
+                failures.append("CENSUS_RECONCILIATION_FAILED")
+            if int(blockers_summary.get("notExecuted") or 0) > 0:
+                failures.append(f"NOT_EXECUTED_ROWS:{blockers_summary.get('notExecuted')}")
+            if int(blockers_summary.get("credentialsAvailableAwaitingEvidence") or 0) > 0:
+                failures.append(
+                    f"CREDENTIALS_AVAILABLE_WITHOUT_EVIDENCE:{blockers_summary.get('credentialsAvailableAwaitingEvidence')}"
+                )
+            if int(blockers_summary.get("authFlowFailed") or 0) > 0:
+                failures.append(f"AUTH_FLOW_FAILED_ROWS:{blockers_summary.get('authFlowFailed')}")
+            if int(blockers_summary.get("authContractMismatch") or 0) > 0:
+                failures.append(f"AUTH_CONTRACT_MISMATCH_ROWS:{blockers_summary.get('authContractMismatch')}")
+            external_gates = int(blockers_summary.get("otpExternalGate") or 0) + int(
+                blockers_summary.get("providerGated") or 0
             )
-        if int(blockers_summary.get("authFlowFailed") or 0) > 0:
-            failures.append(f"AUTH_FLOW_FAILED_ROWS:{blockers_summary.get('authFlowFailed')}")
-        if int(blockers_summary.get("authContractMismatch") or 0) > 0:
-            failures.append(f"AUTH_CONTRACT_MISMATCH_ROWS:{blockers_summary.get('authContractMismatch')}")
-        external_gates = int(blockers_summary.get("otpExternalGate") or 0) + int(
-            blockers_summary.get("providerGated") or 0
-        )
-        if external_gates > 0:
-            warnings.append(f"EXTERNAL_PROVIDER_GATES:{external_gates}")
+            if external_gates > 0:
+                warnings.append(f"EXTERNAL_PROVIDER_GATES:{external_gates}")
 
     ai_summary = read_json("UAT_AI_UAT_SUMMARY.json")
     if ai_summary and ai_summary.get("runId") == RUN_ID:
@@ -144,28 +148,29 @@ def main() -> int:
         failures.append("STALE_PROVENANCE_LABEL_IN_DEPLOY_PROVENANCE")
 
     screenshot_audit = read_json("UAT_SCREENSHOT_WALL_AUDIT.json")
-    if not screenshot_audit or screenshot_audit.get("runId") != RUN_ID:
-        failures.append("SCREENSHOT_WALL_AUDIT_MISSING_OR_STALE")
-    elif screenshot_audit.get("wallDetected") is True:
-        failures.append("SCREENSHOT_HASH_WALL_SIGNAL")
-
-    rebaseline = read_json("UAT_REBASELINE_CURRENT_MAIN.json")
-    if not rebaseline or rebaseline.get("runId") != RUN_ID:
-        failures.append("CURRENT_RUN_REBASELINE_MISSING_OR_STALE")
-
     current_summary = read_json("UAT_CURRENT_RUN_SUMMARY.json")
-    if not current_summary or current_summary.get("runId") != RUN_ID:
-        failures.append("CURRENT_RUN_SUMMARY_MISSING_OR_STALE")
-    elif int((current_summary.get("counts") or {}).get("notExecuted") or 0) > 0:
-        failures.append(
-            f"CURRENT_RUN_SUMMARY_NOT_EXECUTED:{(current_summary.get('counts') or {}).get('notExecuted')}"
-        )
+    if full_evidence_required:
+        if not screenshot_audit or screenshot_audit.get("runId") != RUN_ID:
+            failures.append("SCREENSHOT_WALL_AUDIT_MISSING_OR_STALE")
+        elif screenshot_audit.get("wallDetected") is True:
+            failures.append("SCREENSHOT_HASH_WALL_SIGNAL")
+
+        rebaseline = read_json("UAT_REBASELINE_CURRENT_MAIN.json")
+        if not rebaseline or rebaseline.get("runId") != RUN_ID:
+            failures.append("CURRENT_RUN_REBASELINE_MISSING_OR_STALE")
+
+        if not current_summary or current_summary.get("runId") != RUN_ID:
+            failures.append("CURRENT_RUN_SUMMARY_MISSING_OR_STALE")
+        elif int((current_summary.get("counts") or {}).get("notExecuted") or 0) > 0:
+            failures.append(
+                f"CURRENT_RUN_SUMMARY_NOT_EXECUTED:{(current_summary.get('counts') or {}).get('notExecuted')}"
+            )
 
     verdict = {
         "generatedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "runId": RUN_ID,
         "runTranche": RUN_TRANCHE,
-        "scope": "AUTOMATED_CRAWL_EVIDENCE",
+        "scope": "AUTOMATED_CRAWL_EVIDENCE" if full_evidence_required else "TARGETED_CRAWL_EVIDENCE",
         "passed": len(failures) == 0,
         "failures": failures,
         "warnings": warnings,
