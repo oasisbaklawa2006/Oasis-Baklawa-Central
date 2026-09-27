@@ -28,6 +28,7 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          TRUSTED_WORKFLOW_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
           [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]] || {
@@ -42,11 +43,21 @@ jobs:
             echo '::error::Invalid PR head SHA' >&2
             exit 1
           }
+          [[ "$TRUSTED_WORKFLOW_SHA" =~ ^[0-9a-f]{40}$ ]] || {
+            echo '::error::Invalid trusted workflow SHA' >&2
+            exit 1
+          }
 
           git init .
           git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+
+          # Execute only the trusted default-branch guard implementation.
+          # A long-lived PR base may predate this script entirely; base/head
+          # are comparison objects, not sources of executable guard code.
+          git -c protocol.file.allow=never fetch --no-tags --no-write-fetch-head origin "$TRUSTED_WORKFLOW_SHA"
+          git update-ref refs/remotes/origin/trusted-workflow "$TRUSTED_WORKFLOW_SHA"
           git -c protocol.file.allow=never fetch --no-tags --no-write-fetch-head origin "$PR_BASE_SHA"
-          git update-ref refs/remotes/origin/trusted-base "$PR_BASE_SHA"
+          git update-ref refs/remotes/origin/pr-base "$PR_BASE_SHA"
           git -c protocol.file.allow=never fetch --no-tags --no-write-fetch-head origin \
             "refs/pull/${PR_NUMBER}/head:refs/remotes/origin/pr-head"
 
@@ -56,9 +67,9 @@ jobs:
             exit 1
           }
 
-          git checkout --detach refs/remotes/origin/trusted-base
-          [[ "$(git rev-parse HEAD)" == "$PR_BASE_SHA" ]] || {
-            echo '::error::Trusted base checkout mismatch' >&2
+          git checkout --detach refs/remotes/origin/trusted-workflow
+          [[ "$(git rev-parse HEAD)" == "$TRUSTED_WORKFLOW_SHA" ]] || {
+            echo '::error::Trusted workflow checkout mismatch' >&2
             exit 1
           }
       - name: Enforce Core backend authority from trusted base code
