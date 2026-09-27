@@ -1,14 +1,14 @@
 {
-  "runId": "36298098744",
+  "runId": "36298937129",
   "runAttempt": "1",
-  "runTranche": "auth-contract-smoke",
+  "runTranche": "watchdog-continue",
   "ref": "refs/heads/cursor/physical-uat-readiness-matrix-e763",
-  "sha": "946add0efd2875e12f5229d957d3658e2f4ffb94",
+  "sha": "e67050ba905455ef408ebf4576410684208a5f93",
   "resolvedMainSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
   "resolvedDeploymentSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
   "resolvedDeploymentId": "6673518054",
   "protectedDeploymentUrl": "https://oasis-baklawa-central-jc8jxvcf8-oasisbaklawa2006-6222s-projects.vercel.app",
-  "crawlBaseUrl": "https://oasis-baklawa-central.vercel.app",
+  "crawlBaseUrl": "    https://oasis-baklawa-central.vercel.app",
   "crawlTargetType": "PUBLIC_PRODUCTION_ALIAS",
   "deploymentEnvironment": "production",
   "currentMainHoldSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
@@ -16,10 +16,10 @@
   "continuationFallback": false,
   "deployProvenanceLabel": "Current-main authority @ d3f57a7cce274534a6cb3a29e8f5edf0d9797e10 (resolved dynamically at run time) — prior pinned-SHA evidence preserved append-only.",
   "deployBlocked": false,
-  "deployUrl": "https://oasis-baklawa-central.vercel.app",
+  "deployUrl": "    https://oasis-baklawa-central.vercel.app",
   "fail493EvidencePreserved": "Pre-fix FAIL @ 8f042fa (run 34015742110) + preview PASS @ 9715c20d (run 34016393457) preserved append-only; current-main rebaseline target resolved dynamically at run time.",
   "priorEvidenceSha": "e2f123b0fe257b8a1f39ec40d5f544fff1ebe313",
   "priorCurrentMainHoldSha": "6c7de2a69cec960f709a66fb85d25049dfcc2ae0",
   "uat005CurrentMainPass": "",
-  "completedAt": "2026-09-27T05:47:07Z"
+  "completedAt": "2026-09-27T06:27:07Z"
 }

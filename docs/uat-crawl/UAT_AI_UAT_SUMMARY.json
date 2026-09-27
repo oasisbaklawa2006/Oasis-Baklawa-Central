@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-09-27T05:47:07.073Z",
-  "runId": "36298098744",
+  "generatedAt": "2026-09-27T06:04:49.409Z",
+  "runId": "36298937129",
   "runAttempt": "1",
-  "runTranche": "auth-contract-smoke",
+  "runTranche": "watchdog-continue",
   "targetSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
   "deploymentSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
   "crawlBaseUrl": "https://oasis-baklawa-central.vercel.app",

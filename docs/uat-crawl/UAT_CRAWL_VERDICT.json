@@ -1,15 +1,15 @@
 {
-  "generatedAt": "2026-09-27T05:47:07.236892Z",
-  "runId": "36298098744",
-  "runTranche": "auth-contract-smoke",
+  "generatedAt": "2026-09-27T06:27:07.815066Z",
+  "runId": "36298937129",
+  "runTranche": "watchdog-continue",
   "passed": true,
   "failures": [],
   "warnings": [],
   "stepOutcomes": {
     "ai_uat": "success",
-    "post_fix_483": "skipped",
+    "post_fix_483": "success",
     "post_merge_497_005": "skipped",
-    "record_verified_blockers": "skipped",
-    "record_rebaseline": "skipped"
+    "record_verified_blockers": "success",
+    "record_rebaseline": "success"
   }
 }
