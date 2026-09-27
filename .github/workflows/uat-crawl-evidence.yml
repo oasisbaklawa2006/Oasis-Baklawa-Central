@@ -22,6 +22,7 @@ on:
           - both
           - buyer-mobile
           - ai-uat
+          - auth-contract-smoke
           - post-merge-proofs
           - public-continuation
           - s2-gap-deepening
@@ -53,7 +54,8 @@ jobs:
     outputs:
       run_tranche: ${{ steps.record_crawl_plan.outputs.run_tranche }}
     env:
-      RUN_TRANCHE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.run_tranche || 'watchdog-continue' }}
+      # Pushes to the evidence branch are preflight-only. Full certification is manual workflow_dispatch.
+      RUN_TRANCHE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.run_tranche || 'auth-contract-smoke' }}
       TEST_PREVIEW_URL: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.target_url != '' && github.event.inputs.target_url || secrets.TEST_PREVIEW_URL }}
       UAT_CRAWL_BASE_URL: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.target_url != '' && github.event.inputs.target_url || secrets.TEST_PREVIEW_URL }}
       TEST_ADMIN_EMAIL: ${{ secrets.TEST_ADMIN_EMAIL }}
@@ -141,7 +143,7 @@ jobs:
           echo "::notice::FAST PATH uses exact-head Vercel previews only. Current main 64a107df held — no stale ace340fe/67b3d1cc substitution."
 
       - name: Configure current-main deploy (dynamic HEAD)
-        if: env.RUN_TRANCHE == 'post-merge-497-main' || env.RUN_TRANCHE == 'watchdog-continue' || env.RUN_TRANCHE == 'current-main-rebaseline' || env.RUN_TRANCHE == 'credential-prefix-unblock' || env.RUN_TRANCHE == 'all'
+        if: env.RUN_TRANCHE == 'post-merge-497-main' || env.RUN_TRANCHE == 'watchdog-continue' || env.RUN_TRANCHE == 'current-main-rebaseline' || env.RUN_TRANCHE == 'credential-prefix-unblock' || env.RUN_TRANCHE == 'auth-contract-smoke' || env.RUN_TRANCHE == 'all'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -193,7 +195,7 @@ jobs:
           echo "::notice::${RUN_TRANCHE} main=${CURRENT_MAIN_SHA} crawl=${crawl_url} protectedDeploy=${protected_url:-none}"
 
       - name: Resolve and validate target URL (no secrets logged)
-        if: env.RUN_TRANCHE != 'post-merge-proofs' && env.RUN_TRANCHE != 'post-merge-497-main' && env.RUN_TRANCHE != 'watchdog-continue' && env.RUN_TRANCHE != 'current-main-rebaseline' && env.RUN_TRANCHE != 'credential-prefix-unblock'
+        if: env.RUN_TRANCHE != 'post-merge-proofs' && env.RUN_TRANCHE != 'post-merge-497-main' && env.RUN_TRANCHE != 'watchdog-continue' && env.RUN_TRANCHE != 'current-main-rebaseline' && env.RUN_TRANCHE != 'credential-prefix-unblock' && env.RUN_TRANCHE != 'auth-contract-smoke'
         shell: bash
         env:
           RAW_URL: ${{ env.TEST_PREVIEW_URL }}
@@ -283,7 +285,7 @@ jobs:
         run: node scripts/uat-crawl/record-continuation-provenance.mjs
 
       - name: Record current-main deploy provenance (dynamic HEAD)
-        if: (env.RUN_TRANCHE == 'post-merge-497-main' || env.RUN_TRANCHE == 'watchdog-continue' || env.RUN_TRANCHE == 'current-main-rebaseline' || env.RUN_TRANCHE == 'credential-prefix-unblock' || env.RUN_TRANCHE == 'all') && env.UAT_DEPLOY_BLOCKED != 'true'
+        if: (env.RUN_TRANCHE == 'post-merge-497-main' || env.RUN_TRANCHE == 'watchdog-continue' || env.RUN_TRANCHE == 'current-main-rebaseline' || env.RUN_TRANCHE == 'credential-prefix-unblock' || env.RUN_TRANCHE == 'auth-contract-smoke' || env.RUN_TRANCHE == 'all') && env.UAT_DEPLOY_BLOCKED != 'true'
         run: node scripts/uat-crawl/record-current-main-provenance.mjs
 
       - uses: actions/setup-node@v4
@@ -378,7 +380,7 @@ jobs:
         run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/post-merge-491-kpi.spec.ts
 
       - name: Run APPVERSE AI-UAT Tranche 1 (UAT-001–010)
-        if: env.RUN_TRANCHE != 'post-merge-proofs' && env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'ai-uat' || env.RUN_TRANCHE == 'all' || (env.RUN_TRANCHE == 'post-merge-497-main' && env.UAT_005_CURRENT_MAIN_PASS == 'true') || env.RUN_TRANCHE == 'watchdog-continue' || env.RUN_TRANCHE == 'current-main-rebaseline')
+        if: env.RUN_TRANCHE != 'post-merge-proofs' && env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'ai-uat' || env.RUN_TRANCHE == 'auth-contract-smoke' || env.RUN_TRANCHE == 'all' || (env.RUN_TRANCHE == 'post-merge-497-main' && env.UAT_005_CURRENT_MAIN_PASS == 'true') || env.RUN_TRANCHE == 'watchdog-continue' || env.RUN_TRANCHE == 'current-main-rebaseline')
         id: ai_uat
         continue-on-error: true
         env:
@@ -490,12 +492,12 @@ jobs:
         run: node scripts/uat-crawl/record-rebaseline-current-main.mjs
 
       - name: Generate physical readiness reconciliation (current run)
-        if: always() && env.UAT_DEPLOY_BLOCKED != 'true'
+        if: always() && env.UAT_DEPLOY_BLOCKED != 'true' && env.RUN_TRANCHE != 'auth-contract-smoke'
         continue-on-error: true
         run: node scripts/uat-crawl/generate-physical-readiness-reconciliation.mjs
 
       - name: Audit screenshot hash wall signals
-        if: always() && env.UAT_DEPLOY_BLOCKED != 'true'
+        if: always() && env.UAT_DEPLOY_BLOCKED != 'true' && env.RUN_TRANCHE != 'auth-contract-smoke'
         continue-on-error: true
         run: python3 scripts/uat-crawl/detect-screenshot-wall.py
 
