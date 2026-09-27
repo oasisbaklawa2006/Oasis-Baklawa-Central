@@ -107,4 +107,17 @@ describe("UAT login contract repair regressions", () => {
     expect(isUnauthenticatedDestination("/admin/dispatch-mgmt")).toBe(false);
     expect(aiUatSpec).toContain("expectUnauthenticatedSession");
   });
+  it("13 — lazy staff/buyer auth surfaces wait for stable runtime markers", () => {
+    expect(authContract).toContain('page.locator("#staff-email")');
+    expect(authContract).toContain("waitForVisible");
+    expect(authContract).toContain("React.lazy()");
+    expect(authContract).toContain("B2B Client Login");
+  });
+
+  it("14 — protected-route denial waits for async auth redirect before asserting pathname", () => {
+    expect(authContract).toContain("waitForUnauthenticatedDestination");
+    expect(aiUatSpec).toContain("waitForUnauthenticatedDestination");
+    expect(aiUatSpec).toContain("15_000");
+  });
+
 });
