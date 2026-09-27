@@ -1,4 +1,4 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 import { getPreviewUrl } from "../e2e-helpers";
 
 /** Canonical block / disposition labels for UAT evidence (must stay consistent across manifests + scripts). */
@@ -70,22 +70,44 @@ export function isUnauthenticatedDestination(pathname: string): boolean {
   );
 }
 
+async function waitForVisible(locator: Locator, timeout = 15_000): Promise<boolean> {
+  try {
+    await locator.waitFor({ state: "visible", timeout });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function waitForUnauthenticatedDestination(page: Page, timeout = 15_000): Promise<string> {
+  await page.waitForURL((url) => isUnauthenticatedDestination(url.pathname), { timeout });
+  return new URL(page.url()).pathname;
+}
+
 export async function detectAuthArchitecture(page: Page): Promise<AuthArchitecture> {
   await page.goto(`${getPreviewUrl()}${LEGACY_LOGIN_PATH}`, {
     waitUntil: "domcontentloaded",
     timeout: 60_000,
   });
+
+  // React mounts after DOMContentLoaded. Wait for the first auth heading rather
+  // than sampling lazy/eager route state synchronously.
+  await page.locator("h1").first().waitFor({ state: "visible", timeout: 15_000 }).catch(() => undefined);
   if (await page.getByRole("heading", { name: LEGACY_HEADING }).isVisible().catch(() => false)) {
     return "legacy";
   }
   if (await page.getByRole("heading", { name: AUTH_ENTRY_HEADING }).isVisible().catch(() => false)) {
     return "split";
   }
-  const staffProbe = await page.goto(`${getPreviewUrl()}${STAFF_LOGIN_PATH}`, {
+
+  await page.goto(`${getPreviewUrl()}${STAFF_LOGIN_PATH}`, {
     waitUntil: "domcontentloaded",
     timeout: 60_000,
   });
-  if (staffProbe && (await page.getByRole("heading", { name: STAFF_HEADING }).isVisible().catch(() => false))) {
+  // StaffLogin is React.lazy() in App.tsx, so DOMContentLoaded can occur while
+  // Suspense still renders the auth spinner. A stable form id is a stronger
+  // readiness marker than an immediate heading snapshot.
+  if (await waitForVisible(page.locator("#staff-email"), 15_000)) {
     return "split";
   }
   return "legacy";
@@ -109,18 +131,24 @@ export async function loginStaff(page: Page, email: string, password: string): P
       waitUntil: "domcontentloaded",
       timeout: 60_000,
     });
-    const onStaffLogin = await page.getByRole("heading", { name: STAFF_HEADING }).isVisible().catch(() => false);
-    if (!onStaffLogin) {
+    const emailInput = page.locator("#staff-email");
+    const passwordInput = page.locator("#staff-password");
+    const staffReady =
+      (await waitForVisible(emailInput, 15_000)) &&
+      (await waitForVisible(passwordInput, 5_000)) &&
+      (await waitForVisible(page.getByRole("button", { name: /^Login$/i }), 5_000));
+    if (!staffReady) {
+      const heading = await page.locator("h1").first().textContent().catch(() => null);
       return {
         ok: false,
         architecture,
         path: STAFF_LOGIN_PATH,
         classification: AUTH_BLOCK_CLASSIFICATIONS.AUTH_CONTRACT_MISMATCH,
-        message: "Staff login surface missing Employee Access heading at /staff/login",
+        message: `Staff login form did not become ready after lazy-route load (heading=${heading ?? "none"})`,
       };
     }
-    await page.getByPlaceholder("you@oasisbaklawa.com").fill(email);
-    await page.getByPlaceholder("••••••••").fill(password);
+    await emailInput.fill(email);
+    await passwordInput.fill(password);
     await page.getByRole("button", { name: /^Login$/i }).click();
     try {
       await waitForAuthenticatedNavigation(page, STAFF_LOGIN_PATH);
@@ -176,7 +204,7 @@ export async function loginBuyer(page: Page, email: string, _password: string): 
       waitUntil: "domcontentloaded",
       timeout: 60_000,
     });
-    const onBuyerLogin = await page.getByRole("heading", { name: BUYER_HEADING }).isVisible().catch(() => false);
+    const onBuyerLogin = await waitForVisible(page.getByRole("heading", { name: BUYER_HEADING }), 15_000);
     if (!onBuyerLogin) {
       return {
         ok: false,
@@ -257,7 +285,9 @@ export async function expectUnauthenticatedSession(
   context: string,
   protectedRoute = "/admin/dispatch-mgmt",
 ) {
-  const pathname = new URL(page.url()).pathname;
+  const pathname = await waitForUnauthenticatedDestination(page, 15_000).catch(
+    () => new URL(page.url()).pathname,
+  );
   expect(
     isUnauthenticatedDestination(pathname),
     `${context} must land on governed unauthenticated entry, got ${pathname}`,
@@ -266,7 +296,9 @@ export async function expectUnauthenticatedSession(
     waitUntil: "domcontentloaded",
     timeout: 45_000,
   });
-  const revisitPath = new URL(page.url()).pathname;
+  const revisitPath = await waitForUnauthenticatedDestination(page, 15_000).catch(
+    () => new URL(page.url()).pathname,
+  );
   expect(
     isUnauthenticatedDestination(revisitPath),
     `${context} protected route revisit must not restore session (${revisitPath})`,
