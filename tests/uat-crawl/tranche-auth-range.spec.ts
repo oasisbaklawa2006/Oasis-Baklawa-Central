@@ -29,12 +29,18 @@ const rows: AuthManifestRow[] = [];
 const allFailures: string[] = [];
 const allUxFailures: string[] = [];
 
-const AUTH_CRAWL_TEST_TIMEOUT_MS = 240_000;\n\ntest.describe.configure({ timeout: AUTH_CRAWL_TEST_TIMEOUT_MS });
+const AUTH_CRAWL_TEST_TIMEOUT_MS = 240_000;
+
+test.describe.configure({ timeout: AUTH_CRAWL_TEST_TIMEOUT_MS });
 
 test.describe(`UAT crawl — ${TRANCHE} (${UAT_RANGE}) authenticated`, () => {
   for (const target of targets) {
     test(`${target.uatId} ${target.route} [${target.state}]`, async ({ page }) => {
-      const viewport = target.device === "phone"\n        ? "390x844"\n        : target.device === "tv"\n          ? "1920x1080"\n          : "1440x900";
+      const viewport = target.device === "phone"
+        ? "390x844"
+        : target.device === "tv"
+          ? "1920x1080"
+          : "1440x900";
       if (target.device === "phone") {
         await page.setViewportSize({ width: 390, height: 844 });
       } else if (target.device === "tv") {
