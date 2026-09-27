@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-09-26T21:58:40.424Z",
-  "runId": "36274726002",
+  "generatedAt": "2026-09-27T05:45:12.817Z",
+  "runId": "36298098744",
   "runAttempt": "1",
-  "runTranche": "watchdog-continue",
+  "runTranche": "auth-contract-smoke",
   "resolvedMainSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
   "resolvedDeploymentSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
   "resolvedDeploymentId": "6673518054",

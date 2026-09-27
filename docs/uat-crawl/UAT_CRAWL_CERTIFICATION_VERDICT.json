@@ -1,18 +1,15 @@
 {
-  "generatedAt": "2026-09-26T22:12:53.031108Z",
-  "runId": "36274726002",
-  "runTranche": "watchdog-continue",
-  "passed": false,
-  "failures": [
-    "STEP_FAILED:ai_uat",
-    "AI_UAT_SUITE_FAILED"
-  ],
+  "generatedAt": "2026-09-27T05:47:07.236892Z",
+  "runId": "36298098744",
+  "runTranche": "auth-contract-smoke",
+  "passed": true,
+  "failures": [],
   "warnings": [],
   "stepOutcomes": {
-    "ai_uat": "failure",
-    "post_fix_483": "success",
+    "ai_uat": "success",
+    "post_fix_483": "skipped",
     "post_merge_497_005": "skipped",
-    "record_verified_blockers": "success",
-    "record_rebaseline": "success"
+    "record_verified_blockers": "skipped",
+    "record_rebaseline": "skipped"
   }
 }

@@ -1,9 +1,9 @@
 {
-  "runId": "36274726002",
+  "runId": "36298098744",
   "runAttempt": "1",
-  "runTranche": "watchdog-continue",
+  "runTranche": "auth-contract-smoke",
   "ref": "refs/heads/cursor/physical-uat-readiness-matrix-e763",
-  "sha": "a1faeb89ff4583fde53a627965fa1c8d598653d4",
+  "sha": "946add0efd2875e12f5229d957d3658e2f4ffb94",
   "resolvedMainSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
   "resolvedDeploymentSha": "d3f57a7cce274534a6cb3a29e8f5edf0d9797e10",
   "resolvedDeploymentId": "6673518054",
@@ -21,5 +21,5 @@
   "priorEvidenceSha": "e2f123b0fe257b8a1f39ec40d5f544fff1ebe313",
   "priorCurrentMainHoldSha": "6c7de2a69cec960f709a66fb85d25049dfcc2ae0",
   "uat005CurrentMainPass": "",
-  "completedAt": "2026-09-26T22:12:52Z"
+  "completedAt": "2026-09-27T05:47:07Z"
 }
