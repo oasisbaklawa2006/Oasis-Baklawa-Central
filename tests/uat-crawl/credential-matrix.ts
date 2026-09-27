@@ -48,8 +48,12 @@ const PERSONA_PREFIX_CANDIDATES: Record<string, CredentialPrefix[]> = {
 const ROUTE_PREFIX: Array<{ pattern: RegExp; prefixes: CredentialPrefix[] }> = [
   { pattern: /^\/operations-controller/, prefixes: ["TEST_OPERATIONS"] },
   { pattern: /^\/admin\/dispatch/, prefixes: ["TEST_DISPATCH"] },
-  { pattern: /^\/tv\/3pgs/, prefixes: ["TEST_TV_PRODUCTION"] },
-  { pattern: /^\/tv\//, prefixes: ["TEST_TV_RGS"] },
+  { pattern: /^\/tv\/3pgs/, prefixes: ["TEST_3PGS", "TEST_OPERATIONS"] },
+  { pattern: /^\/tv\/rgs/, prefixes: ["TEST_TV_RGS", "TEST_RGS"] },
+  {
+    pattern: /^\/tv\/(arabic-sweets|chocolate|dragees|fusion|bakery|nuts)/,
+    prefixes: ["TEST_TV_PRODUCTION", "TEST_PRODUCTION"],
+  },
 ];
 
 export function secretNamesForPrefix(prefix: CredentialPrefix): [string, string] {
