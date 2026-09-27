@@ -1,6 +1,6 @@
 # APPVERSE AI UAT — Tranche 1
 
-Generated: 2026-09-27T12:06:48.749Z  
+Generated: 2026-09-27T19:28:52.781Z  
 Target: https://oasis-baklawa-central.vercel.app/  
 AI planner: disabled  
 Visual model input: disabled
@@ -79,8 +79,6 @@ Visual model input: disabled
 - **Expected:** After loading completes, DispatchManagement must show the governed-consignments UI and either rows or the explicit 'No governed consignments yet.' empty state; an unexplained blank panel is FAIL.
 - **Actual:** Governed Dispatch rendered an explicit empty state.
 - **Final URL:** https://oasis-baklawa-central.vercel.app/admin/dispatch-mgmt
-- **Console errors:** 1
-- **Failed requests:** 1
 
 ### UAT-009 — PASS
 

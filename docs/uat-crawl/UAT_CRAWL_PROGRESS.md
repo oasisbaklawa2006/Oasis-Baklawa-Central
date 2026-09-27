@@ -1,9 +1,9 @@
 # UAT Crawl Progress Summary
 
-**Generated:** 2026-09-27T12:06:49.044699Z
-**Run:** 36317787811 (tranche `auth-contract-smoke`)
-**Scope:** AUTOMATED_CRAWL_EVIDENCE
-**Final automated-crawl verdict:** FAIL
+**Generated:** 2026-09-27T19:28:52.988914Z
+**Run:** 36344350537 (tranche `auth-contract-smoke`)
+**Scope:** TARGETED_CRAWL_EVIDENCE
+**Final automated-crawl verdict:** PASS
 
 ## Current-run census disposition
 
@@ -18,7 +18,7 @@
 | Auth contract mismatch | 0 |
 | NOT EXECUTED | 0 |
 
-**Failures:** CURRENT_RUN_BLOCKER_SUMMARY_MISSING_OR_STALE, SCREENSHOT_WALL_AUDIT_MISSING_OR_STALE, CURRENT_RUN_REBASELINE_MISSING_OR_STALE, CURRENT_RUN_SUMMARY_MISSING_OR_STALE
+**Failures:** none
 **Warnings:** none
 
 Physical/device/provider evidence remains separately governed and is not certified by Chromium automation.

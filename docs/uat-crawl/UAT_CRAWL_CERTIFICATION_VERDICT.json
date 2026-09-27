@@ -1,15 +1,10 @@
 {
-  "generatedAt": "2026-09-27T12:06:49.044699Z",
-  "runId": "36317787811",
+  "generatedAt": "2026-09-27T19:28:52.988914Z",
+  "runId": "36344350537",
   "runTranche": "auth-contract-smoke",
-  "scope": "AUTOMATED_CRAWL_EVIDENCE",
-  "passed": false,
-  "failures": [
-    "CURRENT_RUN_BLOCKER_SUMMARY_MISSING_OR_STALE",
-    "SCREENSHOT_WALL_AUDIT_MISSING_OR_STALE",
-    "CURRENT_RUN_REBASELINE_MISSING_OR_STALE",
-    "CURRENT_RUN_SUMMARY_MISSING_OR_STALE"
-  ],
+  "scope": "TARGETED_CRAWL_EVIDENCE",
+  "passed": true,
+  "failures": [],
   "warnings": [],
   "externalProviderGates": 10,
   "stepOutcomes": {
