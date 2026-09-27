@@ -84,6 +84,11 @@ def main() -> int:
     full_evidence_required = RUN_TRANCHE in FULL_EVIDENCE_TRANCHES
 
     blockers_summary = read_json("UAT_VERIFIED_BLOCKERS_SUMMARY.json")
+    current_blockers_summary = (
+        blockers_summary
+        if blockers_summary and blockers_summary.get("runId") == RUN_ID
+        else None
+    )
     if full_evidence_required:
         if not blockers_summary or blockers_summary.get("runId") != RUN_ID:
             failures.append("CURRENT_RUN_BLOCKER_SUMMARY_MISSING_OR_STALE")
@@ -175,8 +180,8 @@ def main() -> int:
         "failures": failures,
         "warnings": warnings,
         "externalProviderGates": (
-            int((blockers_summary or {}).get("otpExternalGate") or 0)
-            + int((blockers_summary or {}).get("providerGated") or 0)
+            int((current_blockers_summary or {}).get("otpExternalGate") or 0)
+            + int((current_blockers_summary or {}).get("providerGated") or 0)
         ),
         "stepOutcomes": step_outcomes,
     }
@@ -185,7 +190,12 @@ def main() -> int:
     alias_path = DOCS / "UAT_CRAWL_VERDICT.json"
     alias_path.write_text(json.dumps(verdict, indent=2) + "\n", encoding="utf-8")
 
-    counts = (current_summary or {}).get("counts") or {}
+    current_summary_for_run = (
+        current_summary
+        if current_summary and current_summary.get("runId") == RUN_ID
+        else None
+    )
+    counts = (current_summary_for_run or {}).get("counts") or {}
     progress_lines = [
         "# UAT Crawl Progress Summary",
         "",
