@@ -108,7 +108,7 @@ describe("UAT evidence pipeline repair regressions", () => {
       }
     });
 
-    it("reconciles authenticated + publicSkipped + blocked + credsAvailable to census total", () => {
+    it("reconciles every exclusive current-run disposition to the census total", () => {
       const output = execFileSync("node", ["scripts/uat-crawl/record-verified-blockers.mjs"], {
         cwd: REPO_ROOT,
         encoding: "utf8",
@@ -123,12 +123,25 @@ describe("UAT evidence pipeline repair regressions", () => {
         publicFunctionObserved,
         blocked,
         credsAvailableNoEvidence,
+        authFlowFailed,
+        authContractMismatch,
+        otpExternalGate,
+        providerGated,
+        notExecuted,
         totalCensus,
         reconciledTotal,
       } = summary.counts;
-      expect(authenticated + publicFunctionObserved + blocked + credsAvailableNoEvidence).toBe(
-        totalCensus,
-      );
+      expect(
+        authenticated +
+          publicFunctionObserved +
+          blocked +
+          credsAvailableNoEvidence +
+          authFlowFailed +
+          authContractMismatch +
+          otpExternalGate +
+          providerGated +
+          notExecuted,
+      ).toBe(totalCensus);
       expect(reconciledTotal).toBe(totalCensus);
       expect(summary.denominatorReconciled).toBe(true);
     });
