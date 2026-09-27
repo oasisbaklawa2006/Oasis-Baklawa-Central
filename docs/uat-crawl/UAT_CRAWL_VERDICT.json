@@ -1,12 +1,12 @@
 {
-  "generatedAt": "2026-09-27T19:31:57.094581Z",
-  "runId": "36344382090",
+  "generatedAt": "2026-09-27T19:38:48.086337Z",
+  "runId": "36344988410",
   "runTranche": "auth-contract-smoke",
   "scope": "TARGETED_CRAWL_EVIDENCE",
   "passed": true,
   "failures": [],
   "warnings": [],
-  "externalProviderGates": 10,
+  "externalProviderGates": 0,
   "stepOutcomes": {
     "ai_uat": "success",
     "credential_prefix_unblock": "skipped",
