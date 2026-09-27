@@ -2,7 +2,12 @@ import { useEffect, useState, useMemo, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Eye, EyeOff, RefreshCw, Tag } from "lucide-react";
 import { toast } from "sonner";
-import { removeDuplicateRealtimeChannel } from "@/utils/realtime";
+import { useScopedRealtimeSubscription } from "@/hooks/useScopedRealtimeSubscription";
+import {
+  COMPANIES_ALL_CHANGES,
+  ORDER_ITEMS_ALL_CHANGES,
+  ORDERS_ALL_CHANGES,
+} from "@/lib/realtime";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import ShadowClientSection from "@/components/warroom/ShadowClientSection";
@@ -22,6 +27,11 @@ import { deriveExecutionEscalations } from "@/lib/execution-engine/executionEsca
 import { deriveInventoryVarianceEscalations } from "@/lib/inventory-operating-system/inventoryRiskDerive";
 import { aggregateLiveFeeds } from "@/lib/live-feeds/aggregateLiveFeeds";
 import { mapOrdersToFeedContext } from "@/lib/live-feeds/mapOrdersToFeedContext";
+import {
+  compareOrderPoolQueueItems,
+  isDispatchPanicFromUrgency,
+  projectFromRawFacts,
+} from "@/lib/order-priority-owner-sla";
 
 interface OrderItem {
   id?: string;
@@ -41,6 +51,11 @@ interface Order {
   created_at: string | null;
   sales_order_value: number | null;
   dispatch_urgency: string | null;
+  requested_dispatch_date?: string | null;
+  admin_promised_date?: string | null;
+  estimated_despatch_date?: string | null;
+  system_estimated_date?: string | null;
+  wamid?: string | null;
   company_id: string | null;
   company_name?: string;
   company_status?: string | null;
@@ -111,14 +126,14 @@ const CMDWarRoom = () => {
       .select("id, business_name")
       .eq("status", "active")
       .order("business_name");
-    setActiveCompanies((data as any) ?? []);
+    setActiveCompanies((data as { id: string; business_name: string }[]) ?? []);
   }, []);
 
   const fetchOrders = useCallback(async () => {
     const { data } = await supabase
       .from("orders")
       .select(
-        "id, status, payment_status, advance_paid, advance_required, created_at, sales_order_value, dispatch_urgency, company_id, total_weight_kg, needs_clarification, is_waste, is_duplicate, duplicate_of_order_id",
+        "id, status, payment_status, advance_paid, advance_required, created_at, sales_order_value, dispatch_urgency, requested_dispatch_date, admin_promised_date, estimated_despatch_date, system_estimated_date, wamid, company_id, total_weight_kg, needs_clarification, is_waste, is_duplicate, duplicate_of_order_id",
       )
       .not("status", "in", '("closed","cancelled")')
       .eq("is_waste", false)
@@ -128,13 +143,13 @@ const CMDWarRoom = () => {
     if (!data) return;
 
     const companyIds = [...new Set(data.map((o) => o.company_id).filter(Boolean))] as string[];
-    let companyMap: Record<string, { name: string; status: string | null; phone: string | null; gst: string | null; address: string | null }> = {};
+    const companyMap: Record<string, { name: string; status: string | null; phone: string | null; gst: string | null; address: string | null }> = {};
     if (companyIds.length) {
       const { data: companies } = await supabase
         .from("companies")
         .select("id, business_name, status, phone, gst_number, registered_address")
         .in("id", companyIds);
-      companies?.forEach((c: any) => {
+      companies?.forEach((c) => {
         companyMap[c.id] = {
           name: c.business_name,
           status: c.status,
@@ -150,7 +165,7 @@ const CMDWarRoom = () => {
       .from("support_tickets")
       .select("order_id")
       .in("order_id", orderIds);
-    const complainedOrders = new Set(tickets?.map((t: any) => t.order_id) ?? []);
+    const complainedOrders = new Set(tickets?.map((t) => t.order_id) ?? []);
 
     const { data: items } = await supabase
       .from("order_items")
@@ -158,9 +173,11 @@ const CMDWarRoom = () => {
       .in("order_id", orderIds);
 
     const itemsByOrder: Record<string, OrderItem[]> = {};
-    items?.forEach((item: any) => {
+    items?.forEach((item) => {
       const oid = item.order_id;
       if (!itemsByOrder[oid]) itemsByOrder[oid] = [];
+
+      const product = item.products as { name?: string; aliases?: string[] } | null;
 
       let conf: number | null = null;
       let alias: string | null = null;
@@ -170,14 +187,14 @@ const CMDWarRoom = () => {
         const aMatch = item.notes.match(/alias[=:]\s*([^|;,\n]+)/i);
         if (aMatch) alias = aMatch[1].trim();
       }
-      if (!alias && item.products?.aliases?.length) {
-        alias = item.products.aliases[0];
+      if (!alias && product?.aliases?.length) {
+        alias = product.aliases[0];
       }
 
       itemsByOrder[oid].push({
         id: item.id,
         quantity: item.quantity,
-        product_name: item.products?.name,
+        product_name: product?.name,
         weight_kg: item.weight_kg,
         confidence: conf,
         matched_alias: alias,
@@ -190,11 +207,11 @@ const CMDWarRoom = () => {
       .select("order_id, file_url, attachment_type")
       .in("order_id", orderIds);
     const attByOrder: Record<string, string[]> = {};
-    attachments?.forEach((a: any) => {
+    attachments?.forEach((a) => {
       const t = (a.attachment_type || "").toLowerCase();
       const url = (a.file_url || "").toLowerCase();
       const looksImage = t.includes("image") || /\.(png|jpe?g|gif|webp)$/i.test(url);
-      if (!looksImage) return;
+      if (!looksImage || !a.order_id || !a.file_url) return;
       if (!attByOrder[a.order_id]) attByOrder[a.order_id] = [];
       attByOrder[a.order_id].push(a.file_url);
     });
@@ -225,8 +242,7 @@ const CMDWarRoom = () => {
     try {
       setWaPulseError(null);
       const { data, error } = await supabase
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .from("whatsapp_message_packets" as any)
+        .from("whatsapp_message_packets")
         .select("id, last_message_at")
         .eq("status", "open")
         // Match operator inbox (`WhatsAppInbox.tsx`): descending `last_message_at` with default null ordering only.
@@ -262,13 +278,15 @@ const CMDWarRoom = () => {
       .limit(100);
     if (!data) { setRejectedOrders([]); return; }
     const companyIds = [...new Set(data.map((o) => o.company_id).filter(Boolean))] as string[];
-    let companyMap: Record<string, { name: string; status: string | null }> = {};
+    const companyMap: Record<string, { name: string; status: string | null }> = {};
     if (companyIds.length) {
       const { data: companies } = await supabase
         .from("companies")
         .select("id, business_name, status")
         .in("id", companyIds);
-      companies?.forEach((c: any) => { companyMap[c.id] = { name: c.business_name, status: c.status }; });
+      companies?.forEach((c) => {
+        companyMap[c.id] = { name: c.business_name, status: c.status };
+      });
     }
     setRejectedOrders(
       data.map((o) => ({
@@ -282,6 +300,41 @@ const CMDWarRoom = () => {
     );
   }, []);
 
+  const refreshOrdersAndRejected = useCallback(async () => {
+    await Promise.all([fetchOrders(), fetchRejectedOrders()]);
+  }, [fetchOrders, fetchRejectedOrders]);
+
+  const refreshCompanies = useCallback(async () => {
+    await Promise.all([fetchShadowCompanies(), fetchActiveCompanies()]);
+  }, [fetchShadowCompanies, fetchActiveCompanies]);
+
+  useScopedRealtimeSubscription({
+    domain: "orders",
+    scope: { type: "global_staff" },
+    changes: ORDERS_ALL_CHANGES,
+    mode: "refetch",
+    snapshot: refreshOrdersAndRejected,
+    pollingFallbackMs: 30_000,
+  });
+
+  useScopedRealtimeSubscription({
+    domain: "companies",
+    scope: { type: "global_staff" },
+    changes: COMPANIES_ALL_CHANGES,
+    mode: "refetch",
+    snapshot: refreshCompanies,
+    pollingFallbackMs: 30_000,
+  });
+
+  useScopedRealtimeSubscription({
+    domain: "order_items",
+    scope: { type: "global_staff" },
+    changes: ORDER_ITEMS_ALL_CHANGES,
+    mode: "refetch",
+    snapshot: fetchOrders,
+    pollingFallbackMs: 30_000,
+  });
+
   useEffect(() => {
     fetchOrders();
     fetchRejectedOrders();
@@ -289,37 +342,6 @@ const CMDWarRoom = () => {
     fetchActiveCompanies();
     void fetchWaPulse();
     void fetchFactoryInventoryPulse();
-
-    const ordersChannel = "warroom-orders-live";
-    const companiesChannel = "warroom-companies-live";
-    const itemsChannel = "warroom-items-live";
-    removeDuplicateRealtimeChannel(ordersChannel);
-    removeDuplicateRealtimeChannel(companiesChannel);
-    removeDuplicateRealtimeChannel(itemsChannel);
-
-    const ch1 = supabase
-      .channel(ordersChannel)
-      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => { fetchOrders(); fetchRejectedOrders(); })
-      .subscribe();
-
-    const ch2 = supabase
-      .channel(companiesChannel)
-      .on("postgres_changes", { event: "*", schema: "public", table: "companies" }, () => {
-        fetchShadowCompanies();
-        fetchActiveCompanies();
-      })
-      .subscribe();
-
-    const ch3 = supabase
-      .channel(itemsChannel)
-      .on("postgres_changes", { event: "*", schema: "public", table: "order_items" }, () => fetchOrders())
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(ch1);
-      supabase.removeChannel(ch2);
-      supabase.removeChannel(ch3);
-    };
   }, [fetchOrders, fetchRejectedOrders, fetchShadowCompanies, fetchActiveCompanies, fetchWaPulse, fetchFactoryInventoryPulse]);
 
   const sortedOrders = useMemo(() => {
@@ -343,13 +365,49 @@ const CMDWarRoom = () => {
       });
     }
 
-    return [...filtered].sort((a, b) => {
-      if (a.has_complaint && !b.has_complaint) return -1;
-      if (!a.has_complaint && b.has_complaint) return 1;
-      if (a.dispatch_urgency === "panic" && b.dispatch_urgency !== "panic") return -1;
-      if (a.dispatch_urgency !== "panic" && b.dispatch_urgency === "panic") return 1;
-      return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
-    });
+    const nowIso = new Date().toISOString();
+    return [...filtered].sort((a, b) =>
+      compareOrderPoolQueueItems(
+        {
+          orderId: a.id,
+          createdAt: a.created_at,
+          hasComplaint: a.has_complaint,
+          facts: projectFromRawFacts(
+            {
+              orderId: a.id,
+              status: a.status,
+              createdAt: a.created_at,
+              dispatchUrgency: a.dispatch_urgency,
+              requestedDispatchDate: a.requested_dispatch_date ?? null,
+              adminPromisedDate: a.admin_promised_date ?? null,
+              estimatedDespatchDate: a.estimated_despatch_date ?? null,
+              systemEstimatedDate: a.system_estimated_date ?? null,
+              wamid: a.wamid ?? null,
+            },
+            nowIso,
+          ),
+        },
+        {
+          orderId: b.id,
+          createdAt: b.created_at,
+          hasComplaint: b.has_complaint,
+          facts: projectFromRawFacts(
+            {
+              orderId: b.id,
+              status: b.status,
+              createdAt: b.created_at,
+              dispatchUrgency: b.dispatch_urgency,
+              requestedDispatchDate: b.requested_dispatch_date ?? null,
+              adminPromisedDate: b.admin_promised_date ?? null,
+              estimatedDespatchDate: b.estimated_despatch_date ?? null,
+              systemEstimatedDate: b.system_estimated_date ?? null,
+              wamid: b.wamid ?? null,
+            },
+            nowIso,
+          ),
+        },
+      ),
+    );
   }, [orders, todayOnly, filterMode]);
 
   const visibleOrders = sortedOrders.filter((o) => showHidden || !hidden.has(o.id));
@@ -357,7 +415,11 @@ const CMDWarRoom = () => {
   const toggleHide = (id: string) => {
     setHidden((prev) => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
       return next;
     });
   };
@@ -377,7 +439,7 @@ const CMDWarRoom = () => {
   const assignClientToOrder = useCallback(async (orderId: string, companyId: string) => {
     const { error } = await supabase
       .from("orders")
-      .update({ company_id: companyId } as any)
+      .update({ company_id: companyId })
       .eq("id", orderId);
     if (error) {
       toast.error("Failed to assign client");
@@ -390,7 +452,7 @@ const CMDWarRoom = () => {
   const buildSO = useCallback(async (orderId: string) => {
     const { error } = await supabase
       .from("orders")
-      .update({ status: "submitted" } as any)
+      .update({ status: "submitted" })
       .eq("id", orderId);
     if (error) {
       toast.error("Failed to build SO");
@@ -417,7 +479,7 @@ const CMDWarRoom = () => {
     const ids = autoPilotOrders.map((o) => o.id);
     const { error } = await supabase
       .from("orders")
-      .update({ status: "submitted" } as any)
+      .update({ status: "submitted" })
       .in("id", ids);
     setBulkProcessing(false);
     if (error) {
@@ -439,7 +501,7 @@ const CMDWarRoom = () => {
       };
       return deriveFinanceReleaseState(inputs).finance_hold;
     }).length;
-    const dispatchPanic = orders.filter((o) => o.dispatch_urgency === "panic").length;
+    const dispatchPanic = orders.filter((o) => isDispatchPanicFromUrgency(o.dispatch_urgency)).length;
     return { financePressure, dispatchPanic };
   }, [orders]);
 

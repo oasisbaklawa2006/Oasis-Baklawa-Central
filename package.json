@@ -28,6 +28,7 @@
     "uat:census": "node scripts/uat-crawl/generate-census.mjs",
     "test:ai-uat": "playwright test -c playwright.ai-uat.config.ts",
     "test:ai-uat:report": "node scripts/merge-ai-uat-report.mjs",
+    "test:dispatch-uat-005": "playwright test tests/dispatch-rbac-forbidden-route.spec.ts --project=desktop-chrome-size",
     "check:boundaries": "bash scripts/check-repo-boundaries.sh",
     "test:release-controller": "bash .github/scripts/tests/appverse-release-controller.test.sh",
     "test:uat-pipeline-repair": "vitest run tests/uat-crawl/pipeline-repair.test.ts",

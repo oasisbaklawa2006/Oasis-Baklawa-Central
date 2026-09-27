@@ -53,6 +53,11 @@ describe("getRequiredModuleForAdminPath", () => {
   it("maps cross-functional target-vs-actual to cmd_war_room", () => {
     expect(getRequiredModuleForAdminPath("/admin/target-vs-actual")).toBe("cmd_war_room");
   });
+
+  it("maps previously unmapped specialist routes away from dashboard fallback", () => {
+    expect(getRequiredModuleForAdminPath("/admin/3pcs-store")).toBe("inventory");
+    expect(getRequiredModuleForAdminPath("/admin/sales-hub")).toBe("cmd_war_room");
+  });
 });
 
 describe("golden chain operator route access", () => {

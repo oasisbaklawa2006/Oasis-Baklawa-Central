@@ -87,4 +87,27 @@ describe("FactoryTVModule", () => {
     render(<FactoryTVModule category="Fusion Sweets" departmentFilter="Fusion Sweets" title="Fusion Sweets Line" />);
     await waitFor(() => expect(productionJobsFilters.canonicalDepartment).toBe("FUSION_SWEETS"));
   });
+
+  it("denies production mutation — TV is strictly read-only (Point88)", async () => {
+    productionJobsRows = [
+      {
+        id: "job-readonly-1",
+        order_id: null,
+        assigned_qty: 3,
+        produced_qty: 0,
+        priority: "normal",
+        status: "pending",
+        department: "arabic_sweets",
+        created_at: new Date().toISOString(),
+        product: { name: "Read Only SKU", sku: "RO-1", image_url: null, uom: "PCS" },
+      },
+    ];
+
+    const { container } = render(
+      <FactoryTVModule category="Arabic Sweets" departmentFilter="Arabic Sweets" title="Arabic Sweets Line" />,
+    );
+
+    await waitFor(() => expect(screen.getByText("Read Only SKU")).toBeInTheDocument());
+    expect(container.querySelector("button")).toBeNull();
+  });
 });

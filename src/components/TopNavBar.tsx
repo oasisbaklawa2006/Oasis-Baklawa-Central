@@ -10,6 +10,10 @@ import { useCurrency } from "@/contexts/CurrencyContext";
 import { useAuth } from "@/hooks/useAuth";
 import { signOutAndClearSession } from "@/utils/authSession";
 import { removeDuplicateRealtimeChannel } from "@/utils/realtime";
+import {
+  fetchInboxUnreadCount,
+  resolveScopeFromAuth,
+} from "@/lib/notification-infrastructure/inboxClient";
 
 const TopNavBar = () => {
   const [showNotifs, setShowNotifs] = useState(false);
@@ -20,7 +24,7 @@ const TopNavBar = () => {
   const navigate = useNavigate();
   const { lang, setLang, t } = useLanguage();
   const { currency, setCurrency } = useCurrency();
-  const { user } = useAuth();
+  const { user, companyId } = useAuth();
 
   const handleSignOut = async () => {
     await signOutAndClearSession();
@@ -30,15 +34,16 @@ const TopNavBar = () => {
   useEffect(() => {
     if (!user?.id) return;
 
+    const scopeResult = resolveScopeFromAuth({ userId: user.id, companyId });
+    if (!scopeResult.ok) return;
+
+    const scope = scopeResult.scope;
     let aborted = false;
     const channelName = `realtime:notif-count-${user.id}`;
 
     const fetchUnread = async () => {
-      const { count } = await supabase
-        .from("notifications")
-        .select("*", { count: "exact", head: true })
-        .eq("is_read", false);
-      if (!aborted) setUnreadCount(count || 0);
+      const count = await fetchInboxUnreadCount(scope);
+      if (!aborted) setUnreadCount(count);
     };
     fetchUnread();
 
@@ -57,7 +62,7 @@ const TopNavBar = () => {
       aborted = true;
       void supabase.removeChannel(channel);
     };
-  }, [user?.id]);
+  }, [user?.id, companyId]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -66,6 +71,14 @@ const TopNavBar = () => {
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
+
+  const handleCloseNotifs = () => {
+    setShowNotifs(false);
+    if (!user?.id) return;
+    const scopeResult = resolveScopeFromAuth({ userId: user.id, companyId });
+    if (!scopeResult.ok) return;
+    void fetchInboxUnreadCount(scopeResult.scope).then(setUnreadCount);
+  };
 
   return (
     <>
@@ -118,7 +131,6 @@ const TopNavBar = () => {
               <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-primary rounded-full" />
             )}
           </button>
-          {/* Avatar dropdown */}
           <div className="relative" ref={menuRef}>
             <button
               onClick={() => setShowMenu(!showMenu)}
@@ -147,7 +159,8 @@ const TopNavBar = () => {
           </div>
         </div>
       </header>
-      <NotificationsPanel open={showNotifs} onClose={() => setShowNotifs(false)} />
+
+      <NotificationsPanel open={showNotifs} onClose={handleCloseNotifs} />
       <SearchOverlay open={showSearch} onClose={() => setShowSearch(false)} />
     </>
   );

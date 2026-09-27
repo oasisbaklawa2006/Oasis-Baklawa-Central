@@ -3,6 +3,9 @@ name: UAT Crawl Evidence (authenticated)
 # Read-only Appverse UAT evidence collection for PR #462 / Workstation 5.
 # Reuses governed TEST_* secret names from lane1-live-smoke and dispatch RLS cert.
 # Never logs credential values. Pre-auth tranche screenshots are preserved separately.
+#
+# Main branch carries a dispatch-registration stub only; execute this full workflow on
+# cursor/physical-uat-readiness-matrix-e763 (Actions → Run workflow → select this branch).
 on:
   workflow_dispatch:
     inputs:

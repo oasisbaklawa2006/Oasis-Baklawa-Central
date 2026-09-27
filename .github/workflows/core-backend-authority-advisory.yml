@@ -1,0 +1,67 @@
+name: Core Backend Authority Advisory
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: core-backend-authority-advisory-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  advisory-guard:
+    name: Enforce oasis-supabase-core backend authority (advisory)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout trusted base revision
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Fetch PR head commit (comparison data only)
+        shell: bash
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$PR_HEAD_SHA" =~ ^[0-9a-f]{40}$ ]] || {
+            echo '::error::Invalid PR head SHA' >&2
+            exit 1
+          }
+          git fetch --no-tags origin "$PR_HEAD_SHA"
+      - name: Enforce Core backend authority (advisory base-sourced)
+        shell: bash
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [[ ! -f scripts/check-core-backend-authority.sh ]]; then
+            mkdir -p scripts
+            git show "$PR_HEAD_SHA:scripts/check-core-backend-authority.sh" > scripts/check-core-backend-authority.sh
+            chmod +x scripts/check-core-backend-authority.sh
+          fi
+          bash scripts/check-core-backend-authority.sh "$PR_BASE_SHA" "$PR_HEAD_SHA"
+      - name: Regression-test PR guard scripts
+        shell: bash
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p scripts/tests .github/workflows
+          git show "$PR_HEAD_SHA:scripts/check-core-backend-authority.sh" > scripts/check-core-backend-authority.sh
+          git show "$PR_HEAD_SHA:scripts/check-tracked-secret-exposure.sh" > scripts/check-tracked-secret-exposure.sh
+          git show "$PR_HEAD_SHA:scripts/tests/verify-core-backend-authority.sh" > scripts/tests/verify-core-backend-authority.sh
+          git show "$PR_HEAD_SHA:.github/workflows/core-backend-authority.yml" > .github/workflows/core-backend-authority.yml
+          git show "$PR_HEAD_SHA:.github/workflows/core-backend-authority-advisory.yml" > .github/workflows/core-backend-authority-advisory.yml
+          git show "$PR_HEAD_SHA:.github/workflows/secret-exposure-guard.yml" > .github/workflows/secret-exposure-guard.yml
+          git show "$PR_HEAD_SHA:.github/workflows/secret-exposure-guard-advisory.yml" > .github/workflows/secret-exposure-guard-advisory.yml
+          chmod +x scripts/check-core-backend-authority.sh scripts/check-tracked-secret-exposure.sh scripts/tests/verify-core-backend-authority.sh
+          bash scripts/tests/verify-core-backend-authority.sh

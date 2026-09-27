@@ -38,6 +38,24 @@ const OASIS_APP_MARKERS = [
   /catalogue/i,
 ];
 
+/** Exact hostname allowlist — no substring matching (CodeQL-safe). */
+export const APPROVED_PUBLIC_HOSTS = new Set([
+  "oasis-baklawa-central.vercel.app",
+  "b2b.oasisbaklawa.com",
+  "localhost",
+  "127.0.0.1",
+]);
+
+export function isApprovedPublicAliasUrl(rawUrl: string): boolean {
+  let hostname: string;
+  try {
+    hostname = new URL(rawUrl).hostname.toLowerCase();
+  } catch {
+    return false;
+  }
+  return APPROVED_PUBLIC_HOSTS.has(hostname);
+}
+
 export function classifyAccessWallFromSignals(
   title: string,
   url: string,
@@ -66,8 +84,7 @@ export function classifyAccessWallFromSignals(
   }
 
   const hasOasisMarker = OASIS_APP_MARKERS.some((pattern) => pattern.test(`${title} ${bodyLower}`));
-  const onPublicAlias =
-    url.includes("oasis-baklawa-central.vercel.app") || url.includes("b2b.oasisbaklawa.com");
+  const onPublicAlias = isApprovedPublicAliasUrl(url);
 
   if (markers.length > 0 && (!hasOasisMarker || !onPublicAlias)) {
     return {

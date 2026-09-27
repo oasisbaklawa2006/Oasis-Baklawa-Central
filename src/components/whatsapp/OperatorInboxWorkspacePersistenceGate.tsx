@@ -14,7 +14,7 @@ import {
 } from "./operatorInboxWorkspaceMutations";
 
 const RETRY_MS = 30_000;
-const HYDRATION_TIMEOUT_MS = 12_000;
+const HYDRATION_TIMEOUT_MS = 5_000;
 
 export function OperatorInboxWorkspacePersistenceGate({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
@@ -82,6 +82,7 @@ export function OperatorInboxWorkspacePersistenceGate({ children }: { children: 
     } catch (caught) {
       if (!mountedRef.current) return;
       setSyncError(caught instanceof Error ? caught.message : "Operator workspace hydration failed");
+      setReady(true);
     } finally {
       window.clearTimeout(timeoutId);
       hydratingRef.current = false;
@@ -96,6 +97,7 @@ export function OperatorInboxWorkspacePersistenceGate({ children }: { children: 
       if (cancelled || !mountedRef.current) return;
       if (error || !data.user) {
         setSyncError(error?.message ?? "WA_OPERATOR_WORKSPACE_AUTH_REQUIRED");
+        setReady(true);
         return;
       }
       try {
@@ -104,6 +106,7 @@ export function OperatorInboxWorkspacePersistenceGate({ children }: { children: 
         void hydrateWorkspace().then(() => processQueue());
       } catch (caught) {
         setSyncError(caught instanceof Error ? caught.message : "WA_OPERATOR_WORKSPACE_ACTOR_BIND_FAILED");
+        setReady(true);
       }
     });
 

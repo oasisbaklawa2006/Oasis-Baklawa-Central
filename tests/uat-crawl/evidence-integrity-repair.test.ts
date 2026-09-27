@@ -4,7 +4,11 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { classifyAccessWallFromSignals, detectScreenshotHashWall } from "./access-wall";
+import {
+  classifyAccessWallFromSignals,
+  detectScreenshotHashWall,
+  isApprovedPublicAliasUrl,
+} from "./access-wall";
 import { attachRunMetadata, CENTRAL_PUBLIC_PRODUCTION_ALIAS } from "./crawl-engine";
 
 const TEST_DIR = dirname(fileURLToPath(import.meta.url));
@@ -15,6 +19,15 @@ describe("UAT evidence integrity repair regressions", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.resetModules();
+  });
+
+  it("1a — attacker-controlled hosts are not Oasis public aliases", () => {
+    expect(isApprovedPublicAliasUrl("https://b2b.oasisbaklawa.com.evil.example/")).toBe(false);
+    expect(isApprovedPublicAliasUrl("https://evil.example/?next=b2b.oasisbaklawa.com")).toBe(false);
+    expect(isApprovedPublicAliasUrl("https://oasis-baklawa-central.vercel.app.evil.example/")).toBe(false);
+    expect(isApprovedPublicAliasUrl("https://b2b.oasisbaklawa.com/clients")).toBe(true);
+    expect(isApprovedPublicAliasUrl("https://oasis-baklawa-central.vercel.app/login")).toBe(true);
+    expect(isApprovedPublicAliasUrl("not-a-valid-url")).toBe(false);
   });
 
   it("1 — protected Vercel login page cannot become PASS/OBSERVED", () => {

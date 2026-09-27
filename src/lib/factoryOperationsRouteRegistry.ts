@@ -299,9 +299,9 @@ export const FACTORY_OPERATIONS_ROUTES: FactoryRouteEntry[] = [
     subsystem: "ASSEMBLY_PACKING",
     technicallyAllowedRoles: ADMIN_STAFF_ROLES_REFERENCE,
     intendedPrimaryAudience: [],
-    status: "FACTORY_PREVIEW",
+    status: "FACTORY_CURRENT",
     deviceClass: "BOTH",
-    evidence: "auth-routing.ts comment: 'real, working live board (real Supabase queries, loading/error states) but self-labels as internal preview, not yet evidence-validated -- do not default-land any role there.' TV_ASSEMBLY/TV_DISPLAY explicitly land on /admin/cmd-war-room instead, not here.",
+    evidence: "Read-only kanban over governed b2b_assembly_jobs via assemblyJobReadBoundary (Point90). No mutation paths. TV_ASSEMBLY/TV_DISPLAY still land on /admin/cmd-war-room until physical TV UAT certifies default landing.",
   },
 
   // ── DISPATCH ─────────────────────────────────────────────────────────────
@@ -492,6 +492,18 @@ export const FACTORY_OPERATIONS_ROUTES: FactoryRouteEntry[] = [
     evidence: "Gated only by shared /admin ADMIN_STAFF_ROLES.",
   },
 
+  // ── CUSTOMER SUPPORT (canonical redirect target for execution/complaints) ─
+  {
+    route: "/admin/support",
+    label: "Support Queue",
+    subsystem: "3PGS_THIRD_PARTY",
+    technicallyAllowedRoles: ADMIN_STAFF_ROLES_REFERENCE,
+    intendedPrimaryAudience: ["SUPPORT_EXECUTIVE"],
+    status: "FACTORY_CURRENT",
+    deviceClass: "DESKTOP",
+    evidence: "App.tsx: AdminSupport (support_tickets). auth-routing.ts lands SUPPORT_EXECUTIVE here. LEGACY_REDIRECT target for /admin/execution/complaints (ComplaintsExecutionBoard).",
+  },
+
   // ── LEGACY REDIRECTS (proven dead-data source, redirected in App.tsx) ────
   {
     route: "/admin/execution/production",
@@ -544,45 +556,48 @@ export const FACTORY_OPERATIONS_ROUTES: FactoryRouteEntry[] = [
   },
   {
     route: "/admin/execution/third-party",
-    label: "Legacy Third-Party Execution Board",
+    label: "Legacy Third-Party Execution Board (redirected)",
     subsystem: "3PGS_THIRD_PARTY",
-    technicallyAllowedRoles: ADMIN_STAFF_ROLES_REFERENCE,
+    technicallyAllowedRoles: [],
     intendedPrimaryAudience: [],
-    status: "FACTORY_LEGACY",
+    status: "LEGACY_REDIRECT",
+    legacyRedirectTarget: "/admin/3pgs-procurement-queue",
     deviceClass: "DESKTOP",
-    evidence: "App.tsx: ThirdPartyExecutionBoard, same dead-data situation. Not redirected this closure.",
+    evidence: "Point86: ThirdPartyExecutionBoard now redirects to governed 3PGS procurement queue. Former DepartmentExecutionBoard read operational_queue_items (zero writers).",
   },
   {
     route: "/admin/execution/retail",
-    label: "Legacy Retail Execution Board",
+    label: "Legacy Retail Execution Board (redirected)",
     subsystem: "3PGS_THIRD_PARTY",
-    technicallyAllowedRoles: ADMIN_STAFF_ROLES_REFERENCE,
+    technicallyAllowedRoles: [],
     intendedPrimaryAudience: [],
-    status: "FACTORY_RELATED_BUT_OUT_OF_SCOPE",
+    status: "LEGACY_REDIRECT",
+    legacyRedirectTarget: "/admin/reservation-board",
     deviceClass: "DESKTOP",
-    evidence: "App.tsx: RetailExecutionBoard. Retail is not a Factory Operations subsystem (no floor/warehouse role owns it); same dead-data table but out of Factory scope entirely, not merely unfixed.",
+    evidence: "Point86: RetailExecutionBoard redirects to reservation-board. Auto retail queue creation from orders blocked pending Core producer RPC.",
   },
   {
     route: "/admin/execution/complaints",
-    label: "Legacy Complaints Execution Board",
+    label: "Legacy Complaints Execution Board (redirected)",
     subsystem: "3PGS_THIRD_PARTY",
-    technicallyAllowedRoles: ADMIN_STAFF_ROLES_REFERENCE,
+    technicallyAllowedRoles: [],
     intendedPrimaryAudience: [],
-    status: "FACTORY_RELATED_BUT_OUT_OF_SCOPE",
+    status: "LEGACY_REDIRECT",
+    legacyRedirectTarget: "/admin/support",
     deviceClass: "DESKTOP",
-    evidence: "App.tsx: ComplaintsExecutionBoard (moduleKey='support'). Support/complaints is not a Factory Operations subsystem.",
+    evidence: "Point86: ComplaintsExecutionBoard redirects to AdminSupport (support_tickets authority). Auto customer_support queue creation from orders blocked pending Core producer RPC.",
   },
 
-  // ── FACTORY_LEGACY: ExecutionCommandCenter family (confirmed dead data) ──
+  // ── FACTORY_LEGACY: ExecutionCommandCenter family (Point86 retired dead queue read) ──
   {
     route: "/admin/execution-command-center",
-    label: "Execution Command Center (legacy)",
+    label: "Execution Command Center",
     subsystem: "PRODUCTION_EXECUTION",
     technicallyAllowedRoles: ADMIN_STAFF_ROLES_REFERENCE,
     intendedPrimaryAudience: [],
-    status: "FACTORY_LEGACY",
+    status: "FACTORY_CURRENT",
     deviceClass: "DESKTOP",
-    evidence: "App.tsx: ExecutionCommandCenter via useExecutionCommandCenter hook, reads operational_queue_items -- same confirmed dead-data table as the execution/* boards.",
+    evidence: "Point86: useExecutionCommandCenter now reads canonical Core department-queue routing contract (production_jobs, b2b_assembly_jobs, inventory_reservations, b2b_dispatch_consignments, b2b_procurement_requirements) instead of operational_queue_items.",
   },
   {
     route: "/admin/execution-risk",

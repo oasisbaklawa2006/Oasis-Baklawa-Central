@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { removeDuplicateRealtimeChannel } from "@/utils/realtime";
 import { toast } from "sonner";
+import { useScopedRealtimeSubscription } from "@/hooks/useScopedRealtimeSubscription";
+import { ORDERS_ALL_CHANGES } from "@/lib/realtime";
 import { Loader2, ChevronRight, Printer, Package, RefreshCw, Route } from "lucide-react";
 import OrderTraceSheet from "@/components/admin/OrderTraceSheet";
 import OrderLocatorPanel from "@/components/admin/OrderLocatorPanel";
@@ -123,14 +124,17 @@ const OrderManagement = () => {
     setLoading(false);
   }, []);
 
+  useScopedRealtimeSubscription({
+    domain: "orders",
+    scope: { type: "global_staff" },
+    changes: ORDERS_ALL_CHANGES,
+    mode: "refetch",
+    snapshot: fetchOrders,
+    pollingFallbackMs: 30_000,
+  });
+
   useEffect(() => {
-    fetchOrders();
-    const channelName = "order-mgmt-rt";
-    removeDuplicateRealtimeChannel(channelName);
-    const ch = supabase.channel(channelName)
-      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => fetchOrders())
-      .subscribe();
-    return () => { void supabase.removeChannel(ch); };
+    void fetchOrders();
   }, [fetchOrders]);
 
   useEffect(() => {

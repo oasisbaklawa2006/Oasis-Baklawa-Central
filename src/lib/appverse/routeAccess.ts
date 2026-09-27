@@ -1,4 +1,6 @@
 import { isDispatchRole } from "@/lib/auth/securityGatePolicy";
+import { canAccessCentralOrderPool } from "@/lib/centralOrderPool/centralOrderPoolAccess";
+import { getRoleDestination } from "@/lib/auth-routing";
 import {
   getAllowedModulesForRole,
   hasModuleAccess,
@@ -19,6 +21,7 @@ const ADMIN_ROUTE_MODULES: Array<{ prefix: string; moduleKey: AppVerseModuleKey 
   { prefix: "/admin/execution/third-party", moduleKey: "orders" },
   { prefix: "/admin/execution/retail", moduleKey: "inventory" },
   { prefix: "/admin/execution/complaints", moduleKey: "support" },
+  { prefix: "/admin/management-command-center", moduleKey: "management_reporting" },
   { prefix: "/admin/execution-command-center", moduleKey: "cmd_war_room" },
   { prefix: "/admin/execution-risk", moduleKey: "cmd_war_room" },
   { prefix: "/admin/execution-bottlenecks", moduleKey: "cmd_war_room" },
@@ -31,6 +34,8 @@ const ADMIN_ROUTE_MODULES: Array<{ prefix: string; moduleKey: AppVerseModuleKey 
   { prefix: "/admin/operational-search", moduleKey: "cmd_war_room" },
   { prefix: "/admin/operator-inbox", moduleKey: "support" },
   { prefix: "/admin/whatsapp", moduleKey: "support" },
+  { prefix: "/admin/cmd-war-room", moduleKey: "cmd_war_room" },
+  { prefix: "/admin/verification", moduleKey: "cmd_war_room" },
   { prefix: "/admin/support", moduleKey: "support" },
   { prefix: "/admin/clients", moduleKey: "clients" },
   { prefix: "/admin/customers", moduleKey: "clients" },
@@ -47,6 +52,7 @@ const ADMIN_ROUTE_MODULES: Array<{ prefix: string; moduleKey: AppVerseModuleKey 
   { prefix: "/admin/finance-board", moduleKey: "finance" },
   { prefix: "/admin/finance", moduleKey: "finance" },
   { prefix: "/admin/accounts-release", moduleKey: "accounts" },
+  { prefix: "/admin/central-pool", moduleKey: "orders" },
   { prefix: "/admin/order-management", moduleKey: "orders" },
   { prefix: "/admin/orders", moduleKey: "orders" },
   { prefix: "/admin/store-coordination", moduleKey: "orders" },
@@ -95,6 +101,8 @@ const ADMIN_ROUTE_MODULES: Array<{ prefix: string; moduleKey: AppVerseModuleKey 
   { prefix: "/admin/department", moduleKey: "audit" },
   { prefix: "/admin/target-vs-actual", moduleKey: "cmd_war_room" },
   { prefix: "/admin/heartbeat", moduleKey: "cmd_war_room" },
+  { prefix: "/admin/sales-hub", moduleKey: "cmd_war_room" },
+  { prefix: "/admin/3pcs-store", moduleKey: "inventory" },
   { prefix: "/admin", moduleKey: "dashboard" },
 ];
 
@@ -129,9 +137,21 @@ export function canAccessGoldenChainOperatorRoute(role: string | null | undefine
   return GOLDEN_CHAIN_OPERATOR_MODULE_KEYS.some((moduleKey) => hasModuleAccess(allowedModules, moduleKey));
 }
 
+function isCentralOrderPoolPath(pathname: string): boolean {
+  return pathname === "/admin/central-pool" || pathname.startsWith("/admin/central-pool/");
+}
+
+/** Resolve the governed redirect target when an admin route is denied for the current role. */
+export function getUnauthorizedAdminRedirect(role: string | null | undefined): string {
+  const normalizedRole = role?.trim().toUpperCase();
+  if (normalizedRole === "SALES_EXECUTIVE") return "/sales/dashboard";
+  return getRoleDestination(role);
+}
+
 /** Complete AdminRouteGuard authorization for a concrete /admin path and role. */
 export function isAuthorizedForAdminPath(pathname: string, role: string | null | undefined): boolean {
   if (!pathname.startsWith("/admin")) return true;
+  if (isCentralOrderPoolPath(pathname)) return canAccessCentralOrderPool(role);
   if (isGoldenChainOperatorPath(pathname)) return canAccessGoldenChainOperatorRoute(role);
   if (isCommercialDispatchTvPath(pathname)) return canAccessCommercialDispatchTvRoute(role);
   const requiredModule = getRequiredModuleForAdminPath(pathname);

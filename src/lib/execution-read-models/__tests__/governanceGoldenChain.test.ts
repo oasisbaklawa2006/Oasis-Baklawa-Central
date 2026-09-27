@@ -90,6 +90,7 @@ describe("governance golden chain fusion", () => {
     const svc = createFinanceGovernanceService({
       evidence,
       events: createInMemoryFinanceEventSink(),
+      controlMode: "demo",
     });
     await svc.commercialRelease(financeReady, financeCtx);
     const rows = await evidence.listByOrder(financeReady.orderId);

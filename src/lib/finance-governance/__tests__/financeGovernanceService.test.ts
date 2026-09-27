@@ -33,6 +33,7 @@ function svc() {
   return createFinanceGovernanceService({
     evidence: createInMemoryFinanceEvidenceStore(),
     events: createInMemoryFinanceEventSink(),
+    controlMode: "demo",
   });
 }
 
@@ -51,6 +52,7 @@ describe("financeGovernanceService", () => {
     const s = createFinanceGovernanceService({
       evidence,
       events: createInMemoryFinanceEventSink(),
+      controlMode: "demo",
     });
     await s.commercialRelease(ready, ctx);
     const rows = await s.listEvidence(ready.orderId);
@@ -74,6 +76,7 @@ describe("financeGovernanceService", () => {
     const s = createFinanceGovernanceService({
       evidence,
       events: createInMemoryFinanceEventSink(),
+      controlMode: "demo",
     });
     const { evidenceId } = await s.startReview(ready, ctx);
     expect(evidenceId).toBeTruthy();
@@ -81,5 +84,16 @@ describe("financeGovernanceService", () => {
     expect(
       rows.some((r) => r.reviewType === "credit_review" && r.reviewStatus === "pending"),
     ).toBe(true);
+  });
+
+  it("shadow mode allows commercial release but blocks typed review writes", async () => {
+    const evidence = createInMemoryFinanceEvidenceStore();
+    const s = createFinanceGovernanceService({
+      evidence,
+      events: createInMemoryFinanceEventSink(),
+      controlMode: "shadow",
+    });
+    await expect(s.commercialRelease(ready, ctx)).resolves.toBeTruthy();
+    await expect(s.startReview(ready, ctx)).rejects.toThrow(FinanceGovernanceError);
   });
 });

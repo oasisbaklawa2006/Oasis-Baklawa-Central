@@ -56,4 +56,13 @@ describe("Factory certification effective authorization", () => {
     expect(isEffectivelyAuthorizedFactoryRole(wizard, "DISPATCH_MANAGER")).toBe(true);
     expect(isEffectivelyAuthorizedFactoryRole(wizard, "PROD_ARABIC_SWEETS")).toBe(false);
   });
+
+  it("resolves legacy complaints redirect authority via the canonical /admin/support target", () => {
+    const complaints = route("/admin/execution/complaints");
+    expect(resolveEffectiveFactoryCertificationRole(complaints)).toBe("SUPPORT_EXECUTIVE");
+    expect(isEffectivelyAuthorizedFactoryRole(
+      complaints,
+      resolveEffectiveFactoryCertificationRole(complaints),
+    )).toBe(true);
+  });
 });

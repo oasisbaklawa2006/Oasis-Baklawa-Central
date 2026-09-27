@@ -1,0 +1,237 @@
+import { useCallback, useMemo, useState } from "react";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { OrderAmendmentFormFields } from "./OrderAmendmentFormFields";
+import { OrderAmendmentPanelIntro } from "./OrderAmendmentPanelIntro";
+import {
+  buildOrderChangeCorrelationId,
+  buildOrderChangeDecisionIdentity,
+  buildOrderChangeIdempotencyKey,
+  getOrderAmendmentFacts,
+  POINT75_CORE_PREREQUISITE,
+  requestOrderAmendment,
+  requestOrderCancellation,
+  requestOrderSubstitution,
+} from "@/lib/order-authority/orderAmendmentAuthorityClient";
+import {
+  isOrderChangeActionEligible,
+  orderChangeActionDisabledReason,
+} from "@/lib/order-authority/orderAmendmentEligibility";
+import { useOrderAmendmentFormControls } from "./useOrderAmendmentFormControls";
+
+export type GovernedOrderChangePanelProps = {
+  orderId: string;
+  orderStatus: string;
+  orderNumber?: string | null;
+};
+
+type TraceItem = {
+  id: string;
+  quantity: number;
+  product: { name: string } | null;
+};
+
+/** Point 75 — governed amendment / cancellation / substitution boundary (Core RPC only). */
+export function GovernedOrderChangePanel({
+  orderId,
+  orderStatus,
+  orderNumber,
+}: GovernedOrderChangePanelProps) {
+  const [reason, setReason] = useState("");
+  const [substituteProductId, setSubstituteProductId] = useState("");
+  const [substituteQty, setSubstituteQty] = useState("1");
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+  const [items, setItems] = useState<TraceItem[]>([]);
+  const [loadingItems, setLoadingItems] = useState(false);
+  const [submitting, setSubmitting] = useState<"amend" | "cancel" | "substitute" | null>(null);
+  const [factsError, setFactsError] = useState<string | null>(null);
+
+  const amendEligible = isOrderChangeActionEligible("amend", orderStatus);
+  const cancelEligible = isOrderChangeActionEligible("cancel", orderStatus);
+  const substituteEligible = isOrderChangeActionEligible("substitute", orderStatus);
+
+  const loadItems = useCallback(async () => {
+    setLoadingItems(true);
+    const { data, error } = await supabase
+      .from("order_items")
+      .select("id, quantity, product:products(name)")
+      .eq("order_id", orderId);
+    if (error) {
+      toast.error("Failed to load order lines for governed change");
+      setItems([]);
+    } else {
+      setItems((data ?? []) as TraceItem[]);
+      if (!selectedItemId && data?.[0]?.id) {
+        setSelectedItemId(data[0].id);
+      }
+    }
+    setLoadingItems(false);
+  }, [orderId, selectedItemId]);
+
+  const submitGovernedChange = useCallback(
+    async (action: "amend" | "cancel" | "substitute") => {
+      const trimmedReason = reason.trim();
+      if (trimmedReason.length < 3) {
+        toast.error("A governed reason is required (minimum 3 characters).");
+        return;
+      }
+
+      setSubmitting(action);
+      setFactsError(null);
+
+      try {
+        const { data: authData, error: authError } = await supabase.auth.getUser();
+        if (authError) throw new Error(authError.message);
+        const actorId = authData.user?.id;
+        if (!actorId) throw new Error("Authenticated operator is required for governed order change");
+
+        const facts = await getOrderAmendmentFacts(orderId);
+        const evidenceReference = `central-order-trace:${orderId}:${facts.commercialVersionId}`;
+        const identity = buildOrderChangeDecisionIdentity({
+          orderId,
+          action,
+          commercialVersionId: facts.commercialVersionId,
+          expectedStatus: facts.orderStatus,
+          reason: trimmedReason,
+        });
+        const correlationId = await buildOrderChangeCorrelationId(action, identity);
+        const idempotencyKey = await buildOrderChangeIdempotencyKey(action, identity);
+        const sourceReference = `order-trace:${orderNumber ?? orderId}`;
+
+        if (action === "cancel") {
+          await requestOrderCancellation({
+            orderId,
+            commercialVersionId: facts.commercialVersionId,
+            expectedOrderStatus: facts.orderStatus,
+            reason: trimmedReason,
+            evidenceReference,
+            sourceChannel: "CENTRAL",
+            sourceReference,
+            correlationId,
+            idempotencyKey,
+            actorId,
+          });
+          toast.success("Governed cancellation recorded via Core authority");
+        } else if (action === "substitute") {
+          if (!selectedItemId) throw new Error("Select an order line to substitute");
+          if (!substituteProductId.trim()) throw new Error("Replacement product id is required");
+          const qty = Number(substituteQty);
+          if (!Number.isFinite(qty) || qty <= 0) throw new Error("Substitution quantity must be positive");
+
+          await requestOrderSubstitution({
+            orderId,
+            commercialVersionId: facts.commercialVersionId,
+            expectedOrderStatus: facts.orderStatus,
+            orderItemId: selectedItemId,
+            replacementProductId: substituteProductId.trim(),
+            newQuantity: qty,
+            reason: trimmedReason,
+            evidenceReference,
+            customerApprovalReference: null,
+            sourceChannel: "CENTRAL",
+            sourceReference,
+            correlationId,
+            idempotencyKey,
+            actorId,
+          });
+          toast.success("Governed substitution recorded via Core authority");
+        } else {
+          if (!selectedItemId) throw new Error("Select an order line to amend");
+          const line = items.find(function matchSelectedItem(item) {
+            return item.id === selectedItemId;
+          });
+          if (!line) throw new Error("Selected line not found");
+
+          await requestOrderAmendment({
+            orderId,
+            commercialVersionId: facts.commercialVersionId,
+            expectedOrderStatus: facts.orderStatus,
+            reason: trimmedReason,
+            evidenceReference,
+            lineChanges: [{ orderItemId: selectedItemId, newQuantity: line.quantity }],
+            sourceChannel: "CENTRAL",
+            sourceReference,
+            correlationId,
+            idempotencyKey,
+            actorId,
+          });
+          toast.success("Governed amendment recorded via Core authority");
+        }
+
+        setReason("");
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Governed order change failed";
+        if (message.includes("Core prerequisite")) {
+          setFactsError(POINT75_CORE_PREREQUISITE);
+        }
+        toast.error(message);
+      } finally {
+        setSubmitting(null);
+      }
+    },
+    [items, orderId, orderNumber, reason, selectedItemId, substituteProductId, substituteQty],
+  );
+
+  const disabledHints = useMemo(
+    function buildDisabledHints() {
+      return {
+        amend: orderChangeActionDisabledReason("amend", orderStatus),
+        cancel: orderChangeActionDisabledReason("cancel", orderStatus),
+        substitute: orderChangeActionDisabledReason("substitute", orderStatus),
+      };
+    },
+    [orderStatus],
+  );
+
+  const {
+    handleReasonChange,
+    handleSelectedItemChange,
+    handleSubstituteProductChange,
+    handleSubstituteQtyChange,
+    handleRefreshLinesClick,
+    handleAmendClick,
+    handleCancelClick,
+    handleSubstituteClick,
+  } = useOrderAmendmentFormControls({
+    setReason,
+    setSelectedItemId,
+    setSubstituteProductId,
+    setSubstituteQty,
+    loadItems,
+    submitGovernedChange,
+  });
+
+  return (
+    <section className="space-y-3 rounded-lg border border-border bg-muted/20 p-3" data-point="75">
+      <OrderAmendmentPanelIntro />
+
+      {factsError ? (
+        <p className="rounded border border-amber-300/60 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-900">
+          {factsError}
+        </p>
+      ) : null}
+
+      <OrderAmendmentFormFields
+        reason={reason}
+        onReasonChange={handleReasonChange}
+        amendEligible={amendEligible}
+        cancelEligible={cancelEligible}
+        substituteEligible={substituteEligible}
+        submitting={submitting}
+        disabledHints={disabledHints}
+        onAmendClick={handleAmendClick}
+        onCancelClick={handleCancelClick}
+        onSubstituteClick={handleSubstituteClick}
+        items={items}
+        loadingItems={loadingItems}
+        onRefreshLinesClick={handleRefreshLinesClick}
+        selectedItemId={selectedItemId}
+        onSelectedItemChange={handleSelectedItemChange}
+        substituteProductId={substituteProductId}
+        onSubstituteProductChange={handleSubstituteProductChange}
+        substituteQty={substituteQty}
+        onSubstituteQtyChange={handleSubstituteQtyChange}
+      />
+    </section>
+  );
+}

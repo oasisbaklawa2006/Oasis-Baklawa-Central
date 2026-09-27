@@ -29,3 +29,5 @@ export const rgsGovernedRpc = {
     return await governedRpcClient.rpc(fn, args);
   },
 };
+
+export { classifyGovernedRpcFailure, requireGovernedRpcSuccess } from "@/lib/integration-contracts";

@@ -1,11 +1,24 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, beforeEach, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { getRoleDestination } from "@/lib/auth-routing";
 import AdminModuleRoute from "../AdminModuleRoute";
 
-let mockRole = "STORE_READY_GOODS";
-vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ role: mockRole }) }));
+let mockRole: string | null = "STORE_READY_GOODS";
+let mockAuthLoading = false;
+let mockProfileReady = true;
+vi.mock("@/hooks/useAuth", () => ({
+  useAuth: () => ({
+    role: mockRole,
+    loading: mockAuthLoading,
+    profileReady: mockProfileReady,
+  }),
+}));
+
+beforeEach(() => {
+  mockAuthLoading = false;
+  mockProfileReady = true;
+});
 
 function renderAt(pathname: string) {
   return render(
@@ -179,5 +192,105 @@ describe("AdminModuleRoute 3PGS TV gate", () => {
     expect(screen.queryByText("3PGS TV content")).toBeNull();
     expect(screen.getByText("Kiosk 3PGS TV")).toBeTruthy();
     expect(getRoleDestination("TV_3PGS")).toBe("/tv/3pgs");
+  });
+});
+
+function renderFinanceAt(pathname: string) {
+  return render(
+    <MemoryRouter initialEntries={[pathname]}>
+      <Routes>
+        <Route
+          path="/admin/finance"
+          element={
+            <AdminModuleRoute moduleKey="finance">
+              <div>Finance workspace</div>
+            </AdminModuleRoute>
+          }
+        />
+        <Route
+          path="/admin/finance-governance"
+          element={
+            <AdminModuleRoute moduleKey="finance_audit">
+              <div>Finance governance workspace</div>
+            </AdminModuleRoute>
+          }
+        />
+        <Route
+          path="/admin/accounts-release"
+          element={
+            <AdminModuleRoute moduleKey="accounts">
+              <div>Accounts release workspace</div>
+            </AdminModuleRoute>
+          }
+        />
+        <Route path="/admin" element={<div>Admin landing</div>} />
+        <Route path="/admin/dispatch-mgmt" element={<div>Dispatch landing</div>} />
+        <Route path="/customer-app-redirect" element={<div>Customer redirect</div>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
+describe("AdminModuleRoute finance surface gate (UAT-005)", () => {
+  it.each(["DISPATCH_MANAGER", "DISPATCH_INCHARGE", "DISPATCH_HEAD"] as const)(
+    "blocks %s from /admin/finance",
+    (role) => {
+      mockRole = role;
+      renderFinanceAt("/admin/finance");
+      expect(screen.queryByText("Finance workspace")).not.toBeInTheDocument();
+      expect(screen.getByText("Dispatch landing")).toBeInTheDocument();
+    },
+  );
+
+  it.each(["DISPATCH_MANAGER", "DISPATCH_INCHARGE", "DISPATCH_HEAD"] as const)(
+    "blocks %s from /admin/finance-governance",
+    (role) => {
+      mockRole = role;
+      renderFinanceAt("/admin/finance-governance");
+      expect(screen.queryByText("Finance governance workspace")).not.toBeInTheDocument();
+      expect(screen.getByText("Dispatch landing")).toBeInTheDocument();
+    },
+  );
+
+  it.each(["DISPATCH_MANAGER", "DISPATCH_INCHARGE", "DISPATCH_HEAD"] as const)(
+    "blocks %s from /admin/accounts-release",
+    (role) => {
+      mockRole = role;
+      renderFinanceAt("/admin/accounts-release");
+      expect(screen.queryByText("Accounts release workspace")).not.toBeInTheDocument();
+      expect(screen.getByText("Dispatch landing")).toBeInTheDocument();
+    },
+  );
+
+  it("admits FINANCE_HEAD to /admin/finance", () => {
+    mockRole = "FINANCE_HEAD";
+    renderFinanceAt("/admin/finance");
+    expect(screen.getByText("Finance workspace")).toBeTruthy();
+  });
+
+  it("keeps unknown roles out of /admin and redirects to the governed customer gate", () => {
+    mockRole = "UNKNOWN_ROLE";
+    renderFinanceAt("/admin/finance");
+    expect(screen.queryByText("Finance workspace")).not.toBeInTheDocument();
+    expect(screen.queryByText("Admin landing")).not.toBeInTheDocument();
+    expect(screen.getByText("Customer redirect")).toBeInTheDocument();
+    expect(getRoleDestination("UNKNOWN_ROLE")).toBe("/customer-app-redirect");
+  });
+
+  it("redirects DISPATCH_MANAGER off /admin/finance before profileReady when cached role is known", () => {
+    mockRole = "DISPATCH_MANAGER";
+    mockProfileReady = false;
+    renderFinanceAt("/admin/finance");
+    expect(screen.queryByText("Finance workspace")).not.toBeInTheDocument();
+    expect(screen.getByText("Dispatch landing")).toBeInTheDocument();
+  });
+
+  it("suppresses finance content while role is unknown during hydration", () => {
+    mockRole = null;
+    mockProfileReady = false;
+    renderFinanceAt("/admin/finance");
+    expect(screen.queryByText("Finance workspace")).not.toBeInTheDocument();
+    expect(screen.queryByText("Admin landing")).not.toBeInTheDocument();
+    expect(screen.queryByText("Dispatch landing")).not.toBeInTheDocument();
   });
 });

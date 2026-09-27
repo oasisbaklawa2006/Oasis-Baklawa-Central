@@ -1,0 +1,163 @@
+/**
+ * Point 59 — Customer 360 operational read model types.
+ * Canonical customer identity is `companies.id` (company_id).
+ */
+
+import type { CrmCommunicationHistoryReadModel } from "@/lib/crm-communication-history/crmCommunicationHistoryTypes";
+
+export type Customer360SliceAvailability =
+  | "available"
+  | "partial_crm_lite"
+  | "unavailable_not_governed"
+  | "error";
+
+export type Customer360IdentityFailure =
+  | "invalid_company_id"
+  | "company_not_found"
+  | "cross_company_access_denied"
+  | "ambiguous_identity";
+
+export type Customer360CompanyProfile = {
+  companyId: string;
+  businessName: string;
+  status: string | null;
+  phone: string | null;
+  registeredAddress: string | null;
+  gstNumber: string | null;
+  accountManagerId: string | null;
+  allowCredit: boolean | null;
+  creditLimit: number | null;
+  walletBalance: number | null;
+  currentBalance: number | null;
+  totalOutstanding: number | null;
+  discountPercentage: number | null;
+  paymentTerms: string | null;
+  priceTier: string | null;
+  createdAt: string | null;
+};
+
+export type Customer360OrderSummary = {
+  orderId: string;
+  orderNumber: string | null;
+  status: string | null;
+  salesOrderValue: number | null;
+  createdAt: string | null;
+};
+
+export type Customer360InteractionSummary = {
+  id: string;
+  interactionType: string | null;
+  notes: string | null;
+  outcome: string | null;
+  followUpDate: string | null;
+  createdAt: string | null;
+};
+
+export type Customer360TaskSummary = {
+  id: string;
+  taskType: string | null;
+  status: string | null;
+  dueDate: string | null;
+  description: string | null;
+  createdAt: string | null;
+};
+
+export type Customer360TicketSummary = {
+  id: string;
+  orderId: string;
+  orderNumber: string | null;
+  issueType: string;
+  status: string;
+  createdAt: string | null;
+};
+
+export type Customer360DeliverySite = {
+  id: string;
+  label: string;
+  streetAddress: string;
+  city: string;
+  state: string;
+  pincode: string;
+  contactPerson: string | null;
+  contactPhone: string | null;
+  isDefault: boolean;
+};
+
+export type Customer360FinanceExposure = {
+  totalOutstanding: number;
+  currentBalance: number | null;
+  creditLimit: number | null;
+  walletBalance: number | null;
+  allowCredit: boolean | null;
+  paymentTerms: string | null;
+  creditHeadroom: number | null;
+};
+
+export type Customer360HealthSignal = {
+  signal: string;
+  severity: "info" | "warning" | "critical";
+  factualBasis: string;
+};
+
+export type Customer360NextBestActionKey =
+  | "overdue_tasks"
+  | "log_interaction"
+  | "due_follow_ups"
+  | "credit_review";
+
+export type Customer360NextBestAction = {
+  key: Customer360NextBestActionKey;
+  action: string;
+  reason: string;
+  priority: number;
+};
+
+export type Customer360HealthReadModel = {
+  signals: Customer360HealthSignal[];
+  nextBestActions: Customer360NextBestAction[];
+  overdueTaskCount: number;
+  daysSinceLastInteraction: number | null;
+  creditUtilizationPercent: number | null;
+};
+
+export type Customer360WhatsappOrderLink = {
+  draftId: string;
+  packetId: string;
+  status: string;
+  promotedOrderId: string | null;
+  readinessOverallScore: number | null;
+  updatedAt: string;
+};
+
+export type Customer360Slice<T> = {
+  availability: Customer360SliceAvailability;
+  programmeOwner: string;
+  reason?: string;
+  data?: T;
+  errorMessage?: string;
+};
+
+export type Customer360ReadModel = {
+  identity: {
+    companyId: string;
+    resolvedAt: string;
+  };
+  profile: Customer360Slice<Customer360CompanyProfile>;
+  orders: Customer360Slice<Customer360OrderSummary[]>;
+  interactions: Customer360Slice<Customer360InteractionSummary[]>;
+  tasks: Customer360Slice<Customer360TaskSummary[]>;
+  tickets: Customer360Slice<Customer360TicketSummary[]>;
+  branchesAndContacts: Customer360Slice<Customer360DeliverySite[]>;
+  communicationsLedger: Customer360Slice<CrmCommunicationHistoryReadModel>;
+  dispatchHistory: Customer360Slice<never>;
+  financeExposure: Customer360Slice<Customer360FinanceExposure>;
+  customerHealth: Customer360Slice<Customer360HealthReadModel>;
+  whatsappOrderLinkage: Customer360Slice<Customer360WhatsappOrderLink[]>;
+};
+
+export type Customer360ViewerContext = {
+  viewerCompanyId: string | null;
+  isStorefrontViewer: boolean;
+  viewerUserId?: string | null;
+  isSalesExecutiveViewer?: boolean;
+};

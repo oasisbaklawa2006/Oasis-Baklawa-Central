@@ -21,6 +21,7 @@ import {
   type OrderTracePreview,
 } from "@/utils/orderTrace";
 import { formatSalesOrderLabel } from "@/utils/orderSoLabel";
+import { escapePostgrestIlikePattern } from "@/lib/wa-governance/clientResolutionIlike";
 import { deriveFinanceReleaseState } from "@/utils/financeReleaseState";
 import { FinanceReleaseChips } from "@/components/admin/FinanceReleaseChips";
 
@@ -94,7 +95,7 @@ interface OrderLocatorPanelProps {
 }
 
 function sanitizeIlike(q: string): string {
-  return q.replace(/%/g, "").replace(/_/g, "").trim();
+  return escapePostgrestIlikePattern(q.trim());
 }
 
 /**
@@ -242,8 +243,8 @@ export default function OrderLocatorPanel({ onOpenTrace }: OrderLocatorPanelProp
             setLoading(false);
             return;
           }
-          const rhsHuman = quotePostgrestOrRhs(`%${tail}%`);
-          const rhsUuid = quotePostgrestOrRhs(`%${idCompact}%`);
+          const rhsHuman = quotePostgrestOrRhs(`%${sanitizeIlike(tail)}%`);
+          const rhsUuid = quotePostgrestOrRhs(`%${sanitizeIlike(idCompact)}%`);
           const { data, error } = await supabase
             .from("orders")
             .select(ORDER_LOCATOR_SELECT)

@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { validateNotifyEventParams } from "@/lib/notification-infrastructure/notifyEventValidation";
 
 /**
  * Centralized notification dispatcher.
@@ -9,28 +10,49 @@ export type NotifyAudience = "buyer" | "sales_exec" | "admin";
 
 export interface NotifyEventParams {
   event: string;
-  subject: string;
-  message: string;
+  subject?: string;
+  message?: string;
   audiences?: NotifyAudience[];
+  applicationId?: string | null;
   orderId?: string | null;
   companyId?: string | null;
   email?: string | null;
   phone?: string | null;
 }
 
-export const notifyEvent = async (params: NotifyEventParams) => {
+export interface NotifyEventOptions {
+  timeoutMs?: number;
+}
+
+export const notifyEvent = async (params: NotifyEventParams, options: NotifyEventOptions = {}) => {
+  const validation = validateNotifyEventParams(params);
+  if (validation.ok === false) {
+    console.error("[notifyEvent] validation failed:", validation.reason);
+    return { success: false, error: validation.reason };
+  }
+
   try {
+    const timeout = options.timeoutMs ?? 10_000;
     const { data, error } = await supabase.functions.invoke("notify-event", {
       body: params,
+      timeout,
     });
     if (error) {
       console.error("[notifyEvent] failed:", error.message);
       return { success: false, error: error.message };
     }
+    const reportedSuccess =
+      typeof data === "object" && data !== null && "success" in data && typeof data.success === "boolean"
+        ? data.success
+        : true;
+    if (!reportedSuccess) {
+      return { success: false, data, error: "notification_delivery_failed" };
+    }
     return { success: true, data };
-  } catch (e: any) {
-    console.error("[notifyEvent] exception:", e?.message);
-    return { success: false, error: e?.message };
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : "notify_event_exception";
+    console.error("[notifyEvent] exception:", message);
+    return { success: false, error: message };
   }
 };
 

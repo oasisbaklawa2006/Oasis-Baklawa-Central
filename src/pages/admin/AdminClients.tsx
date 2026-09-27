@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { notifyEvent } from "@/utils/notifyEvent";
@@ -41,6 +42,7 @@ import {
   isAccountManagerEligibleUser,
 } from "@/lib/client-governance/accountManagerRoles";
 import { fetchClientGovernanceCounts } from "@/lib/client-governance/clientGovernanceCounts";
+import { customer360RouteForCompany } from "@/lib/customer-360/customer360Identity";
 
 /* ─── types ─── */
 interface Application {
@@ -109,6 +111,9 @@ const statusBadgeClass = (status: string) => {
 /* ─── Component ─── */
 const AdminClients = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const customerIdParam = searchParams.get("customerId");
   const [apps, setApps] = useState<Application[]>([]);
   const [activeCompanies, setActiveCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(false);
@@ -151,6 +156,11 @@ const AdminClients = () => {
     setStableCounts(counts);
   };
 
+  /** Refetch the active tab list and governance KPI counters from backend truth after a successful pipeline mutation. */
+  const refreshAfterPipelineMutation = async () => {
+    await Promise.all([fetchApps(tab), refreshStableCounts()]);
+  };
+
   useEffect(() => {
     supabase
       .from("pricing_slabs")
@@ -182,6 +192,15 @@ const AdminClients = () => {
 
     void refreshStableCounts();
   }, []);
+
+  useEffect(() => {
+    if (!customerIdParam) return;
+    try {
+      navigate(customer360RouteForCompany(customerIdParam), { replace: true });
+    } catch {
+      toast.error("Invalid customer identity in deep link.");
+    }
+  }, [customerIdParam, navigate]);
 
   const fetchApps = async (status: string) => {
     setLoading(true);
@@ -228,7 +247,7 @@ const AdminClients = () => {
     setActionLoading(app.id);
 
     try {
-      const { data, error } = await supabase.rpc("approve_b2b_trade_application_v1", {
+      const { data, error } = await supabase.rpc("approve_b2b_access_request_v2", {
         p_application_id: app.id,
         p_assigned_price_tier: priceTier[app.id],
         p_admin_notes: notes[app.id]?.trim() || null,
@@ -262,17 +281,17 @@ const AdminClients = () => {
         toast.success(`${app.business_name} approved`);
       }
 
-      notifyEvent({
+      const approvalNotification = await notifyEvent({
         event: "approval_granted",
-        subject: "Welcome to Oasis B2B! Your account is active",
-        message: `Welcome to Oasis B2B! Your account is now active.\n\nLogin here: https://b2b.oasisbaklawa.com\n\nYour assigned tier: ${priceTier[app.id]}.\nYou can now place orders, track production live, and access invoices.\n\n— Team Oasis Baklawa`,
-        audiences: [],
-        email: app.contact_email,
-        phone: app.mobile_number,
-      }).catch(() => {});
+        applicationId: app.id,
+      }, { timeoutMs: 10_000 });
+      if (!approvalNotification.success) {
+        console.warn("[AdminClients] Approval notification failed after approval commit:", approvalNotification.error);
+        toast.warning("Client approved, but the approval notification requires retry.");
+      }
 
       setSheetOpen(false);
-      await Promise.all([fetchApps(tab), refreshStableCounts()]);
+      await refreshAfterPipelineMutation();
     } catch (error) {
       console.error("[AdminClients] Approval failed:", error);
       toast.error("Failed to approve client.");
@@ -306,7 +325,7 @@ const AdminClients = () => {
 
       toast.success(`${app.business_name} rejected`);
       setSheetOpen(false);
-      await Promise.all([fetchApps(tab), refreshStableCounts()]);
+      await refreshAfterPipelineMutation();
     } catch (error) {
       console.error("[AdminClients] Rejection failed:", error);
       toast.error("Failed to reject application.");
@@ -334,7 +353,7 @@ const AdminClients = () => {
     if (!error) {
       toast.success("Information request logged. Application remains pending.");
       setSheetOpen(false);
-      await Promise.all([fetchApps(tab), refreshStableCounts()]);
+      await refreshAfterPipelineMutation();
     } else {
       toast.error("Failed to log request.");
     }
@@ -534,7 +553,7 @@ const AdminClients = () => {
                               </div>
                             </div>
                           </div>
-                          <div className="border-t border-slate-100 pt-4 mt-4 flex items-center justify-between">
+                          <div className="border-t border-slate-100 pt-4 mt-4 flex items-center justify-between gap-2">
                             <div className="flex gap-4">
                               <div>
                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
@@ -553,12 +572,17 @@ const AdminClients = () => {
                                 </p>
                               </div>
                             </div>
-                            <button
-                              onClick={() => openCompanyEditModal(client)}
-                              className="w-10 h-10 rounded-xl bg-slate-100 text-slate-600 hover:bg-[#B8860B] hover:text-white transition-colors flex items-center justify-center"
-                            >
-                              <Edit size={16} />
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <Button asChild size="sm" variant="outline" className="text-xs">
+                                <Link to={customer360RouteForCompany(client.id)}>Customer 360</Link>
+                              </Button>
+                              <button
+                                onClick={() => openCompanyEditModal(client)}
+                                className="w-10 h-10 rounded-xl bg-slate-100 text-slate-600 hover:bg-[#B8860B] hover:text-white transition-colors flex items-center justify-center"
+                              >
+                                <Edit size={16} />
+                              </button>
+                            </div>
                           </div>
                         </div>
                       ))}

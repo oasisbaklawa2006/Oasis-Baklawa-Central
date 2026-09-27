@@ -1,4 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  isPostgrestIlikeQueryableTerm,
+  postgrestIlikeContainsPattern,
+} from "@/lib/wa-governance/clientResolutionIlike";
 import { deriveCompletionInputFromSlices } from "@/lib/execution-read-models/adapters/completionSignalAdapter";
 import { deriveFinalizationInputFromSlices } from "@/lib/execution-read-models/adapters/finalizationSignalAdapter";
 import { deriveFinanceSignalFromSlices } from "@/lib/execution-read-models/adapters/financeSignalAdapter";
@@ -89,7 +93,7 @@ export async function searchGoldenChainOrders(
   query: string,
   limit = 40,
 ): Promise<GoldenChainOrderSummary[]> {
-  const q = query.replace(/%/g, "").replace(/_/g, "").trim();
+  const q = query.trim();
   let orderQuery = client
     .from("orders")
     .select(ORDER_SELECT)
@@ -98,10 +102,10 @@ export async function searchGoldenChainOrders(
     .order("created_at", { ascending: false })
     .limit(limit);
 
-  if (q.length >= 2) {
+  if (isPostgrestIlikeQueryableTerm(q)) {
     const tail = q.replace(/^SO-/i, "").trim();
     // PostgREST cannot apply ilike to uuid `id`; order_number covers SO search.
-    orderQuery = orderQuery.ilike("order_number", `%${tail}%`);
+    orderQuery = orderQuery.ilike("order_number", postgrestIlikeContainsPattern(tail));
   }
 
   const { data: orders, error } = await orderQuery;

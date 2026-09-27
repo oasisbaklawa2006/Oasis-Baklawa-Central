@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import AppverseRoleHome from "@/components/appverse/AppverseRoleHome";
 import AppverseWave1Launchpad from "@/components/appverse/AppverseWave1Launchpad";
 import { useAuth } from "@/hooks/useAuth";
-import { getAllowedModulesForRole } from "@/lib/appverse/roleAccess";
+import { getAllowedModulesForRole, hasModuleAccess } from "@/lib/appverse/roleAccess";
 import { getInternalApps } from "@/lib/appverse/appRegistry";
 import { getTvSurfacesForRole } from "@/lib/appverse/tvSurfaces";
 
@@ -13,6 +13,7 @@ export default function AppverseAdminHome() {
   const internalApps = getInternalApps();
   const normalizedRole = role?.trim().toUpperCase() ?? null;
   const isExecutive = normalizedRole === "SUPER_ADMIN" || normalizedRole === "ADMIN";
+  const canOpenManagementCmd = hasModuleAccess(allowedModules, "management_reporting");
 
   return (
     <div className="space-y-8">
@@ -20,21 +21,31 @@ export default function AppverseAdminHome() {
 
       <AppverseWave1Launchpad allowedModules={allowedModules} />
 
-      {isExecutive && (
+      {canOpenManagementCmd && (
         <section className="rounded-2xl border border-border/80 bg-[hsl(var(--appverse-utility))] p-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-sm font-semibold text-[hsl(var(--appverse-espresso))]">Management intelligence</h2>
               <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                The existing analytical dashboard remains available as a deeper management view.
+                Governed operational, finance, Tally export, and compliance oversight in one command center.
               </p>
             </div>
-            <Link
-              to="/admin/heartbeat"
-              className="inline-flex min-h-10 items-center justify-center rounded-xl border border-[hsl(var(--appverse-gold)/0.35)] bg-background px-4 text-xs font-semibold text-[hsl(var(--appverse-espresso))] hover:bg-[hsl(var(--appverse-premium))]"
-            >
-              Open executive overview
-            </Link>
+            <div className="flex flex-wrap gap-2">
+              <Link
+                to="/admin/management-command-center"
+                className="inline-flex min-h-10 items-center justify-center rounded-xl border border-[hsl(var(--appverse-gold)/0.35)] bg-background px-4 text-xs font-semibold text-[hsl(var(--appverse-espresso))] hover:bg-[hsl(var(--appverse-premium))]"
+              >
+                Open management CMD
+              </Link>
+              {isExecutive ? (
+                <Link
+                  to="/admin/heartbeat"
+                  className="inline-flex min-h-10 items-center justify-center rounded-xl border border-border bg-background px-4 text-xs font-semibold text-muted-foreground hover:bg-muted"
+                >
+                  Executive dashboard
+                </Link>
+              ) : null}
+            </div>
           </div>
         </section>
       )}

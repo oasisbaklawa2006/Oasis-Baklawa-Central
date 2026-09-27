@@ -3,6 +3,11 @@ import ReactDOM from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
 import "./styles/appverse-theme.css";
+import { installSupabaseTokenHashCompatibility } from "./lib/supabase-token-hash-compat";
+import { installMsg91SessionBridgeRouting } from "./lib/msg91-session-bridge-routing";
+
+installSupabaseTokenHashCompatibility();
+installMsg91SessionBridgeRouting();
 
 // CONSOLE SILENCER — suppress non-critical noise in production only.
 // Keeps console.error intact so real failures stay visible.

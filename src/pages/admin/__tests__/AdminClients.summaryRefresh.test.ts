@@ -13,14 +13,15 @@ describe("AdminClients summary KPI refresh contract", () => {
     expect(source).toContain('from "@/lib/client-governance/clientGovernanceCounts"');
     expect(source).toContain("fetchClientGovernanceCounts(supabase)");
     expect(source).toContain("refreshStableCounts");
+    expect(source).toContain("refreshAfterPipelineMutation");
   });
 
   it("refreshes summary counters after successful approve and reject mutations", () => {
     const approveBlock = source.slice(source.indexOf("const handleApprove"), source.indexOf("const handleReject"));
     const rejectBlock = source.slice(source.indexOf("const handleReject"), source.indexOf("const handleRequestInfo"));
 
-    expect(approveBlock).toContain("await Promise.all([fetchApps(tab), refreshStableCounts()])");
-    expect(rejectBlock).toContain("await Promise.all([fetchApps(tab), refreshStableCounts()])");
+    expect(approveBlock).toContain("await refreshAfterPipelineMutation()");
+    expect(rejectBlock).toContain("await refreshAfterPipelineMutation()");
   });
 
   it("refreshes summary counters after successful request-info mutation", () => {
@@ -29,7 +30,7 @@ describe("AdminClients summary KPI refresh contract", () => {
       source.indexOf("const getInviteForApp"),
     );
 
-    expect(requestInfoBlock).toContain("await Promise.all([fetchApps(tab), refreshStableCounts()])");
+    expect(requestInfoBlock).toContain("await refreshAfterPipelineMutation()");
   });
 
   it("does not refresh summary counters on mutation failure paths", () => {
@@ -37,8 +38,11 @@ describe("AdminClients summary KPI refresh contract", () => {
     const rejectCatch = source.slice(source.indexOf("[AdminClients] Rejection failed"), source.indexOf("const handleRequestInfo"));
     const requestInfoFailure = source.slice(source.indexOf('toast.error("Failed to log request.")'), source.indexOf("const getInviteForApp"));
 
+    expect(approveCatch).not.toContain("refreshAfterPipelineMutation");
     expect(approveCatch).not.toContain("refreshStableCounts");
+    expect(rejectCatch).not.toContain("refreshAfterPipelineMutation");
     expect(rejectCatch).not.toContain("refreshStableCounts");
+    expect(requestInfoFailure).not.toContain("refreshAfterPipelineMutation");
     expect(requestInfoFailure).not.toContain("refreshStableCounts");
   });
 });

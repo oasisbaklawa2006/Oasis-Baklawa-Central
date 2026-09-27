@@ -28,7 +28,10 @@ describe("Factory Operations source-truth registry", () => {
   });
 
   it("keeps production_jobs as governed Production authority", () => {
-    expect(authoritativeFactoryTruthForSubsystem("PRODUCTION").map((entry) => entry.relation)).toEqual(["production_jobs"]);
+    expect(authoritativeFactoryTruthForSubsystem("PRODUCTION").map((entry) => entry.relation)).toEqual([
+      "production_jobs",
+      "production_issues",
+    ]);
   });
 
   it("marks operational_queue_items as dead projection instead of Factory authority", () => {

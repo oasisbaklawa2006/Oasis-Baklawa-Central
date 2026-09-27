@@ -1,8 +1,22 @@
 import { supabase } from "@/integrations/supabase/client";
+import { hasProviderDeliveryEvidence } from "@/lib/notification-infrastructure/deliveryState";
+import {
+  hasCentralEmailDeliveryChannel,
+  selectEmailProcessablePendingBatch,
+  shouldApplyPendingFailureUpdate,
+  validateOutboxRecipientForCentralQueue,
+} from "@/lib/notification-infrastructure/outboxQueueValidation";
+import type { Database } from "@/integrations/supabase/database.types";
+
+type OutboxInsert = Database["public"]["Tables"]["notification_outbox"]["Insert"];
+type OutboxUpdate = Database["public"]["Tables"]["notification_outbox"]["Update"];
+type OutboxRow = Database["public"]["Tables"]["notification_outbox"]["Row"];
 
 // ═══════════════════════════════════════════════════════════
 // NOTIFICATION GATEWAY — LIVE CONFIGURATION
-// Email sending is handled by the send-email Edge Function
+// Email sending is handled by the send-email Edge Function.
+// Delivery state updates require backend/provider evidence (Point21).
+// Retry/dead-letter is delegated to Point24 — no client retry loop.
 // ═══════════════════════════════════════════════════════════
 
 /**
@@ -15,73 +29,128 @@ export const queueNotification = async (params: {
   recipientEmail?: string | null;
   priority?: string;
 }) => {
-  const { error } = await supabase.from("notification_outbox").insert({
+  const validation = validateOutboxRecipientForCentralQueue({
+    recipientEmail: params.recipientEmail,
+    recipientPhone: params.recipientPhone,
+  });
+  if (validation.ok === false) {
+    console.error("[Outbox] Failed to queue notification:", validation.reason);
+    return { queued: false, reason: validation.reason };
+  }
+
+  const payload: OutboxInsert = {
     event_type: params.eventType,
     message_body: params.messageBody,
     recipient_phone: params.recipientPhone || null,
     recipient_email: params.recipientEmail || null,
     priority: params.priority || "normal",
     status: "pending",
-  } as any);
+  };
+
+  const { error } = await supabase.from("notification_outbox").insert(payload);
 
   if (error) {
     console.error("[Outbox] Failed to queue notification:", error.message);
+    return { queued: false, reason: error.message };
   }
+  return { queued: true as const };
 };
 
-/**
- * Process pending messages in the outbox — LIVE MODE.
- * Sends emails via Resend API, then updates status accordingly.
- */
-export const processOutboxQueue = async (): Promise<number> => {
-  const { data: pending } = await supabase
+type SendEmailResponse = { success?: boolean; id?: string; error?: string };
+
+const PENDING_EMAIL_FETCH_PAGE_SIZE = 100;
+const EMAIL_PROCESS_BATCH_SIZE = 50;
+
+async function fetchEmailProcessablePendingBatch(): Promise<OutboxRow[]> {
+  const { data, error } = await supabase
     .from("notification_outbox")
     .select("*")
     .eq("status", "pending")
+    .not("recipient_email", "is", null)
     .order("created_at", { ascending: true })
-    .limit(50);
+    .limit(PENDING_EMAIL_FETCH_PAGE_SIZE);
 
-  if (!pending || pending.length === 0) return 0;
+  if (error) {
+    console.error("[Outbox] Failed to fetch pending email-capable rows:", error.message);
+    return [];
+  }
 
-  let processed = 0;
+  return selectEmailProcessablePendingBatch(data ?? [], EMAIL_PROCESS_BATCH_SIZE);
+}
 
-  // Verify user is authenticated
+/**
+ * Process pending messages in the outbox — LIVE MODE.
+ * Passes outboxId to send-email so status is updated only with provider evidence.
+ * Central does not mark sent on invoke-only success.
+ */
+export const processOutboxQueue = async (): Promise<number> => {
+  const pending = await fetchEmailProcessablePendingBatch();
+  if (pending.length === 0) return 0;
+
   const { data: { session }, error: authError } = await supabase.auth.getSession();
   if (!session || authError) {
     console.error("[Outbox] No active session — cannot process queue.");
     return 0;
   }
 
+  let processed = 0;
+
   for (const msg of pending) {
+    if (!hasCentralEmailDeliveryChannel(msg)) {
+      continue;
+    }
+
     try {
-      // 📧 LIVE EMAIL DELIVERY via Edge Function
-      if (msg.recipient_email) {
-        const { error: emailError } = await supabase.functions.invoke("send-email", {
+      const { data, error: emailError } = await supabase.functions.invoke<SendEmailResponse>(
+        "send-email",
+        {
           body: {
-            to: msg.recipient_email,
+            to: msg.recipient_email!,
             subject: `Oasis Notification: ${msg.event_type}`,
             text: msg.message_body,
+            outboxId: msg.id,
           },
-        });
+        },
+      );
 
-        if (emailError) {
-          throw new Error(emailError.message || "Edge Function email error");
-        }
+      if (emailError) {
+        throw new Error(emailError.message || "Edge Function email error");
       }
 
-      // Mark as sent
-      await supabase
-        .from("notification_outbox")
-        .update({ status: "sent", sent_at: new Date().toISOString() } as any)
-        .eq("id", msg.id);
+      if (!data?.success) {
+        throw new Error(data?.error || "send-email returned without success evidence");
+      }
 
-      processed++;
-    } catch (err: any) {
-      // Mark as failed with error log
+      const { data: refreshed } = await supabase
+        .from("notification_outbox")
+        .select("status, sent_at")
+        .eq("id", msg.id)
+        .maybeSingle();
+
+      if (refreshed && hasProviderDeliveryEvidence(refreshed)) {
+        processed++;
+      }
+    } catch (err: unknown) {
+      const { data: current } = await supabase
+        .from("notification_outbox")
+        .select("status, sent_at")
+        .eq("id", msg.id)
+        .maybeSingle();
+
+      if (current && !shouldApplyPendingFailureUpdate(current)) {
+        if (hasProviderDeliveryEvidence(current)) {
+          processed++;
+        }
+        continue;
+      }
+
+      const message = err instanceof Error ? err.message : "Unknown error";
+      const failureUpdate: OutboxUpdate = { status: "failed", error_log: message };
       await supabase
         .from("notification_outbox")
-        .update({ status: "failed", error_log: err?.message || "Unknown error" } as any)
-        .eq("id", msg.id);
+        .update(failureUpdate)
+        .eq("id", msg.id)
+        .eq("status", "pending");
     }
   }
 

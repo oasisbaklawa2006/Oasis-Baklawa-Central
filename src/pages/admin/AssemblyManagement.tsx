@@ -299,10 +299,16 @@ export default function AssemblyManagement() {
     );
   }, [partialReasonDraft, runAction]);
 
-  const handleIssue = useCallback((jobId: string) => runAction(
-    "Components issued", "issue_assembly_components",
-    { p_assembly_job_id: jobId, p_correlation_id: crypto.randomUUID() },
-  ), [runAction]);
+  const issueCorrelationRef = useRef<Record<string, string>>({});
+  const handleIssue = useCallback((jobId: string) => {
+    if (!issueCorrelationRef.current[jobId]) issueCorrelationRef.current[jobId] = crypto.randomUUID();
+    const correlationId = issueCorrelationRef.current[jobId];
+    return runAction(
+      "Components issued", "issue_assembly_components",
+      { p_assembly_job_id: jobId, p_correlation_id: correlationId },
+      () => { delete issueCorrelationRef.current[jobId]; },
+    );
+  }, [runAction]);
 
   const handleConsumption = useCallback((componentId: string) => {
     const draft = consumptionDraft[componentId] ?? { consumed: "", wasted: "", returned: "" };
@@ -545,7 +551,7 @@ export default function AssemblyManagement() {
   }).length;
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6 p-4 pb-24">
+    <div className="mx-auto max-w-7xl space-y-6 p-4 pb-24" data-testid="macro-assembly-surface">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
         <div>
           <h1 className="text-xl font-bold tracking-tight">Packing & Assembly operations</h1>

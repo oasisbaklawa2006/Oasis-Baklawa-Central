@@ -150,3 +150,76 @@ describe("AssemblyManagement 3PGS requirement handoff", () => {
     expect(secondArgs.p_correlation_id).not.toBe(firstArgs.p_correlation_id);
   });
 });
+
+describe("AssemblyManagement governed lifecycle (Point90)", () => {
+  it("binds the selected job to its exact assembly_job_number, order ref, and correlation id", async () => {
+    render(<AssemblyManagement />);
+    expect(await screen.findByText("PNA-000001")).toBeTruthy();
+    expect(screen.getAllByText(/SO#ORDER-1/i).length).toBeGreaterThan(0);
+    expect(screen.getByText("job-1-corr")).toBeTruthy();
+  });
+
+  it("records material consumption against the exact component id via governed RPC", async () => {
+    componentsResult = [{ ...shortComponent, issued_qty: 10 }];
+    render(<AssemblyManagement />);
+    const usedInput = await screen.findByPlaceholderText("Used");
+    fireEvent.change(usedInput, { target: { value: "4" } });
+    fireEvent.click(screen.getByText("Log"));
+
+    await waitFor(() => expect(rpcMock).toHaveBeenCalled());
+    const [fn, args] = rpcMock.mock.calls[0];
+    expect(fn).toBe("record_assembly_consumption");
+    expect(args).toMatchObject({
+      p_component_id: "comp-1",
+      p_consumed_qty: 4,
+      p_wasted_qty: 0,
+      p_returned_qty: 0,
+    });
+    expect(args.p_correlation_id).toBeTruthy();
+  });
+
+  it("fails closed when consumption quantities are all zero", async () => {
+    componentsResult = [{ ...shortComponent, issued_qty: 10 }];
+    render(<AssemblyManagement />);
+    fireEvent.click(await screen.findByText("Log"));
+    await waitFor(() => expect(rpcMock).not.toHaveBeenCalled());
+  });
+
+  it("records QC output acceptance with exact accepted and rejected quantities", async () => {
+    Object.assign(job, { status: "qc_pending", completed_qty: 10 });
+    render(<AssemblyManagement />);
+
+    fireEvent.change(await screen.findByPlaceholderText("Accepted"), { target: { value: "8" } });
+    fireEvent.change(screen.getByPlaceholderText("Rejected"), { target: { value: "2" } });
+    fireEvent.click(screen.getByText("Record QC decision"));
+
+    await waitFor(() => expect(rpcMock).toHaveBeenCalled());
+    const [fn, args] = rpcMock.mock.calls[0];
+    expect(fn).toBe("accept_assembly_output");
+    expect(args).toMatchObject({
+      p_assembly_job_id: "job-1",
+      p_accepted_qty: 8,
+      p_rejected_qty: 2,
+    });
+    Object.assign(job, { status: "issued", completed_qty: 0 });
+  });
+
+  it("reuses the same correlation id when issue_assembly_components is retried after a failed call", async () => {
+    const reservedJob = { ...job, status: "materials_reserved" };
+    Object.assign(job, reservedJob);
+    rpcMock.mockResolvedValueOnce({ data: null, error: { message: "timeout" } });
+    render(<AssemblyManagement />);
+
+    const issueButton = await screen.findByText("Issue components");
+    fireEvent.click(issueButton);
+    await waitFor(() => expect(rpcMock).toHaveBeenCalledTimes(1));
+    fireEvent.click(issueButton);
+    await waitFor(() => expect(rpcMock).toHaveBeenCalledTimes(2));
+
+    const [, firstArgs] = rpcMock.mock.calls[0];
+    const [, secondArgs] = rpcMock.mock.calls[1];
+    expect(rpcMock.mock.calls[0][0]).toBe("issue_assembly_components");
+    expect(secondArgs.p_correlation_id).toBe(firstArgs.p_correlation_id);
+    Object.assign(job, { status: "issued" });
+  });
+});
