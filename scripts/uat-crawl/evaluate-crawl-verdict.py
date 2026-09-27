@@ -180,6 +180,36 @@ def main() -> int:
     alias_path = DOCS / "UAT_CRAWL_VERDICT.json"
     alias_path.write_text(json.dumps(verdict, indent=2) + "\n", encoding="utf-8")
 
+    counts = (current_summary or {}).get("counts") or {}
+    progress_lines = [
+        "# UAT Crawl Progress Summary",
+        "",
+        f"**Generated:** {verdict['generatedAt']}",
+        f"**Run:** {RUN_ID} (tranche \`{RUN_TRANCHE}\`)",
+        f"**Scope:** {verdict['scope']}",
+        f"**Final automated-crawl verdict:** {'PASS' if verdict['passed'] else 'FAIL'}",
+        "",
+        "## Current-run census disposition",
+        "",
+        "| Disposition | Count |",
+        "|---|---:|",
+        f"| Auth S0–S3 complete | {counts.get('authS0S3Complete', 0)} |",
+        f"| Public S0 observed | {counts.get('publicS0Observed', 0)} |",
+        f"| Missing-secret/deploy blocked | {counts.get('blockedCredentialOrDeploy', 0)} |",
+        f"| OTP external gate | {counts.get('otpExternalGate', 0)} |",
+        f"| Provider gated | {counts.get('providerGated', 0)} |",
+        f"| Auth flow failed | {counts.get('authFlowFailed', 0)} |",
+        f"| Auth contract mismatch | {counts.get('authContractMismatch', 0)} |",
+        f"| NOT EXECUTED | {counts.get('notExecuted', 0)} |",
+        "",
+        f"**Failures:** {', '.join(failures) if failures else 'none'}",
+        f"**Warnings:** {', '.join(warnings) if warnings else 'none'}",
+        "",
+        "Physical/device/provider evidence remains separately governed and is not certified by Chromium automation.",
+        "",
+    ]
+    (DOCS / "UAT_CRAWL_PROGRESS.md").write_text("\n".join(progress_lines), encoding="utf-8")
+
     if failures:
         for failure in failures:
             print(f"::error::UAT certification verdict FAILED — {failure}", file=sys.stderr)
