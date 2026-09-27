@@ -185,7 +185,7 @@ def main() -> int:
         "# UAT Crawl Progress Summary",
         "",
         f"**Generated:** {verdict['generatedAt']}",
-        f"**Run:** {RUN_ID} (tranche \`{RUN_TRANCHE}\`)",
+        f"**Run:** {RUN_ID} (tranche `{RUN_TRANCHE}`)",
         f"**Scope:** {verdict['scope']}",
         f"**Final automated-crawl verdict:** {'PASS' if verdict['passed'] else 'FAIL'}",
         "",
