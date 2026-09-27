@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, Boxes, RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,12 +19,17 @@ export default function ThreePgsSatelliteVisibility() {
   const [snapshot, setSnapshot] = useState(EMPTY_THREE_PGS_SNAPSHOT);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const latestRequest = useRef(0);
 
   const load = useCallback(async () => {
+    const request = ++latestRequest.current;
     setLoading(true);
+    setError(null);
+    setSnapshot(EMPTY_THREE_PGS_SNAPSHOT);
     const result = audience === "b2b"
       ? await loadThreePgsSalesSatelliteSnapshotSafe()
       : await loadThreePgsCommandCentreSnapshotSafe();
+    if (request !== latestRequest.current) return;
     setSnapshot((previous) => applyThreePgsSnapshotLoadResult(previous, result));
     setError(result.error);
     setLoading(false);
