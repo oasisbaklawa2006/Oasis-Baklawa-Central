@@ -48,6 +48,8 @@ const AUTH_ENTRY_HEADING = /Everything you need from Oasis Baklawa/i;
 const LEGACY_HEADING = /Welcome Back/i;
 const STAFF_HEADING = /Employee Access/i;
 const BUYER_HEADING = /B2B Client Login/i;
+const AUTH_SURFACE_SETTLE_TIMEOUT_MS = 30_000;
+const ROUTE_GUARD_SETTLE_TIMEOUT_MS = 30_000;
 
 export function authKindForPersona(persona: string): UatAuthRoleKind {
   return BUYER_PERSONAS.has(persona) ? "buyer" : "staff";
@@ -70,25 +72,60 @@ export function isUnauthenticatedDestination(pathname: string): boolean {
   );
 }
 
+async function waitForVisibleHeading(page: Page, name: RegExp, timeout = AUTH_SURFACE_SETTLE_TIMEOUT_MS) {
+  try {
+    await expect(page.getByRole("heading", { name })).toBeVisible({ timeout });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function waitForUnauthenticatedDestination(
+  page: Page,
+  context: string,
+  timeout = ROUTE_GUARD_SETTLE_TIMEOUT_MS,
+) {
+  await expect
+    .poll(() => isUnauthenticatedDestination(new URL(page.url()).pathname), {
+      message: `${context} must settle on a governed unauthenticated destination`,
+      timeout,
+      intervals: [100, 250, 500],
+    })
+    .toBe(true);
+  return new URL(page.url()).pathname;
+}
+
 export async function detectAuthArchitecture(page: Page): Promise<AuthArchitecture> {
   await page.goto(`${getPreviewUrl()}${LEGACY_LOGIN_PATH}`, {
     waitUntil: "domcontentloaded",
     timeout: 60_000,
   });
+
+  await expect
+    .poll(async () => {
+      if (await page.getByRole("heading", { name: LEGACY_HEADING }).isVisible().catch(() => false)) return "legacy";
+      if (await page.getByRole("heading", { name: AUTH_ENTRY_HEADING }).isVisible().catch(() => false)) return "split";
+      return "pending";
+    }, {
+      message: "Authentication entry must render before architecture detection",
+      timeout: AUTH_SURFACE_SETTLE_TIMEOUT_MS,
+      intervals: [100, 250, 500],
+    })
+    .not.toBe("pending");
+
   if (await page.getByRole("heading", { name: LEGACY_HEADING }).isVisible().catch(() => false)) {
     return "legacy";
   }
   if (await page.getByRole("heading", { name: AUTH_ENTRY_HEADING }).isVisible().catch(() => false)) {
     return "split";
   }
-  const staffProbe = await page.goto(`${getPreviewUrl()}${STAFF_LOGIN_PATH}`, {
+
+  await page.goto(`${getPreviewUrl()}${STAFF_LOGIN_PATH}`, {
     waitUntil: "domcontentloaded",
     timeout: 60_000,
   });
-  if (staffProbe && (await page.getByRole("heading", { name: STAFF_HEADING }).isVisible().catch(() => false))) {
-    return "split";
-  }
-  return "legacy";
+  return (await waitForVisibleHeading(page, STAFF_HEADING)) ? "split" : "legacy";
 }
 
 function hasLeftLoginPath(pathname: string, fromPath: string): boolean {
@@ -109,7 +146,7 @@ export async function loginStaff(page: Page, email: string, password: string): P
       waitUntil: "domcontentloaded",
       timeout: 60_000,
     });
-    const onStaffLogin = await page.getByRole("heading", { name: STAFF_HEADING }).isVisible().catch(() => false);
+    const onStaffLogin = await waitForVisibleHeading(page, STAFF_HEADING);
     if (!onStaffLogin) {
       return {
         ok: false,
@@ -140,7 +177,7 @@ export async function loginStaff(page: Page, email: string, password: string): P
     waitUntil: "domcontentloaded",
     timeout: 60_000,
   });
-  const legacyVisible = await page.getByRole("heading", { name: LEGACY_HEADING }).isVisible().catch(() => false);
+  const legacyVisible = await waitForVisibleHeading(page, LEGACY_HEADING);
   if (!legacyVisible) {
     return {
       ok: false,
@@ -176,7 +213,7 @@ export async function loginBuyer(page: Page, email: string, _password: string): 
       waitUntil: "domcontentloaded",
       timeout: 60_000,
     });
-    const onBuyerLogin = await page.getByRole("heading", { name: BUYER_HEADING }).isVisible().catch(() => false);
+    const onBuyerLogin = await waitForVisibleHeading(page, BUYER_HEADING);
     if (!onBuyerLogin) {
       return {
         ok: false,
@@ -213,7 +250,7 @@ export async function loginBuyer(page: Page, email: string, _password: string): 
     waitUntil: "domcontentloaded",
     timeout: 60_000,
   });
-  const legacyVisible = await page.getByRole("heading", { name: LEGACY_HEADING }).isVisible().catch(() => false);
+  const legacyVisible = await waitForVisibleHeading(page, LEGACY_HEADING);
   if (!legacyVisible) {
     return {
       ok: false,
@@ -257,20 +294,12 @@ export async function expectUnauthenticatedSession(
   context: string,
   protectedRoute = "/admin/dispatch-mgmt",
 ) {
-  const pathname = new URL(page.url()).pathname;
-  expect(
-    isUnauthenticatedDestination(pathname),
-    `${context} must land on governed unauthenticated entry, got ${pathname}`,
-  ).toBe(true);
+  await waitForUnauthenticatedDestination(page, context);
   await page.goto(`${getPreviewUrl()}${protectedRoute}`, {
     waitUntil: "domcontentloaded",
     timeout: 45_000,
   });
-  const revisitPath = new URL(page.url()).pathname;
-  expect(
-    isUnauthenticatedDestination(revisitPath),
-    `${context} protected route revisit must not restore session (${revisitPath})`,
-  ).toBe(true);
+  await waitForUnauthenticatedDestination(page, `${context} protected route revisit`);
 }
 
 export function classifyLoginFailure(
