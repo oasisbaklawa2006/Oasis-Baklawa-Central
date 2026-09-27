@@ -145,10 +145,12 @@ describe("UAT login contract repair regressions", () => {
 
   it("18 — TV routes use role-appropriate credential prefixes", () => {
     expect(credentialMatrix).toContain('/^\\/tv\\/3pgs/');
-    expect(credentialMatrix).toContain('["TEST_3PGS", "TEST_OPERATIONS"]');
+    expect(credentialMatrix).toContain('["TEST_3PGS", "TEST_OPERATIONS", "TEST_ADMIN"]');
     expect(credentialMatrix).toContain('/^\\/tv\\/rgs/');
-    expect(credentialMatrix).toContain('["TEST_TV_RGS", "TEST_RGS"]');
-    expect(credentialMatrix).toContain('["TEST_TV_PRODUCTION", "TEST_PRODUCTION"]');
+    expect(credentialMatrix).toContain('["TEST_TV_RGS", "TEST_RGS", "TEST_ADMIN"]');
+    expect(credentialMatrix).toContain('/^\\/tv\\/arabic-sweets/');
+    expect(credentialMatrix).toContain('["TEST_TV_PRODUCTION", "TEST_PRODUCTION", "TEST_ADMIN"]');
+    expect(credentialMatrix).toContain('["TEST_ADMIN"]');
   });
 
   it("19 — final verdict records every watchdog batch, not only five steps", () => {
