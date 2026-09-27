@@ -107,4 +107,26 @@ describe("UAT login contract repair regressions", () => {
     expect(isUnauthenticatedDestination("/admin/dispatch-mgmt")).toBe(false);
     expect(aiUatSpec).toContain("expectUnauthenticatedSession");
   });
+
+  it("13 — lazy split-auth surfaces settle before contract classification", () => {
+    expect(authContract).toContain("AUTH_SURFACE_SETTLE_TIMEOUT_MS");
+    expect(authContract).toContain('toBeVisible({ timeout })');
+    expect(authContract).toContain("Authentication entry must render before architecture detection");
+    expect(authContract).toContain("waitForVisibleHeading(page, STAFF_HEADING)");
+    expect(authContract).toContain("waitForVisibleHeading(page, BUYER_HEADING)");
+  });
+
+  it("14 — protected-route denial waits for auth/role hydration redirect", () => {
+    expect(authContract).toContain("ROUTE_GUARD_SETTLE_TIMEOUT_MS");
+    expect(authContract).toContain("waitForUnauthenticatedDestination");
+    expect(authContract).toContain("isUnauthenticatedDestination(new URL(page.url()).pathname)");
+    expect(aiUatSpec).toContain("waitForUnauthenticatedDestination(page, context)");
+  });
+
+  it("15 — evidence-branch pushes run only the auth-contract smoke tranche", () => {
+    expect(workflowYaml).toContain("auth-contract-smoke");
+    expect(workflowYaml).toContain("Pushes to the evidence branch are preflight-only");
+    expect(workflowYaml).toContain("|| 'auth-contract-smoke'");
+    expect(workflowYaml).toContain("env.RUN_TRANCHE == 'auth-contract-smoke'");
+  });
 });
