@@ -441,9 +441,13 @@ export async function crawlTargetAuthenticated(
 
   if (target.app !== "central" && target.app !== "buyer-mobile") {
     const deploySecret = resolveDeploySecret(target.app);
-    failures.push(
-      `| FAIL-AUTH-DEPLOY-${target.uatId.slice(-4)} | ${target.uatId} | ${target.app} | ${target.persona} | ${opts.deviceLabel} | ${target.route} | Authenticated crawl on ${target.app} deploy | Role surface on correct preview host | BLOCKED — missing ${deploySecret} (Central TEST_PREVIEW_URL is not valid for ${target.app}) | P1 | — | — | ${trancheLabel} | ${target.repo} | Deploy | ${deploySecret} |`,
-    );
+    const deployUrl = process.env[deploySecret]?.trim() || "";
+    const missingDeploy = !deployUrl;
+    if (missingDeploy) {
+      failures.push(
+        `| FAIL-AUTH-DEPLOY-${target.uatId.slice(-4)} | ${target.uatId} | ${target.app} | ${target.persona} | ${opts.deviceLabel} | ${target.route} | Authenticated crawl on ${target.app} deploy | Role surface on correct preview host | BLOCKED — missing ${deploySecret} (Central TEST_PREVIEW_URL is not valid for ${target.app}) | P1 | — | — | ${trancheLabel} | ${target.repo} | Deploy | ${deploySecret} |`,
+      );
+    }
     const row = attachRunMetadata({
       uatId: target.uatId,
       tranche: trancheLabel,
@@ -455,27 +459,29 @@ export async function crawlTargetAuthenticated(
       viewport: opts.viewport,
       device: opts.deviceLabel,
       baselineSha: CURRENT_MAIN_SHA,
-      crawlBaseUrl: CRAWL_BASE_URL,
+      crawlBaseUrl: deployUrl,
       timestamp: new Date().toISOString(),
-      blockClassification: "DEPLOY_BLOCKED",
-      visualStatus: "BLOCKED",
-      functionStatus: "BLOCKED",
-      uxStatus: "BLOCKED",
+      blockClassification: missingDeploy ? "DEPLOY_BLOCKED" : AUTH_BLOCK_CLASSIFICATIONS.NOT_EXECUTED,
+      visualStatus: missingDeploy ? "BLOCKED" : "NOT-TESTED",
+      functionStatus: missingDeploy ? "BLOCKED" : "NOT-TESTED",
+      uxStatus: missingDeploy ? "BLOCKED" : "NOT-TESTED",
       uxEvidence: emptyUxEvidence(),
       uxEvidenceSha256: {},
       uxCriteriaTotal: 148,
       uxCriteriaEvaluated: 0,
       uxCriteriaPassed: 0,
       uxCriteriaFailed: 0,
-      uxCriteriaBlocked: 148,
+      uxCriteriaBlocked: missingDeploy ? 148 : 0,
       uxFailures: [],
       consoleErrors: [],
       networkErrors: [],
-      notes: `DEPLOY BLOCKED — ${target.app} requires ${deploySecret}; not runnable on Central preview URL.`,
+      notes: missingDeploy
+        ? `DEPLOY BLOCKED — ${target.app} requires ${deploySecret}; not runnable on Central preview URL.`
+        : `NOT EXECUTED — ${target.app} preview is configured, but this Central auth crawler is not the dedicated ${target.app} UAT harness.`,
       evidencePhase: "authenticated",
       preAuthEvidenceRef: null,
-      credentialPrefix: creds.prefix,
-      missingSecretNames: [deploySecret],
+      credentialPrefix: null,
+      missingSecretNames: missingDeploy ? [deploySecret] : [],
       authenticated: false,
     } satisfies AuthManifestRow);
     return { row, failures, uxFailures: uxFailureRows };
