@@ -650,6 +650,7 @@ jobs:
             docs/uat-crawl/UAT_REBASELINE_CURRENT_MAIN.json
             docs/uat-crawl/UAT_SCREENSHOT_WALL_AUDIT.json
             docs/uat-crawl/UAT_FAILURE_LEDGER.md
+            docs/uat-crawl/UAT_CRAWL_PROGRESS.md
             docs/uat-crawl/UAT_CURRENT_RUN_SUMMARY.json
           if-no-files-found: warn
           retention-days: 30
