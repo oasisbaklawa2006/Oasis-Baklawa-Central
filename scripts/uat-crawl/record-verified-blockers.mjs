@@ -16,29 +16,18 @@ const RUN_ID = process.env.GITHUB_RUN_ID || "local";
 const VERIFICATION_NOTE =
   process.env.UAT_WATCHDOG_VERIFICATION?.trim() ||
   "Watchdog re-verification — no fabricated PASS; blocked IDs retain exact secret names only.";
-const RESOLVED_SHA =
-  process.env.UAT_RESOLVED_DEPLOY_SHA?.trim() || "a619a7a2ef01ee889d32fffebb5ff13fe3181252";
+const RESOLVED_SHA = process.env.UAT_RESOLVED_DEPLOY_SHA?.trim() || "";
 const RESOLVED_URL =
   process.env.TEST_PREVIEW_URL?.trim() ||
   process.env.UAT_CRAWL_BASE_URL?.trim() ||
   "";
-const CURRENT_MAIN_HOLD =
-  process.env.UAT_TARGET_SHA?.trim() || "a619a7a2ef01ee889d32fffebb5ff13fe3181252";
+const CURRENT_MAIN_HOLD = process.env.UAT_TARGET_SHA?.trim() || "";
 const DEPLOY_PROVENANCE =
   process.env.UAT_DEPLOY_PROVENANCE_LABEL?.trim() ||
   "Current-main authority (resolved dynamically at run time) — prior pinned-SHA evidence preserved append-only.";
 
 const PUBLIC_RUNNABLE = new Set(["UAT-0001", "UAT-0004", "UAT-0005", "UAT-0008", "UAT-0009"]);
-const BUYER_PERSONAS = new Set([
-  "BUYER",
-  "B2B_BUYER",
-  "SPECIAL_BUYER",
-  "HORECA_BUYER",
-  "WHOLESALE_BUYER",
-  "BULK_BUYER",
-  "CLIENT",
-  "CUSTOMER_USER",
-]);
+
 
 function loadSecretPresenceMap() {
   try {
