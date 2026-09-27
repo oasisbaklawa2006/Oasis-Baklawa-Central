@@ -1,6 +1,6 @@
 # APPVERSE AI UAT — Tranche 1
 
-Generated: 2026-09-27T19:28:52.781Z  
+Generated: 2026-09-27T19:31:56.967Z  
 Target: https://oasis-baklawa-central.vercel.app/  
 AI planner: disabled  
 Visual model input: disabled
@@ -42,8 +42,6 @@ Visual model input: disabled
 - **Expected:** After Assembly login the current role must resolve as Assembly/production and no Dispatch role badge or Dispatch-home title may remain from the prior session.
 - **Actual:** Assembly login replaced Dispatch session state and rendered the production role home at /admin.
 - **Final URL:** https://oasis-baklawa-central.vercel.app/admin
-- **Console errors:** 1
-- **Failed requests:** 1
 
 ### UAT-004 — PASS
 
