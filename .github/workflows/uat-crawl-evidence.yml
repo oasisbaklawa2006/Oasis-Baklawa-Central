@@ -4,6 +4,16 @@ name: UAT Crawl Evidence (authenticated)
 # Reuses governed TEST_* secret names from lane1-live-smoke and dispatch RLS cert.
 # Never logs credential values. Pre-auth tranche screenshots are preserved separately.
 on:
+  pull_request:
+    branches:
+      - cursor/physical-uat-readiness-matrix-e763
+    paths:
+      - ".github/workflows/uat-crawl-evidence.yml"
+      - "tests/uat-crawl/**"
+      - "tests/auth/**"
+      - "scripts/uat-crawl/**"
+      - "package.json"
+      - "package-lock.json"
   workflow_dispatch:
     inputs:
       target_url:
@@ -47,8 +57,32 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  uat-evidence-integrity-pr:
+    name: UAT evidence integrity regression
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+      - name: Install dependencies
+        run: npm install
+      - name: Run focused UAT evidence-integrity tests
+        run: npm run test:uat-evidence-integrity
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Syntax-check UAT evidence scripts
+        run: |
+          node --check scripts/uat-crawl/record-verified-blockers.mjs
+          node --check scripts/uat-crawl/record-rebaseline-current-main.mjs
+          node --check scripts/uat-crawl/generate-physical-readiness-reconciliation.mjs
+          python3 -m py_compile scripts/uat-crawl/evaluate-crawl-verdict.py scripts/uat-crawl/detect-screenshot-wall.py scripts/uat-crawl/load-auth-gate-by-id.py
+
   uat-crawl:
     name: Authenticated UAT evidence crawl
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     outputs:
