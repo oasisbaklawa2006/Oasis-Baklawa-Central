@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { getAiUatCase, type AiUatCase } from "../../src/lib/ai-uat/catalogue";
 import { getPreviewUrl } from "../e2e-helpers";
-import { isUnauthenticatedDestination } from "../auth/auth-contract";
+import { isUnauthenticatedDestination, waitForUnauthenticatedDestination } from "../auth/auth-contract";
 import {
   attachSafeDiagnostics,
   clickLogout,
@@ -76,7 +76,7 @@ async function executeCase(
 }
 
 async function expectCleanLoginDenial(page: Page, context: string) {
-  const pathname = new URL(page.url()).pathname;
+  const pathname = await waitForUnauthenticatedDestination(page, context);
   expect(
     isUnauthenticatedDestination(pathname),
     `${context} must land on governed unauthenticated entry (/login, /staff/login, or /buyer/login)`,
