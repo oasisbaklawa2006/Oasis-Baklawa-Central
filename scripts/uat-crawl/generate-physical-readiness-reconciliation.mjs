@@ -69,7 +69,7 @@ function loadAuthGateById(censusIds) {
   for (const rel of sources) {
     for (const row of loadJsonl(rel)) {
       if (!censusIds.has(row.uatId)) continue;
-      if (row.runId && row.runId !== RUN_ID) continue;
+      if (row.runId !== RUN_ID) continue;
       if (row.authenticated) continue;
       if (row.blockClassification) {
         map.set(row.uatId, row);
