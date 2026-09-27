@@ -68,6 +68,7 @@ def run_case(tranche: str, expect: int) -> None:
         if tranche == "auth-contract-smoke":
             assert verdict["scope"] == "TARGETED_CRAWL_EVIDENCE"
             assert verdict["passed"] is True
+            assert verdict["externalProviderGates"] == 0
             assert not any("MISSING_OR_STALE" in item for item in verdict["failures"])
         else:
             assert verdict["scope"] == "AUTOMATED_CRAWL_EVIDENCE"
