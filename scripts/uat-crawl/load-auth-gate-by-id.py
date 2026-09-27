@@ -46,7 +46,7 @@ def main() -> int:
     ]
     for path in sources:
         for row in read_jsonl(path):
-            if row.get("runId") and row.get("runId") != RUN_ID:
+            if row.get("runId") != RUN_ID:
                 continue
             if row.get("authenticated"):
                 continue
