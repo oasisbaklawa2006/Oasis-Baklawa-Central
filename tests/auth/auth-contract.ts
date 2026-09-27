@@ -87,12 +87,12 @@ export async function waitForUnauthenticatedDestination(
   timeout = ROUTE_GUARD_SETTLE_TIMEOUT_MS,
 ) {
   await expect
-    .poll(() => new URL(page.url()).pathname, {
+    .poll(() => isUnauthenticatedDestination(new URL(page.url()).pathname), {
       message: `${context} must settle on a governed unauthenticated destination`,
       timeout,
       intervals: [100, 250, 500],
     })
-    .toSatisfy((pathname: string) => isUnauthenticatedDestination(pathname));
+    .toBe(true);
   return new URL(page.url()).pathname;
 }
 
