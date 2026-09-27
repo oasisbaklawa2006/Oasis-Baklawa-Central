@@ -30,6 +30,8 @@ jobs:
         run: npm ci
       - name: Run focused UAT evidence-integrity tests
         run: npm run test:uat-evidence-integrity
+      - name: Run tranche-aware verdict regression
+        run: python3 scripts/uat-crawl/test-evaluate-crawl-verdict.py
       - name: Typecheck
         run: npm run typecheck
       - name: Syntax-check UAT evidence scripts
@@ -37,4 +39,4 @@ jobs:
           node --check scripts/uat-crawl/record-verified-blockers.mjs
           node --check scripts/uat-crawl/record-rebaseline-current-main.mjs
           node --check scripts/uat-crawl/generate-physical-readiness-reconciliation.mjs
-          python3 -m py_compile scripts/uat-crawl/evaluate-crawl-verdict.py scripts/uat-crawl/detect-screenshot-wall.py scripts/uat-crawl/load-auth-gate-by-id.py
+          python3 -m py_compile scripts/uat-crawl/evaluate-crawl-verdict.py scripts/uat-crawl/test-evaluate-crawl-verdict.py scripts/uat-crawl/detect-screenshot-wall.py scripts/uat-crawl/load-auth-gate-by-id.py
