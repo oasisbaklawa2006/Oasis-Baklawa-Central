@@ -31,6 +31,7 @@ function loadAuthCompleteIds(censusIds) {
   const ids = new Set();
   const isValid = (row) =>
     censusIds.has(row.uatId) &&
+    row.runId === RUN_ID &&
     row.wallClassification !== "DEPLOYMENT_PROTECTION" &&
     row.authenticated &&
     row.functionStatus === "OBSERVED" &&
@@ -45,6 +46,7 @@ function loadAuthCompleteIds(censusIds) {
   for (const row of loadJsonl("docs/uat-crawl/UAT_MANIFEST_POST_FIX_483.jsonl")) {
     if (
       censusIds.has(row.uatId) &&
+      row.runId === RUN_ID &&
       row.wallClassification !== "DEPLOYMENT_PROTECTION" &&
       row.functionStatus === "OBSERVED" &&
       row.uxEvidence?.s0 &&
@@ -67,7 +69,7 @@ function loadAuthGateById(censusIds) {
   for (const rel of sources) {
     for (const row of loadJsonl(rel)) {
       if (!censusIds.has(row.uatId)) continue;
-      if (row.runId && row.runId !== RUN_ID) continue;
+      if (row.runId !== RUN_ID) continue;
       if (row.authenticated) continue;
       if (row.blockClassification) {
         map.set(row.uatId, row);
@@ -77,7 +79,22 @@ function loadAuthGateById(censusIds) {
   return map;
 }
 
-function classifyEntry(entry, authComplete, blockersById, authGateById) {
+function loadPublicCompleteIds(censusIds) {
+  const ids = new Set();
+  for (const row of loadJsonl("docs/uat-crawl/UAT_MANIFEST_PUBLIC_CONTINUATION.jsonl")) {
+    if (
+      censusIds.has(row.uatId) &&
+      row.runId === RUN_ID &&
+      row.wallClassification !== "DEPLOYMENT_PROTECTION" &&
+      row.uxEvidence?.s0
+    ) {
+      ids.add(row.uatId);
+    }
+  }
+  return ids;
+}
+
+function classifyEntry(entry, authComplete, publicComplete, blockersById, authGateById) {
   if (authComplete.has(entry.uatId)) {
     return {
       disposition: "AUTH_S0_S3_COMPLETE",
@@ -86,7 +103,7 @@ function classifyEntry(entry, authComplete, blockersById, authGateById) {
       evidenceSource: "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)",
     };
   }
-  if (PUBLIC_RUNNABLE.has(entry.uatId)) {
+  if (PUBLIC_RUNNABLE.has(entry.uatId) && publicComplete.has(entry.uatId)) {
     return {
       disposition: "PUBLIC_S0_OBSERVED",
       s0s3Runnable: "PUBLIC_ONLY",
@@ -117,10 +134,12 @@ function classifyEntry(entry, authComplete, blockersById, authGateById) {
     };
   }
   return {
-    disposition: "NOT_CLASSIFIED",
-    s0s3Runnable: "UNKNOWN",
+    disposition: "NOT_EXECUTED",
+    s0s3Runnable: "NOT_EXECUTED",
     missingSecretNames: [],
-    evidenceSource: "none",
+    blockClassification: "NOT_EXECUTED",
+    evidenceSource: "none for current run",
+    note: "No current-run evidence row was produced for this census ID.",
   };
 }
 
@@ -129,7 +148,10 @@ const census = JSON.parse(
 ).entries;
 const censusIds = new Set(census.map((e) => e.uatId));
 const authComplete = loadAuthCompleteIds(censusIds);
-const blockers = loadJsonl("docs/uat-crawl/UAT_VERIFIED_BLOCKERS.jsonl").filter((b) => censusIds.has(b.uatId));
+const publicComplete = loadPublicCompleteIds(censusIds);
+const blockers = loadJsonl("docs/uat-crawl/UAT_VERIFIED_BLOCKERS.jsonl").filter(
+  (b) => censusIds.has(b.uatId) && b.runId === RUN_ID,
+);
 const blockersById = new Map(blockers.map((b) => [b.uatId, b]));
 const authGateById = loadAuthGateById(censusIds);
 const secretPresence = fs.existsSync(path.join(ROOT, "docs/uat-crawl/UAT_SECRET_PRESENCE.json"))
@@ -145,18 +167,29 @@ const rows = census.map((entry) => ({
   device: entry.device,
   buildSha: CURRENT_MAIN_SHA,
   deployUrl: DEPLOY_URL,
-  ...classifyEntry(entry, authComplete, blockersById, authGateById),
+  ...classifyEntry(entry, authComplete, publicComplete, blockersById, authGateById),
 }));
 
 const byDevice = {};
 const byDisposition = {};
 const byMissingSecret = {};
 for (const row of rows) {
-  byDevice[row.device] = byDevice[row.device] || { total: 0, authComplete: 0, publicS0: 0, blocked: 0 };
+  byDevice[row.device] = byDevice[row.device] || {
+    total: 0,
+    authComplete: 0,
+    publicS0: 0,
+    blocked: 0,
+    otpExternalGate: 0,
+    providerGated: 0,
+    notExecuted: 0,
+  };
   byDevice[row.device].total += 1;
   if (row.disposition === "AUTH_S0_S3_COMPLETE") byDevice[row.device].authComplete += 1;
   else if (row.disposition === "PUBLIC_S0_OBSERVED") byDevice[row.device].publicS0 += 1;
   else if (row.disposition === "BLOCKED") byDevice[row.device].blocked += 1;
+  else if (row.disposition === "OTP_EXTERNAL_GATE") byDevice[row.device].otpExternalGate += 1;
+  else if (row.disposition === "PROVIDER_GATED") byDevice[row.device].providerGated += 1;
+  else if (row.disposition === "NOT_EXECUTED") byDevice[row.device].notExecuted += 1;
   byDisposition[row.disposition] = (byDisposition[row.disposition] || 0) + 1;
   if (row.missingSecretNames?.length) {
     const key = row.missingSecretNames.join(", ");
@@ -185,7 +218,11 @@ const payload = {
     authS0S3Complete: byDisposition.AUTH_S0_S3_COMPLETE || 0,
     publicS0Observed: byDisposition.PUBLIC_S0_OBSERVED || 0,
     blockedCredentialOrDeploy: byDisposition.BLOCKED || 0,
-    notClassified: byDisposition.NOT_CLASSIFIED || 0,
+    authFlowFailed: byDisposition.AUTH_FLOW_FAILED || 0,
+    authContractMismatch: byDisposition.AUTH_CONTRACT_MISMATCH || 0,
+    otpExternalGate: byDisposition.OTP_EXTERNAL_GATE || 0,
+    providerGated: byDisposition.PROVIDER_GATED || 0,
+    notExecuted: byDisposition.NOT_EXECUTED || 0,
   },
   byDevice,
   byMissingSecret: Object.fromEntries(
@@ -199,15 +236,34 @@ const payload = {
       }
     : null,
   stopCondition:
-    missingSecretsUnique.length > 0
-      ? "ONLY_TEST_SECRET_BLOCKERS — no further automated crawl until repo secrets wired"
-      : "CREDENTIALS_AVAILABLE — dispatch watchdog-continue",
+    (byDisposition.NOT_EXECUTED || 0) > 0
+      ? "INCOMPLETE_CURRENT_RUN_EVIDENCE — one or more census rows were not executed"
+      : missingSecretsUnique.length > 0
+        ? "ONLY_TEST_SECRET_BLOCKERS — no further automated crawl until repo secrets wired"
+        : ((byDisposition.OTP_EXTERNAL_GATE || 0) + (byDisposition.PROVIDER_GATED || 0)) > 0
+          ? "AUTOMATED_CRAWL_COMPLETE_WITH_EXTERNAL_PROVIDER_GATES"
+          : "AUTOMATED_CRAWL_COMPLETE",
   rows,
 };
 
 const jsonPath = path.join(ROOT, "docs/uat-crawl/UAT_PHYSICAL_READINESS_RECONCILIATION.json");
 fs.mkdirSync(path.dirname(jsonPath), { recursive: true });
 fs.writeFileSync(jsonPath, `${JSON.stringify(payload, null, 2)}\n`);
+const currentSummaryPath = path.join(ROOT, "docs/uat-crawl/UAT_CURRENT_RUN_SUMMARY.json");
+fs.writeFileSync(
+  currentSummaryPath,
+  `${JSON.stringify({
+    generatedAt: payload.generatedAt,
+    runId: RUN_ID,
+    runAttempt: RUN_ATTEMPT,
+    runTranche: RUN_TRANCHE,
+    currentMainSha: CURRENT_MAIN_SHA,
+    deployUrl: DEPLOY_URL,
+    counts: payload.counts,
+    stopCondition: payload.stopCondition,
+    byDisposition,
+  }, null, 2)}\n`,
+);
 
 const mdLines = [
   "# UAT Physical Readiness Reconciliation",
@@ -225,20 +281,28 @@ const mdLines = [
   `| AUTH S0–S3 complete | **${payload.counts.authS0S3Complete}** | Governed authenticated crawl evidence on current-main deploy |`,
   `| Public S0 observed | **${payload.counts.publicS0Observed}** | Unauthenticated public continuation (S0 only) |`,
   `| **BLOCKED** (credential/deploy) | **${payload.counts.blockedCredentialOrDeploy}** | Exact \`TEST_*\` secret names in blocker registry |`,
+  `| OTP external gate | **${payload.counts.otpExternalGate}** | Current-run row reached governed OTP/provider boundary |`,
+  `| Provider gated | **${payload.counts.providerGated}** | Current-run row reached an external provider boundary |`,
+  `| Auth flow failed | **${payload.counts.authFlowFailed}** | Current-run authentication attempt failed |`,
+  `| Auth contract mismatch | **${payload.counts.authContractMismatch}** | Current-run auth contract mismatch |`,
+  `| **NOT EXECUTED** | **${payload.counts.notExecuted}** | No current-run evidence row produced |`,
   "",
   "## By device class",
   "",
-  "| Device | Total | Auth S0–S3 | Public S0 | Blocked |",
-  "|---|---:|---:|---:|---:|",
+  "| Device | Total | Auth S0–S3 | Public S0 | Blocked | OTP gate | Provider gate | Not executed |",
+  "|---|---:|---:|---:|---:|---:|---:|---:|",
   ...Object.entries(byDevice).map(
-    ([d, c]) => `| ${d} | ${c.total} | ${c.authComplete} | ${c.publicS0} | ${c.blocked} |`,
+    ([d, c]) => `| ${d} | ${c.total} | ${c.authComplete} | ${c.publicS0} | ${c.blocked} | ${c.otpExternalGate} | ${c.providerGated} | ${c.notExecuted} |`,
   ),
   "",
-  "## Runnable now vs blocked (automated crawl)",
+  "## Current-run unresolved evidence",
   "",
-  "| Runnable now | Blocked |",
-  "|---|---|",
-  `| Re-refresh **${payload.counts.authS0S3Complete}** auth surfaces + **${payload.counts.publicS0Observed}** public S0 (existing creds in GHA) | **${payload.counts.blockedCredentialOrDeploy}** surfaces — **only** missing \`TEST_*\` repo secrets / deploy URLs |`,
+  `- Missing-secret/deploy blockers: **${payload.counts.blockedCredentialOrDeploy}**`,
+  `- OTP external gates: **${payload.counts.otpExternalGate}**`,
+  `- Provider gates: **${payload.counts.providerGated}**`,
+  `- Auth-flow failures: **${payload.counts.authFlowFailed}**`,
+  `- Auth-contract mismatches: **${payload.counts.authContractMismatch}**`,
+  `- Not executed: **${payload.counts.notExecuted}**`,
   "",
   "## Exact blocker secret groups",
   "",

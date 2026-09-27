@@ -48,14 +48,59 @@ def main() -> int:
     for step, outcome in step_outcomes.items():
         if outcome in {"failure", "cancelled"}:
             failures.append(f"STEP_FAILED:{step}")
+
+    if RUN_TRANCHE in {"watchdog-continue", "current-main-rebaseline", "all"}:
+        required_steps = [
+            "ai_uat",
+            "credential_prefix_unblock",
+            "post_fix_483",
+            "auth_rerun",
+            "tranche_03",
+            "tranche_04_auth",
+            "tranche_05_auth",
+            "tranche_06_auth",
+            "tranche_07_auth",
+            "tranche_08_auth",
+            "buyer_mobile",
+            "public_continuation",
+            "s2_gap_deepening",
+            "record_verified_blockers",
+            "record_rebaseline",
+            "reconciliation",
+            "screenshot_wall",
+        ]
+        for step in required_steps:
+            outcome = step_outcomes.get(step)
+            if outcome is None:
+                failures.append(f"STEP_OUTCOME_MISSING:{step}")
+            elif outcome == "skipped":
+                failures.append(f"REQUIRED_STEP_SKIPPED:{step}")
     if step_outcomes.get("ai_uat") == "failure":
         failures.append("AI_UAT_SUITE_FAILED")
     if step_outcomes.get("post_fix_483") == "failure":
         failures.append("POST_FIX_483_SUITE_FAILED")
 
     blockers_summary = read_json("UAT_VERIFIED_BLOCKERS_SUMMARY.json")
-    if blockers_summary and blockers_summary.get("denominatorReconciled") is False:
-        failures.append("CENSUS_RECONCILIATION_FAILED")
+    if not blockers_summary or blockers_summary.get("runId") != RUN_ID:
+        failures.append("CURRENT_RUN_BLOCKER_SUMMARY_MISSING_OR_STALE")
+    else:
+        if blockers_summary.get("denominatorReconciled") is False:
+            failures.append("CENSUS_RECONCILIATION_FAILED")
+        if int(blockers_summary.get("notExecuted") or 0) > 0:
+            failures.append(f"NOT_EXECUTED_ROWS:{blockers_summary.get('notExecuted')}")
+        if int(blockers_summary.get("credentialsAvailableAwaitingEvidence") or 0) > 0:
+            failures.append(
+                f"CREDENTIALS_AVAILABLE_WITHOUT_EVIDENCE:{blockers_summary.get('credentialsAvailableAwaitingEvidence')}"
+            )
+        if int(blockers_summary.get("authFlowFailed") or 0) > 0:
+            failures.append(f"AUTH_FLOW_FAILED_ROWS:{blockers_summary.get('authFlowFailed')}")
+        if int(blockers_summary.get("authContractMismatch") or 0) > 0:
+            failures.append(f"AUTH_CONTRACT_MISMATCH_ROWS:{blockers_summary.get('authContractMismatch')}")
+        external_gates = int(blockers_summary.get("otpExternalGate") or 0) + int(
+            blockers_summary.get("providerGated") or 0
+        )
+        if external_gates > 0:
+            warnings.append(f"EXTERNAL_PROVIDER_GATES:{external_gates}")
 
     ai_summary = read_json("UAT_AI_UAT_SUMMARY.json")
     if ai_summary and ai_summary.get("runId") == RUN_ID:
@@ -81,8 +126,11 @@ def main() -> int:
     protection_rows = [
         row
         for row in read_jsonl("UAT_MANIFEST.jsonl") + read_jsonl("UAT_MANIFEST_AUTH.jsonl")
-        if row.get("blockClassification") == "DEPLOYMENT_PROTECTION"
-        or row.get("wallClassification") == "DEPLOYMENT_PROTECTION"
+        if row.get("runId") == RUN_ID
+        and (
+            row.get("blockClassification") == "DEPLOYMENT_PROTECTION"
+            or row.get("wallClassification") == "DEPLOYMENT_PROTECTION"
+        )
     ]
     if protection_rows:
         failures.append("DEPLOYMENT_PROTECTION:" + ",".join(row.get("uatId", "?") for row in protection_rows))
@@ -95,19 +143,72 @@ def main() -> int:
     if provenance and provenance.get("runId") == RUN_ID and "a619a7a2" in str(provenance.get("requiredShaStatus", "")):
         failures.append("STALE_PROVENANCE_LABEL_IN_DEPLOY_PROVENANCE")
 
+    screenshot_audit = read_json("UAT_SCREENSHOT_WALL_AUDIT.json")
+    if not screenshot_audit or screenshot_audit.get("runId") != RUN_ID:
+        failures.append("SCREENSHOT_WALL_AUDIT_MISSING_OR_STALE")
+    elif screenshot_audit.get("wallDetected") is True:
+        failures.append("SCREENSHOT_HASH_WALL_SIGNAL")
+
+    rebaseline = read_json("UAT_REBASELINE_CURRENT_MAIN.json")
+    if not rebaseline or rebaseline.get("runId") != RUN_ID:
+        failures.append("CURRENT_RUN_REBASELINE_MISSING_OR_STALE")
+
+    current_summary = read_json("UAT_CURRENT_RUN_SUMMARY.json")
+    if not current_summary or current_summary.get("runId") != RUN_ID:
+        failures.append("CURRENT_RUN_SUMMARY_MISSING_OR_STALE")
+    elif int((current_summary.get("counts") or {}).get("notExecuted") or 0) > 0:
+        failures.append(
+            f"CURRENT_RUN_SUMMARY_NOT_EXECUTED:{(current_summary.get('counts') or {}).get('notExecuted')}"
+        )
+
     verdict = {
         "generatedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "runId": RUN_ID,
         "runTranche": RUN_TRANCHE,
+        "scope": "AUTOMATED_CRAWL_EVIDENCE",
         "passed": len(failures) == 0,
         "failures": failures,
         "warnings": warnings,
+        "externalProviderGates": (
+            int((blockers_summary or {}).get("otpExternalGate") or 0)
+            + int((blockers_summary or {}).get("providerGated") or 0)
+        ),
         "stepOutcomes": step_outcomes,
     }
     out_path = DOCS / "UAT_CRAWL_CERTIFICATION_VERDICT.json"
     out_path.write_text(json.dumps(verdict, indent=2) + "\n", encoding="utf-8")
     alias_path = DOCS / "UAT_CRAWL_VERDICT.json"
     alias_path.write_text(json.dumps(verdict, indent=2) + "\n", encoding="utf-8")
+
+    counts = (current_summary or {}).get("counts") or {}
+    progress_lines = [
+        "# UAT Crawl Progress Summary",
+        "",
+        f"**Generated:** {verdict['generatedAt']}",
+        f"**Run:** {RUN_ID} (tranche `{RUN_TRANCHE}`)",
+        f"**Scope:** {verdict['scope']}",
+        f"**Final automated-crawl verdict:** {'PASS' if verdict['passed'] else 'FAIL'}",
+        "",
+        "## Current-run census disposition",
+        "",
+        "| Disposition | Count |",
+        "|---|---:|",
+        f"| Auth S0–S3 complete | {counts.get('authS0S3Complete', 0)} |",
+        f"| Public S0 observed | {counts.get('publicS0Observed', 0)} |",
+        f"| Missing-secret/deploy blocked | {counts.get('blockedCredentialOrDeploy', 0)} |",
+        f"| OTP external gate | {counts.get('otpExternalGate', 0)} |",
+        f"| Provider gated | {counts.get('providerGated', 0)} |",
+        f"| Auth flow failed | {counts.get('authFlowFailed', 0)} |",
+        f"| Auth contract mismatch | {counts.get('authContractMismatch', 0)} |",
+        f"| NOT EXECUTED | {counts.get('notExecuted', 0)} |",
+        "",
+        f"**Failures:** {', '.join(failures) if failures else 'none'}",
+        f"**Warnings:** {', '.join(warnings) if warnings else 'none'}",
+        "",
+        "Physical/device/provider evidence remains separately governed and is not certified by Chromium automation.",
+        "",
+    ]
+    (DOCS / "UAT_CRAWL_PROGRESS.md").write_text("\n".join(progress_lines), encoding="utf-8")
 
     if failures:
         for failure in failures:

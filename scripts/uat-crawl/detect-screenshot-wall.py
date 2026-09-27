@@ -35,20 +35,34 @@ def main() -> int:
         row
         for row in read_jsonl("UAT_MANIFEST.jsonl")
         + read_jsonl("UAT_MANIFEST_AUTH.jsonl")
+        + read_jsonl("UAT_MANIFEST_BUYER_MOBILE.jsonl")
+        + read_jsonl("UAT_MANIFEST_POST_FIX_483.jsonl")
         + read_jsonl("UAT_MANIFEST_PUBLIC_CONTINUATION.jsonl")
-        if not row.get("runId") or row.get("runId") == RUN_ID
+        if row.get("runId") == RUN_ID
     ]
+
+    census_path = DOCS / "UAT_ROUTE_CENSUS.json"
+    census = json.loads(census_path.read_text(encoding="utf-8")) if census_path.is_file() else {"entries": []}
+    classification_by_id = {entry.get("uatId"): entry.get("classification") for entry in census.get("entries", [])}
 
     by_hash: dict[str, dict[str, set[str] | list[str]]] = {}
     for row in rows:
-        digest = row.get("screenshotSha256")
-        if not digest or row.get("visualStatus") == "BLOCKED":
+        if classification_by_id.get(row.get("uatId")) == "LEGACY_REDIRECT":
             continue
-        bucket = by_hash.setdefault(digest, {"uatIds": [], "routes": set()})
-        bucket["uatIds"].append(row.get("uatId", "?"))
-        route = row.get("route")
-        if route:
-            bucket["routes"].add(route)
+        if row.get("visualStatus") == "BLOCKED":
+            continue
+        digests = set()
+        if row.get("screenshotSha256"):
+            digests.add(row["screenshotSha256"])
+        for digest in (row.get("uxEvidenceSha256") or {}).values():
+            if digest:
+                digests.add(digest)
+        for digest in digests:
+            bucket = by_hash.setdefault(digest, {"uatIds": [], "routes": set()})
+            bucket["uatIds"].append(row.get("uatId", "?"))
+            route = row.get("route")
+            if route:
+                bucket["routes"].add(route)
 
     walls = []
     for digest, bucket in by_hash.items():
@@ -62,6 +76,8 @@ def main() -> int:
         "generatedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "runId": RUN_ID,
         "wallDetected": wall_detected,
+        "rowsScanned": len(rows),
+        "uniqueScreenshotHashes": len(by_hash),
         "minRoutes": MIN_ROUTES,
         "walls": walls,
         "policy": "Duplicate hashes across many routes may indicate Vercel auth wall — combined with title/URL/origin guards, not standalone defect classification.",

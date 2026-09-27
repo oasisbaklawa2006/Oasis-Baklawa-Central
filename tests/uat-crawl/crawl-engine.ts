@@ -417,7 +417,7 @@ export function appendFailureLedger(
     "",
     `---`,
     "",
-    `## ${tranche} crawl failures (${new Date().toISOString().slice(0, 10)})`,
+    `## ${tranche} crawl failures — run ${process.env.GITHUB_RUN_ID ?? "local"} (${new Date().toISOString().slice(0, 10)})`,
     "",
   ];
 

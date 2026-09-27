@@ -397,6 +397,7 @@ jobs:
           exit $PW_EXIT
 
       - name: Run credential-prefix-unblock (Gate/RGS/3PGS UAT IDs)
+        id: credential_prefix_unblock
         if: env.RUN_TRANCHE != 'post-merge-proofs' && env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'credential-prefix-unblock' || env.RUN_TRANCHE == 'all' || env.RUN_TRANCHE == 'watchdog-continue' || env.RUN_TRANCHE == 'current-main-rebaseline')
         continue-on-error: true
         run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/credential-prefix-unblock.spec.ts
@@ -408,16 +409,19 @@ jobs:
         run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/post-fix-483-rerun.spec.ts
 
       - name: Run authenticated UAT auth-rerun
+        id: auth_rerun
         if: env.RUN_TRANCHE != 'post-merge-proofs' && env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'auth-rerun' || env.RUN_TRANCHE == 'both' || env.RUN_TRANCHE == 'all' || (env.RUN_TRANCHE == 'post-merge-497-main' && env.UAT_005_CURRENT_MAIN_PASS == 'true') || env.RUN_TRANCHE == 'watchdog-continue' || env.RUN_TRANCHE == 'current-main-rebaseline')
         continue-on-error: true
         run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/auth-rerun.spec.ts
 
       - name: Run UAT tranche 03 (chronological continue)
+        id: tranche_03
         if: env.RUN_TRANCHE != 'post-merge-proofs' && env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'tranche-03' || env.RUN_TRANCHE == 'both' || env.RUN_TRANCHE == 'all' || (env.RUN_TRANCHE == 'post-merge-497-main' && env.UAT_005_CURRENT_MAIN_PASS == 'true') || env.RUN_TRANCHE == 'watchdog-continue' || env.RUN_TRANCHE == 'current-main-rebaseline')
         continue-on-error: true
         run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/tranche-03-crawl.spec.ts
 
       - name: Run UAT tranche 04-auth (UAT-0031..0050)
+        id: tranche_04_auth
         if: env.RUN_TRANCHE != 'post-merge-proofs' && env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'all' || env.RUN_TRANCHE == 'continue' || (env.RUN_TRANCHE == 'post-merge-497-main' && env.UAT_005_CURRENT_MAIN_PASS == 'true') || env.RUN_TRANCHE == 'watchdog-continue' || env.RUN_TRANCHE == 'current-main-rebaseline')
         continue-on-error: true
         env:
@@ -427,6 +431,7 @@ jobs:
         run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/tranche-auth-range.spec.ts
 
       - name: Run UAT tranche 05-auth (UAT-0051..0070)
+        id: tranche_05_auth
         if: env.RUN_TRANCHE != 'post-merge-proofs' && env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'all' || env.RUN_TRANCHE == 'continue' || (env.RUN_TRANCHE == 'post-merge-497-main' && env.UAT_005_CURRENT_MAIN_PASS == 'true') || env.RUN_TRANCHE == 'watchdog-continue' || env.RUN_TRANCHE == 'current-main-rebaseline')
         continue-on-error: true
         env:
@@ -436,6 +441,7 @@ jobs:
         run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/tranche-auth-range.spec.ts
 
       - name: Run UAT tranche 06-auth (UAT-0071..0090)
+        id: tranche_06_auth
         if: env.RUN_TRANCHE != 'post-merge-proofs' && env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'all' || env.RUN_TRANCHE == 'continue' || (env.RUN_TRANCHE == 'post-merge-497-main' && env.UAT_005_CURRENT_MAIN_PASS == 'true') || env.RUN_TRANCHE == 'watchdog-continue' || env.RUN_TRANCHE == 'current-main-rebaseline')
         continue-on-error: true
         env:
@@ -445,6 +451,7 @@ jobs:
         run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/tranche-auth-range.spec.ts
 
       - name: Run UAT tranche 07-auth (UAT-0091..0110)
+        id: tranche_07_auth
         if: env.RUN_TRANCHE != 'post-merge-proofs' && env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'all' || env.RUN_TRANCHE == 'continue' || (env.RUN_TRANCHE == 'post-merge-497-main' && env.UAT_005_CURRENT_MAIN_PASS == 'true') || env.RUN_TRANCHE == 'watchdog-continue' || env.RUN_TRANCHE == 'current-main-rebaseline')
         continue-on-error: true
         env:
@@ -454,6 +461,7 @@ jobs:
         run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/tranche-auth-range.spec.ts
 
       - name: Run UAT tranche 08-auth (UAT-0111..0131)
+        id: tranche_08_auth
         if: env.RUN_TRANCHE != 'post-merge-proofs' && env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'all' || env.RUN_TRANCHE == 'continue' || (env.RUN_TRANCHE == 'post-merge-497-main' && env.UAT_005_CURRENT_MAIN_PASS == 'true') || env.RUN_TRANCHE == 'watchdog-continue' || env.RUN_TRANCHE == 'current-main-rebaseline')
         continue-on-error: true
         env:
@@ -463,6 +471,7 @@ jobs:
         run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/tranche-auth-range.spec.ts
 
       - name: Run buyer mobile authenticated UAT (PR #10 surfaces)
+        id: buyer_mobile
         if: env.RUN_TRANCHE != 'post-merge-proofs' && env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'buyer-mobile' || env.RUN_TRANCHE == 'all' || (env.RUN_TRANCHE == 'post-merge-497-main' && env.UAT_005_CURRENT_MAIN_PASS == 'true') || env.RUN_TRANCHE == 'watchdog-continue' || env.RUN_TRANCHE == 'current-main-rebaseline')
         continue-on-error: true
         env:
@@ -470,11 +479,13 @@ jobs:
         run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/buyer-mobile-crawl.spec.ts
 
       - name: Run public-surface continuation crawl (unblocked UAT-0001/0004/0005/0008/0009)
+        id: public_continuation
         if: env.RUN_TRANCHE != 'post-merge-proofs' && env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'all' || env.RUN_TRANCHE == 'public-continuation' || (env.RUN_TRANCHE == 'post-merge-497-main' && env.UAT_005_CURRENT_MAIN_PASS == 'true') || env.RUN_TRANCHE == 'watchdog-continue' || env.RUN_TRANCHE == 'current-main-rebaseline')
         continue-on-error: true
         run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/public-continuation-crawl.spec.ts
 
       - name: Run S2 gap deepening (UAT-0002/0037/0038/0052/0053/0061/0080/0094)
+        id: s2_gap_deepening
         if: env.RUN_TRANCHE != 'post-merge-proofs' && env.UAT_DEPLOY_BLOCKED != 'true' && (env.RUN_TRANCHE == 'all' || env.RUN_TRANCHE == 's2-gap-deepening' || (env.RUN_TRANCHE == 'post-merge-497-main' && env.UAT_005_CURRENT_MAIN_PASS == 'true') || env.RUN_TRANCHE == 'watchdog-continue' || env.RUN_TRANCHE == 'current-main-rebaseline')
         continue-on-error: true
         run: npx playwright test -c playwright.uat-crawl.config.ts tests/uat-crawl/s2-gap-deepening.spec.ts
@@ -492,11 +503,13 @@ jobs:
         run: node scripts/uat-crawl/record-rebaseline-current-main.mjs
 
       - name: Generate physical readiness reconciliation (current run)
+        id: reconciliation
         if: always() && env.UAT_DEPLOY_BLOCKED != 'true' && env.RUN_TRANCHE != 'auth-contract-smoke'
         continue-on-error: true
         run: node scripts/uat-crawl/generate-physical-readiness-reconciliation.mjs
 
       - name: Audit screenshot hash wall signals
+        id: screenshot_wall
         if: always() && env.UAT_DEPLOY_BLOCKED != 'true' && env.RUN_TRANCHE != 'auth-contract-smoke'
         continue-on-error: true
         run: python3 scripts/uat-crawl/detect-screenshot-wall.py
@@ -545,20 +558,46 @@ jobs:
           import json, os
           outcomes = {
             "ai_uat": os.environ.get("OUT_AI_UAT", "skipped"),
+            "credential_prefix_unblock": os.environ.get("OUT_CREDENTIAL_PREFIX", "skipped"),
             "post_fix_483": os.environ.get("OUT_POST_FIX_483", "skipped"),
+            "auth_rerun": os.environ.get("OUT_AUTH_RERUN", "skipped"),
+            "tranche_03": os.environ.get("OUT_TRANCHE_03", "skipped"),
+            "tranche_04_auth": os.environ.get("OUT_TRANCHE_04", "skipped"),
+            "tranche_05_auth": os.environ.get("OUT_TRANCHE_05", "skipped"),
+            "tranche_06_auth": os.environ.get("OUT_TRANCHE_06", "skipped"),
+            "tranche_07_auth": os.environ.get("OUT_TRANCHE_07", "skipped"),
+            "tranche_08_auth": os.environ.get("OUT_TRANCHE_08", "skipped"),
+            "buyer_mobile": os.environ.get("OUT_BUYER_MOBILE", "skipped"),
+            "public_continuation": os.environ.get("OUT_PUBLIC_CONTINUATION", "skipped"),
+            "s2_gap_deepening": os.environ.get("OUT_S2_GAP", "skipped"),
             "post_merge_497_005": os.environ.get("OUT_POST_MERGE_497", "skipped"),
             "record_verified_blockers": os.environ.get("OUT_RECORD_BLOCKERS", "skipped"),
             "record_rebaseline": os.environ.get("OUT_RECORD_REBASELINE", "skipped"),
+            "reconciliation": os.environ.get("OUT_RECONCILIATION", "skipped"),
+            "screenshot_wall": os.environ.get("OUT_SCREENSHOT_WALL", "skipped"),
           }
           with open("docs/uat-crawl/UAT_CRAWL_STEP_OUTCOMES.json", "w") as f:
             json.dump(outcomes, f, indent=2)
           PY
         env:
           OUT_AI_UAT: ${{ steps.ai_uat.outcome }}
+          OUT_CREDENTIAL_PREFIX: ${{ steps.credential_prefix_unblock.outcome }}
           OUT_POST_FIX_483: ${{ steps.post_fix_483.outcome }}
+          OUT_AUTH_RERUN: ${{ steps.auth_rerun.outcome }}
+          OUT_TRANCHE_03: ${{ steps.tranche_03.outcome }}
+          OUT_TRANCHE_04: ${{ steps.tranche_04_auth.outcome }}
+          OUT_TRANCHE_05: ${{ steps.tranche_05_auth.outcome }}
+          OUT_TRANCHE_06: ${{ steps.tranche_06_auth.outcome }}
+          OUT_TRANCHE_07: ${{ steps.tranche_07_auth.outcome }}
+          OUT_TRANCHE_08: ${{ steps.tranche_08_auth.outcome }}
+          OUT_BUYER_MOBILE: ${{ steps.buyer_mobile.outcome }}
+          OUT_PUBLIC_CONTINUATION: ${{ steps.public_continuation.outcome }}
+          OUT_S2_GAP: ${{ steps.s2_gap_deepening.outcome }}
           OUT_POST_MERGE_497: ${{ steps.post_merge_497_005.outcome }}
           OUT_RECORD_BLOCKERS: ${{ steps.record_verified_blockers.outcome }}
           OUT_RECORD_REBASELINE: ${{ steps.record_rebaseline.outcome }}
+          OUT_RECONCILIATION: ${{ steps.reconciliation.outcome }}
+          OUT_SCREENSHOT_WALL: ${{ steps.screenshot_wall.outcome }}
 
       - name: Aggregate crawl certification verdict (fail closed)
         if: always()
@@ -608,6 +647,11 @@ jobs:
             docs/uat-crawl/UAT_CRAWL_VERDICT.json
             docs/uat-crawl/UAT_PHYSICAL_READINESS_RECONCILIATION.json
             docs/uat-crawl/UAT_PHYSICAL_READINESS_RECONCILIATION.md
+            docs/uat-crawl/UAT_REBASELINE_CURRENT_MAIN.json
+            docs/uat-crawl/UAT_SCREENSHOT_WALL_AUDIT.json
+            docs/uat-crawl/UAT_FAILURE_LEDGER.md
+            docs/uat-crawl/UAT_CRAWL_PROGRESS.md
+            docs/uat-crawl/UAT_CURRENT_RUN_SUMMARY.json
           if-no-files-found: warn
           retention-days: 30
 
@@ -661,6 +705,7 @@ jobs:
             docs/uat-crawl/UAT_MANIFEST_PUBLIC_CONTINUATION.jsonl docs/uat-crawl/UAT_INDEX_PUBLIC_CONTINUATION.md \
             docs/uat-crawl/UAT_VERIFIED_BLOCKERS.jsonl docs/uat-crawl/UAT_VERIFIED_BLOCKERS_SUMMARY.json docs/uat-crawl/UAT_SECRET_PRESENCE.json \
             docs/uat-crawl/UAT_REBASELINE_CURRENT_MAIN.json docs/uat-crawl/UAT_PHYSICAL_READINESS_RECONCILIATION.json docs/uat-crawl/UAT_PHYSICAL_READINESS_RECONCILIATION.md \
+            docs/uat-crawl/UAT_SCREENSHOT_WALL_AUDIT.json docs/uat-crawl/UAT_CURRENT_RUN_SUMMARY.json \
             docs/uat-crawl/UAT_CRAWL_STEP_OUTCOMES.json docs/uat-crawl/UAT_CRAWL_CERTIFICATION_VERDICT.json docs/uat-crawl/UAT_CRAWL_VERDICT.json \
             docs/uat-crawl/UAT_MANIFEST_PUBLIC_CONTINUATION_ARCHIVE.jsonl \
             docs/uat-crawl/UAT_REBASE_490_SUMMARY.json uat-evidence/screenshots/post-merge-491-kpi \

@@ -16,29 +16,18 @@ const RUN_ID = process.env.GITHUB_RUN_ID || "local";
 const VERIFICATION_NOTE =
   process.env.UAT_WATCHDOG_VERIFICATION?.trim() ||
   "Watchdog re-verification — no fabricated PASS; blocked IDs retain exact secret names only.";
-const RESOLVED_SHA =
-  process.env.UAT_RESOLVED_DEPLOY_SHA?.trim() || "a619a7a2ef01ee889d32fffebb5ff13fe3181252";
+const RESOLVED_SHA = process.env.UAT_RESOLVED_DEPLOY_SHA?.trim() || "";
 const RESOLVED_URL =
   process.env.TEST_PREVIEW_URL?.trim() ||
   process.env.UAT_CRAWL_BASE_URL?.trim() ||
   "";
-const CURRENT_MAIN_HOLD =
-  process.env.UAT_TARGET_SHA?.trim() || "a619a7a2ef01ee889d32fffebb5ff13fe3181252";
+const CURRENT_MAIN_HOLD = process.env.UAT_TARGET_SHA?.trim() || "";
 const DEPLOY_PROVENANCE =
   process.env.UAT_DEPLOY_PROVENANCE_LABEL?.trim() ||
   "Current-main authority (resolved dynamically at run time) — prior pinned-SHA evidence preserved append-only.";
 
 const PUBLIC_RUNNABLE = new Set(["UAT-0001", "UAT-0004", "UAT-0005", "UAT-0008", "UAT-0009"]);
-const BUYER_PERSONAS = new Set([
-  "BUYER",
-  "B2B_BUYER",
-  "SPECIAL_BUYER",
-  "HORECA_BUYER",
-  "WHOLESALE_BUYER",
-  "BULK_BUYER",
-  "CLIENT",
-  "CUSTOMER_USER",
-]);
+
 
 function loadSecretPresenceMap() {
   try {
@@ -119,6 +108,7 @@ function loadJsonlIds(relativePath, predicate) {
     if (!line) continue;
     try {
       const row = JSON.parse(line);
+      if (row.runId !== RUN_ID) continue;
       if (predicate(row)) ids.add(row.uatId);
     } catch {
       /* skip malformed */
@@ -175,6 +165,17 @@ const census = JSON.parse(
 const censusIds = new Set(census.entries.map((e) => e.uatId));
 const authenticated = new Set([...loadCompleteAuthIds()].filter((id) => censusIds.has(id)));
 const publicComplete = new Set([...loadPublicCompleteIds()].filter((id) => censusIds.has(id)));
+const attemptedCurrentRun = new Set();
+for (const rel of [
+  "docs/uat-crawl/UAT_MANIFEST_AUTH.jsonl",
+  "docs/uat-crawl/UAT_MANIFEST_BUYER_MOBILE.jsonl",
+  "docs/uat-crawl/UAT_MANIFEST_AI_UAT.jsonl",
+  "docs/uat-crawl/UAT_MANIFEST_POST_FIX_483.jsonl",
+]) {
+  for (const id of loadJsonlIds(rel, () => true)) {
+    if (censusIds.has(id)) attemptedCurrentRun.add(id);
+  }
+}
 const now = new Date().toISOString();
 const outPath = path.join(ROOT, "docs/uat-crawl/UAT_VERIFIED_BLOCKERS.jsonl");
 const summaryPath = path.join(ROOT, "docs/uat-crawl/UAT_VERIFIED_BLOCKERS_SUMMARY.json");
@@ -244,13 +245,13 @@ for (const entry of census.entries) {
       notExecutedCount += 1;
       continue;
     }
-    if (BUYER_PERSONAS.has(entry.persona)) {
-      assignCategory(entry.uatId, "otpExternalGate");
-      otpExternalGate += 1;
+    if (attemptedCurrentRun.has(entry.uatId)) {
+      assignCategory(entry.uatId, "credsAvailable");
+      credsAvailableNoEvidence += 1;
       continue;
     }
-    assignCategory(entry.uatId, "credsAvailable");
-    credsAvailableNoEvidence += 1;
+    assignCategory(entry.uatId, "notExecuted");
+    notExecutedCount += 1;
     continue;
   }
 
@@ -342,7 +343,8 @@ const summary = {
     authFlowFailed +
     authContractMismatch +
     otpExternalGate +
-    providerGated,
+    providerGated +
+    notExecutedCount,
   verifiedBlocked: blockedCount,
   credentialsAvailableAwaitingEvidence: credsAvailableNoEvidence,
   authFlowFailed,
