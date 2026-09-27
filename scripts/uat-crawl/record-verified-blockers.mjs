@@ -119,6 +119,7 @@ function loadJsonlIds(relativePath, predicate) {
     if (!line) continue;
     try {
       const row = JSON.parse(line);
+      if (row.runId !== RUN_ID) continue;
       if (predicate(row)) ids.add(row.uatId);
     } catch {
       /* skip malformed */
@@ -175,6 +176,17 @@ const census = JSON.parse(
 const censusIds = new Set(census.entries.map((e) => e.uatId));
 const authenticated = new Set([...loadCompleteAuthIds()].filter((id) => censusIds.has(id)));
 const publicComplete = new Set([...loadPublicCompleteIds()].filter((id) => censusIds.has(id)));
+const attemptedCurrentRun = new Set();
+for (const rel of [
+  "docs/uat-crawl/UAT_MANIFEST_AUTH.jsonl",
+  "docs/uat-crawl/UAT_MANIFEST_BUYER_MOBILE.jsonl",
+  "docs/uat-crawl/UAT_MANIFEST_AI_UAT.jsonl",
+  "docs/uat-crawl/UAT_MANIFEST_POST_FIX_483.jsonl",
+]) {
+  for (const id of loadJsonlIds(rel, () => true)) {
+    if (censusIds.has(id)) attemptedCurrentRun.add(id);
+  }
+}
 const now = new Date().toISOString();
 const outPath = path.join(ROOT, "docs/uat-crawl/UAT_VERIFIED_BLOCKERS.jsonl");
 const summaryPath = path.join(ROOT, "docs/uat-crawl/UAT_VERIFIED_BLOCKERS_SUMMARY.json");
@@ -244,13 +256,13 @@ for (const entry of census.entries) {
       notExecutedCount += 1;
       continue;
     }
-    if (BUYER_PERSONAS.has(entry.persona)) {
-      assignCategory(entry.uatId, "otpExternalGate");
-      otpExternalGate += 1;
+    if (attemptedCurrentRun.has(entry.uatId)) {
+      assignCategory(entry.uatId, "credsAvailable");
+      credsAvailableNoEvidence += 1;
       continue;
     }
-    assignCategory(entry.uatId, "credsAvailable");
-    credsAvailableNoEvidence += 1;
+    assignCategory(entry.uatId, "notExecuted");
+    notExecutedCount += 1;
     continue;
   }
 
@@ -342,7 +354,8 @@ const summary = {
     authFlowFailed +
     authContractMismatch +
     otpExternalGate +
-    providerGated,
+    providerGated +
+    notExecutedCount,
   verifiedBlocked: blockedCount,
   credentialsAvailableAwaitingEvidence: credsAvailableNoEvidence,
   authFlowFailed,
