@@ -28,6 +28,7 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          TRUSTED_POLICY_REF: refs/heads/main
         run: |
           set -euo pipefail
           [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]] || {
@@ -48,6 +49,8 @@ jobs:
           git -c protocol.file.allow=never fetch --no-tags --no-write-fetch-head origin "$PR_BASE_SHA"
           git update-ref refs/remotes/origin/trusted-base "$PR_BASE_SHA"
           git -c protocol.file.allow=never fetch --no-tags --no-write-fetch-head origin \
+            "$TRUSTED_POLICY_REF:refs/remotes/origin/trusted-policy"
+          git -c protocol.file.allow=never fetch --no-tags --no-write-fetch-head origin \
             "refs/pull/${PR_NUMBER}/head:refs/remotes/origin/pr-head"
 
           fetched_head="$(git rev-parse refs/remotes/origin/pr-head)"
@@ -56,11 +59,18 @@ jobs:
             exit 1
           }
 
-          git checkout --detach refs/remotes/origin/trusted-base
-          [[ "$(git rev-parse HEAD)" == "$PR_BASE_SHA" ]] || {
-            echo '::error::Trusted base checkout mismatch' >&2
+          trusted_policy_sha="$(git rev-parse refs/remotes/origin/trusted-policy)"
+          [[ "$trusted_policy_sha" =~ ^[0-9a-f]{40}$ ]] || {
+            echo '::error::Unable to resolve trusted current-main policy SHA' >&2
             exit 1
           }
+
+          git checkout --detach refs/remotes/origin/trusted-policy
+          [[ "$(git rev-parse HEAD)" == "$trusted_policy_sha" ]] || {
+            echo '::error::Trusted policy checkout mismatch' >&2
+            exit 1
+          }
+          echo "::notice::Trusted backend-authority policy source: $trusted_policy_sha; PR comparison base remains $PR_BASE_SHA"
       - name: Enforce Core backend authority from trusted base code
         shell: bash
         env:
