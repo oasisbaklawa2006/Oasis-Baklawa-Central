@@ -36,11 +36,8 @@ test.describe.configure({ timeout: AUTH_CRAWL_TEST_TIMEOUT_MS });
 test.describe(`UAT crawl — ${TRANCHE} (${UAT_RANGE}) authenticated`, () => {
   for (const target of targets) {
     test(`${target.uatId} ${target.route} [${target.state}]`, async ({ page }) => {
-      const viewport = target.device === "phone"
-        ? "390x844"
-        : target.device === "tv"
-          ? "1920x1080"
-          : "1440x900";
+      const viewport =
+        target.device === "phone" ? "390x844" : target.device === "tv" ? "1920x1080" : "1440x900";
       if (target.device === "phone") {
         await page.setViewportSize({ width: 390, height: 844 });
       } else if (target.device === "tv") {
