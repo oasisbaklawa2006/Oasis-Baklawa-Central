@@ -25,7 +25,7 @@ function loadJsonl(relativePath) {
 
 function authCompleteIds(censusIds) {
   const ids = new Set();
-  const isCurrentRun = (row) => !row.runId || row.runId === RUN_ID;
+  const isCurrentRun = (row) => row.runId === RUN_ID;
   const matchesMain = (row) =>
     row.targetMainSha === CURRENT_MAIN_SHA ||
     row.baselineSha === CURRENT_MAIN_SHA ||
@@ -81,13 +81,13 @@ const census = JSON.parse(
 const censusIds = new Set(census.map((e) => e.uatId));
 const authComplete = authCompleteIds(censusIds);
 const blockers = loadJsonl("docs/uat-crawl/UAT_VERIFIED_BLOCKERS.jsonl").filter(
-  (b) => !b.runId || b.runId === RUN_ID,
+  (b) => b.runId === RUN_ID,
 );
 const blockersById = new Map(blockers.map((b) => [b.uatId, b]));
 const publicIds = new Set(["UAT-0001", "UAT-0004", "UAT-0005", "UAT-0008", "UAT-0009"]);
 const publicAtMain = loadJsonl("docs/uat-crawl/UAT_MANIFEST_PUBLIC_CONTINUATION.jsonl").filter(
   (r) =>
-    (!r.runId || r.runId === RUN_ID) &&
+    r.runId === RUN_ID &&
     (r.targetMainSha === CURRENT_MAIN_SHA || r.baselineSha === CURRENT_MAIN_SHA) &&
     r.uxEvidence?.s0 &&
     r.wallClassification !== "DEPLOYMENT_PROTECTION",
