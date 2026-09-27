@@ -35,6 +35,8 @@ def main() -> int:
         row
         for row in read_jsonl("UAT_MANIFEST.jsonl")
         + read_jsonl("UAT_MANIFEST_AUTH.jsonl")
+        + read_jsonl("UAT_MANIFEST_BUYER_MOBILE.jsonl")
+        + read_jsonl("UAT_MANIFEST_POST_FIX_483.jsonl")
         + read_jsonl("UAT_MANIFEST_PUBLIC_CONTINUATION.jsonl")
         if row.get("runId") == RUN_ID
     ]
