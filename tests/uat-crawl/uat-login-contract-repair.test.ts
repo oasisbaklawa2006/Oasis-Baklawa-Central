@@ -28,6 +28,8 @@ const verdictScript = readFileSync(join(REPO_ROOT, "scripts/uat-crawl/evaluate-c
 const trancheAuthRange = readFileSync(join(REPO_ROOT, "tests/uat-crawl/tranche-auth-range.spec.ts"), "utf8");
 const credentialMatrix = readFileSync(join(REPO_ROOT, "tests/uat-crawl/credential-matrix.ts"), "utf8");
 const rebaselineScript = readFileSync(join(REPO_ROOT, "scripts/uat-crawl/record-rebaseline-current-main.mjs"), "utf8");
+const authGateLoader = readFileSync(join(REPO_ROOT, "scripts/uat-crawl/load-auth-gate-by-id.py"), "utf8");
+const screenshotWallScript = readFileSync(join(REPO_ROOT, "scripts/uat-crawl/detect-screenshot-wall.py"), "utf8");
 
 describe("UAT login contract repair regressions", () => {
   it("1 — staff roles do not route through BuyerLogin", () => {
@@ -197,7 +199,20 @@ describe("UAT login contract repair regressions", () => {
   it("22 — absent current-run evidence is NOT_EXECUTED, not synthetic OTP or credentials-available", () => {
     expect(reconciliationScript).toContain('disposition: "NOT_EXECUTED"');
     expect(blockersScript).toContain('assignCategory(entry.uatId, "notExecuted")');
+    expect(authCrawl).toContain('AUTH_BLOCK_CLASSIFICATIONS.NOT_EXECUTED');
     expect(verdictScript).toContain("NOT_EXECUTED_ROWS");
     expect(verdictScript).toContain("CREDENTIALS_AVAILABLE_WITHOUT_EVIDENCE");
+  });
+
+  it("23 — helper/audit readers require exact current-run metadata", () => {
+    expect(authGateLoader).toContain('row.get("runId") != RUN_ID');
+    expect(screenshotWallScript).toContain('row.get("runId") == RUN_ID');
+    expect(verdictScript).toContain('row.get("runId") == RUN_ID');
+  });
+
+  it("24 — configured cross-app previews are not mislabeled as missing deploy secrets", () => {
+    expect(authCrawl).toContain("const deployUrl = process.env[deploySecret]?.trim()");
+    expect(authCrawl).toContain('missingDeploy ? "DEPLOY_BLOCKED" : AUTH_BLOCK_CLASSIFICATIONS.NOT_EXECUTED');
+    expect(authCrawl).toContain("this Central auth crawler is not the dedicated");
   });
 });
