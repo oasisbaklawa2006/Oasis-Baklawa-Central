@@ -174,11 +174,22 @@ const byDevice = {};
 const byDisposition = {};
 const byMissingSecret = {};
 for (const row of rows) {
-  byDevice[row.device] = byDevice[row.device] || { total: 0, authComplete: 0, publicS0: 0, blocked: 0 };
+  byDevice[row.device] = byDevice[row.device] || {
+    total: 0,
+    authComplete: 0,
+    publicS0: 0,
+    blocked: 0,
+    otpExternalGate: 0,
+    providerGated: 0,
+    notExecuted: 0,
+  };
   byDevice[row.device].total += 1;
   if (row.disposition === "AUTH_S0_S3_COMPLETE") byDevice[row.device].authComplete += 1;
   else if (row.disposition === "PUBLIC_S0_OBSERVED") byDevice[row.device].publicS0 += 1;
   else if (row.disposition === "BLOCKED") byDevice[row.device].blocked += 1;
+  else if (row.disposition === "OTP_EXTERNAL_GATE") byDevice[row.device].otpExternalGate += 1;
+  else if (row.disposition === "PROVIDER_GATED") byDevice[row.device].providerGated += 1;
+  else if (row.disposition === "NOT_EXECUTED") byDevice[row.device].notExecuted += 1;
   byDisposition[row.disposition] = (byDisposition[row.disposition] || 0) + 1;
   if (row.missingSecretNames?.length) {
     const key = row.missingSecretNames.join(", ");
@@ -270,20 +281,28 @@ const mdLines = [
   `| AUTH S0–S3 complete | **${payload.counts.authS0S3Complete}** | Governed authenticated crawl evidence on current-main deploy |`,
   `| Public S0 observed | **${payload.counts.publicS0Observed}** | Unauthenticated public continuation (S0 only) |`,
   `| **BLOCKED** (credential/deploy) | **${payload.counts.blockedCredentialOrDeploy}** | Exact \`TEST_*\` secret names in blocker registry |`,
+  `| OTP external gate | **${payload.counts.otpExternalGate}** | Current-run row reached governed OTP/provider boundary |`,
+  `| Provider gated | **${payload.counts.providerGated}** | Current-run row reached an external provider boundary |`,
+  `| Auth flow failed | **${payload.counts.authFlowFailed}** | Current-run authentication attempt failed |`,
+  `| Auth contract mismatch | **${payload.counts.authContractMismatch}** | Current-run auth contract mismatch |`,
+  `| **NOT EXECUTED** | **${payload.counts.notExecuted}** | No current-run evidence row produced |`,
   "",
   "## By device class",
   "",
-  "| Device | Total | Auth S0–S3 | Public S0 | Blocked |",
-  "|---|---:|---:|---:|---:|",
+  "| Device | Total | Auth S0–S3 | Public S0 | Blocked | OTP gate | Provider gate | Not executed |",
+  "|---|---:|---:|---:|---:|---:|---:|---:|",
   ...Object.entries(byDevice).map(
-    ([d, c]) => `| ${d} | ${c.total} | ${c.authComplete} | ${c.publicS0} | ${c.blocked} |`,
+    ([d, c]) => `| ${d} | ${c.total} | ${c.authComplete} | ${c.publicS0} | ${c.blocked} | ${c.otpExternalGate} | ${c.providerGated} | ${c.notExecuted} |`,
   ),
   "",
-  "## Runnable now vs blocked (automated crawl)",
+  "## Current-run unresolved evidence",
   "",
-  "| Runnable now | Blocked |",
-  "|---|---|",
-  `| Re-refresh **${payload.counts.authS0S3Complete}** auth surfaces + **${payload.counts.publicS0Observed}** public S0 (existing creds in GHA) | **${payload.counts.blockedCredentialOrDeploy}** surfaces — **only** missing \`TEST_*\` repo secrets / deploy URLs |`,
+  `- Missing-secret/deploy blockers: **${payload.counts.blockedCredentialOrDeploy}**`,
+  `- OTP external gates: **${payload.counts.otpExternalGate}**`,
+  `- Provider gates: **${payload.counts.providerGated}**`,
+  `- Auth-flow failures: **${payload.counts.authFlowFailed}**`,
+  `- Auth-contract mismatches: **${payload.counts.authContractMismatch}**`,
+  `- Not executed: **${payload.counts.notExecuted}**`,
   "",
   "## Exact blocker secret groups",
   "",
