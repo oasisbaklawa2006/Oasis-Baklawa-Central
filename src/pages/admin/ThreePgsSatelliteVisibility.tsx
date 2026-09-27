@@ -1,11 +1,15 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, Boxes, RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/useAuth";
 import { resolveThreePgsSatelliteAudience } from "@/lib/threePgsAccess";
-import { loadThreePgsCommandCentreSnapshotSafe, applyThreePgsSnapshotLoadResult } from "@/lib/threePgsSnapshotLoader";
+import {
+  applyThreePgsSnapshotLoadResult,
+  loadThreePgsCommandCentreSnapshotSafe,
+  loadThreePgsSalesSatelliteSnapshotSafe,
+} from "@/lib/threePgsSnapshotLoader";
 import { projectThreePgsSatellite } from "@/lib/threePgsSatelliteModel";
 import { EMPTY_THREE_PGS_SNAPSHOT } from "./threePgsCommandCentreModel";
 
@@ -15,14 +19,21 @@ export default function ThreePgsSatelliteVisibility() {
   const [snapshot, setSnapshot] = useState(EMPTY_THREE_PGS_SNAPSHOT);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const latestRequest = useRef(0);
 
   const load = useCallback(async () => {
+    const request = ++latestRequest.current;
     setLoading(true);
-    const result = await loadThreePgsCommandCentreSnapshotSafe();
+    setError(null);
+    setSnapshot(EMPTY_THREE_PGS_SNAPSHOT);
+    const result = audience === "b2b"
+      ? await loadThreePgsSalesSatelliteSnapshotSafe()
+      : await loadThreePgsCommandCentreSnapshotSafe();
+    if (request !== latestRequest.current) return;
     setSnapshot((previous) => applyThreePgsSnapshotLoadResult(previous, result));
     setError(result.error);
     setLoading(false);
-  }, []);
+  }, [audience]);
 
   useEffect(() => {
     void load();
