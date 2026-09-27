@@ -39,8 +39,14 @@ def main() -> int:
         if row.get("runId") == RUN_ID
     ]
 
+    census_path = DOCS / "UAT_ROUTE_CENSUS.json"
+    census = json.loads(census_path.read_text(encoding="utf-8")) if census_path.is_file() else {"entries": []}
+    classification_by_id = {entry.get("uatId"): entry.get("classification") for entry in census.get("entries", [])}
+
     by_hash: dict[str, dict[str, set[str] | list[str]]] = {}
     for row in rows:
+        if classification_by_id.get(row.get("uatId")) == "LEGACY_REDIRECT":
+            continue
         if row.get("visualStatus") == "BLOCKED":
             continue
         digests = set()
