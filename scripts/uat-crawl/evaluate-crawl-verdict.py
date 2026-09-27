@@ -126,8 +126,11 @@ def main() -> int:
     protection_rows = [
         row
         for row in read_jsonl("UAT_MANIFEST.jsonl") + read_jsonl("UAT_MANIFEST_AUTH.jsonl")
-        if row.get("blockClassification") == "DEPLOYMENT_PROTECTION"
-        or row.get("wallClassification") == "DEPLOYMENT_PROTECTION"
+        if row.get("runId") == RUN_ID
+        and (
+            row.get("blockClassification") == "DEPLOYMENT_PROTECTION"
+            or row.get("wallClassification") == "DEPLOYMENT_PROTECTION"
+        )
     ]
     if protection_rows:
         failures.append("DEPLOYMENT_PROTECTION:" + ",".join(row.get("uatId", "?") for row in protection_rows))
