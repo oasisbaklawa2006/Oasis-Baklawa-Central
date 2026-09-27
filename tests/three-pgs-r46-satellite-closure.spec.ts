@@ -122,6 +122,7 @@ test.describe("R4.6 3PGS satellite/mobile/TV closure", () => {
     expect(salesLoader).not.toContain('"b2b_inventory_receipts"');
     expect(salesLoader).not.toContain('"b2b_inventory_grns"');
     expect(salesLoader).not.toContain('"inventory_reservations"');
+    expect(salesLoader).not.toContain('"inventory_stock_balances"');
 
     expect(visibilitySource).toMatch(
       /audience\s*===\s*"b2b"[\s\S]*loadThreePgsSalesSatelliteSnapshotSafe\(\)[\s\S]*loadThreePgsCommandCentreSnapshotSafe\(\)/,
