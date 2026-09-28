@@ -2,10 +2,11 @@ import { test } from "@playwright/test";
 import { targetsForTranche } from "../../src/lib/provider-preview-uat/catalogue";
 import { crawlProviderPreviewTarget, recordSecretPresenceAudit } from "./crawl";
 
-const tranche = (process.env.PROVIDER_PREVIEW_RUN_TRANCHE?.trim() || "all") as
-  | "ai-studio"
-  | "trace"
-  | "all";
+const rawTranche = process.env.PROVIDER_PREVIEW_RUN_TRANCHE?.trim() || "all";
+if (!["ai-studio", "trace", "all"].includes(rawTranche)) {
+  throw new Error(`Invalid PROVIDER_PREVIEW_RUN_TRANCHE: ${rawTranche}`);
+}
+const tranche = rawTranche as "ai-studio" | "trace" | "all";
 
 test.describe.configure({ mode: "serial" });
 
