@@ -1,4 +1,3 @@
-import { mkdirSync } from "node:fs";
 import path from "node:path";
 import type { Page } from "@playwright/test";
 import { classifyAccessWallFromSignals } from "../../src/lib/provider-preview-uat/access-wall";
@@ -14,7 +13,7 @@ import {
   appendManifestRow,
   emptyUxEvidence,
   screenshotRelPath,
-  sha256File,
+  sha256Bytes,
   type ProviderPreviewManifestRow,
   type UxEvidenceSlot,
 } from "../../src/lib/provider-preview-uat/manifest";
@@ -44,9 +43,8 @@ export function viewportForDevice(device: ProviderPreviewTarget["device"]): View
 async function captureSlot(
   page: Page,
   absPath: string,
-): Promise<void> {
-  mkdirSync(path.dirname(absPath), { recursive: true });
-  await page.screenshot({ path: absPath, fullPage: true });
+): Promise<Buffer> {
+  return page.screenshot({ path: absPath, fullPage: true });
 }
 
 async function pageHasMeaningfulSurface(page: Page): Promise<boolean> {
@@ -169,9 +167,9 @@ export async function crawlProviderPreviewTarget(
     }
     const rel = screenshotRelPath(target, slot);
     const abs = path.join(OUTPUT_ROOT, rel);
-    await captureSlot(page, abs);
+    const screenshotBytes = await captureSlot(page, abs);
     uxEvidence[slot] = rel;
-    uxEvidenceSha256[slot] = sha256File(abs);
+    uxEvidenceSha256[slot] = sha256Bytes(screenshotBytes);
   }
 
   const meaningfulSurface = await pageHasMeaningfulSurface(page);
