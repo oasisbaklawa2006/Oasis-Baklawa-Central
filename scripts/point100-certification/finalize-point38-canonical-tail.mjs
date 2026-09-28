@@ -42,23 +42,26 @@ const point38OrderId = credentialValue("FACTORY_CERT_POINT38_ORDER_ID");
 
 /** Core gate release requires ready_to_load/loaded; finance clearance has no carton-promotion RPC yet. */
 function promoteCartonForGateReadiness(cartonId) {
+  const bindings = { carton_id: cartonId };
   const updated = queryLocalPostgresScalar(
     localDbUrl,
     `UPDATE public.b2b_dispatch_cartons
         SET status = 'ready_to_load',
             physical_location = 'READY_TO_LOAD_BAY'
-      WHERE id = '${cartonId}'::uuid
+      WHERE id = :'carton_id'::uuid
         AND status = 'locked'
       RETURNING id::text;`,
     "Point38 tail carton gate-readiness promotion",
     LOCAL_LABEL,
+    bindings,
   );
   if (!updated) {
     const currentStatus = queryLocalPostgresScalar(
       localDbUrl,
-      `SELECT status FROM public.b2b_dispatch_cartons WHERE id = '${cartonId}'::uuid;`,
+      "SELECT status FROM public.b2b_dispatch_cartons WHERE id = :'carton_id'::uuid;",
       "Point38 tail carton status lookup",
       LOCAL_LABEL,
+      bindings,
     );
     if (currentStatus !== "ready_to_load" && currentStatus !== "loaded" && currentStatus !== "handed_over") {
       throw new Error(`POINT100_POINT38_TAIL_CARTON_NOT_GATE_READY: status=${currentStatus}`);
