@@ -145,8 +145,8 @@ export async function loginToFactoryCertificationTarget(
   const target = resolveFactoryCertificationTarget();
   await page.goto(`${target}/staff/login`, { waitUntil: "domcontentloaded", timeout: 60_000 });
   await expect(page.getByRole("heading", { name: /^Employee Access$/i })).toBeVisible({ timeout: 30_000 });
-  await page.getByPlaceholder("you@oasisbaklawa.com").fill(credentials.email);
-  await page.getByPlaceholder("••••••••").fill(credentials.password);
+  await page.locator("#staff-email").fill(credentials.email);
+  await page.locator("#staff-password").fill(credentials.password);
   await page.getByRole("button", { name: /^Login$/i }).click();
   await page.waitForURL((url) => !/\/(?:staff\/)?login(?:\/|$|\?)/i.test(url.pathname), { timeout: 120_000 });
 }
