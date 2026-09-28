@@ -143,10 +143,19 @@ export async function loginToFactoryCertificationTarget(
   credentials: FactoryCertificationCredentials,
 ): Promise<void> {
   const target = resolveFactoryCertificationTarget();
-  await page.goto(`${target}/staff/login`, { waitUntil: "domcontentloaded", timeout: 60_000 });
+  await page.goto(`${target}/login`, { waitUntil: "domcontentloaded", timeout: 60_000 });
+  await expect(page.getByRole("heading", { name: /^B2B Client Login$/i })).toBeVisible({ timeout: 30_000 });
+  await page.getByRole("button", { name: /^Admin Access$/i }).click();
   await expect(page.getByRole("heading", { name: /^Employee Access$/i })).toBeVisible({ timeout: 30_000 });
-  await page.locator("#staff-email").fill(credentials.email);
-  await page.locator("#staff-password").fill(credentials.password);
+
+  const emailInput = page.locator("#staff-email");
+  await emailInput.click();
+  await page.keyboard.insertText(credentials.email);
+
+  const passwordInput = page.locator("#staff-password");
+  await passwordInput.click();
+  await page.keyboard.insertText(credentials.password);
+
   await page.getByRole("button", { name: /^Login$/i }).click();
   await page.waitForURL((url) => !/\/(?:staff\/)?login(?:\/|$|\?)/i.test(url.pathname), { timeout: 120_000 });
 }
