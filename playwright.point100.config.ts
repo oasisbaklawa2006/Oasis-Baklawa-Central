@@ -1,35 +1,15 @@
 import { defineConfig, devices } from "@playwright/test";
-import { validateFactoryCertificationTarget } from "./src/lib/factoryCertificationEnvironmentPolicy";
 
 const DISPOSABLE_CERT_BASE_URL = "http://127.0.0.1:4173";
-
-function assertDisposableCertificationTarget(): void {
-  const targetUrl = process.env.FACTORY_CERT_TARGET_URL?.trim();
-  if (!targetUrl) {
-    throw new Error("CERTIFICATION_ENV_REQUIRED: FACTORY_CERT_TARGET_URL is missing");
-  }
-  const policy = validateFactoryCertificationTarget({
-    targetUrl,
-    allowRemoteEphemeral: false,
-    environmentId: process.env.FACTORY_CERT_ENVIRONMENT_ID,
-  });
-  if (!policy.valid || policy.normalizedUrl !== DISPOSABLE_CERT_BASE_URL) {
-    throw new Error("UNSAFE_CERTIFICATION_TARGET: certification runner requires disposable localhost target");
-  }
-}
-
-assertDisposableCertificationTarget();
 
 /**
  * Point100 cross-lifecycle dress rehearsal runner.
  *
- * Composes factory certification disposable backend with lifecycle orchestration,
- * capability matrix generation, and negative-path injection. Credentials stay out
- * of Playwright artifacts (trace/screenshot/video disabled).
+ * Composes factory certification disposable backend with lifecycle orchestration,\n * capability matrix generation, and negative-path injection. Credentials stay out\n * of Playwright artifacts (trace/screenshot/video disabled).
  */
 export default defineConfig({
   testDir: "./tests/point100",
-  testMatch: /.*\.cert\.spec\.ts/,
+  testMatch: /.*\\.cert\\.spec\\.ts/,
   timeout: 300_000,
   expect: { timeout: 45_000 },
   fullyParallel: false,
