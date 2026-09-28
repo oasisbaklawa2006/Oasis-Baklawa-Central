@@ -76,21 +76,21 @@ function insertFinalPaymentRequestMaintenance(
 ) {
   const sql = `
 BEGIN;
-SET LOCAL request.jwt.claim.sub = '${financeActorId}';
+SET LOCAL request.jwt.claim.sub = :'finance_actor_id';
 SET LOCAL request.jwt.claim.role = 'authenticated';
 WITH totals AS (
   SELECT public.calculate_finance_dpl_commercial_totals_v1(
-    '${point38OrderId}'::uuid,
-    '${piId}'::uuid,
-    '${commercialVersionId}'::uuid,
-    '${financeDplReceiptId}'::uuid
+    :'order_id'::uuid,
+    :'pi_id'::uuid,
+    :'commercial_version_id'::uuid,
+    :'finance_dpl_receipt_id'::uuid
   ) AS payload
 ),
 coverage AS (
   SELECT public.get_sales_order_final_payment_coverage_v1(
-    '${point38OrderId}'::uuid,
-    '${piId}'::uuid,
-    '${commercialVersionId}'::uuid,
+    :'order_id'::uuid,
+    :'pi_id'::uuid,
+    :'commercial_version_id'::uuid,
     (totals.payload->>'final_payable_total')::numeric
   ) AS payload
   FROM totals
@@ -125,25 +125,25 @@ inserted AS (
     'BANK_TRANSFER',
     'Point100 synthetic certification bank-transfer settlement',
     'point100://final-payment-pi/p38',
-    encode(extensions.digest('${idempotencyKey}', 'sha256'), 'hex'),
+    encode(extensions.digest(:'idempotency_key', 'sha256'), 'hex'),
     'Point100 governed final-payment PI revision',
     'CENTRAL',
-    'point100:${point38OrderId}',
-    '${correlationId}',
-    '${idempotencyKey}',
-    '${financeActorId}'::uuid,
+    'point100:' || :'order_id',
+    :'correlation_id',
+    :'idempotency_key',
+    :'finance_actor_id'::uuid,
     'FINANCE_EXEC',
     statement_timestamp() - interval '2 days'
   FROM public.orders o
   JOIN public.sales_order_proforma_invoices pi
-    ON pi.id = '${piId}'::uuid AND pi.order_id = o.id
+    ON pi.id = :'pi_id'::uuid AND pi.order_id = o.id
   JOIN public.sales_order_commercial_versions cv
-    ON cv.id = '${commercialVersionId}'::uuid AND cv.order_id = o.id
+    ON cv.id = :'commercial_version_id'::uuid AND cv.order_id = o.id
   JOIN public.finance_dpl_receipts dpl
-    ON dpl.id = '${financeDplReceiptId}'::uuid AND dpl.order_id = o.id
+    ON dpl.id = :'finance_dpl_receipt_id'::uuid AND dpl.order_id = o.id
   CROSS JOIN totals
   CROSS JOIN coverage
-  WHERE o.id = '${point38OrderId}'::uuid
+  WHERE o.id = :'order_id'::uuid
   ON CONFLICT (idempotency_key) DO NOTHING
   RETURNING id::text AS request_id, balance_due_at_issue::text AS balance_due
 )
@@ -152,7 +152,7 @@ SELECT coalesce(
   (
     SELECT r.id::text || '|' || r.balance_due_at_issue::text
       FROM public.sales_order_pi_final_payment_requests r
-     WHERE r.idempotency_key = '${idempotencyKey}'
+     WHERE r.idempotency_key = :'idempotency_key'
      LIMIT 1
   )
 );
@@ -162,6 +162,15 @@ COMMIT;`;
     sql,
     "Point38 final-payment request maintenance insert",
     LOCAL_LABEL,
+    {
+      finance_actor_id: financeActorId,
+      order_id: point38OrderId,
+      pi_id: piId,
+      commercial_version_id: commercialVersionId,
+      finance_dpl_receipt_id: financeDplReceiptId,
+      correlation_id: correlationId,
+      idempotency_key: idempotencyKey,
+    },
   );
   const [requestId, balanceDueRaw] = row.split("|");
   if (!requestId) throw new Error("POINT100_POINT38_FINAL_PAYMENT_REQUEST_ID_MISSING");
