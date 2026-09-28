@@ -58,7 +58,7 @@ test("POINT100 :: generate capability/blocker matrix from executable probes", as
         .filter((probe) => probe.status === "upstream_contract_missing")
         .map((probe) => `${probe.stageId}: ${probe.detail}`),
     },
-    "point100-capability-matrix-ledger.json",
+    "capability-matrix",
   );
 
   expect(probes.length).toBe(16);
