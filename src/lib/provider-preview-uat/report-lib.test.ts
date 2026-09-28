@@ -11,7 +11,7 @@ import {
 } from "../../../scripts/lib/provider-preview-report-lib.mjs";
 
 const mergeScriptSource = readFileSync(
-  path.join(process.cwd(), "scripts/merge-provider-preview-uat-report.mjs"),
+  "scripts/merge-provider-preview-uat-report.mjs",
   "utf8",
 );
 
