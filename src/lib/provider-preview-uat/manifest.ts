@@ -1,5 +1,4 @@
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
 import {
   appendManifestLine,
   ensureProviderPreviewOutputDir,
@@ -47,9 +46,8 @@ export function emptyUxEvidence(): UxEvidence {
   return { s0: null, s1: null, s2: null, s3: null };
 }
 
-export function sha256File(filePath: string): string {
-  const buf = readFileSync(filePath);
-  return createHash("sha256").update(buf).digest("hex");
+export function sha256Bytes(bytes: Uint8Array): string {
+  return createHash("sha256").update(bytes).digest("hex");
 }
 
 export function attachRunMetadata(row: ProviderPreviewManifestRow): ProviderPreviewManifestRow {
