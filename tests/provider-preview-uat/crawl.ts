@@ -1,6 +1,6 @@
 import path from "node:path";
 import type { Page } from "@playwright/test";
-import { classifyAccessWallFromSignals } from "../../src/lib/provider-preview-uat/access-wall";
+import { classifyAccessWallFromSignals, classifyBlockedNavigationUrl } from "../../src/lib/provider-preview-uat/access-wall";
 import type { ProviderPreviewTarget } from "../../src/lib/provider-preview-uat/catalogue";
 import { PROVIDER_PREVIEW_TRANCHE } from "../../src/lib/provider-preview-uat/catalogue";
 import {
@@ -139,6 +139,7 @@ export async function crawlProviderPreviewTarget(
   const destination = `${normalizedBase}${routePath === "/" ? "" : routePath}`;
 
   let blockedNavigation = false;
+  let blockedNavigationUrl = "";
   await page.route("**/*", async (route) => {
     const request = route.request();
     if (!request.isNavigationRequest()) {
@@ -151,6 +152,7 @@ export async function crawlProviderPreviewTarget(
       await route.continue();
     } catch {
       blockedNavigation = true;
+      blockedNavigationUrl = request.url();
       await route.abort("blockedbyclient");
     }
   });
@@ -158,13 +160,19 @@ export async function crawlProviderPreviewTarget(
   try {
     await page.goto(destination, { waitUntil: "domcontentloaded", timeout: 60_000 });
   } catch (error) {
+    const blockedClassification = blockedNavigation
+      ? classifyBlockedNavigationUrl(blockedNavigationUrl)
+      : "NAVIGATION_FAILED";
     const row = blockedRow(target, {
       viewport,
       crawlBaseUrl: normalizedBase,
-      blockClassification: blockedNavigation ? "NAVIGATION_REDIRECT_BLOCKED" : "NAVIGATION_FAILED",
-      notes: blockedNavigation
-        ? "Navigation redirect was blocked because it targeted a host outside the governed preview allowlist."
-        : "Navigation failed before the provider-preview surface loaded. Raw browser error text is omitted to avoid leaking the governed preview URL.",
+      blockClassification: blockedClassification,
+      notes:
+        blockedClassification === "DEPLOYMENT_PROTECTION"
+          ? "Navigation was blocked at a Vercel deployment-protection redirect."
+          : blockedNavigation
+            ? "Navigation redirect was blocked because it targeted a host outside the governed preview allowlist."
+            : "Navigation failed before the provider-preview surface loaded. Raw browser error text is omitted to avoid leaking the governed preview URL.",
     });
     appendManifestRow(row);
     return row;
@@ -173,11 +181,15 @@ export async function crawlProviderPreviewTarget(
   }
 
   if (blockedNavigation) {
+    const blockedClassification = classifyBlockedNavigationUrl(blockedNavigationUrl);
     const row = blockedRow(target, {
       viewport,
       crawlBaseUrl: normalizedBase,
-      blockClassification: "NAVIGATION_REDIRECT_BLOCKED",
-      notes: "Navigation redirect was blocked because it targeted a host outside the governed preview allowlist.",
+      blockClassification: blockedClassification,
+      notes:
+        blockedClassification === "DEPLOYMENT_PROTECTION"
+          ? "Navigation was blocked at a Vercel deployment-protection redirect."
+          : "Navigation redirect was blocked because it targeted a host outside the governed preview allowlist.",
     });
     appendManifestRow(row);
     return row;
