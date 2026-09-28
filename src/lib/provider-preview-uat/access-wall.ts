@@ -58,3 +58,17 @@ export function classifyAccessWallFromSignals(title: string, url: string, bodyTe
 
   return { blocked: false, classification: null, reason: "" };
 }
+
+
+/**
+ * Classify a navigation URL rejected by the preview-host allowlist.
+ * The caller must never persist the raw rejected URL in evidence.
+ */
+export function classifyBlockedNavigationUrl(
+  url: string,
+): typeof DEPLOYMENT_PROTECTION_CLASS | "NAVIGATION_REDIRECT_BLOCKED" {
+  const wall = classifyAccessWallFromSignals("", url, "");
+  return wall.blocked && wall.classification
+    ? wall.classification
+    : "NAVIGATION_REDIRECT_BLOCKED";
+}
