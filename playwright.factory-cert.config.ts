@@ -1,15 +1,16 @@
 import { defineConfig, devices } from "@playwright/test";
 
-const DISPOSABLE_CERT_BASE_URL = "http://127.0.0.1:4173";
-
 /**
  * Dedicated Factory Operations certification runner.
  *
- * Credentials are deliberately kept out of Playwright artifacts: trace,\n * screenshots and video are disabled. Full certification is intended for a\n * disposable non-production environment only; tests themselves enforce the\n * target/backend safety policy before authenticating.
+ * Credentials are deliberately kept out of Playwright artifacts: trace,
+ * screenshots and video are disabled. Full certification is intended for a
+ * disposable non-production environment only; tests themselves enforce the
+ * target/backend safety policy before authenticating.
  */
 export default defineConfig({
   testDir: "./tests",
-  testMatch: /factory-operations-.*\\.cert\\.spec\\.ts/,
+  testMatch: /factory-operations-.*\.cert\.spec\.ts/,
   timeout: 180_000,
   expect: { timeout: 30_000 },
   fullyParallel: false,
@@ -21,7 +22,7 @@ export default defineConfig({
   ],
   use: {
     ...devices["Desktop Chrome"],
-    baseURL: DISPOSABLE_CERT_BASE_URL,
+    baseURL: process.env.FACTORY_CERT_TARGET_URL?.trim(),
     trace: "off",
     screenshot: "off",
     video: "off",
