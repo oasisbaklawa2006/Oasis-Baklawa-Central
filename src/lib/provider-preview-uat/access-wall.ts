@@ -46,8 +46,9 @@ export function classifyAccessWallFromSignals(title: string, url: string, bodyTe
   }
 
   const hasAppMarker = PROVIDER_APP_MARKERS.some((pattern) => pattern.test(`${title} ${bodyLower}`));
+  const urlWall = markers.some((marker) => marker.startsWith("url:"));
 
-  if (markers.length > 0 && !hasAppMarker) {
+  if (urlWall || (markers.length > 0 && !hasAppMarker)) {
     return {
       blocked: true,
       classification: DEPLOYMENT_PROTECTION_CLASS,
