@@ -79,7 +79,11 @@ function loadAuthGateById(censusIds) {
       if (row.authenticated) continue;
       const testCred = inferTestCredentialGate(row);
       if (testCred) {
-        map.set(row.uatId, { ...row, blockClassification: testCred });
+        map.set(row.uatId, {
+          blockClassification: testCred,
+          missingSecretNames: row.missingSecretNames ?? [],
+          credentialPrefix: row.credentialPrefix ?? null,
+        });
         continue;
       }
       if (row.blockClassification) {
