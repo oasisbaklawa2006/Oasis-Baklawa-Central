@@ -164,7 +164,7 @@ export async function crawlProviderPreviewTarget(
       blockClassification: blockedNavigation ? "NAVIGATION_REDIRECT_BLOCKED" : "NAVIGATION_FAILED",
       notes: blockedNavigation
         ? "Navigation redirect was blocked because it targeted a host outside the governed preview allowlist."
-        : `Navigation failed before the provider-preview surface loaded: ${error instanceof Error ? error.message.slice(0, 240) : "unknown navigation error"}`,
+        : "Navigation failed before the provider-preview surface loaded. Raw browser error text is omitted to avoid leaking the governed preview URL.",
     });
     appendManifestRow(row);
     return row;
