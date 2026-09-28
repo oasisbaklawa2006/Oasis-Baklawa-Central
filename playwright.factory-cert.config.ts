@@ -22,6 +22,7 @@ export default defineConfig({
   ],
   use: {
     ...devices["Desktop Chrome"],
+    baseURL: process.env.FACTORY_CERT_TARGET_URL?.trim(),
     trace: "off",
     screenshot: "off",
     video: "off",
