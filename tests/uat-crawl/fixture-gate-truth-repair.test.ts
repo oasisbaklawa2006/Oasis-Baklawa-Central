@@ -13,8 +13,21 @@ const TEST_DIR = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(TEST_DIR, "../..");
 const RUN_ID = "36450858295";
 
-function readJson(relativePath: string) {
-  return JSON.parse(readFileSync(join(REPO_ROOT, relativePath), "utf8"));
+// Codacy/taint analyzers flag generic helpers that forward runtime paths into readFileSync.
+function readVerifiedBlockersSummary() {
+  return JSON.parse(
+    readFileSync(join(REPO_ROOT, "docs/uat-crawl/UAT_VERIFIED_BLOCKERS_SUMMARY.json"), "utf8"),
+  );
+}
+
+function readPhysicalReadinessReconciliation() {
+  return JSON.parse(
+    readFileSync(join(REPO_ROOT, "docs/uat-crawl/UAT_PHYSICAL_READINESS_RECONCILIATION.json"), "utf8"),
+  );
+}
+
+function readCrawlVerdict() {
+  return JSON.parse(readFileSync(join(REPO_ROOT, "docs/uat-crawl/UAT_CRAWL_VERDICT.json"), "utf8"));
 }
 
 function retestDispositionFor(row: { retestDisposition?: Record<string, string> }, failId: string) {
@@ -57,7 +70,7 @@ describe("UAT fixture-gate evidence truth repair (run 36450858295)", () => {
   });
 
   it("verified blockers summary reconciles fixture/credential gates for run 36450858295", () => {
-    const summary = readJson("docs/uat-crawl/UAT_VERIFIED_BLOCKERS_SUMMARY.json");
+    const summary = readVerifiedBlockersSummary();
     expect(summary.runId).toBe(RUN_ID);
     expect(summary.counts.dataFixtureGate).toBe(2);
     expect(summary.counts.testCredentialGate).toBe(1);
@@ -68,7 +81,7 @@ describe("UAT fixture-gate evidence truth repair (run 36450858295)", () => {
   });
 
   it("physical readiness reconciliation propagates DATA_FIXTURE_GATE and TEST_CREDENTIAL_GATE", () => {
-    const payload = readJson("docs/uat-crawl/UAT_PHYSICAL_READINESS_RECONCILIATION.json");
+    const payload = readPhysicalReadinessReconciliation();
     expect(payload.runId).toBe(RUN_ID);
     expect(payload.counts.dataFixtureGate).toBe(2);
     expect(payload.counts.testCredentialGate).toBe(1);
@@ -84,7 +97,7 @@ describe("UAT fixture-gate evidence truth repair (run 36450858295)", () => {
   });
 
   it("crawl verdict treats fixture/credential gates as warnings not creds-available failures", () => {
-    const verdict = readJson("docs/uat-crawl/UAT_CRAWL_VERDICT.json");
+    const verdict = readCrawlVerdict();
     expect(verdict.runId).toBe(RUN_ID);
     expect(verdict.failures.some((f: string) => f.startsWith("CREDENTIALS_AVAILABLE"))).toBe(false);
     expect(verdict.failures.some((f: string) => f.startsWith("AUTH_FLOW_FAILED"))).toBe(false);

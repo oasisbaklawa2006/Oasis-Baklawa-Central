@@ -203,17 +203,35 @@ const secretPresence = fs.existsSync(path.join(ROOT, "docs/uat-crawl/UAT_SECRET_
   ? JSON.parse(fs.readFileSync(path.join(ROOT, "docs/uat-crawl/UAT_SECRET_PRESENCE.json"), "utf8"))
   : null;
 
-const rows = census.map((entry) => ({
-  uatId: entry.uatId,
-  app: entry.app,
-  route: entry.route,
-  state: entry.state,
-  role: entry.persona,
-  device: entry.device,
-  buildSha: CURRENT_MAIN_SHA,
-  deployUrl: DEPLOY_URL,
-  ...classifyEntry(entry, authComplete, publicComplete, blockersById, authGateById, dataFixtureGateById),
-}));
+const rows = census.map((entry) => {
+  const classified = classifyEntry(
+    entry,
+    authComplete,
+    publicComplete,
+    blockersById,
+    authGateById,
+    dataFixtureGateById,
+  );
+  return {
+    uatId: entry.uatId,
+    app: entry.app,
+    route: entry.route,
+    state: entry.state,
+    role: entry.persona,
+    device: entry.device,
+    buildSha: CURRENT_MAIN_SHA,
+    deployUrl: DEPLOY_URL,
+    disposition: classified.disposition,
+    s0s3Runnable: classified.s0s3Runnable,
+    missingSecretNames: classified.missingSecretNames,
+    evidenceSource: classified.evidenceSource,
+    blockClassification: classified.blockClassification,
+    credentialPrefix: classified.credentialPrefix,
+    note: classified.note,
+    retestFailIds: classified.retestFailIds,
+    retestDisposition: classified.retestDisposition,
+  };
+});
 
 const byDevice = new Map();
 const byDisposition = new Map();

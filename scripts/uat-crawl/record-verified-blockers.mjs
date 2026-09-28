@@ -5,13 +5,12 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { resolveCredentialBlocker } from "./credential-prefix-aliases.mjs";
 import {
   DATA_FIXTURE_GATE,
   TEST_CREDENTIAL_GATE,
-  inferTestCredentialGate,
+  loadAuthGateById as loadAuthGateByIdFromManifests,
   loadDataFixtureGateById,
 } from "./classification-helpers.mjs";
 
@@ -90,20 +89,7 @@ function resolveBlocker(entry) {
 }
 
 function loadAuthGateById() {
-  const result = spawnSync("python3", ["scripts/uat-crawl/load-auth-gate-by-id.py"], {
-    cwd: ROOT,
-    encoding: "utf8",
-    env: { ...process.env, GITHUB_RUN_ID: RUN_ID },
-  });
-  if (result.status !== 0) {
-    console.error(result.stderr || "load-auth-gate-by-id.py failed");
-    return new Map();
-  }
-  try {
-    return new Map(Object.entries(JSON.parse(result.stdout || "{}")));
-  } catch {
-    return new Map();
-  }
+  return loadAuthGateByIdFromManifests(RUN_ID);
 }
 
 function loadJsonlIds(relativePath, predicate) {
