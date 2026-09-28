@@ -504,3 +504,55 @@ Original UAT-005 failure evidence preserved in prior manifests — post-merge ro
 | FAIL-AUTH-CRED-0016 | UAT-0016 | central | ADMIN_STAFF | desktop | /admin/roles | Authenticated crawl | Logged-in role surface | BLOCKED — missing secret(s): TEST_ADMIN_EMAIL, TEST_ADMIN_PASSWORD | P1 | pre-auth preserved | — | Auth rerun | Central | Deploy/Auth | TEST_ADMIN_EMAIL, TEST_ADMIN_PASSWORD |
 | FAIL-AUTH-CRED-0017 | UAT-0017 | central | ADMIN_STAFF | desktop | /admin/clients | Authenticated crawl | Logged-in role surface | BLOCKED — missing secret(s): TEST_ADMIN_EMAIL, TEST_ADMIN_PASSWORD | P1 | pre-auth preserved | — | Auth rerun | Central | Deploy/Auth | TEST_ADMIN_EMAIL, TEST_ADMIN_PASSWORD |
 | FAIL-AUTH-CRED-0019 | UAT-0019 | central | ADMIN_STAFF | desktop | /admin/approvals | Authenticated crawl | Logged-in role surface | BLOCKED — missing secret(s): TEST_ADMIN_EMAIL, TEST_ADMIN_PASSWORD | P1 | pre-auth preserved | — | Auth rerun | Central | Deploy/Auth | TEST_ADMIN_EMAIL, TEST_ADMIN_PASSWORD |
+
+---
+
+## post-fix-483 (current main @ 4e16ae5f) crawl failures — run 36450858295 (2026-09-28)
+
+### Functional / access / blocked
+
+| FAIL-ID | UAT-ID | App | Role | Device | Route/Page | Function | Expected | Actual | Severity | Screenshot(s) | Console/Network | Repro | Owning repo | Layer | Fix dependency |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| FAIL-FIXTURE-0018 | UAT-0018 | central | ADMIN_SALES | phone | /admin/clients | Open pending sheet | Fixture dc370b46-ae39-44ec-9d1c-4c4bcdc9a60c or successor pending | Could not open pending review sheet — no pending apps or selector miss | P0 | UAT-0018_central_admin_sales_admin-clients-sheet-review-open_S0-sheet-open.png | — | Post-fix #483 | Central | Data/Fixture | Pending app required |
+| FAIL-FIXTURE-0020 | UAT-0020 | central | ADMIN_SALES | phone | /admin/approvals | Open pending sheet | Fixture dc370b46-ae39-44ec-9d1c-4c4bcdc9a60c or successor pending | Could not open pending review sheet — no pending apps or selector miss | P0 | UAT-0020_central_admin_sales_admin-approvals-sheet-review-open_S0-sheet-open.png | — | Post-fix #483 | Central | Data/Fixture | Pending app required |
+
+---
+
+## auth-rerun (authenticated repair) crawl failures — run 36450858295 (2026-09-28)
+
+### Functional / access / blocked
+
+| FAIL-ID | UAT-ID | App | Role | Device | Route/Page | Function | Expected | Actual | Severity | Screenshot(s) | Console/Network | Repro | Owning repo | Layer | Fix dependency |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| FAIL-AUTH-LOGIN-0006 | UAT-0006 | central | BUYER | iphone-14 | /buyer/access-request | Login with TEST_BUYER | Session established | Buyer authentication requires governed MSG91 OTP — browser automation cannot invent or bypass provider OTP | P1 | pre-auth preserved | — | Auth rerun | Central | Auth/Network | Verify TEST_BUYER_* and crawl target URL |
+| FAIL-AUTH-LOGIN-0007 | UAT-0007 | central | BUYER | iphone-14 | /buyer/* | Login with TEST_BUYER | Session established | Buyer authentication requires governed MSG91 OTP — browser automation cannot invent or bypass provider OTP | P1 | pre-auth preserved | — | Auth rerun | Central | Auth/Network | Verify TEST_BUYER_* and crawl target URL |
+
+---
+
+## tranche-07-auth crawl failures — run 36450858295 (2026-09-28)
+
+### Functional / access / blocked
+
+| FAIL-ID | UAT-ID | App | Role | Device | Route/Page | Function | Expected | Actual | Severity | Screenshot(s) | Console/Network | Repro | Owning repo | Layer | Fix dependency |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| FAIL-AUTH-LOGIN-0106 | UAT-0106 | central | TV | tv-1080p | /tv/arabic-sweets | Login with TEST_TV_PRODUCTION | Session established | page.waitForURL: Timeout 120000ms exceeded.
+=========================== logs ===========================
+waiting for navigation until "load"
+============================================================ | P1 | pre-auth preserved | — | Auth rerun | Central | Auth/Network | Verify TEST_TV_PRODUCTION_* and crawl target URL |
+
+---
+
+## tranche-08-auth crawl failures — run 36450858295 (2026-09-28)
+
+### Functional / access / blocked
+
+| FAIL-ID | UAT-ID | App | Role | Device | Route/Page | Function | Expected | Actual | Severity | Screenshot(s) | Console/Network | Repro | Owning repo | Layer | Fix dependency |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| FAIL-AUTH-LOGIN-0114 | UAT-0114 | central | BUYER | iphone-14 | /buyer | Login with TEST_BUYER | Session established | Buyer authentication requires governed MSG91 OTP — browser automation cannot invent or bypass provider OTP | P1 | pre-auth preserved | — | Auth rerun | Central | Auth/Network | Verify TEST_BUYER_* and crawl target URL |
+| FAIL-AUTH-LOGIN-0115 | UAT-0115 | central | BUYER | iphone-14 | /buyer/catalogue | Login with TEST_BUYER | Session established | Buyer authentication requires governed MSG91 OTP — browser automation cannot invent or bypass provider OTP | P1 | pre-auth preserved | — | Auth rerun | Central | Auth/Network | Verify TEST_BUYER_* and crawl target URL |
+| FAIL-AUTH-LOGIN-0116 | UAT-0116 | central | BUYER | iphone-14 | /buyer/cart | Login with TEST_BUYER | Session established | Buyer authentication requires governed MSG91 OTP — browser automation cannot invent or bypass provider OTP | P1 | pre-auth preserved | — | Auth rerun | Central | Auth/Network | Verify TEST_BUYER_* and crawl target URL |
+| FAIL-AUTH-LOGIN-0117 | UAT-0117 | central | BUYER | iphone-14 | /buyer/orders | Login with TEST_BUYER | Session established | Buyer authentication requires governed MSG91 OTP — browser automation cannot invent or bypass provider OTP | P1 | pre-auth preserved | — | Auth rerun | Central | Auth/Network | Verify TEST_BUYER_* and crawl target URL |
+| FAIL-AUTH-LOGIN-0118 | UAT-0118 | central | BUYER | iphone-14 | /buyer/account | Login with TEST_BUYER | Session established | Buyer authentication requires governed MSG91 OTP — browser automation cannot invent or bypass provider OTP | P1 | pre-auth preserved | — | Auth rerun | Central | Auth/Network | Verify TEST_BUYER_* and crawl target URL |
+| FAIL-AUTH-LOGIN-0119 | UAT-0119 | central | BUYER | iphone-14 | /buyer/support | Login with TEST_BUYER | Session established | Buyer authentication requires governed MSG91 OTP — browser automation cannot invent or bypass provider OTP | P1 | pre-auth preserved | — | Auth rerun | Central | Auth/Network | Verify TEST_BUYER_* and crawl target URL |
+| FAIL-AUTH-LOGIN-0120 | UAT-0120 | central | BUYER | iphone-14 | /buyer/documents | Login with TEST_BUYER | Session established | Buyer authentication requires governed MSG91 OTP — browser automation cannot invent or bypass provider OTP | P1 | pre-auth preserved | — | Auth rerun | Central | Auth/Network | Verify TEST_BUYER_* and crawl target URL |
+| FAIL-AUTH-LOGIN-0121 | UAT-0121 | central | BUYER | iphone-14 | /buyer/access-request | Login with TEST_BUYER | Session established | Buyer authentication requires governed MSG91 OTP — browser automation cannot invent or bypass provider OTP | P1 | pre-auth preserved | — | Auth rerun | Central | Auth/Network | Verify TEST_BUYER_* and crawl target URL |

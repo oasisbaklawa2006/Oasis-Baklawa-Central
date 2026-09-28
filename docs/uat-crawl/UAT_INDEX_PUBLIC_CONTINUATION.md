@@ -1,10 +1,10 @@
 # UAT Visual + UX Crawl Index — public-continuation-current-main
 
 **UAT range:** UAT-0001, UAT-0004, UAT-0005, UAT-0008, UAT-0009
-**Crawl base URL:**     https://oasis-baklawa-central.vercel.app
+**Crawl base URL:** https://oasis-baklawa-central.vercel.app
 **Central baseline SHA:** `08ccb1cfd4a3624103f0681b5515e26727e77cd2`
 **UX matrix:** [UAT_UX_FAILURE_MATRIX.md](./UAT_UX_FAILURE_MATRIX.md) (148 criteria)
-**Captured:** 2026-09-27T06:25:43.799Z
+**Captured:** 2026-09-28T16:48:45.252Z
 
 | UAT ID | S0 | Route | State | Visual | Function | UX | Evaluated | Failures | Notes |
 |---|---|---|---|---|---|---|---:|---:|---|
@@ -14,5 +14,5 @@
 | UAT-0008 | [UAT-0008_central_unauthenticated_login-default_S0-default.png](../../uat-evidence/screenshots/public-continuation/UAT-0008_central_unauthenticated_login-default_S0-default.png) | /login | default | OBSERVED | NOT-TESTED | PARTIAL | 4/148 | 0 | title="Oasis Baklawa Central | B2B Partner Portal" fina |
 | UAT-0009 | [UAT-0009_central_unauthenticated_reset-password-default_S0-default.png](../../uat-evidence/screenshots/public-continuation/UAT-0009_central_unauthenticated_reset-password-default_S0-default.png) | /reset-password | default | OBSERVED | NOT-TESTED | PARTIAL | 4/148 | 0 | title="Oasis Baklawa Central | B2B Partner Portal" fina |
 
-**Provenance:** exact current-main @ `d3f57a7cce274534a6cb3a29e8f5edf0d9797e10` (#558) — prior ace340fe/6c7de2a rows archived append-only.
+**Provenance:** exact current-main @ `4e16ae5f434cdeb4449e077a50c828a89e51316c` (#558) — prior ace340fe/6c7de2a rows archived append-only.
 **Policy:** Pre-auth tranche-01 screenshots preserved append-only.

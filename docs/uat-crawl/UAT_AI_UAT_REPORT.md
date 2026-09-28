@@ -1,6 +1,6 @@
 # APPVERSE AI UAT — Tranche 1
 
-Generated: 2026-09-27T21:43:16.765Z  
+Generated: 2026-09-28T16:27:12.977Z  
 Target: https://oasis-baklawa-central.vercel.app/  
 AI planner: disabled  
 Visual model input: disabled
@@ -28,6 +28,8 @@ Visual model input: disabled
 - **Expected:** After logout the browser must reach the login flow and a direct revisit of /admin/dispatch-mgmt must not restore the authenticated Dispatch surface.
 - **Actual:** Logout cleared staff session; protected Dispatch route did not restore authenticated content.
 - **Final URL:** https://oasis-baklawa-central.vercel.app/login
+- **Console errors:** 1
+- **Failed requests:** 1
 
 ### UAT-002 — PASS
 

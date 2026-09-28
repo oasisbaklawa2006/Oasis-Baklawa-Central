@@ -1,10 +1,10 @@
 # UAT Visual + UX Crawl Index — tranche-04-auth
 
 **UAT range:** UAT-0031..UAT-0050
-**Crawl base URL:**     https://oasis-baklawa-central.vercel.app
+**Crawl base URL:** https://oasis-baklawa-central.vercel.app
 **Central baseline SHA:** `08ccb1cfd4a3624103f0681b5515e26727e77cd2`
 **UX matrix:** [UAT_UX_FAILURE_MATRIX.md](./UAT_UX_FAILURE_MATRIX.md) (148 criteria)
-**Captured:** 2026-09-27T06:13:57.182Z
+**Captured:** 2026-09-28T16:36:27.277Z
 
 | UAT ID | S0 | Route | State | Visual | Function | UX | Evaluated | Failures | Notes |
 |---|---|---|---|---|---|---|---:|---:|---|
