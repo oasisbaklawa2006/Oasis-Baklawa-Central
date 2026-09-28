@@ -73,18 +73,41 @@ export function firstRow(data) {
  * stack. Every value interpolated into `sql` must be a fixed constant the
  * caller controls, never external input.
  */
-export function queryLocalPostgresScalar(localDbUrl, sql, operationLabel, localOnlyLabel) {
+export function queryLocalPostgresScalar(
+  localDbUrl,
+  sql,
+  operationLabel,
+  localOnlyLabel,
+  bindings = {},
+) {
   const parsed = new URL(localDbUrl);
   if (!["postgres:", "postgresql:"].includes(parsed.protocol) || !isLoopbackHostname(parsed.hostname)) {
     throw new Error(`${localOnlyLabel}_LOCAL_ONLY: refusing Postgres target for ${operationLabel}`);
   }
+
+  const bindingEnv = {};
+  const bindingPrelude = [];
+  for (const [name, rawValue] of Object.entries(bindings)) {
+    if (!/^[a-z][a-z0-9_]*$/.test(name)) {
+      throw new Error(`${localOnlyLabel}_SQL_BINDING_NAME_INVALID: ${name}`);
+    }
+    const value = String(rawValue ?? "");
+    if (value.includes("\0") || /[\r\n]/.test(value)) {
+      throw new Error(`${localOnlyLabel}_SQL_BINDING_VALUE_INVALID: ${name}`);
+    }
+    const envName = `POINT100_SQL_${name.toUpperCase()}`;
+    bindingEnv[envName] = value;
+    bindingPrelude.push(`\\getenv ${name} ${envName}`);
+  }
+
   try {
     return execFileSync("psql", ["-At", "-v", "ON_ERROR_STOP=1", "-q"], {
-      input: sql,
+      input: `${bindingPrelude.join("\n")}\n${sql}`,
       stdio: ["pipe", "pipe", "pipe"],
       encoding: "utf8",
       env: {
         ...process.env,
+        ...bindingEnv,
         PGHOST: parsed.hostname,
         PGPORT: parsed.port || "5432",
         PGUSER: decodeURIComponent(parsed.username),
