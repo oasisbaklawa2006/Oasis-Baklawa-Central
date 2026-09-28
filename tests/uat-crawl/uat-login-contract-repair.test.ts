@@ -128,9 +128,10 @@ describe("UAT login contract repair regressions", () => {
     expect(aiUatSpec).toContain("waitForUnauthenticatedDestination(page, context)");
   });
 
-  it("15 — evidence-branch pushes default to auth-contract-smoke; commit message can request watchdog-continue", () => {
+  it("15 — evidence-branch pushes default to auth-contract-smoke; commit message can request watchdog-continue or post-fix-483", () => {
     expect(workflowYaml).toContain("auth-contract-smoke");
     expect(workflowYaml).toContain("UAT watchdog-continue");
+    expect(workflowYaml).toContain("UAT post-fix-483");
     expect(workflowYaml).toContain("|| 'auth-contract-smoke'");
     expect(workflowYaml).toContain("env.RUN_TRANCHE == 'auth-contract-smoke'");
   });

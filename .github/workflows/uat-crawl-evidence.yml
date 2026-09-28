@@ -57,10 +57,10 @@ jobs:
     outputs:
       run_tranche: ${{ steps.record_crawl_plan.outputs.run_tranche }}
     env:
-      # Pushes default to auth-contract-smoke; commit message "UAT watchdog-continue" runs full continuation (dispatch still preferred).
-      RUN_TRANCHE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.run_tranche || (github.event_name == 'push' && contains(github.event.head_commit.message, 'UAT watchdog-continue') && 'watchdog-continue' || 'auth-contract-smoke') }}
-      TEST_PREVIEW_URL: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.target_url != '' && github.event.inputs.target_url || secrets.TEST_PREVIEW_URL }}
-      UAT_CRAWL_BASE_URL: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.target_url != '' && github.event.inputs.target_url || secrets.TEST_PREVIEW_URL }}
+      # Pushes default to auth-contract-smoke; "UAT post-fix-483" or "UAT watchdog-continue" in commit message (dispatch still preferred).
+      RUN_TRANCHE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.run_tranche || (github.event_name == 'push' && contains(github.event.head_commit.message, 'UAT post-fix-483') && 'post-fix-483' || (github.event_name == 'push' && contains(github.event.head_commit.message, 'UAT watchdog-continue') && 'watchdog-continue' || 'auth-contract-smoke')) }}
+      TEST_PREVIEW_URL: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.target_url != '' && github.event.inputs.target_url || (github.event_name == 'push' && contains(github.event.head_commit.message, 'UAT post-fix-483') && 'https://oasis-baklawa-central.vercel.app' || secrets.TEST_PREVIEW_URL) }}
+      UAT_CRAWL_BASE_URL: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.target_url != '' && github.event.inputs.target_url || (github.event_name == 'push' && contains(github.event.head_commit.message, 'UAT post-fix-483') && 'https://oasis-baklawa-central.vercel.app' || secrets.TEST_PREVIEW_URL) }}
       TEST_ADMIN_EMAIL: ${{ secrets.TEST_ADMIN_EMAIL }}
       TEST_ADMIN_PASSWORD: ${{ secrets.TEST_ADMIN_PASSWORD }}
       TEST_BUYER_EMAIL: ${{ secrets.TEST_BUYER_EMAIL }}
