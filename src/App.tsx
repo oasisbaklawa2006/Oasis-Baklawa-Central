@@ -10,9 +10,10 @@ import { CurrencyProvider } from "./contexts/CurrencyContext.tsx";
 
 import { Navigate } from "react-router-dom";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import AdminLayout from "@/components/AdminLayout.tsx";
 
 // Eager — small, used on initial paint / auth flow
-import Login from "./pages/Login.tsx";
+import AuthEntry from "./pages/AuthEntry.tsx";
 import Splash from "./pages/Splash.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import ErrorBoundary from "./components/ErrorBoundary.tsx";
@@ -28,8 +29,9 @@ import { SECURITY_GATE_ALLOWED_ROLES } from "@/lib/auth/securityGatePolicy";
 const ResetPassword = lazy(() => import("./pages/ResetPassword.tsx"));
 const BuyerApp = lazy(() => import("./pages/customer/BuyerApp.tsx"));
 const BuyerAccessRequest = lazy(() => import("./pages/customer/BuyerApp.tsx").then((module) => ({ default: module.BuyerAccessRequest })));
+const BuyerLogin = lazy(() => import("./pages/BuyerLogin.tsx"));
+const StaffLogin = lazy(() => import("./pages/StaffLogin.tsx"));
 
-const AdminLayout = lazy(() => import("./components/AdminLayout.tsx"));
 const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard.tsx"));
 const AdminClients = lazy(() => import("./pages/admin/AdminClients.tsx"));
 const Customer360Page = lazy(() => import("./pages/admin/Customer360Page.tsx"));
@@ -180,28 +182,13 @@ function getUnresolvedDestination(_opts: {
   hasAppliedB2B: boolean;
   profileStatus: string | null;
   role: string | null;
-}): "/customer-app-redirect" {
-  return "/customer-app-redirect";
+}): "/buyer/access-request" {
+  return "/buyer/access-request";
 }
-
-const ADMIN_EXPRESS_EMAILS = new Set(["admin@oasisbaklawa.com"]);
-const ADMIN_EXPRESS_PHONES = new Set(["+919891162212", "919891162212", "9891162212"]);
-
-const isAdminExpressUser = (user: { email?: string | null; phone?: string | null } | null | undefined) => {
-  if (!user) return false;
-  const email = (user.email || "").toLowerCase();
-  const phone = (user.phone || "").replace(/\s+/g, "");
-  return ADMIN_EXPRESS_EMAILS.has(email) || ADMIN_EXPRESS_PHONES.has(phone);
-};
 
 const RootGate = () => {
   const { user, loading: authLoading, role, companyId, profileReady, hasAppliedB2B, profileStatus } = useAuth();
   const normalizedRole = normalizeRole(role);
-
-  // Admin express bypass — skip heavy bootstrap waits for known admin identities
-  if (user && isAdminExpressUser(user)) {
-    return <Navigate to="/admin/execution-command-center" replace />;
-  }
 
   if (authLoading || (user && !profileReady)) {
     return <AuthSpinner />;
@@ -253,7 +240,7 @@ const App = () => (
                   <Route path="/security-gate" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={[...SECURITY_GATE_ALLOWED_ROLES]}><AdminSecurityGate /></RoleProtectedRoute></ProtectedRoute>} />
                   <Route path="/" element={<RootGate />} />
                   <Route path="/customer-app-redirect" element={<CustomerAppRedirect />} />
-                  <Route path="/buyer/access-request" element={<ProtectedRoute><BuyerAccessRequest /></ProtectedRoute>} />
+                  <Route path="/buyer/access-request" element={<BuyerAccessRequest />} />
                   <Route
                     path="/buyer/*"
                     element={
@@ -264,7 +251,9 @@ const App = () => (
                       </ProtectedRoute>
                     }
                   />
-                  <Route path="/login" element={<Login />} />
+                  <Route path="/login" element={<AuthEntry />} />
+                  <Route path="/buyer/login" element={<BuyerLogin />} />
+                  <Route path="/staff/login" element={<StaffLogin />} />
                   <Route path="/reset-password" element={<ResetPassword />} />
                   <Route
                     path="/admin"
@@ -356,11 +345,11 @@ const App = () => (
                       }
                     />
                     <Route path="cmd-war-room" element={<Navigate to="/admin/central-pool" replace />} />
-                    <Route path="inventory-command-center" element={<InventoryCommandCenter />} />
+                    <Route path="inventory-command-center" element={<Navigate to="/admin/ready-goods" replace />} />
                     <Route path="inventory-receiving" element={<InventoryReceiving />} />
                     <Route path="carton-explorer" element={<CartonExplorer />} />
                     <Route path="reservation-board" element={<ReservationBoard />} />
-                    <Route path="inventory-risk-board" element={<InventoryRiskBoard />} />
+                    <Route path="inventory-risk-board" element={<Navigate to="/admin/inventory" replace />} />
                     <Route path="scan-timeline" element={<ScanTimeline />} />
                     <Route path="assembly-tasks" element={<AssemblyManagement />} />
                     <Route path="assembly-tv" element={<AssemblyTV />} />
@@ -405,28 +394,13 @@ const App = () => (
                       }
                     />
                     <Route
-                      path="queue-execution-preview"
-                      element={
-                        <AdminModuleRoute moduleKey="cmd_war_room">
-                          <QueueExecutionPreview />
-                        </AdminModuleRoute>
-                      }
+                      path="queue-execution-preview" element={<Navigate to="/admin/live-work-queues" replace />}
                     />
                     <Route
-                      path="barcode-execution-preview"
-                      element={
-                        <AdminModuleRoute moduleKey="cmd_war_room">
-                          <BarcodeExecutionPreview />
-                        </AdminModuleRoute>
-                      }
+                      path="barcode-execution-preview" element={<Navigate to="/admin/golden-chain-operator" replace />}
                     />
                     <Route
-                      path="product-intelligence-prototype"
-                      element={
-                        <AdminModuleRoute moduleKey="cmd_war_room">
-                          <ProductIntelligencePrototype />
-                        </AdminModuleRoute>
-                      }
+                      path="product-intelligence-prototype" element={<Navigate to="/admin/products" replace />}
                     />
                     <Route
                       path="management-command-center"
@@ -437,28 +411,13 @@ const App = () => (
                       }
                     />
                     <Route
-                      path="execution-command-center"
-                      element={
-                        <AdminModuleRoute moduleKey="cmd_war_room">
-                          <ExecutionCommandCenter />
-                        </AdminModuleRoute>
-                      }
+                      path="execution-command-center" element={<Navigate to="/admin/live-work-queues" replace />}
                     />
                     <Route
-                      path="execution-risk"
-                      element={
-                        <AdminModuleRoute moduleKey="cmd_war_room">
-                          <ExecutionRiskBoard />
-                        </AdminModuleRoute>
-                      }
+                      path="execution-risk" element={<Navigate to="/admin/exceptions" replace />}
                     />
                     <Route
-                      path="execution-bottlenecks"
-                      element={
-                        <AdminModuleRoute moduleKey="cmd_war_room">
-                          <ExecutionBottlenecks />
-                        </AdminModuleRoute>
-                      }
+                      path="execution-bottlenecks" element={<Navigate to="/admin/live-work-queues" replace />}
                     />
                     {/*
                       execution/production, execution/assembly and
@@ -488,20 +447,10 @@ const App = () => (
                       }
                     />
                     <Route
-                      path="execution/retail"
-                      element={
-                        <AdminModuleRoute moduleKey="inventory">
-                          <RetailExecutionBoard />
-                        </AdminModuleRoute>
-                      }
+                      path="execution/retail" element={<Navigate to="/admin/reservation-board" replace />}
                     />
                     <Route
-                      path="execution/complaints"
-                      element={
-                        <AdminModuleRoute moduleKey="support">
-                          <ComplaintsExecutionBoard />
-                        </AdminModuleRoute>
-                      }
+                      path="execution/complaints" element={<Navigate to="/admin/support" replace />}
                     />
                     <Route path="rgs-tv" element={<ReadyGoodsTV />} />
                     <Route path="golden-chain-operator" element={<GoldenChainOperatorWizard />} />
@@ -552,7 +501,7 @@ const App = () => (
                         </AdminModuleRoute>
                       }
                     />
-                    <Route path="verification" element={<Navigate to="/admin/execution-command-center" replace />} />
+                    <Route path="verification" element={<Navigate to="/admin/live-work-queues" replace />} />
                     <Route path="announcements" element={<AdminAnnouncements />} />
                   </Route>
                   </Route>

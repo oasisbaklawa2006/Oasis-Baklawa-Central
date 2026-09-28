@@ -1,0 +1,153 @@
+import { describe, expect, it, vi } from "vitest";
+import {
+  APPROVED_B2B_IDENTITY_CLAIM_RPC,
+  assertApprovedB2bClaimBound,
+  claimApprovedB2bIdentity,
+  claimApprovedB2bIdentityForAuthenticatedSession,
+  waitForAuthenticatedSession,
+  isApprovedB2bIdentityClaimRow,
+  normalizeApprovedB2bClaimRpcData,
+  shouldClaimApprovedB2bIdentityAfterTokenHash,
+  verifyTokenHashThenClaimApprovedB2bIdentity,
+} from "@/lib/b2b-approved-identity-claim";
+
+describe("UAT #561 approved B2B identity claim", () => {
+  it("recognizes only the programmatic magiclink TokenHash handoff", () => {
+    expect(shouldClaimApprovedB2bIdentityAfterTokenHash({ type: "magiclink", token_hash: "hash" })).toBe(true);
+    expect(shouldClaimApprovedB2bIdentityAfterTokenHash({ type: "email", token_hash: "hash" })).toBe(false);
+    expect(shouldClaimApprovedB2bIdentityAfterTokenHash({ type: "sms", token: "123456", phone: "+919999999999" })).toBe(false);
+    expect(shouldClaimApprovedB2bIdentityAfterTokenHash({ type: "magiclink", token_hash: "" })).toBe(false);
+  });
+
+  it("keeps Core as the only claim authority and supplies no phone/application arguments", () => {
+    expect(APPROVED_B2B_IDENTITY_CLAIM_RPC).toBe("claim_approved_b2b_access_request_v2");
+  });
+
+  it("orders verified session before Core claim before returning to account resolution", async () => {
+    const order: string[] = [];
+    const result = await verifyTokenHashThenClaimApprovedB2bIdentity(
+      { type: "magiclink", token_hash: "provider-hash" },
+      async () => {
+        order.push("verify-session");
+        return { data: { user: { id: "buyer-1" } }, error: null };
+      },
+      async () => {
+        order.push("claim-approved-application");
+        return { applicationId: "app-1", companyId: "company-1", claimed: true, alreadyActive: false };
+      },
+    );
+
+    order.push("account-resolution");
+    expect(result.data?.user).toEqual({ id: "buyer-1" });
+    expect(order).toEqual(["verify-session", "claim-approved-application", "account-resolution"]);
+  });
+
+  it("does not claim if Supabase session verification fails", async () => {
+    const claim = vi.fn(async () => ({ applicationId: null, companyId: null, claimed: false, alreadyActive: false }));
+    await verifyTokenHashThenClaimApprovedB2bIdentity(
+      { type: "magiclink", token_hash: "provider-hash" },
+      async () => ({ data: { user: null }, error: new Error("verify failed") }),
+      claim,
+    );
+    expect(claim).not.toHaveBeenCalled();
+  });
+
+  it("accepts only the exact Core row shape", () => {
+    expect(isApprovedB2bIdentityClaimRow({ application_id: null, claimed: false, company_id: null, already_active: false })).toBe(true);
+    expect(isApprovedB2bIdentityClaimRow({ application_id: "app-1", claimed: true, company_id: "company-1", already_active: false })).toBe(true);
+    expect(isApprovedB2bIdentityClaimRow(null)).toBe(false);
+    expect(isApprovedB2bIdentityClaimRow({})).toBe(false);
+    expect(isApprovedB2bIdentityClaimRow({ application_id: null, claimed: "false", company_id: null, already_active: false })).toBe(false);
+    expect(isApprovedB2bIdentityClaimRow({ application_id: 42, claimed: false, company_id: null, already_active: false })).toBe(false);
+  });
+
+  it("treats a structurally valid no-match Core claim as a pending-applicant no-op", async () => {
+    const outcome = await claimApprovedB2bIdentity(async () => ({
+      data: [{ application_id: null, claimed: false, company_id: null, already_active: false }],
+      error: null,
+    }));
+    expect(outcome).toEqual({ applicationId: null, companyId: null, claimed: false, alreadyActive: false });
+  });
+
+  it("treats an empty Core claim result set as a deliberate no-match (no identity_profiles row yet)", async () => {
+    expect(normalizeApprovedB2bClaimRpcData([])).toEqual({
+      application_id: null,
+      claimed: false,
+      company_id: null,
+      already_active: false,
+    });
+    const outcome = await claimApprovedB2bIdentity(async () => ({ data: [], error: null }));
+    expect(outcome.claimed).toBe(false);
+  });
+
+  it("requires a readable session before invoking Core claim authority", async () => {
+    await expect(claimApprovedB2bIdentityForAuthenticatedSession(
+      async () => ({ data: [], error: null }),
+      async () => false,
+    )).rejects.toThrow("APPROVED_B2B_IDENTITY_CLAIM_FAILED:session_missing");
+  });
+
+  it("retries session hydration briefly before failing claim", async () => {
+    let reads = 0;
+    const ready = await waitForAuthenticatedSession(async () => {
+      reads += 1;
+      return reads >= 3;
+    }, 5, 1);
+    expect(ready).toBe(true);
+    expect(reads).toBe(3);
+  });
+
+  it("returns activated claim state without inventing authority client-side", async () => {
+    const outcome = await claimApprovedB2bIdentity(async () => ({
+      data: [{ application_id: "app-1", claimed: true, company_id: "company-1", already_active: false }],
+      error: null,
+    }));
+    expect(outcome).toEqual({ applicationId: "app-1", companyId: "company-1", claimed: true, alreadyActive: false });
+  });
+
+  it.each([
+    null,
+    {},
+    [{ application_id: null, claimed: false, company_id: null }],
+    [{ application_id: null, claimed: "false", company_id: null, already_active: false }],
+    [
+      { application_id: null, claimed: false, company_id: null, already_active: false },
+      { application_id: null, claimed: false, company_id: null, already_active: false },
+    ],
+  ])("fails closed on malformed successful Core payload %#", async (data) => {
+    await expect(claimApprovedB2bIdentity(async () => ({ data, error: null })))
+      .rejects.toThrow("APPROVED_B2B_IDENTITY_CLAIM_FAILED");
+  });
+
+  it("fails closed when Core claim RPC fails", async () => {
+    await expect(claimApprovedB2bIdentity(async () => ({
+      data: null,
+      error: { message: "ambiguous approved application" },
+    }))).rejects.toThrow("APPROVED_B2B_IDENTITY_CLAIM_FAILED:ambiguous");
+  });
+
+  it("classifies malformed multi-row claim payloads as ambiguous", async () => {
+    await expect(claimApprovedB2bIdentity(async () => ({
+      data: [
+        { application_id: null, claimed: false, company_id: null, already_active: false },
+        { application_id: null, claimed: false, company_id: null, already_active: false },
+      ],
+      error: null,
+    }))).rejects.toThrow("APPROVED_B2B_IDENTITY_CLAIM_FAILED:ambiguous");
+  });
+
+  it("fails closed when Edge signalled an approved application but Core claim did not bind", () => {
+    expect(() => assertApprovedB2bClaimBound(
+      { applicationId: null, companyId: null, claimed: false, alreadyActive: false },
+      true,
+    )).toThrow("APPROVED_B2B_IDENTITY_CLAIM_FAILED:bind_failed");
+    expect(() => assertApprovedB2bClaimBound(
+      { applicationId: "app-1", companyId: "co-1", claimed: true, alreadyActive: false },
+      true,
+    )).not.toThrow();
+    expect(() => assertApprovedB2bClaimBound(
+      { applicationId: null, companyId: null, claimed: false, alreadyActive: false },
+      false,
+    )).not.toThrow();
+  });
+});

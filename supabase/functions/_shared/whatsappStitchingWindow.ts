@@ -161,3 +161,19 @@ export function mergeStitchedText(priorText: string | undefined | null, addition
   const additionalText = stitchedTextFor(additionalMessages);
   return [priorText ?? "", additionalText].filter(Boolean).join("\n");
 }
+
+/** Quarantine rows missing contact authority instead of aborting an entire stitcher batch. */
+export function partitionUnstitchedByContactAuthority<T extends { id: string; contact_id: string | null | undefined }>(
+  messages: T[],
+): { stitchable: T[]; rejectedIds: string[] } {
+  const stitchable: T[] = [];
+  const rejectedIds: string[] = [];
+  for (const message of messages) {
+    if (typeof message.contact_id === "string" && message.contact_id.trim().length > 0) {
+      stitchable.push(message);
+    } else {
+      rejectedIds.push(message.id);
+    }
+  }
+  return { stitchable, rejectedIds };
+}

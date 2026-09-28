@@ -321,6 +321,30 @@ ai_uat_run_matches_correlation() {
   ai_uat_run_matches_title "$run_json" "$head" "$deployment_id" "$merged_at"
 }
 
+# Fetch workflow-dispatch AI-UAT runs created after the Dispatch PR merged.
+ai_uat_workflow_runs_since_merge() {
+  local merged_at="$1"
+  gh api --paginate --slurp -X GET "repos/$REPO/actions/workflows/$AI_UAT_WORKFLOW/runs?event=workflow_dispatch&branch=main&per_page=100" \
+    | jq -c --arg merged_at "$merged_at" '
+        [.[][] | select(.created_at > $merged_at)]
+        | sort_by(.created_at)
+        | reverse
+      '
+}
+
+# Report whether the exact-tuple AI-UAT target is terminal after repeated correlated failures.
+governed_ai_uat_dead_target() {
+  local merged_at head deployment_id runs_json failure_count
+  merged_at="$(pr_merged_at "$DISPATCH_PR")"
+  [[ -n "$merged_at" ]] || return 1
+  if ! read -r head deployment_id _ < <(expected_ai_uat_correlation); then
+    return 1
+  fi
+  runs_json="$(ai_uat_workflow_runs_since_merge "$merged_at")"
+  failure_count="$(correlated_ai_uat_failure_count "$runs_json" "$head" "$deployment_id" "$merged_at")"
+  ai_uat_tuple_is_dead "$failure_count"
+}
+
 # Report whether a correlated AI-UAT dispatch is already queued, running, or succeeded.
 governed_ai_uat_in_flight_or_succeeded() {
   local merged_at head deployment_id target_url run_id status conclusion run_json
@@ -330,34 +354,25 @@ governed_ai_uat_in_flight_or_succeeded() {
     return 1
   fi
 
-  while IFS= read -r run_id; do
-    [[ -n "$run_id" ]] || continue
-    ai_uat_run_matches_correlation "$run_id" "$head" "$deployment_id" "$merged_at" || continue
-    run_json="$(workflow_run_json "$run_id")"
+  runs_json="$(ai_uat_workflow_runs_since_merge "$merged_at")"
+  while IFS= read -r run_json; do
+    [[ -n "$run_json" ]] || continue
+    ai_uat_run_matches_title "$run_json" "$head" "$deployment_id" "$merged_at" || continue
     status="$(jq -r '.status // empty' <<<"$run_json")"
     conclusion="$(jq -r '.conclusion // empty' <<<"$run_json")"
     if [[ "$status" == "queued" || "$status" == "in_progress" || "$conclusion" == "success" ]]; then
       return 0
     fi
-  done < <(
-    gh api --paginate --slurp -X GET "repos/$REPO/actions/workflows/$AI_UAT_WORKFLOW/runs?event=workflow_dispatch&branch=main&per_page=100" \
-      | jq -r --arg merged_at "$merged_at" '
-          [.[][] | select(.created_at > $merged_at)]
-          | sort_by(.created_at)
-          | reverse
-          | .[].id
-        '
-  )
+  done < <(jq -c '.[]' <<<"$runs_json")
 
   return 1
 }
 
 # Dispatch AI-UAT against exact Vercel evidence; the workflow revalidates the tuple before secrets.
 dispatch_ai_uat_if_needed() {
-  local pr head deployment_id target marker body
+  local pr head deployment_id target marker body main_sha
   pr="$(pr_json "$DISPATCH_PR")"
   [[ "$(jq -r '.merged' <<<"$pr")" == "true" ]] || return 0
-  governed_ai_uat_in_flight_or_succeeded && return 0
 
   if ! read -r head deployment_id target < <(expected_ai_uat_correlation); then
     marker="APPVERSE_CONTROLLER:AI_UAT_TARGET_MISSING:$(dispatch_pr_head_sha)"
@@ -367,6 +382,27 @@ APPVERSE AI UAT was not dispatched because no successful Vercel-authored deploym
     comment_once 437 "$marker" "$body"
     return 0
   fi
+
+  main_sha="$(main_head_sha)"
+  if is_historical_dispatch_head "$head" "$main_sha"; then
+    marker="APPVERSE_CONTROLLER:AI_UAT_STALE_DISPATCH_HEAD:$head"
+    body="$marker
+
+APPVERSE AI UAT was not dispatched because PR #$DISPATCH_PR head ($head) is not current trusted main ($main_sha). Historical Dispatch heads are not auto-retried."
+    comment_once 437 "$marker" "$body"
+    return 0
+  fi
+
+  if governed_ai_uat_dead_target; then
+    marker="$(ai_uat_dead_target_marker "$head" "$deployment_id")"
+    body="$marker
+
+APPVERSE AI UAT will not be re-dispatched for the exact PR #$DISPATCH_PR head and Vercel deployment $deployment_id after repeated correlated failures. Review the failed runs and advance Dispatch on trusted main before retrying."
+    comment_once 437 "$marker" "$body"
+    return 0
+  fi
+
+  governed_ai_uat_in_flight_or_succeeded && return 0
 
   persist_ai_uat_correlation "$head" "$deployment_id" "$target"
   echo "Dispatching APPVERSE AI UAT against deployment $deployment_id ($target) for Dispatch head $head"

@@ -12,6 +12,16 @@ val centralWebOrigin: String =
         ?: System.getenv("CENTRAL_WEB_ORIGIN")
         ?: "https://app.oasisbaklawacentral.com"
 
+val traceWebOrigin: String =
+    (project.findProperty("TRACE_WEB_ORIGIN") as String?)
+        ?: System.getenv("TRACE_WEB_ORIGIN")
+        ?: "https://trace.oasisbaklawa.com"
+
+val displayConfigBootstrapUrl: String =
+    (project.findProperty("DISPLAY_CONFIG_BOOTSTRAP_URL") as String?)
+        ?: System.getenv("DISPLAY_CONFIG_BOOTSTRAP_URL")
+        ?: ""
+
 android {
     namespace = "com.oasisbaklawa.centraltv"
     compileSdk = 34
@@ -20,10 +30,12 @@ android {
         applicationId = "com.oasisbaklawa.centraltv"
         minSdk = 24
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "2.0.0"
 
         buildConfigField("String", "CENTRAL_WEB_ORIGIN", "\"$centralWebOrigin\"")
+        buildConfigField("String", "TRACE_WEB_ORIGIN", "\"$traceWebOrigin\"")
+        buildConfigField("String", "DISPLAY_CONFIG_BOOTSTRAP_URL", "\"$displayConfigBootstrapUrl\"")
     }
 
     buildFeatures {
@@ -77,6 +89,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-process:2.8.4")
     implementation("androidx.work:work-runtime-ktx:2.9.1")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.google.zxing:core:3.5.3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
 
     testImplementation("junit:junit:4.13.2")

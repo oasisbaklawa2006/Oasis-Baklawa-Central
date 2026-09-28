@@ -247,7 +247,7 @@ const AdminClients = () => {
     setActionLoading(app.id);
 
     try {
-      const { data, error } = await supabase.rpc("approve_b2b_trade_application_v1", {
+      const { data, error } = await supabase.rpc("approve_b2b_access_request_v2", {
         p_application_id: app.id,
         p_assigned_price_tier: priceTier[app.id],
         p_admin_notes: notes[app.id]?.trim() || null,
@@ -281,14 +281,14 @@ const AdminClients = () => {
         toast.success(`${app.business_name} approved`);
       }
 
-      notifyEvent({
+      const approvalNotification = await notifyEvent({
         event: "approval_granted",
-        subject: "Welcome to Oasis B2B! Your account is active",
-        message: `Welcome to Oasis B2B! Your account is now active.\n\nLogin here: https://b2b.oasisbaklawa.com\n\nYour assigned tier: ${priceTier[app.id]}.\nYou can now place orders, track production live, and access invoices.\n\n— Team Oasis Baklawa`,
-        audiences: [],
-        email: app.contact_email,
-        phone: app.mobile_number,
-      }).catch(() => {});
+        applicationId: app.id,
+      }, { timeoutMs: 10_000 });
+      if (!approvalNotification.success) {
+        console.warn("[AdminClients] Approval notification failed after approval commit:", approvalNotification.error);
+        toast.warning("Client approved, but the approval notification requires retry.");
+      }
 
       setSheetOpen(false);
       await refreshAfterPipelineMutation();

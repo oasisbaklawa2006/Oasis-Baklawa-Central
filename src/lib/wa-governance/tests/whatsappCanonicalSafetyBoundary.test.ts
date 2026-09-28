@@ -40,15 +40,30 @@ describe("WhatsApp canonical safety boundary", () => {
   it("stops Banyan before its retained legacy lifecycle can execute", () => {
     const parser = readRepoFile("supabase/functions/banyan-central-parser/index.ts");
     const marker = parser.indexOf("WA_CANONICAL_RETIREMENT");
-    const retiredReturn = parser.indexOf("status: 410", marker);
-    const serviceClient = parser.indexOf("const supabaseAdmin = createClient", marker);
+    const unreachableLegacy = parser.indexOf("/* c8 ignore start");
+    const liveHandler = parser.slice(0, unreachableLegacy);
 
     expect(marker).toBeGreaterThan(-1);
-    expect(retiredReturn).toBeGreaterThan(marker);
-    expect(serviceClient).toBeGreaterThan(retiredReturn);
-    expect(parser.slice(marker, serviceClient)).toContain(
-      "Banyan independent WhatsApp lifecycle is retired",
-    );
+    expect(unreachableLegacy).toBeGreaterThan(marker);
+    expect(liveHandler).toContain("whatsapp-message-stitcher");
+    expect(liveHandler).toContain("retired_banyan_ai");
+    expect(liveHandler).not.toContain("status: 410");
+    expect(liveHandler).not.toMatch(/\.from\(\s*["']suggested_orders["']\s*\)/);
+    expect(liveHandler).not.toMatch(/\.from\(\s*["']shadow_clients["']\s*\)/);
+    expect(parser.slice(unreachableLegacy)).toMatch(/\.from\(\s*["']suggested_orders["']\s*\)/);
+  });
+
+  it("requires a trusted service-role caller before Banyan forwards recovery to the stitcher", () => {
+    const parser = readRepoFile("supabase/functions/banyan-central-parser/index.ts");
+    const unreachableLegacy = parser.indexOf("/* c8 ignore start");
+    const liveHandler = parser.slice(0, unreachableLegacy);
+    const authCheck = liveHandler.indexOf('(req.headers.get("Authorization") ?? "") !== `Bearer ${serviceKey}`');
+    const stitcherFetch = liveHandler.indexOf("/functions/v1/whatsapp-message-stitcher");
+
+    expect(authCheck).toBeGreaterThan(-1);
+    expect(stitcherFetch).toBeGreaterThan(authCheck);
+    expect(liveHandler).toContain('error: "Trusted parser caller required"');
+    expect(liveHandler).toContain("status: 401");
   });
 
   it("keeps webhook ingress incapable of creating shadow companies", () => {

@@ -32,6 +32,8 @@ The controller never substitutes for:
 - Before any QA secret is available, the AI-UAT workflow independently re-fetches the deployment/status evidence and proves: deployment SHA equals the requested Dispatch head, deployment provenance is Vercel, successful status provenance is Vercel, and the requested target URL exactly equals that status environment URL.
 - Controller completion handling correlates AI-UAT by deterministic workflow-run identity plus trusted `main` workflow-dispatch metadata and merge timing. It does not depend on workflow-dispatch inputs being exposed by the GitHub workflow-run REST object.
 - Unrelated or malformed AI-UAT dispatches cannot produce the physical-UAT handoff. A correlated success still does not equal physical certification.
+- Failed exact-tuple AI-UAT is terminal: after two or more correlated failures for the same Dispatch head and Vercel deployment id, the controller stops re-dispatching and publishes `APPVERSE_CONTROLLER:AI_UAT_DEAD_TARGET:<head>:<deployment_id>` on issue #437.
+- When the merged Dispatch PR head is not current trusted `main`, the controller refuses AI-UAT dispatch for that historical SHA and publishes `APPVERSE_CONTROLLER:AI_UAT_STALE_DISPATCH_HEAD:<head>`.
 - Historical PR comments are not accepted as AI-UAT deployment authority.
 - The controller never runs from a pull-request-authored workflow definition. Its write-capable triggers are restricted to trusted `main` execution.
 

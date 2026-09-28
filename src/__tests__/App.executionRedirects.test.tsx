@@ -37,6 +37,7 @@ vi.mock("@/integrations/supabase/client", () => {
   builder.select = () => builder;
   builder.eq = () => builder;
   builder.in = () => builder;
+  builder.not = () => builder;
   builder.order = () => builder;
   builder.limit = () => builder;
   builder.maybeSingle = () => Promise.resolve({ data: null, error: null });
