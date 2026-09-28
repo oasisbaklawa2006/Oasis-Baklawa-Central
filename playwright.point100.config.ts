@@ -1,15 +1,15 @@
 import { defineConfig, devices } from "@playwright/test";
 
-const DISPOSABLE_CERT_BASE_URL = "http://127.0.0.1:4173";
-
 /**
  * Point100 cross-lifecycle dress rehearsal runner.
  *
- * Composes factory certification disposable backend with lifecycle orchestration,\n * capability matrix generation, and negative-path injection. Credentials stay out\n * of Playwright artifacts (trace/screenshot/video disabled).
+ * Composes factory certification disposable backend with lifecycle orchestration,
+ * capability matrix generation, and negative-path injection. Credentials stay out
+ * of Playwright artifacts (trace/screenshot/video disabled).
  */
 export default defineConfig({
   testDir: "./tests/point100",
-  testMatch: /.*\\.cert\\.spec\\.ts/,
+  testMatch: /.*\.cert\.spec\.ts/,
   timeout: 300_000,
   expect: { timeout: 45_000 },
   fullyParallel: false,
@@ -21,7 +21,7 @@ export default defineConfig({
   ],
   use: {
     ...devices["Desktop Chrome"],
-    baseURL: DISPOSABLE_CERT_BASE_URL,
+    baseURL: process.env.FACTORY_CERT_TARGET_URL?.trim(),
     trace: "off",
     screenshot: "off",
     video: "off",
