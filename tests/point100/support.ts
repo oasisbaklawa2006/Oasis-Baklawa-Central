@@ -136,7 +136,7 @@ export function writeDressRehearsalLedger(
   ledger: Omit<Point100DressRehearsalLedger, "generated_at" | "status" | "certification_mode" | "production_certification_permitted" | "production_migration_gate" | "core_verified_sha" | "inventory_production_verified" | "production_migration_run_id" | "production_gate_blockers"> & {
     production_gate_blockers?: string[];
   },
-  outputFile = "point100-dress-rehearsal-ledger.json",
+  outputKind: "dress-rehearsal" | "capability-matrix" = "dress-rehearsal",
 ): Point100DressRehearsalLedger {
   const failedStages = ledger.stages.filter((s) => s.status === "FAIL");
   const failedNegative = ledger.negative_paths.filter((s) => s.status === "FAIL");
@@ -162,7 +162,11 @@ export function writeDressRehearsalLedger(
         ? "PASS"
         : "FAIL",
   };
-  writeFileSync(outputFile, `${JSON.stringify(summary, null, 2)}\n`, "utf8");
+  if (outputKind === "capability-matrix") {
+    writeFileSync("point100-capability-matrix-ledger.json", `${JSON.stringify(summary, null, 2)}\n`, "utf8");
+  } else {
+    writeFileSync("point100-dress-rehearsal-ledger.json", `${JSON.stringify(summary, null, 2)}\n`, "utf8");
+  }
   return summary;
 }
 
