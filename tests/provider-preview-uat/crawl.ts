@@ -138,7 +138,51 @@ export async function crawlProviderPreviewTarget(
   const routePath = target.route.startsWith("/") ? target.route : `/${target.route}`;
   const destination = `${normalizedBase}${routePath === "/" ? "" : routePath}`;
 
-  await page.goto(destination, { waitUntil: "domcontentloaded", timeout: 60_000 });
+  let blockedNavigation = false;
+  await page.route("**/*", async (route) => {
+    const request = route.request();
+    if (!request.isNavigationRequest()) {
+      await route.continue();
+      return;
+    }
+
+    try {
+      normalizeProviderPreviewUrl(request.url());
+      await route.continue();
+    } catch {
+      blockedNavigation = true;
+      await route.abort("blockedbyclient");
+    }
+  });
+
+  try {
+    await page.goto(destination, { waitUntil: "domcontentloaded", timeout: 60_000 });
+  } catch (error) {
+    const row = blockedRow(target, {
+      viewport,
+      crawlBaseUrl: normalizedBase,
+      blockClassification: blockedNavigation ? "NAVIGATION_REDIRECT_BLOCKED" : "NAVIGATION_FAILED",
+      notes: blockedNavigation
+        ? "Navigation redirect was blocked because it targeted a host outside the governed preview allowlist."
+        : `Navigation failed before the provider-preview surface loaded: ${error instanceof Error ? error.message.slice(0, 240) : "unknown navigation error"}`,
+    });
+    appendManifestRow(row);
+    return row;
+  } finally {
+    await page.unroute("**/*");
+  }
+
+  if (blockedNavigation) {
+    const row = blockedRow(target, {
+      viewport,
+      crawlBaseUrl: normalizedBase,
+      blockClassification: "NAVIGATION_REDIRECT_BLOCKED",
+      notes: "Navigation redirect was blocked because it targeted a host outside the governed preview allowlist.",
+    });
+    appendManifestRow(row);
+    return row;
+  }
+
   await page.waitForTimeout(800);
 
   const title = await page.title();
