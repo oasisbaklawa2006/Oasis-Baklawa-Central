@@ -1,17 +1,17 @@
 {
-  "generatedAt": "2026-09-28T16:50:09.563796Z",
+  "generatedAt": "2026-09-28T17:03:01.045131Z",
   "runId": "36450858295",
   "runTranche": "watchdog-continue",
   "scope": "AUTOMATED_CRAWL_EVIDENCE",
   "passed": false,
   "failures": [
     "NOT_EXECUTED_ROWS:10",
-    "CREDENTIALS_AVAILABLE_WITHOUT_EVIDENCE:2",
-    "AUTH_FLOW_FAILED_ROWS:1",
-    "CURRENT_RUN_SUMMARY_NOT_EXECUTED:12"
+    "CURRENT_RUN_SUMMARY_NOT_EXECUTED:10"
   ],
   "warnings": [
-    "EXTERNAL_PROVIDER_GATES:10"
+    "DATA_FIXTURE_GATE_ROWS:2",
+    "TEST_CREDENTIAL_GATE_ROWS:1",
+    "EXTERNAL_PROVIDER_GATES:13"
   ],
   "externalProviderGates": 10,
   "stepOutcomes": {

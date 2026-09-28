@@ -127,6 +127,8 @@ describe("UAT evidence pipeline repair regressions", () => {
         authContractMismatch,
         otpExternalGate,
         providerGated,
+        dataFixtureGate,
+        testCredentialGate,
         notExecuted,
         totalCensus,
         reconciledTotal,
@@ -140,6 +142,8 @@ describe("UAT evidence pipeline repair regressions", () => {
           authContractMismatch +
           otpExternalGate +
           providerGated +
+          dataFixtureGate +
+          testCredentialGate +
           notExecuted,
       ).toBe(totalCensus);
       expect(reconciledTotal).toBe(totalCensus);

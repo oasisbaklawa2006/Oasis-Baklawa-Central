@@ -385,6 +385,9 @@ export async function crawlPostFix483Target(
   });
 
   const closedFailIds = PRE_FIX_FAIL_IDS.filter((id) => evalResult.disposition[id] === "PASS");
+  const authenticatedOk = !wall.blocked && !stillOnLogin;
+  const fixtureGated =
+    authenticatedOk && !uxEvidence.s3 && sheetNote.includes("Could not open pending review sheet");
 
   const row = attachRunMetadata({
     uatId: target.uatId,
@@ -399,7 +402,11 @@ export async function crawlPostFix483Target(
     baselineSha: POST_FIX_483_BASELINE_SHA,
     crawlBaseUrl: CRAWL_BASE_URL,
     timestamp: new Date().toISOString(),
-    blockClassification: wall.blocked ? DEPLOYMENT_PROTECTION_CLASS : null,
+    blockClassification: wall.blocked
+      ? DEPLOYMENT_PROTECTION_CLASS
+      : fixtureGated
+        ? "DATA_FIXTURE_GATE"
+        : null,
     wallClassification: wall.blocked ? DEPLOYMENT_PROTECTION_CLASS : null,
     visualStatus: wall.blocked || stillOnLogin ? "BLOCKED" : "OBSERVED",
     functionStatus: wall.blocked ? "BLOCKED" : evalResult.functionStatus,

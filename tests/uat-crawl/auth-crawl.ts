@@ -631,7 +631,20 @@ export async function crawlTargetAuthenticated(
     blockClassification: wall.blocked
       ? DEPLOYMENT_PROTECTION_CLASS
       : stillOnLogin
-        ? loginClassification ?? AUTH_BLOCK_CLASSIFICATIONS.AUTH_FLOW_FAILED
+        ? (() => {
+            const base = loginClassification ?? AUTH_BLOCK_CLASSIFICATIONS.AUTH_FLOW_FAILED;
+            if (base !== AUTH_BLOCK_CLASSIFICATIONS.AUTH_FLOW_FAILED) return base;
+            const haystack = [...consoleErrors, ...networkErrors].join(" ");
+            if (
+              creds.prefix &&
+              creds.missingSecretNames.length === 0 &&
+              ((haystack.includes("400") && haystack.includes("auth/v1/token")) ||
+                haystack.includes("SESSION_CREATE_FAILED"))
+            ) {
+              return AUTH_BLOCK_CLASSIFICATIONS.TEST_CREDENTIAL_GATE;
+            }
+            return base;
+          })()
         : null,
     wallClassification: wall.blocked ? DEPLOYMENT_PROTECTION_CLASS : null,
     visualStatus: wall.blocked || stillOnLogin ? "BLOCKED" : "OBSERVED",

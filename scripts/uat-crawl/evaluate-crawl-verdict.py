@@ -105,9 +105,15 @@ def main() -> int:
                 failures.append(f"AUTH_FLOW_FAILED_ROWS:{blockers_summary.get('authFlowFailed')}")
             if int(blockers_summary.get("authContractMismatch") or 0) > 0:
                 failures.append(f"AUTH_CONTRACT_MISMATCH_ROWS:{blockers_summary.get('authContractMismatch')}")
+            data_fixture_gate = int(blockers_summary.get("dataFixtureGate") or 0)
+            test_credential_gate = int(blockers_summary.get("testCredentialGate") or 0)
+            if data_fixture_gate > 0:
+                warnings.append(f"DATA_FIXTURE_GATE_ROWS:{data_fixture_gate}")
+            if test_credential_gate > 0:
+                warnings.append(f"TEST_CREDENTIAL_GATE_ROWS:{test_credential_gate}")
             external_gates = int(blockers_summary.get("otpExternalGate") or 0) + int(
                 blockers_summary.get("providerGated") or 0
-            )
+            ) + data_fixture_gate + test_credential_gate
             if external_gates > 0:
                 warnings.append(f"EXTERNAL_PROVIDER_GATES:{external_gates}")
 
@@ -215,6 +221,8 @@ def main() -> int:
         f"| Provider gated | {counts.get('providerGated', 0)} |",
         f"| Auth flow failed | {counts.get('authFlowFailed', 0)} |",
         f"| Auth contract mismatch | {counts.get('authContractMismatch', 0)} |",
+        f"| Data fixture gate | {counts.get('dataFixtureGate', 0)} |",
+        f"| Test credential gate | {counts.get('testCredentialGate', 0)} |",
         f"| NOT EXECUTED | {counts.get('notExecuted', 0)} |",
         "",
         f"**Failures:** {', '.join(failures) if failures else 'none'}",

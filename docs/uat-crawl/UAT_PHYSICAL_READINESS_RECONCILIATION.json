@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-28T16:50:09.370Z",
+  "generatedAt": "2026-09-28T17:03:01.018Z",
   "runId": "36450858295",
   "runAttempt": "1",
   "runTranche": "watchdog-continue",
@@ -13,11 +13,13 @@
     "authS0S3Complete": 103,
     "publicS0Observed": 5,
     "blockedCredentialOrDeploy": 0,
-    "authFlowFailed": 1,
+    "authFlowFailed": 0,
     "authContractMismatch": 0,
     "otpExternalGate": 10,
     "providerGated": 0,
-    "notExecuted": 12
+    "dataFixtureGate": 2,
+    "testCredentialGate": 1,
+    "notExecuted": 10
   },
   "byDevice": {
     "desktop": {
@@ -27,6 +29,8 @@
       "blocked": 0,
       "otpExternalGate": 0,
       "providerGated": 0,
+      "dataFixtureGate": 0,
+      "testCredentialGate": 0,
       "notExecuted": 4
     },
     "phone": {
@@ -36,7 +40,9 @@
       "blocked": 0,
       "otpExternalGate": 10,
       "providerGated": 0,
-      "notExecuted": 4
+      "dataFixtureGate": 2,
+      "testCredentialGate": 0,
+      "notExecuted": 2
     },
     "tv": {
       "total": 8,
@@ -45,6 +51,8 @@
       "blocked": 0,
       "otpExternalGate": 0,
       "providerGated": 0,
+      "dataFixtureGate": 0,
+      "testCredentialGate": 1,
       "notExecuted": 0
     },
     "scanner": {
@@ -54,6 +62,8 @@
       "blocked": 0,
       "otpExternalGate": 0,
       "providerGated": 0,
+      "dataFixtureGate": 0,
+      "testCredentialGate": 0,
       "notExecuted": 4
     }
   },
@@ -153,6 +163,7 @@
       "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
       "blockClassification": "OTP_EXTERNAL_GATE",
+      "credentialPrefix": "TEST_BUYER",
       "evidenceSource": "auth manifest (current run)"
     },
     {
@@ -168,6 +179,7 @@
       "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
       "blockClassification": "OTP_EXTERNAL_GATE",
+      "credentialPrefix": "TEST_BUYER",
       "evidenceSource": "auth manifest (current run)"
     },
     {
@@ -321,12 +333,25 @@
       "device": "phone",
       "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "NOT_EXECUTED",
-      "s0s3Runnable": "NOT_EXECUTED",
+      "disposition": "DATA_FIXTURE_GATE",
+      "s0s3Runnable": "FIXTURE_GATED",
       "missingSecretNames": [],
-      "blockClassification": "NOT_EXECUTED",
-      "evidenceSource": "none for current run",
-      "note": "No current-run evidence row was produced for this census ID."
+      "blockClassification": "DATA_FIXTURE_GATE",
+      "credentialPrefix": "TEST_SALES",
+      "evidenceSource": "UAT_MANIFEST_POST_FIX_483.jsonl",
+      "note": "Authenticated post-fix S0 captured; governed pending-review fixture unavailable — historical FAIL-481-* remain BLOCKED.",
+      "retestFailIds": [
+        "FAIL-481-001",
+        "FAIL-481-002",
+        "FAIL-UX-481-001",
+        "FAIL-UX-481-002"
+      ],
+      "retestDisposition": {
+        "FAIL-481-001": "BLOCKED",
+        "FAIL-481-002": "BLOCKED",
+        "FAIL-UX-481-001": "BLOCKED",
+        "FAIL-UX-481-002": "BLOCKED"
+      }
     },
     {
       "uatId": "UAT-0019",
@@ -351,12 +376,25 @@
       "device": "phone",
       "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "NOT_EXECUTED",
-      "s0s3Runnable": "NOT_EXECUTED",
+      "disposition": "DATA_FIXTURE_GATE",
+      "s0s3Runnable": "FIXTURE_GATED",
       "missingSecretNames": [],
-      "blockClassification": "NOT_EXECUTED",
-      "evidenceSource": "none for current run",
-      "note": "No current-run evidence row was produced for this census ID."
+      "blockClassification": "DATA_FIXTURE_GATE",
+      "credentialPrefix": "TEST_SALES",
+      "evidenceSource": "UAT_MANIFEST_POST_FIX_483.jsonl",
+      "note": "Authenticated post-fix S0 captured; governed pending-review fixture unavailable — historical FAIL-481-* remain BLOCKED.",
+      "retestFailIds": [
+        "FAIL-481-001",
+        "FAIL-481-002",
+        "FAIL-UX-481-001",
+        "FAIL-UX-481-002"
+      ],
+      "retestDisposition": {
+        "FAIL-481-001": "BLOCKED",
+        "FAIL-481-002": "BLOCKED",
+        "FAIL-UX-481-001": "BLOCKED",
+        "FAIL-UX-481-002": "BLOCKED"
+      }
     },
     {
       "uatId": "UAT-0021",
@@ -1557,11 +1595,13 @@
       "device": "tv",
       "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_FLOW_FAILED",
-      "s0s3Runnable": "BLOCKED",
+      "disposition": "TEST_CREDENTIAL_GATE",
+      "s0s3Runnable": "CREDENTIAL_GATED",
       "missingSecretNames": [],
-      "blockClassification": "AUTH_FLOW_FAILED",
-      "evidenceSource": "auth manifest (current run)"
+      "blockClassification": "TEST_CREDENTIAL_GATE",
+      "credentialPrefix": "TEST_TV_PRODUCTION",
+      "evidenceSource": "auth manifest (current run)",
+      "note": "Supabase password grant rejected for wired TEST_TV_PRODUCTION_* prefix (values not logged)."
     },
     {
       "uatId": "UAT-0107",
@@ -1674,6 +1714,7 @@
       "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
       "blockClassification": "OTP_EXTERNAL_GATE",
+      "credentialPrefix": "TEST_BUYER",
       "evidenceSource": "auth manifest (current run)"
     },
     {
@@ -1689,6 +1730,7 @@
       "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
       "blockClassification": "OTP_EXTERNAL_GATE",
+      "credentialPrefix": "TEST_BUYER",
       "evidenceSource": "auth manifest (current run)"
     },
     {
@@ -1704,6 +1746,7 @@
       "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
       "blockClassification": "OTP_EXTERNAL_GATE",
+      "credentialPrefix": "TEST_BUYER",
       "evidenceSource": "auth manifest (current run)"
     },
     {
@@ -1719,6 +1762,7 @@
       "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
       "blockClassification": "OTP_EXTERNAL_GATE",
+      "credentialPrefix": "TEST_BUYER",
       "evidenceSource": "auth manifest (current run)"
     },
     {
@@ -1734,6 +1778,7 @@
       "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
       "blockClassification": "OTP_EXTERNAL_GATE",
+      "credentialPrefix": "TEST_BUYER",
       "evidenceSource": "auth manifest (current run)"
     },
     {
@@ -1749,6 +1794,7 @@
       "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
       "blockClassification": "OTP_EXTERNAL_GATE",
+      "credentialPrefix": "TEST_BUYER",
       "evidenceSource": "auth manifest (current run)"
     },
     {
@@ -1764,6 +1810,7 @@
       "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
       "blockClassification": "OTP_EXTERNAL_GATE",
+      "credentialPrefix": "TEST_BUYER",
       "evidenceSource": "auth manifest (current run)"
     },
     {
@@ -1779,6 +1826,7 @@
       "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
       "blockClassification": "OTP_EXTERNAL_GATE",
+      "credentialPrefix": "TEST_BUYER",
       "evidenceSource": "auth manifest (current run)"
     },
     {
@@ -1794,6 +1842,7 @@
       "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
       "blockClassification": "NOT_EXECUTED",
+      "credentialPrefix": null,
       "evidenceSource": "auth manifest (current run)"
     },
     {
@@ -1809,6 +1858,7 @@
       "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
       "blockClassification": "NOT_EXECUTED",
+      "credentialPrefix": null,
       "evidenceSource": "auth manifest (current run)"
     },
     {
@@ -1824,6 +1874,7 @@
       "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
       "blockClassification": "NOT_EXECUTED",
+      "credentialPrefix": null,
       "evidenceSource": "auth manifest (current run)"
     },
     {
@@ -1839,6 +1890,7 @@
       "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
       "blockClassification": "NOT_EXECUTED",
+      "credentialPrefix": null,
       "evidenceSource": "auth manifest (current run)"
     },
     {
@@ -1854,6 +1906,7 @@
       "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
       "blockClassification": "NOT_EXECUTED",
+      "credentialPrefix": null,
       "evidenceSource": "auth manifest (current run)"
     },
     {
@@ -1869,6 +1922,7 @@
       "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
       "blockClassification": "NOT_EXECUTED",
+      "credentialPrefix": null,
       "evidenceSource": "auth manifest (current run)"
     },
     {
@@ -1884,6 +1938,7 @@
       "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
       "blockClassification": "NOT_EXECUTED",
+      "credentialPrefix": null,
       "evidenceSource": "auth manifest (current run)"
     },
     {
@@ -1899,6 +1954,7 @@
       "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
       "blockClassification": "NOT_EXECUTED",
+      "credentialPrefix": null,
       "evidenceSource": "auth manifest (current run)"
     },
     {
@@ -1914,6 +1970,7 @@
       "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
       "blockClassification": "NOT_EXECUTED",
+      "credentialPrefix": null,
       "evidenceSource": "auth manifest (current run)"
     },
     {
@@ -1929,6 +1986,7 @@
       "s0s3Runnable": "BLOCKED",
       "missingSecretNames": [],
       "blockClassification": "NOT_EXECUTED",
+      "credentialPrefix": null,
       "evidenceSource": "auth manifest (current run)"
     }
   ]
