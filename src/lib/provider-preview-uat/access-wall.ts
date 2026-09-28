@@ -11,7 +11,10 @@ export type AccessWallResult = {
 };
 
 const VERCEL_WALL_TITLE_PATTERNS = [/login\s*[–-]\s*vercel/i, /^vercel$/i];
-const VERCEL_WALL_URL_PATTERNS = [/vercel\.com\/login/i, /vercel\.com\/sso/i, /vercel\.app\/_vercel/i];
+const VERCEL_WALL_URL_PATTERNS = [
+  { hostname: /^vercel\.com$/i, pathname: /^\/(?:login|sso)(?:\/|$)/i },
+  { hostname: /(?:^|\.)vercel\.app$/i, pathname: /^\/_vercel(?:\/|$)/i },
+];
 const VERCEL_WALL_BODY_PATTERNS = [
   /log in to vercel/i,
   /deployment protection/i,
@@ -32,11 +35,20 @@ export function classifyAccessWallFromSignals(title: string, url: string, bodyTe
       break;
     }
   }
-  for (const pattern of VERCEL_WALL_URL_PATTERNS) {
-    if (pattern.test(url)) {
-      markers.push(`url:${url}`);
-      break;
-    }
+  let parsedUrl: URL | null = null;
+  try {
+    parsedUrl = new URL(url);
+  } catch {
+    parsedUrl = null;
+  }
+  if (
+    parsedUrl &&
+    VERCEL_WALL_URL_PATTERNS.some(
+      ({ hostname, pathname }) =>
+        hostname.test(parsedUrl.hostname) && pathname.test(parsedUrl.pathname),
+    )
+  ) {
+    markers.push(`url:${parsedUrl.hostname}${parsedUrl.pathname}`);
   }
   for (const pattern of VERCEL_WALL_BODY_PATTERNS) {
     if (pattern.test(bodyLower)) {
