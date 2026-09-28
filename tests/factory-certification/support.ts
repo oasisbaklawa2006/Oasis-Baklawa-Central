@@ -61,15 +61,15 @@ export function resolveFactoryCertificationTarget(): string {
   return policy.normalizedUrl;
 }
 
-const FACTORY_CERTIFICATION_LOCAL_ORIGIN = "http://127.0.0.1:4173";
-const FACTORY_CERTIFICATION_STAFF_LOGIN_URL =
-  "http://127.0.0.1:4173/staff/login";
-
 function assertLocalFactoryCertificationBrowserTarget(): void {
   const validatedTarget = resolveFactoryCertificationTarget();
-  if (validatedTarget !== FACTORY_CERTIFICATION_LOCAL_ORIGIN) {
+  const localPolicy = validateFactoryCertificationTarget({
+    targetUrl: validatedTarget,
+    allowRemoteEphemeral: false,
+  });
+  if (!localPolicy.valid || !localPolicy.normalizedUrl) {
     throw new Error(
-      "UNSAFE_CERTIFICATION_TARGET: credentialed browser certification must use the governed local preview origin",
+      "UNSAFE_CERTIFICATION_TARGET: credentialed browser certification must use a governed loopback preview origin",
     );
   }
 }
@@ -156,7 +156,7 @@ export async function loginToFactoryCertificationTarget(
   credentials: FactoryCertificationCredentials,
 ): Promise<void> {
   assertLocalFactoryCertificationBrowserTarget();
-  await page.goto(FACTORY_CERTIFICATION_STAFF_LOGIN_URL, {
+  await page.goto("/staff/login", {
     waitUntil: "domcontentloaded",
     timeout: 60_000,
   });
