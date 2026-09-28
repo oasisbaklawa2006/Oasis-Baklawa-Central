@@ -1,9 +1,11 @@
 import { expect, test, type Page } from "@playwright/test";
 import { getAiUatCase, type AiUatCase } from "../../src/lib/ai-uat/catalogue";
 import { getPreviewUrl } from "../e2e-helpers";
+import { isUnauthenticatedDestination, waitForUnauthenticatedDestination } from "../auth/auth-contract";
 import {
   attachSafeDiagnostics,
   clickLogout,
+  expectUnauthenticatedSession,
   hasRoleCredentials,
   loginWithPrefix,
   openAllTools,
@@ -16,7 +18,7 @@ import {
 // Credentials are entered with repo-wide Playwright tracing/video/screenshots disabled.
 // Diagnostics begin before authentication; visual evidence starts only after login succeeds.
 test.use({ trace: "off", screenshot: "off", video: "off" });
-test.describe.configure({ mode: "serial" });
+// Independent cases must continue after a peer failure — final certification still fails closed in GHA.
 
 type CredentialPrefix = "TEST_DISPATCH" | "TEST_ASSEMBLY";
 
@@ -74,9 +76,11 @@ async function executeCase(
 }
 
 async function expectCleanLoginDenial(page: Page, context: string) {
-  await expect(page, `${context} must land on the canonical Login route`).toHaveURL(/\/login(?:$|\?|\/)/, { timeout: 8_000 });
-  await expect(page.getByRole("heading", { name: /^Welcome Back$/i }), `${context} must render the canonical Login heading`).toBeVisible({ timeout: 8_000 });
-  await expect(page.getByRole("button", { name: /^Mobile Verification$/i }), `${context} must render the canonical authentication control`).toBeVisible({ timeout: 8_000 });
+  const pathname = await waitForUnauthenticatedDestination(page, context);
+  expect(
+    isUnauthenticatedDestination(pathname),
+    `${context} must land on governed unauthenticated entry (/login, /staff/login, or /buyer/login)`,
+  ).toBe(true);
   await expect(page.getByText(/404|page not found|something went wrong|unexpected error/i)).toHaveCount(0);
 }
 
@@ -86,11 +90,10 @@ test("UAT-001 — logout terminates access", async ({ page }) => {
   await executeCase(page, testCase, async () => {
     await clickLogout(page);
     await expectCleanLoginDenial(page, "Logout");
-    await page.goto(`${getPreviewUrl()}/admin/dispatch-mgmt`, { waitUntil: "domcontentloaded", timeout: 45_000 });
-    await expectCleanLoginDenial(page, "Logged-out Dispatch direct revisit");
+    await expectUnauthenticatedSession(page, "Logout session termination", "/admin/dispatch-mgmt");
     await expect(page.getByText(/Governed carton.*DPL authority/i)).toHaveCount(0);
     await expect(page.getByText("DISPATCH MANAGER", { exact: false })).toHaveCount(0);
-    return "Logout reached Login and a direct Dispatch revisit returned to Login without restoring authenticated Dispatch content.";
+    return "Logout cleared staff session; protected Dispatch route did not restore authenticated content.";
   }, "TEST_DISPATCH");
 });
 

@@ -1,4 +1,10 @@
 import { expect, type Page } from "@playwright/test";
+import {
+  loginBuyer as loginBuyerContract,
+  loginForPersona,
+  loginStaff as loginStaffContract,
+  type LoginAttemptResult,
+} from "./auth/auth-contract";
 
 const E2E_ENV_HELP =
   "Set TEST_PREVIEW_URL (required) to http://localhost:3000 or an https://*.vercel.app preview. " +
@@ -28,6 +34,7 @@ function assertSafePreviewHost(hostname: string): void {
   const h = hostname.toLowerCase();
   if (h === "localhost" || h === "127.0.0.1") return;
   if (h.endsWith(".vercel.app")) return;
+  if (process.env.UAT_CRAWL_PRODUCTION === "true" && h === "b2b.oasisbaklawa.com") return;
   throw new Error(
     `E2E: TEST_PREVIEW_URL hostname "${hostname}" is not allowed (use localhost, 127.0.0.1, or *.vercel.app). ${E2E_ENV_HELP}`,
   );
@@ -162,25 +169,33 @@ export function attachRouteDiagnostics(page: Page): RouteDiagnostics & { detach:
   };
 }
 
+function throwLoginFailure(result: Extract<LoginAttemptResult, { ok: false }>) {
+  throw new Error(`[auth] ${result.classification}: ${result.message}`);
+}
+
+/** Staff / internal role login — uses /staff/login on split auth or legacy /login email tab. */
+export async function loginStaff(page: Page, email: string, password: string) {
+  const result = await loginStaffContract(page, email, password);
+  if (!result.ok) throwLoginFailure(result);
+}
+
+/** Buyer login — MSG91 OTP gated on split auth; legacy email tab only on unified login deployments. */
+export async function loginBuyer(page: Page, email: string, password: string) {
+  const result = await loginBuyerContract(page, email, password);
+  if (!result.ok) throwLoginFailure(result);
+}
+
+/** Persona-aware login for UAT crawls and role-separated specs. */
+export async function loginAsPersona(page: Page, persona: string, email: string, password: string) {
+  const result = await loginForPersona(page, persona, email, password);
+  if (!result.ok) throwLoginFailure(result);
+}
+
+/**
+ * @deprecated Prefer loginStaff, loginBuyer, or loginAsPersona. Defaults to staff path for backward compatibility.
+ */
 export async function login(page: Page, email: string, password: string) {
-  await page.goto(`${getPreviewUrl()}/login`, { waitUntil: "domcontentloaded", timeout: 60000 });
-
-  await expect(page.getByRole("heading", { name: /Welcome Back/i })).toBeVisible({ timeout: 30000 });
-  await expect(page.getByText(/Sign in to your B2B account/i)).toBeVisible({ timeout: 30000 });
-
-  await page.getByRole("button", { name: /^Email$/i }).click();
-
-  const emailInput = page.getByPlaceholder("you@business.com");
-  await emailInput.waitFor({ state: "visible", timeout: 30000 });
-  await emailInput.fill(email);
-
-  const passwordInput = page.getByPlaceholder("••••••••");
-  await passwordInput.waitFor({ state: "visible", timeout: 30000 });
-  await passwordInput.fill(password);
-
-  await page.getByRole("button", { name: /^Login$/i }).click();
-
-  await page.waitForURL((url) => !/\/login(\/|$|\?)/i.test(url.pathname), { timeout: 120000 });
+  await loginStaff(page, email, password);
 }
 
 export async function ensureDeliveryAddress(page: Page) {
@@ -407,7 +422,7 @@ export async function buyerCreateSubmittedOrderWithReceiptUpload(
 export async function assertBlockedFromFinanceBoard(page: Page) {
   await page.waitForLoadState("domcontentloaded");
   const url = page.url();
-  const onLogin = /\/login(\/|$|\?)/i.test(url);
+  const onLogin = /\/(?:staff\/|buyer\/)?login(\/|$|\?)/i.test(url);
 
   const restricted = await page.getByText(/Access Restricted/i).first().isVisible().catch(() => false);
   const denied = await page.getByText(/Access Denied/i).first().isVisible().catch(() => false);

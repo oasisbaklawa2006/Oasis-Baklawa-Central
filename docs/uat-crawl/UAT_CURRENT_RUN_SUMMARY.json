@@ -1,0 +1,26 @@
+{
+  "generatedAt": "2026-09-28T23:01:01.135Z",
+  "runId": "36495576511",
+  "runAttempt": "1",
+  "runTranche": "post-fix-483",
+  "currentMainSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
+  "deployUrl": "https://oasis-baklawa-central.vercel.app",
+  "counts": {
+    "censusTotal": 131,
+    "authS0S3Complete": 0,
+    "publicS0Observed": 0,
+    "blockedCredentialOrDeploy": 0,
+    "authFlowFailed": 0,
+    "authContractMismatch": 0,
+    "otpExternalGate": 0,
+    "providerGated": 0,
+    "dataFixtureGate": 2,
+    "testCredentialGate": 0,
+    "notExecuted": 129
+  },
+  "stopCondition": "INCOMPLETE_CURRENT_RUN_EVIDENCE — one or more census rows were not executed",
+  "byDisposition": {
+    "NOT_EXECUTED": 129,
+    "DATA_FIXTURE_GATE": 2
+  }
+}

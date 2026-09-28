@@ -1,0 +1,42 @@
+name: UAT Evidence Integrity PR
+
+on:
+  pull_request:
+    branches:
+      - cursor/physical-uat-readiness-matrix-e763
+    paths:
+      - ".github/workflows/uat-crawl-evidence.yml"
+      - ".github/workflows/uat-evidence-integrity-pr.yml"
+      - "tests/uat-crawl/**"
+      - "tests/auth/**"
+      - "scripts/uat-crawl/**"
+      - "package.json"
+      - "package-lock.json"
+
+permissions:
+  contents: read
+
+jobs:
+  evidence-integrity:
+    name: UAT evidence integrity regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "24"
+      - name: Install dependencies
+        run: npm ci
+      - name: Run focused UAT evidence-integrity tests
+        run: npm run test:uat-evidence-integrity
+      - name: Run tranche-aware verdict regression
+        run: python3 scripts/uat-crawl/test-evaluate-crawl-verdict.py
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Syntax-check UAT evidence scripts
+        run: |
+          node --check scripts/uat-crawl/record-verified-blockers.mjs
+          node --check scripts/uat-crawl/record-rebaseline-current-main.mjs
+          node --check scripts/uat-crawl/generate-physical-readiness-reconciliation.mjs
+          python3 -m py_compile scripts/uat-crawl/evaluate-crawl-verdict.py scripts/uat-crawl/test-evaluate-crawl-verdict.py scripts/uat-crawl/detect-screenshot-wall.py scripts/uat-crawl/load-auth-gate-by-id.py

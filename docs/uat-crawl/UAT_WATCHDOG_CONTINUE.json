@@ -1,0 +1,63 @@
+{
+  "generatedAt": "2026-09-08T18:05:00.000Z",
+  "mode": "WATCHDOG_CONTINUE",
+  "currentMainSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
+  "deployGate": "CLEARED",
+  "githubDeploymentId": "6329154505",
+  "trustedUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
+  "priorEvidenceRuns": [
+    "34239494014",
+    "34242121280",
+    "34244531921"
+  ],
+  "coverageBeforeDispatch": {
+    "authS0S3Complete": 96,
+    "publicS0Observed": 5,
+    "credentialBlocked": 28,
+    "partialNotTested": 2,
+    "censusTotal": 131
+  },
+  "nextChronologicalSurfaces": [
+    {
+      "uatIds": ["UAT-0018", "UAT-0020"],
+      "tranche": "post-fix-483",
+      "disposition": "BLOCKED",
+      "blocker": "No pending review sheet in fixture dc370b46 — S0 only @ a619a7a2; S1–S3 withheld",
+      "failIds": ["FAIL-481-001", "FAIL-481-002", "FAIL-UX-481-001", "FAIL-UX-481-002"],
+      "credentialsPresent": true
+    },
+    {
+      "uatIds": ["UAT-0006", "UAT-0007", "UAT-0114", "UAT-0115", "UAT-0116", "UAT-0117", "UAT-0118", "UAT-0119", "UAT-0120", "UAT-0121"],
+      "tranche": "buyer-mobile",
+      "disposition": "BLOCKED",
+      "blocker": "TEST_BUYER_EMAIL, TEST_BUYER_PASSWORD absent",
+      "failIdPattern": "FAIL-AUTH-CRED-*"
+    },
+    {
+      "uatIds": ["UAT-0106", "UAT-0107", "UAT-0108", "UAT-0109", "UAT-0110", "UAT-0111", "UAT-0112"],
+      "tranche": "tranche-08-auth",
+      "disposition": "BLOCKED",
+      "blocker": "TEST_TV_RGS_EMAIL, TEST_TV_RGS_PASSWORD absent"
+    },
+    {
+      "uatIds": ["UAT-0113"],
+      "tranche": "tranche-08-auth",
+      "disposition": "BLOCKED",
+      "blocker": "TEST_TV_PRODUCTION_EMAIL, TEST_TV_PRODUCTION_PASSWORD absent"
+    },
+    {
+      "uatIds": ["UAT-0122", "UAT-0123", "UAT-0124", "UAT-0125", "UAT-0126", "UAT-0127"],
+      "tranche": "tranche-08-auth",
+      "disposition": "BLOCKED",
+      "blocker": "TEST_AI_STUDIO_PREVIEW_URL absent"
+    },
+    {
+      "uatIds": ["UAT-0128", "UAT-0129", "UAT-0130", "UAT-0131"],
+      "tranche": "tranche-08-auth",
+      "disposition": "BLOCKED",
+      "blocker": "TEST_TRACE_PREVIEW_URL absent"
+    }
+  ],
+  "policy": "Append-only prior evidence. No screenshot = NOT-TESTED. No action/result = function NOT-TESTED. No real-customer mutation.",
+  "dispatchNote": "GHA watchdog-continue triggered by crawl-engine push — awaiting run completion"
+}

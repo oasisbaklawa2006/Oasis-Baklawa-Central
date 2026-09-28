@@ -1,0 +1,61 @@
+{
+  "generatedAt": "2026-09-28T22:56:15.603Z",
+  "runId": "36495024946",
+  "runAttempt": "1",
+  "runTranche": "auth-contract-smoke",
+  "targetSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
+  "deploymentSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
+  "crawlBaseUrl": "https://oasis-baklawa-central.vercel.app",
+  "deployStatus": "RESOLVED",
+  "suiteExitCode": 0,
+  "counts": {
+    "PASS": 10,
+    "FAIL": 0,
+    "BLOCKED": 0,
+    "NOT_EXECUTED": 0
+  },
+  "uatIds": [
+    {
+      "uatId": "UAT-001",
+      "status": "PASS"
+    },
+    {
+      "uatId": "UAT-002",
+      "status": "PASS"
+    },
+    {
+      "uatId": "UAT-003",
+      "status": "PASS"
+    },
+    {
+      "uatId": "UAT-004",
+      "status": "PASS"
+    },
+    {
+      "uatId": "UAT-005",
+      "status": "PASS"
+    },
+    {
+      "uatId": "UAT-006",
+      "status": "PASS"
+    },
+    {
+      "uatId": "UAT-007",
+      "status": "PASS"
+    },
+    {
+      "uatId": "UAT-008",
+      "status": "PASS"
+    },
+    {
+      "uatId": "UAT-009",
+      "status": "PASS"
+    },
+    {
+      "uatId": "UAT-010",
+      "status": "PASS"
+    }
+  ],
+  "priorRunArchived": true,
+  "policy": "Current-run summary only — prior PASS rows archived separately; never substitute stale PASS as current truth."
+}

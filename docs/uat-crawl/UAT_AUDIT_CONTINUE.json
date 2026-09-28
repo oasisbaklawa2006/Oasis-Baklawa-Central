@@ -1,0 +1,78 @@
+{
+  "generatedAt": "2026-09-08T15:30:00.000Z",
+  "auditMode": "UAT_AUDIT_CONTINUE",
+  "policy": "Read-only evidence reconciliation @ exact Central main — no remediation, no real-customer mutation, no stale preview substitution.",
+  "currentMainSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
+  "currentMainMerge": "Central #558",
+  "deployDiscovery": {
+    "method": "GitHub Deployments API",
+    "githubDeploymentId": "6329154505",
+    "environment": "Production",
+    "boundSha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252",
+    "shaMatch": true,
+    "vercelState": "success",
+    "trustedUrl": "https://oasis-baklawa-central-hvbmnekge-oasisbaklawa2006-6222s-projects.vercel.app",
+    "deployGate": "CLEARED"
+  },
+  "staleEvidenceExcluded": {
+    "64a107df": "NOT current-main certification — no Vercel deploy; ace340fe continuation historical only",
+    "ace340fe": "Prior-era 80/131 evidence preserved append-only — not substituted",
+    "6c7de2a": "Prior hold #556 — DEPLOY_BLOCKED era superseded",
+    "15c59a3f": "Prior hold #507 — DEPLOY_BLOCKED era superseded",
+    "e2f123b0": "Prior hold #497 — append-only"
+  },
+  "ghaEvidenceRuns": [
+    {
+      "runId": "34239494014",
+      "tranche": "all",
+      "evidenceCommit": "b609e7fc",
+      "deploySha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    },
+    {
+      "runId": "34242121280",
+      "tranche": "watchdog-continue",
+      "conclusion": "success",
+      "deploySha": "a619a7a2ef01ee889d32fffebb5ff13fe3181252"
+    }
+  ],
+  "coverageAtCurrentMain": {
+    "censusTotal": 131,
+    "authS0S3Complete": 96,
+    "publicS0Observed": 5,
+    "credentialBlocked": 28,
+    "partialNotTested": 2,
+    "credentialPrefixUnblock": "13/13 @ a619a7a2"
+  },
+  "sameIdRetestFromFailureLedger": [
+    {
+      "failIds": ["FAIL-481-001", "FAIL-481-002", "FAIL-UX-481-001", "FAIL-UX-481-002"],
+      "uatIds": ["UAT-0018", "UAT-0020"],
+      "disposition": "BLOCKED",
+      "reason": "S0 captured @ a619a7a2; no pending review fixture for S1–S3; human-gate — Approve not clicked",
+      "repairLane": "Issue #483 merged — retest requires fixture + governed re-crawl; physical iPhone recording does not substitute automated SAME-ID closure"
+    },
+    {
+      "failId": "FAIL-485-001",
+      "uatId": "UAT-0018",
+      "disposition": "OPEN",
+      "reason": "KPI truth defect — external physical recording; repair authority Central #485",
+      "repairLane": "Central #485 — UAT read-only"
+    },
+    {
+      "failIdPattern": "FAIL-AUTH-CRED-*",
+      "count": 28,
+      "disposition": "BLOCKED",
+      "reason": "Verified missing TEST_* secrets — see UAT_VERIFIED_BLOCKERS.jsonl"
+    }
+  ],
+  "physicalDeviceProviderGates": {
+    "policy": "NOT TESTED unless human/device/provider evidence executed",
+    "phonePhysicalUat": "NOT TESTED — external iPhone recording preserved; not automated PASS",
+    "tvLanes": "NOT TESTED — TEST_TV_* secrets absent",
+    "scannerLanes": "NOT TESTED — credential/deploy blocked surfaces",
+    "aiStudio": "NOT TESTED — TEST_AI_STUDIO_PREVIEW_URL absent",
+    "trace": "NOT TESTED — TEST_TRACE_PREVIEW_URL absent",
+    "buyerMobile": "NOT TESTED — TEST_BUYER_* absent; PR #10 cert does not substitute physical/visual UAT"
+  },
+  "auditOutcome": "DEPLOY_CLEARED — rebaseline @ a619a7a2 complete to safe boundary; 29 surfaces without auth function evidence (28 BLOCKED + 2 partial); no fabricated PASS; PR MERGED ≠ STAGE CLEARED"
+}

@@ -1,0 +1,102 @@
+[
+  {
+    "uatId": "UAT-0011",
+    "app": "central",
+    "route": "/admin/customers",
+    "state": "default",
+    "classification": "LEGACY_REDIRECT",
+    "persona": "ADMIN_STAFF",
+    "device": "desktop",
+    "notes": "Navigate redirect — capture destination in function crawl"
+  },
+  {
+    "uatId": "UAT-0012",
+    "app": "central",
+    "route": "/admin/assembly",
+    "state": "default",
+    "classification": "LEGACY_REDIRECT",
+    "persona": "P_AND_A",
+    "device": "desktop",
+    "notes": "Navigate redirect — capture destination in function crawl"
+  },
+  {
+    "uatId": "UAT-0013",
+    "app": "central",
+    "route": "/admin/finance/payments",
+    "state": "default",
+    "classification": "LEGACY_REDIRECT",
+    "persona": "FINANCE",
+    "device": "desktop",
+    "notes": "Navigate redirect — capture destination in function crawl"
+  },
+  {
+    "uatId": "UAT-0014",
+    "app": "central",
+    "route": "/admin/finance/invoices",
+    "state": "default",
+    "classification": "LEGACY_REDIRECT",
+    "persona": "FINANCE",
+    "device": "desktop",
+    "notes": "Navigate redirect — capture destination in function crawl"
+  },
+  {
+    "uatId": "UAT-0015",
+    "app": "central",
+    "route": "/admin/crm",
+    "state": "default",
+    "classification": "LEGACY_REDIRECT",
+    "persona": "ADMIN_STAFF",
+    "device": "desktop",
+    "notes": "Navigate redirect — capture destination in function crawl"
+  },
+  {
+    "uatId": "UAT-0016",
+    "app": "central",
+    "route": "/admin/roles",
+    "state": "default",
+    "classification": "LEGACY_REDIRECT",
+    "persona": "ADMIN_STAFF",
+    "device": "desktop",
+    "notes": "Navigate redirect — capture destination in function crawl"
+  },
+  {
+    "uatId": "UAT-0017",
+    "app": "central",
+    "route": "/admin/clients",
+    "state": "default",
+    "classification": "ROUTED_COMPONENT",
+    "persona": "ADMIN_STAFF",
+    "device": "desktop",
+    "notes": ""
+  },
+  {
+    "uatId": "UAT-0018",
+    "app": "central",
+    "route": "/admin/clients",
+    "state": "sheet-review-open",
+    "classification": "INTERACTIVE_STATE",
+    "persona": "ADMIN_SALES",
+    "device": "phone",
+    "notes": "Buyer approval sheet — BLOCKED pending P0 #483 deploy; pre-fix FAIL-481-* preserved"
+  },
+  {
+    "uatId": "UAT-0019",
+    "app": "central",
+    "route": "/admin/approvals",
+    "state": "default",
+    "classification": "ROUTED_COMPONENT",
+    "persona": "ADMIN_STAFF",
+    "device": "desktop",
+    "notes": ""
+  },
+  {
+    "uatId": "UAT-0020",
+    "app": "central",
+    "route": "/admin/approvals",
+    "state": "sheet-review-open",
+    "classification": "INTERACTIVE_STATE",
+    "persona": "ADMIN_SALES",
+    "device": "phone",
+    "notes": "Buyer approval sheet — BLOCKED pending P0 #483 deploy; pre-fix FAIL-481-* preserved"
+  }
+]
