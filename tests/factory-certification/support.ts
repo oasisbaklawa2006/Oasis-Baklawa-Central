@@ -143,13 +143,12 @@ export async function loginToFactoryCertificationTarget(
   credentials: FactoryCertificationCredentials,
 ): Promise<void> {
   const target = resolveFactoryCertificationTarget();
-  await page.goto(`${target}/login`, { waitUntil: "domcontentloaded", timeout: 60_000 });
-  await expect(page.getByRole("heading", { name: /Welcome Back/i })).toBeVisible({ timeout: 30_000 });
-  await page.getByRole("button", { name: /^Email$/i }).click();
-  await page.getByPlaceholder("you@business.com").fill(credentials.email);
+  await page.goto(`${target}/staff/login`, { waitUntil: "domcontentloaded", timeout: 60_000 });
+  await expect(page.getByRole("heading", { name: /^Employee Access$/i })).toBeVisible({ timeout: 30_000 });
+  await page.getByPlaceholder("you@oasisbaklawa.com").fill(credentials.email);
   await page.getByPlaceholder("••••••••").fill(credentials.password);
   await page.getByRole("button", { name: /^Login$/i }).click();
-  await page.waitForURL((url) => !/\/login(?:\/|$|\?)/i.test(url.pathname), { timeout: 120_000 });
+  await page.waitForURL((url) => !/\/(?:staff\/)?login(?:\/|$|\?)/i.test(url.pathname), { timeout: 120_000 });
 }
 
 /** Dismiss Central's first-login tutorial overlay when it blocks OM interactions. */
