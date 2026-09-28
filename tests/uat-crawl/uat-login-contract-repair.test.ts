@@ -128,9 +128,9 @@ describe("UAT login contract repair regressions", () => {
     expect(aiUatSpec).toContain("waitForUnauthenticatedDestination(page, context)");
   });
 
-  it("15 — evidence-branch pushes run only the auth-contract smoke tranche", () => {
+  it("15 — evidence-branch pushes default to auth-contract-smoke; commit message can request watchdog-continue", () => {
     expect(workflowYaml).toContain("auth-contract-smoke");
-    expect(workflowYaml).toContain("Pushes to the evidence branch are preflight-only");
+    expect(workflowYaml).toContain("UAT watchdog-continue");
     expect(workflowYaml).toContain("|| 'auth-contract-smoke'");
     expect(workflowYaml).toContain("env.RUN_TRANCHE == 'auth-contract-smoke'");
   });
