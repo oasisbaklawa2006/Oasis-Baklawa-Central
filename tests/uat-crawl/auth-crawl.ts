@@ -13,6 +13,7 @@ import {
   type AuthBlockClassification,
 } from "../auth/auth-contract";
 import { detectAccessWall, DEPLOYMENT_PROTECTION_CLASS } from "./access-wall";
+import { resolveLoginBlockClassification } from "./login-block-classification";
 import {
   appendFailureLedger,
   appendManifestRow,
@@ -631,7 +632,7 @@ export async function crawlTargetAuthenticated(
     blockClassification: wall.blocked
       ? DEPLOYMENT_PROTECTION_CLASS
       : stillOnLogin
-        ? loginClassification ?? AUTH_BLOCK_CLASSIFICATIONS.AUTH_FLOW_FAILED
+        ? resolveLoginBlockClassification(loginClassification, creds, consoleErrors, networkErrors)
         : null,
     wallClassification: wall.blocked ? DEPLOYMENT_PROTECTION_CLASS : null,
     visualStatus: wall.blocked || stillOnLogin ? "BLOCKED" : "OBSERVED",

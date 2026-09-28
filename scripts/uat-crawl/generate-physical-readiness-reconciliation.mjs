@@ -3,6 +3,12 @@
 import fs from "node:fs";
 import path from "node:path";
 import { buildDeployProvenanceLabel } from "./crawl-target-policy.mjs";
+import {
+  DATA_FIXTURE_GATE,
+  TEST_CREDENTIAL_GATE,
+  inferTestCredentialGate,
+  loadDataFixtureGateById,
+} from "./classification-helpers.mjs";
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
 const CURRENT_MAIN_SHA = process.env.UAT_TARGET_SHA?.trim() || "";
@@ -71,10 +77,27 @@ function loadAuthGateById(censusIds) {
       if (!censusIds.has(row.uatId)) continue;
       if (row.runId !== RUN_ID) continue;
       if (row.authenticated) continue;
+      const testCred = inferTestCredentialGate(row);
+      if (testCred) {
+        map.set(row.uatId, {
+          blockClassification: testCred,
+          missingSecretNames: row.missingSecretNames ?? [],
+          credentialPrefix: row.credentialPrefix ?? null,
+        });
+        continue;
+      }
       if (row.blockClassification) {
         map.set(row.uatId, row);
       }
     }
+  }
+  return map;
+}
+
+function loadDataFixtureGateRows(censusIds) {
+  const map = loadDataFixtureGateById(RUN_ID);
+  for (const uatId of [...map.keys()]) {
+    if (!censusIds.has(uatId)) map.delete(uatId);
   }
   return map;
 }
@@ -94,7 +117,7 @@ function loadPublicCompleteIds(censusIds) {
   return ids;
 }
 
-function classifyEntry(entry, authComplete, publicComplete, blockersById, authGateById) {
+function classifyEntry(entry, authComplete, publicComplete, blockersById, authGateById, dataFixtureGateById) {
   if (authComplete.has(entry.uatId)) {
     return {
       disposition: "AUTH_S0_S3_COMPLETE",
@@ -123,14 +146,35 @@ function classifyEntry(entry, authComplete, publicComplete, blockersById, authGa
       evidenceSource: "UAT_VERIFIED_BLOCKERS.jsonl",
     };
   }
+  const fixtureRow = dataFixtureGateById.get(entry.uatId);
+  if (fixtureRow) {
+    return {
+      disposition: DATA_FIXTURE_GATE,
+      s0s3Runnable: "FIXTURE_GATED",
+      missingSecretNames: [],
+      blockClassification: DATA_FIXTURE_GATE,
+      credentialPrefix: fixtureRow.credentialPrefix ?? "TEST_SALES",
+      evidenceSource: "UAT_MANIFEST_POST_FIX_483.jsonl",
+      note:
+        "Authenticated post-fix S0 captured; governed pending-review fixture unavailable — historical FAIL-481-* remain BLOCKED.",
+      retestFailIds: fixtureRow.retestFailIds ?? [],
+      retestDisposition: fixtureRow.retestDisposition ?? {},
+    };
+  }
   const authGate = authGateById.get(entry.uatId);
   if (authGate?.blockClassification) {
+    const classification = authGate.blockClassification;
     return {
-      disposition: authGate.blockClassification,
-      s0s3Runnable: "BLOCKED",
+      disposition: classification,
+      s0s3Runnable: classification === TEST_CREDENTIAL_GATE ? "CREDENTIAL_GATED" : "BLOCKED",
       missingSecretNames: authGate.missingSecretNames ?? [],
-      blockClassification: authGate.blockClassification,
+      blockClassification: classification,
+      credentialPrefix: authGate.credentialPrefix ?? null,
       evidenceSource: "auth manifest (current run)",
+      note:
+        classification === TEST_CREDENTIAL_GATE
+          ? `Supabase password grant rejected for wired ${authGate.credentialPrefix}_* prefix (values not logged).`
+          : undefined,
     };
   }
   return {
@@ -154,49 +198,80 @@ const blockers = loadJsonl("docs/uat-crawl/UAT_VERIFIED_BLOCKERS.jsonl").filter(
 );
 const blockersById = new Map(blockers.map((b) => [b.uatId, b]));
 const authGateById = loadAuthGateById(censusIds);
+const dataFixtureGateById = loadDataFixtureGateRows(censusIds);
 const secretPresence = fs.existsSync(path.join(ROOT, "docs/uat-crawl/UAT_SECRET_PRESENCE.json"))
   ? JSON.parse(fs.readFileSync(path.join(ROOT, "docs/uat-crawl/UAT_SECRET_PRESENCE.json"), "utf8"))
   : null;
 
-const rows = census.map((entry) => ({
-  uatId: entry.uatId,
-  app: entry.app,
-  route: entry.route,
-  state: entry.state,
-  role: entry.persona,
-  device: entry.device,
-  buildSha: CURRENT_MAIN_SHA,
-  deployUrl: DEPLOY_URL,
-  ...classifyEntry(entry, authComplete, publicComplete, blockersById, authGateById),
-}));
+const rows = census.map((entry) => {
+  const classified = classifyEntry(
+    entry,
+    authComplete,
+    publicComplete,
+    blockersById,
+    authGateById,
+    dataFixtureGateById,
+  );
+  return {
+    uatId: entry.uatId,
+    app: entry.app,
+    route: entry.route,
+    state: entry.state,
+    role: entry.persona,
+    device: entry.device,
+    buildSha: CURRENT_MAIN_SHA,
+    deployUrl: DEPLOY_URL,
+    disposition: classified.disposition,
+    s0s3Runnable: classified.s0s3Runnable,
+    missingSecretNames: classified.missingSecretNames,
+    evidenceSource: classified.evidenceSource,
+    blockClassification: classified.blockClassification,
+    credentialPrefix: classified.credentialPrefix,
+    note: classified.note,
+    retestFailIds: classified.retestFailIds,
+    retestDisposition: classified.retestDisposition,
+  };
+});
 
-const byDevice = {};
-const byDisposition = {};
-const byMissingSecret = {};
+const byDevice = new Map();
+const byDisposition = new Map();
+const byMissingSecret = new Map();
 for (const row of rows) {
-  byDevice[row.device] = byDevice[row.device] || {
+  const deviceStats = byDevice.get(row.device) ?? {
     total: 0,
     authComplete: 0,
     publicS0: 0,
     blocked: 0,
     otpExternalGate: 0,
     providerGated: 0,
+    dataFixtureGate: 0,
+    testCredentialGate: 0,
     notExecuted: 0,
   };
-  byDevice[row.device].total += 1;
-  if (row.disposition === "AUTH_S0_S3_COMPLETE") byDevice[row.device].authComplete += 1;
-  else if (row.disposition === "PUBLIC_S0_OBSERVED") byDevice[row.device].publicS0 += 1;
-  else if (row.disposition === "BLOCKED") byDevice[row.device].blocked += 1;
-  else if (row.disposition === "OTP_EXTERNAL_GATE") byDevice[row.device].otpExternalGate += 1;
-  else if (row.disposition === "PROVIDER_GATED") byDevice[row.device].providerGated += 1;
-  else if (row.disposition === "NOT_EXECUTED") byDevice[row.device].notExecuted += 1;
-  byDisposition[row.disposition] = (byDisposition[row.disposition] || 0) + 1;
+  deviceStats.total += 1;
+  if (row.disposition === "AUTH_S0_S3_COMPLETE") deviceStats.authComplete += 1;
+  else if (row.disposition === "PUBLIC_S0_OBSERVED") deviceStats.publicS0 += 1;
+  else if (row.disposition === "BLOCKED") deviceStats.blocked += 1;
+  else if (row.disposition === "OTP_EXTERNAL_GATE") deviceStats.otpExternalGate += 1;
+  else if (row.disposition === "PROVIDER_GATED") deviceStats.providerGated += 1;
+  else if (row.disposition === DATA_FIXTURE_GATE) deviceStats.dataFixtureGate += 1;
+  else if (row.disposition === TEST_CREDENTIAL_GATE) deviceStats.testCredentialGate += 1;
+  else if (row.disposition === "NOT_EXECUTED") deviceStats.notExecuted += 1;
+  byDevice.set(row.device, deviceStats);
+  byDisposition.set(row.disposition, (byDisposition.get(row.disposition) ?? 0) + 1);
   if (row.missingSecretNames?.length) {
     const key = row.missingSecretNames.join(", ");
-    byMissingSecret[key] = byMissingSecret[key] || [];
-    byMissingSecret[key].push(row.uatId);
+    const bucket = byMissingSecret.get(key) ?? [];
+    bucket.push(row.uatId);
+    byMissingSecret.set(key, bucket);
   }
 }
+
+function dispositionCount(disposition) {
+  return byDisposition.get(disposition) ?? 0;
+}
+
+const byDeviceRecord = Object.fromEntries(byDevice.entries());
 
 const missingSecretsUnique = secretPresence
   ? secretPresence.secrets.filter((s) => !s.present).map((s) => s.name)
@@ -215,18 +290,20 @@ const payload = {
     "Evidence-only PR #462 — no remediation. Physical device PASS requires human artifacts; automated S0–S3 ≠ physical PASS.",
   counts: {
     censusTotal: rows.length,
-    authS0S3Complete: byDisposition.AUTH_S0_S3_COMPLETE || 0,
-    publicS0Observed: byDisposition.PUBLIC_S0_OBSERVED || 0,
-    blockedCredentialOrDeploy: byDisposition.BLOCKED || 0,
-    authFlowFailed: byDisposition.AUTH_FLOW_FAILED || 0,
-    authContractMismatch: byDisposition.AUTH_CONTRACT_MISMATCH || 0,
-    otpExternalGate: byDisposition.OTP_EXTERNAL_GATE || 0,
-    providerGated: byDisposition.PROVIDER_GATED || 0,
-    notExecuted: byDisposition.NOT_EXECUTED || 0,
+    authS0S3Complete: dispositionCount("AUTH_S0_S3_COMPLETE"),
+    publicS0Observed: dispositionCount("PUBLIC_S0_OBSERVED"),
+    blockedCredentialOrDeploy: dispositionCount("BLOCKED"),
+    authFlowFailed: dispositionCount("AUTH_FLOW_FAILED"),
+    authContractMismatch: dispositionCount("AUTH_CONTRACT_MISMATCH"),
+    otpExternalGate: dispositionCount("OTP_EXTERNAL_GATE"),
+    providerGated: dispositionCount("PROVIDER_GATED"),
+    dataFixtureGate: dispositionCount(DATA_FIXTURE_GATE),
+    testCredentialGate: dispositionCount(TEST_CREDENTIAL_GATE),
+    notExecuted: dispositionCount("NOT_EXECUTED"),
   },
-  byDevice,
+  byDevice: byDeviceRecord,
   byMissingSecret: Object.fromEntries(
-    Object.entries(byMissingSecret).map(([k, v]) => [k, { count: v.length, uatIds: v }]),
+    [...byMissingSecret.entries()].map(([k, v]) => [k, { count: v.length, uatIds: v }]),
   ),
   ghaSecretPresence: secretPresence
     ? {
@@ -236,11 +313,11 @@ const payload = {
       }
     : null,
   stopCondition:
-    (byDisposition.NOT_EXECUTED || 0) > 0
+    dispositionCount("NOT_EXECUTED") > 0
       ? "INCOMPLETE_CURRENT_RUN_EVIDENCE — one or more census rows were not executed"
       : missingSecretsUnique.length > 0
         ? "ONLY_TEST_SECRET_BLOCKERS — no further automated crawl until repo secrets wired"
-        : ((byDisposition.OTP_EXTERNAL_GATE || 0) + (byDisposition.PROVIDER_GATED || 0)) > 0
+        : dispositionCount("OTP_EXTERNAL_GATE") + dispositionCount("PROVIDER_GATED") > 0
           ? "AUTOMATED_CRAWL_COMPLETE_WITH_EXTERNAL_PROVIDER_GATES"
           : "AUTOMATED_CRAWL_COMPLETE",
   rows,
@@ -261,7 +338,7 @@ fs.writeFileSync(
     deployUrl: DEPLOY_URL,
     counts: payload.counts,
     stopCondition: payload.stopCondition,
-    byDisposition,
+    byDisposition: Object.fromEntries(byDisposition.entries()),
   }, null, 2)}\n`,
 );
 
@@ -285,14 +362,17 @@ const mdLines = [
   `| Provider gated | **${payload.counts.providerGated}** | Current-run row reached an external provider boundary |`,
   `| Auth flow failed | **${payload.counts.authFlowFailed}** | Current-run authentication attempt failed |`,
   `| Auth contract mismatch | **${payload.counts.authContractMismatch}** | Current-run auth contract mismatch |`,
+  `| Data fixture gate | **${payload.counts.dataFixtureGate}** | Auth + S0 evidenced; governed external fixture missing |`,
+  `| Test credential gate | **${payload.counts.testCredentialGate}** | Wired \`TEST_*\` prefix rejected by provider (HTTP 400) |`,
   `| **NOT EXECUTED** | **${payload.counts.notExecuted}** | No current-run evidence row produced |`,
   "",
   "## By device class",
   "",
-  "| Device | Total | Auth S0–S3 | Public S0 | Blocked | OTP gate | Provider gate | Not executed |",
-  "|---|---:|---:|---:|---:|---:|---:|---:|",
-  ...Object.entries(byDevice).map(
-    ([d, c]) => `| ${d} | ${c.total} | ${c.authComplete} | ${c.publicS0} | ${c.blocked} | ${c.otpExternalGate} | ${c.providerGated} | ${c.notExecuted} |`,
+  "| Device | Total | Auth S0–S3 | Public S0 | Blocked | OTP gate | Provider gate | Fixture gate | Cred gate | Not executed |",
+  "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+  ...Object.entries(byDeviceRecord).map(
+    ([d, c]) =>
+      `| ${d} | ${c.total} | ${c.authComplete} | ${c.publicS0} | ${c.blocked} | ${c.otpExternalGate} | ${c.providerGated} | ${c.dataFixtureGate} | ${c.testCredentialGate} | ${c.notExecuted} |`,
   ),
   "",
   "## Current-run unresolved evidence",
@@ -302,6 +382,8 @@ const mdLines = [
   `- Provider gates: **${payload.counts.providerGated}**`,
   `- Auth-flow failures: **${payload.counts.authFlowFailed}**`,
   `- Auth-contract mismatches: **${payload.counts.authContractMismatch}**`,
+  `- Data fixture gates: **${payload.counts.dataFixtureGate}**`,
+  `- Test credential gates: **${payload.counts.testCredentialGate}**`,
   `- Not executed: **${payload.counts.notExecuted}**`,
   "",
   "## Exact blocker secret groups",

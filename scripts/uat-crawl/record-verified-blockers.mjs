@@ -5,9 +5,14 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { resolveCredentialBlocker } from "./credential-prefix-aliases.mjs";
+import {
+  DATA_FIXTURE_GATE,
+  TEST_CREDENTIAL_GATE,
+  loadAuthGateById as loadAuthGateByIdFromManifests,
+  loadDataFixtureGateById,
+} from "./classification-helpers.mjs";
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
 const requireJson = createRequire(import.meta.url);
@@ -84,20 +89,7 @@ function resolveBlocker(entry) {
 }
 
 function loadAuthGateById() {
-  const result = spawnSync("python3", ["scripts/uat-crawl/load-auth-gate-by-id.py"], {
-    cwd: ROOT,
-    encoding: "utf8",
-    env: { ...process.env, GITHUB_RUN_ID: RUN_ID },
-  });
-  if (result.status !== 0) {
-    console.error(result.stderr || "load-auth-gate-by-id.py failed");
-    return new Map();
-  }
-  try {
-    return new Map(Object.entries(JSON.parse(result.stdout || "{}")));
-  } catch {
-    return new Map();
-  }
+  return loadAuthGateByIdFromManifests(RUN_ID);
 }
 
 function loadJsonlIds(relativePath, predicate) {
@@ -188,7 +180,10 @@ let authContractMismatch = 0;
 let otpExternalGate = 0;
 let providerGated = 0;
 let notExecutedCount = 0;
+let dataFixtureGateCount = 0;
+let testCredentialGateCount = 0;
 const authGateById = loadAuthGateById();
+const dataFixtureGateById = loadDataFixtureGateById(RUN_ID);
 // Explicit count of census entries actually skipped via the public-continuation branch below —
 // this, not publicComplete.size, is the number that must reconcile against the census total,
 // since publicComplete can (correctly) contain IDs outside PUBLIC_RUNNABLE that this loop does
@@ -216,10 +211,26 @@ for (const entry of census.entries) {
     continue;
   }
 
+  if (dataFixtureGateById.has(entry.uatId)) {
+    assignCategory(entry.uatId, "dataFixtureGate");
+    dataFixtureGateCount += 1;
+    continue;
+  }
+
   const { blockers, failId } = resolveBlocker(entry);
   const missing = missingSecrets(blockers);
   if (missing.length === 0) {
     const gate = authGateById.get(entry.uatId);
+    if (gate === TEST_CREDENTIAL_GATE) {
+      assignCategory(entry.uatId, "testCredentialGate");
+      testCredentialGateCount += 1;
+      continue;
+    }
+    if (gate === DATA_FIXTURE_GATE) {
+      assignCategory(entry.uatId, "dataFixtureGate");
+      dataFixtureGateCount += 1;
+      continue;
+    }
     if (gate === "AUTH_CONTRACT_MISMATCH") {
       assignCategory(entry.uatId, "authContractMismatch");
       authContractMismatch += 1;
@@ -295,6 +306,8 @@ const reconciledTotal =
   authContractMismatch +
   otpExternalGate +
   providerGated +
+  dataFixtureGateCount +
+  testCredentialGateCount +
   notExecutedCount;
 const missingCensusIds = census.entries.filter((e) => !categoryById.has(e.uatId)).map((e) => e.uatId);
 const extraIds = [...categoryById.keys()].filter((id) => !censusIds.has(id));
@@ -305,7 +318,7 @@ const reconciled =
   extraIds.length === 0;
 if (!reconciled) {
   console.error(
-    `::error::UAT denominator reconciliation failed: authenticated(${authenticated.size}) + publicSkipped(${publicSkipped}) + blocked(${blockedCount}) + credsAvailable(${credsAvailableNoEvidence}) = ${reconciledTotal}, expected census total ${census.entries.length}.`,
+    `::error::UAT denominator reconciliation failed: authenticated(${authenticated.size}) + publicSkipped(${publicSkipped}) + blocked(${blockedCount}) + credsAvailable(${credsAvailableNoEvidence}) + dataFixtureGate(${dataFixtureGateCount}) + testCredentialGate(${testCredentialGateCount}) = ${reconciledTotal}, expected census total ${census.entries.length}.`,
   );
 }
 if (duplicateMemberships.length > 0) {
@@ -344,7 +357,11 @@ const summary = {
     authContractMismatch +
     otpExternalGate +
     providerGated +
+    dataFixtureGateCount +
+    testCredentialGateCount +
     notExecutedCount,
+  dataFixtureGate: dataFixtureGateCount,
+  testCredentialGate: testCredentialGateCount,
   verifiedBlocked: blockedCount,
   credentialsAvailableAwaitingEvidence: credsAvailableNoEvidence,
   authFlowFailed,
@@ -365,6 +382,8 @@ const summary = {
     authContractMismatch,
     otpExternalGate,
     providerGated,
+    dataFixtureGate: dataFixtureGateCount,
+    testCredentialGate: testCredentialGateCount,
     notExecuted: notExecutedCount,
     totalCensus: census.entries.length,
     reconciledTotal,

@@ -6,6 +6,7 @@
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import type { Page } from "@playwright/test";
+import { AUTH_BLOCK_CLASSIFICATIONS } from "../auth/auth-contract";
 import { loginStaff } from "../e2e-helpers";
 import { detectAccessWall, DEPLOYMENT_PROTECTION_CLASS } from "./access-wall";
 import {
@@ -55,6 +56,24 @@ export const PRE_FIX_FAIL_IDS = [
   "FAIL-UX-481-001",
   "FAIL-UX-481-002",
 ] as const;
+
+function allBlockedRetestDisposition(): PostFix483ManifestRow["retestDisposition"] {
+  return {
+    "FAIL-481-001": "BLOCKED",
+    "FAIL-481-002": "BLOCKED",
+    "FAIL-UX-481-001": "BLOCKED",
+    "FAIL-UX-481-002": "BLOCKED",
+  };
+}
+
+function closedRetestFailIds(disposition: PostFix483ManifestRow["retestDisposition"]): string[] {
+  const closed: string[] = [];
+  if (disposition["FAIL-481-001"] === "PASS") closed.push("FAIL-481-001");
+  if (disposition["FAIL-481-002"] === "PASS") closed.push("FAIL-481-002");
+  if (disposition["FAIL-UX-481-001"] === "PASS") closed.push("FAIL-UX-481-001");
+  if (disposition["FAIL-UX-481-002"] === "PASS") closed.push("FAIL-UX-481-002");
+  return closed;
+}
 
 export type PostFix483ManifestRow = ManifestRow & {
   evidencePhase: "post-fix-483";
@@ -176,8 +195,12 @@ function evaluateRetest(opts: {
   const ledgerRows: string[] = [];
 
   if (!opts.authenticated || !opts.sheetOpened) {
-    for (const id of PRE_FIX_FAIL_IDS) disposition[id] = "BLOCKED";
-    return { disposition, functionStatus: "BLOCKED", uxFailures, ledgerRows };
+    return {
+      disposition: allBlockedRetestDisposition(),
+      functionStatus: "BLOCKED",
+      uxFailures,
+      ledgerRows,
+    };
   }
 
   disposition["FAIL-481-001"] = opts.pricingDropdownVisible ? "PASS" : "FAIL";
@@ -243,7 +266,7 @@ export async function crawlPostFix483Target(
     failures.push(
       `| FAIL-AUTH-CRED-${target.uatId.slice(-4)} | ${target.uatId} | central | ADMIN_SALES | phone | ${target.route} [sheet-review-open] | Post-fix #483 retest | Authenticated sheet S0–S3 | BLOCKED — missing ${missing} | P0 | pre-fix preserved | — | Post-fix #483 | Central | Deploy/Auth | ${missing} |`,
     );
-    const blockedDisposition = Object.fromEntries(PRE_FIX_FAIL_IDS.map((id) => [id, "BLOCKED" as const]));
+    const blockedDisposition = allBlockedRetestDisposition();
     return {
       row: {
         uatId: target.uatId,
@@ -384,7 +407,10 @@ export async function crawlPostFix483Target(
     blockedCount: wall.blocked || stillOnLogin ? 148 : 144,
   });
 
-  const closedFailIds = PRE_FIX_FAIL_IDS.filter((id) => evalResult.disposition[id] === "PASS");
+  const closedFailIds = closedRetestFailIds(evalResult.disposition);
+  const authenticatedOk = !wall.blocked && !stillOnLogin;
+  const fixtureGated =
+    authenticatedOk && !uxEvidence.s3 && sheetNote.includes("Could not open pending review sheet");
 
   const row = attachRunMetadata({
     uatId: target.uatId,
@@ -399,7 +425,11 @@ export async function crawlPostFix483Target(
     baselineSha: POST_FIX_483_BASELINE_SHA,
     crawlBaseUrl: CRAWL_BASE_URL,
     timestamp: new Date().toISOString(),
-    blockClassification: wall.blocked ? DEPLOYMENT_PROTECTION_CLASS : null,
+    blockClassification: wall.blocked
+      ? DEPLOYMENT_PROTECTION_CLASS
+      : fixtureGated
+        ? AUTH_BLOCK_CLASSIFICATIONS.DATA_FIXTURE_GATE
+        : null,
     wallClassification: wall.blocked ? DEPLOYMENT_PROTECTION_CLASS : null,
     visualStatus: wall.blocked || stillOnLogin ? "BLOCKED" : "OBSERVED",
     functionStatus: wall.blocked ? "BLOCKED" : evalResult.functionStatus,
