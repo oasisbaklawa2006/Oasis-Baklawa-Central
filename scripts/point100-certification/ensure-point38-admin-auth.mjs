@@ -11,49 +11,26 @@
  * sign-in succeeds. It never touches business authority tables or production.
  */
 
-import { readFileSync } from "node:fs";
 import { createClient } from "@supabase/supabase-js";
+import {
+  assertLoopbackHttpOrigin,
+  assertNoError,
+  parseCredentialFile,
+  readCredential,
+  requireBootstrapEnv,
+} from "./point38-bootstrap-common.mjs";
 
-const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
-const CREDENTIAL_FILE = "/tmp/oasis-factory-certification.env";
+const LOCAL_LABEL = "POINT100_ADMIN_AUTH";
+const credentials = parseCredentialFile();
 
-function requireEnv(name) {
-  const value = process.env[name]?.trim();
-  if (!value) throw new Error(`POINT100_ADMIN_AUTH_ENV_REQUIRED: ${name}`);
-  return value;
-}
-
-function assertLoopback(rawUrl) {
-  const parsed = new URL(rawUrl);
-  if (parsed.protocol !== "http:" || !LOOPBACK_HOSTS.has(parsed.hostname)) {
-    throw new Error(`POINT100_ADMIN_AUTH_LOCAL_ONLY: refusing ${parsed.origin}`);
-  }
-  if (parsed.username || parsed.password || parsed.pathname !== "/" || parsed.search || parsed.hash) {
-    throw new Error("POINT100_ADMIN_AUTH_LOCAL_ONLY: Supabase URL must be a canonical loopback origin");
-  }
-  return parsed.origin;
-}
-
-function credentials() {
-  const values = new Map();
-  for (const line of readFileSync(CREDENTIAL_FILE, "utf8").split(/\r?\n/)) {
-    const match = /^export ([A-Z0-9_]+)='([^']*)'$/.exec(line.trim());
-    if (match) values.set(match[1], match[2]);
-  }
-  const email = values.get("FACTORY_CERT_ADMIN_EMAIL")?.trim();
-  const password = values.get("FACTORY_CERT_ADMIN_PASSWORD")?.trim();
-  if (!email || !password) throw new Error("POINT100_ADMIN_AUTH_CREDENTIALS_REQUIRED");
-  return { email, password };
-}
-
-function assertNoError(error, label) {
-  if (error) throw new Error(`${label}: ${error.message ?? String(error)}`);
-}
-
-const baseUrl = assertLoopback(requireEnv("FACTORY_CERT_SUPABASE_URL"));
-const serviceRoleKey = requireEnv("FACTORY_CERT_LOCAL_SERVICE_ROLE_KEY");
-const anonKey = requireEnv("FACTORY_CERT_SUPABASE_ANON_KEY");
-const { email, password } = credentials();
+const baseUrl = assertLoopbackHttpOrigin(
+  requireBootstrapEnv("FACTORY_CERT_SUPABASE_URL", LOCAL_LABEL),
+  LOCAL_LABEL,
+);
+const serviceRoleKey = requireBootstrapEnv("FACTORY_CERT_LOCAL_SERVICE_ROLE_KEY", LOCAL_LABEL);
+const anonKey = requireBootstrapEnv("FACTORY_CERT_SUPABASE_ANON_KEY", LOCAL_LABEL);
+const email = readCredential(credentials, "FACTORY_CERT_ADMIN_EMAIL", LOCAL_LABEL);
+const password = readCredential(credentials, "FACTORY_CERT_ADMIN_PASSWORD", LOCAL_LABEL);
 
 const admin = createClient(baseUrl, serviceRoleKey, {
   auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
