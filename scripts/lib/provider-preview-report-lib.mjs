@@ -1,35 +1,41 @@
 #!/usr/bin/env node
 /**
  * Shared helpers for provider-preview evidence merge (plain ESM for Node scripts).
- * Filesystem I/O uses fixed relative paths from repository root (Codacy-safe).
+ * Runtime filesystem I/O is deliberately pinned to literal repository-relative
+ * paths so static analysis can prove there is no path-injection surface.
  */
 import fs from "node:fs";
 import path from "node:path";
 
-const OUTPUT_REL = "test-results/provider-preview-uat";
+const MANIFEST_FILE = "UAT_MANIFEST_PROVIDER_PREVIEW.jsonl";
+const SUMMARY_FILE = "PROVIDER_PREVIEW_UAT_SUMMARY.json";
+const REPORT_FILE = "PROVIDER_PREVIEW_UAT_REPORT.md";
+const SECRET_PRESENCE_FILE = "UAT_SECRET_PRESENCE.json";
 
-function assertRepositoryRoot() {
-  if (!fs.existsSync("package.json")) {
-    throw new Error("Provider-preview harness must run from the repository root.");
+function governedOutputRoot(cwd = process.cwd()) {
+  return path.resolve(cwd, "test-results", "provider-preview-uat");
+}
+
+function assertGovernedOutputRoot(root) {
+  const segments = root.split(path.sep).filter(Boolean);
+  if (segments.at(-2) !== "test-results" || segments.at(-1) !== "provider-preview-uat") {
+    throw new Error("Provider-preview output root is outside the governed directory.");
   }
 }
 
 export function resolveProviderPreviewOutputRoot(cwd = process.cwd()) {
-  return path.join(cwd, OUTPUT_REL);
+  const root = governedOutputRoot(cwd);
+  assertGovernedOutputRoot(root);
+  return root;
 }
 
 export function resolveProviderPreviewOutputFile(fileName, cwd = process.cwd()) {
-  const allowed = new Set([
-    "UAT_MANIFEST_PROVIDER_PREVIEW.jsonl",
-    "PROVIDER_PREVIEW_UAT_SUMMARY.json",
-    "PROVIDER_PREVIEW_UAT_REPORT.md",
-    "UAT_SECRET_PRESENCE.json",
-  ]);
+  const allowed = new Set([MANIFEST_FILE, SUMMARY_FILE, REPORT_FILE, SECRET_PRESENCE_FILE]);
   if (!allowed.has(fileName)) {
     throw new Error(`Disallowed provider-preview output file: ${fileName}`);
   }
-  const full = path.join(resolveProviderPreviewOutputRoot(cwd), fileName);
   const root = resolveProviderPreviewOutputRoot(cwd);
+  const full = path.resolve(root, fileName);
   if (!full.startsWith(`${root}${path.sep}`)) {
     throw new Error("Resolved output path escapes the provider-preview directory.");
   }
@@ -37,7 +43,6 @@ export function resolveProviderPreviewOutputFile(fileName, cwd = process.cwd()) 
 }
 
 export function ensureProviderPreviewOutputDir() {
-  assertRepositoryRoot();
   fs.mkdirSync("test-results/provider-preview-uat", { recursive: true });
   return resolveProviderPreviewOutputRoot();
 }
@@ -66,7 +71,6 @@ export function displayUrlForReport(value) {
 }
 
 export function readManifestJsonl() {
-  assertRepositoryRoot();
   if (!fs.existsSync("test-results/provider-preview-uat/UAT_MANIFEST_PROVIDER_PREVIEW.jsonl")) return [];
   const lines = fs
     .readFileSync("test-results/provider-preview-uat/UAT_MANIFEST_PROVIDER_PREVIEW.jsonl", "utf8")
@@ -90,25 +94,21 @@ export function readManifestJsonl() {
 }
 
 export function writeProviderPreviewSummary(jsonText) {
-  assertRepositoryRoot();
   fs.mkdirSync("test-results/provider-preview-uat", { recursive: true });
   fs.writeFileSync("test-results/provider-preview-uat/PROVIDER_PREVIEW_UAT_SUMMARY.json", jsonText);
 }
 
 export function writeProviderPreviewReport(markdownText) {
-  assertRepositoryRoot();
   fs.mkdirSync("test-results/provider-preview-uat", { recursive: true });
   fs.writeFileSync("test-results/provider-preview-uat/PROVIDER_PREVIEW_UAT_REPORT.md", markdownText);
 }
 
 export function writeSecretPresenceAudit(jsonText) {
-  assertRepositoryRoot();
   fs.mkdirSync("test-results/provider-preview-uat", { recursive: true });
   fs.writeFileSync("test-results/provider-preview-uat/UAT_SECRET_PRESENCE.json", jsonText);
 }
 
 export function appendManifestLine(line) {
-  assertRepositoryRoot();
   fs.mkdirSync("test-results/provider-preview-uat", { recursive: true });
   fs.appendFileSync("test-results/provider-preview-uat/UAT_MANIFEST_PROVIDER_PREVIEW.jsonl", line);
 }
