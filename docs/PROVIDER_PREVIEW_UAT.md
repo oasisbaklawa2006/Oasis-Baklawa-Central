@@ -11,7 +11,9 @@ Values are never printed in CI output. Manifest rows store origin + pathname onl
 
 ## Security notes (static analysis)
 
-Codacy path-traversal rules on `scripts/merge-provider-preview-uat-report.mjs` are addressed with an **allowlisted output directory** (`test-results/provider-preview-uat/`) via `scripts/lib/provider-preview-report-lib.mjs`. Manifest paths are not composed from crawled page content; only fixed filenames are permitted. Markdown report cells use full table escaping (backslash and pipe) to satisfy CodeQL incomplete-escaping checks.
+See **`docs/PROVIDER_PREVIEW_UAT_SECURITY_REMEDIATION.md`** for the per-finding Codacy/CodeQL log (including the 7 issues on `f041fbb0` and fixes through `7758ac78`).
+
+Summary: governed I/O uses **literal** paths under `test-results/provider-preview-uat/` via `scripts/lib/provider-preview-report-lib.mjs`; manifest JSONL never influences output paths. Markdown cells use full table escaping (backslash and pipe).
 
 ## Physical gates
 
