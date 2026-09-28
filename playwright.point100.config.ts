@@ -1,4 +1,24 @@
 import { defineConfig, devices } from "@playwright/test";
+import { validateFactoryCertificationTarget } from "./src/lib/factoryCertificationEnvironmentPolicy";
+
+const DISPOSABLE_CERT_BASE_URL = "http://127.0.0.1:4173";
+
+function assertDisposableCertificationTarget(): void {
+  const targetUrl = process.env.FACTORY_CERT_TARGET_URL?.trim();
+  if (!targetUrl) {
+    throw new Error("CERTIFICATION_ENV_REQUIRED: FACTORY_CERT_TARGET_URL is missing");
+  }
+  const policy = validateFactoryCertificationTarget({
+    targetUrl,
+    allowRemoteEphemeral: false,
+    environmentId: process.env.FACTORY_CERT_ENVIRONMENT_ID,
+  });
+  if (!policy.valid || policy.normalizedUrl !== DISPOSABLE_CERT_BASE_URL) {
+    throw new Error("UNSAFE_CERTIFICATION_TARGET: certification runner requires disposable localhost target");
+  }
+}
+
+assertDisposableCertificationTarget();
 
 /**
  * Point100 cross-lifecycle dress rehearsal runner.
@@ -21,7 +41,7 @@ export default defineConfig({
   ],
   use: {
     ...devices["Desktop Chrome"],
-    baseURL: process.env.FACTORY_CERT_TARGET_URL?.trim(),
+    baseURL: DISPOSABLE_CERT_BASE_URL,
     trace: "off",
     screenshot: "off",
     video: "off",
