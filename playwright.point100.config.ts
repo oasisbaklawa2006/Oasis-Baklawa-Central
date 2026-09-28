@@ -1,5 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const DISPOSABLE_CERT_BASE_URL = "http://localhost:4173";
+
 /**
  * Point100 cross-lifecycle dress rehearsal runner.
  *
@@ -21,7 +23,7 @@ export default defineConfig({
   ],
   use: {
     ...devices["Desktop Chrome"],
-    baseURL: process.env.FACTORY_CERT_TARGET_URL?.trim(),
+    baseURL: DISPOSABLE_CERT_BASE_URL,
     trace: "off",
     screenshot: "off",
     video: "off",
