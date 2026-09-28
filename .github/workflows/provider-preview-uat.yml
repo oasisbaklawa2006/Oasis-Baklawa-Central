@@ -1,0 +1,146 @@
+name: Provider-preview UAT (AI Studio + Trace)
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_tranche:
+        description: "Crawl tranche: ai-studio (UAT-0122..0127), trace (UAT-0128..0131), or all"
+        required: true
+        default: all
+        type: choice
+        options:
+          - ai-studio
+          - trace
+          - all
+
+permissions:
+  contents: read
+
+concurrency:
+  group: provider-preview-uat-${{ github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  validate-dispatch:
+    name: Validate trusted main dispatch
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Refuse non-main dispatch
+        shell: bash
+        env:
+          REF_NAME: ${{ github.ref }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" != "workflow_dispatch" ]]; then
+            echo "::error::Provider-preview UAT is workflow_dispatch only."
+            exit 1
+          fi
+          if [[ "$REF_NAME" != "refs/heads/main" ]]; then
+            echo "::error::Dispatch from $REF_NAME refused. Use the main-branch workflow."
+            exit 1
+          fi
+
+  contracts:
+    name: Provider-preview contract tests
+    needs: validate-dispatch
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+      - run: npm run test:provider-preview-uat:contracts
+
+  crawl:
+    name: Provider-preview crawl (${{ inputs.run_tranche }})
+    needs: [validate-dispatch, contracts]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      PROVIDER_PREVIEW_RUN_TRANCHE: ${{ inputs.run_tranche }}
+      PROVIDER_PREVIEW_TRANCHE: provider-preview
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Resolve current Central main SHA (provenance)
+        id: main_sha
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          sha="$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Record governed secret presence (names only)
+        shell: bash
+        env:
+          TEST_AI_STUDIO_PREVIEW_URL: ${{ secrets.TEST_AI_STUDIO_PREVIEW_URL }}
+          TEST_TRACE_PREVIEW_URL: ${{ secrets.TEST_TRACE_PREVIEW_URL }}
+        run: |
+          set -euo pipefail
+          for name in TEST_AI_STUDIO_PREVIEW_URL TEST_TRACE_PREVIEW_URL; do
+            if [[ -n "${!name:-}" ]]; then
+              echo "$name: configured"
+            else
+              echo "$name: missing"
+            fi
+          done
+          node -e "
+            const fs=require('fs');
+            const path=require('path');
+            const names=['TEST_AI_STUDIO_PREVIEW_URL','TEST_TRACE_PREVIEW_URL'];
+            const payload={
+              generatedAt:new Date().toISOString(),
+              harness:'provider-preview',
+              policy:'Names only — values never logged.',
+              secrets:names.map(n=>({name:n,present:Boolean(process.env[n]?.trim())}))
+            };
+            const dir=path.join('test-results','provider-preview-uat');
+            fs.mkdirSync(dir,{recursive:true});
+            fs.writeFileSync(path.join(dir,'UAT_SECRET_PRESENCE.json'),JSON.stringify(payload,null,2)+'\n');
+          "
+
+      - name: Run provider-preview crawl
+        continue-on-error: true
+        env:
+          UAT_TARGET_SHA: ${{ steps.main_sha.outputs.sha }}
+          PROVIDER_PREVIEW_CENTRAL_MAIN_SHA: ${{ steps.main_sha.outputs.sha }}
+          TEST_AI_STUDIO_PREVIEW_URL: ${{ secrets.TEST_AI_STUDIO_PREVIEW_URL }}
+          TEST_TRACE_PREVIEW_URL: ${{ secrets.TEST_TRACE_PREVIEW_URL }}
+        run: npx playwright test -c playwright.provider-preview-uat.config.ts
+
+      - name: Merge evidence report
+        if: always()
+        run: node scripts/merge-provider-preview-uat-report.mjs
+
+      - name: Upload provider-preview evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: provider-preview-uat-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            test-results/provider-preview-uat/
+          if-no-files-found: warn
+          retention-days: 14
