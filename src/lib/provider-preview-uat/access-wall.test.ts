@@ -29,5 +29,13 @@ describe("provider-preview access wall classification", () => {
     expect(classifyBlockedNavigationUrl("https://example.com/redirect")).toBe(
       "NAVIGATION_REDIRECT_BLOCKED",
     );
+    expect(
+      classifyBlockedNavigationUrl(
+        "https://example.com/?next=https%3A%2F%2Fvercel.com%2Flogin",
+      ),
+    ).toBe("NAVIGATION_REDIRECT_BLOCKED");
+    expect(classifyBlockedNavigationUrl("https://notvercel.com/login")).toBe(
+      "NAVIGATION_REDIRECT_BLOCKED",
+    );
   });
 });
