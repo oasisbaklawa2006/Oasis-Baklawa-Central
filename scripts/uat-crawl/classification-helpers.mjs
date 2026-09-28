@@ -5,6 +5,11 @@ import path from "node:path";
 export const DATA_FIXTURE_GATE = "DATA_FIXTURE_GATE";
 export const TEST_CREDENTIAL_GATE = "TEST_CREDENTIAL_GATE";
 
+const POST_FIX_483_MANIFEST = path.resolve(
+  import.meta.dirname,
+  "../../docs/uat-crawl/UAT_MANIFEST_POST_FIX_483.jsonl",
+);
+
 const FIXTURE_MISS_MARKERS = [
   "Could not open pending review sheet",
   "no pending apps",
@@ -20,11 +25,10 @@ export function isDataFixtureGateRow(row) {
   return FIXTURE_MISS_MARKERS.some((marker) => notes.includes(marker));
 }
 
-export function loadDataFixtureGateById(runId, root) {
-  const filePath = path.join(root, "docs/uat-crawl/UAT_MANIFEST_POST_FIX_483.jsonl");
+export function loadDataFixtureGateById(runId) {
   const map = new Map();
-  if (!fs.existsSync(filePath)) return map;
-  for (const line of fs.readFileSync(filePath, "utf8").trim().split("\n")) {
+  if (!fs.existsSync(POST_FIX_483_MANIFEST)) return map;
+  for (const line of fs.readFileSync(POST_FIX_483_MANIFEST, "utf8").trim().split("\n")) {
     if (!line) continue;
     let row;
     try {

@@ -95,7 +95,7 @@ function loadAuthGateById(censusIds) {
 }
 
 function loadDataFixtureGateRows(censusIds) {
-  const map = loadDataFixtureGateById(RUN_ID, ROOT);
+  const map = loadDataFixtureGateById(RUN_ID);
   for (const uatId of [...map.keys()]) {
     if (!censusIds.has(uatId)) map.delete(uatId);
   }
@@ -215,11 +215,11 @@ const rows = census.map((entry) => ({
   ...classifyEntry(entry, authComplete, publicComplete, blockersById, authGateById, dataFixtureGateById),
 }));
 
-const byDevice = {};
-const byDisposition = {};
-const byMissingSecret = {};
+const byDevice = new Map();
+const byDisposition = new Map();
+const byMissingSecret = new Map();
 for (const row of rows) {
-  byDevice[row.device] = byDevice[row.device] || {
+  const deviceStats = byDevice.get(row.device) ?? {
     total: 0,
     authComplete: 0,
     publicS0: 0,
@@ -230,22 +230,30 @@ for (const row of rows) {
     testCredentialGate: 0,
     notExecuted: 0,
   };
-  byDevice[row.device].total += 1;
-  if (row.disposition === "AUTH_S0_S3_COMPLETE") byDevice[row.device].authComplete += 1;
-  else if (row.disposition === "PUBLIC_S0_OBSERVED") byDevice[row.device].publicS0 += 1;
-  else if (row.disposition === "BLOCKED") byDevice[row.device].blocked += 1;
-  else if (row.disposition === "OTP_EXTERNAL_GATE") byDevice[row.device].otpExternalGate += 1;
-  else if (row.disposition === "PROVIDER_GATED") byDevice[row.device].providerGated += 1;
-  else if (row.disposition === DATA_FIXTURE_GATE) byDevice[row.device].dataFixtureGate += 1;
-  else if (row.disposition === TEST_CREDENTIAL_GATE) byDevice[row.device].testCredentialGate += 1;
-  else if (row.disposition === "NOT_EXECUTED") byDevice[row.device].notExecuted += 1;
-  byDisposition[row.disposition] = (byDisposition[row.disposition] || 0) + 1;
+  deviceStats.total += 1;
+  if (row.disposition === "AUTH_S0_S3_COMPLETE") deviceStats.authComplete += 1;
+  else if (row.disposition === "PUBLIC_S0_OBSERVED") deviceStats.publicS0 += 1;
+  else if (row.disposition === "BLOCKED") deviceStats.blocked += 1;
+  else if (row.disposition === "OTP_EXTERNAL_GATE") deviceStats.otpExternalGate += 1;
+  else if (row.disposition === "PROVIDER_GATED") deviceStats.providerGated += 1;
+  else if (row.disposition === DATA_FIXTURE_GATE) deviceStats.dataFixtureGate += 1;
+  else if (row.disposition === TEST_CREDENTIAL_GATE) deviceStats.testCredentialGate += 1;
+  else if (row.disposition === "NOT_EXECUTED") deviceStats.notExecuted += 1;
+  byDevice.set(row.device, deviceStats);
+  byDisposition.set(row.disposition, (byDisposition.get(row.disposition) ?? 0) + 1);
   if (row.missingSecretNames?.length) {
     const key = row.missingSecretNames.join(", ");
-    byMissingSecret[key] = byMissingSecret[key] || [];
-    byMissingSecret[key].push(row.uatId);
+    const bucket = byMissingSecret.get(key) ?? [];
+    bucket.push(row.uatId);
+    byMissingSecret.set(key, bucket);
   }
 }
+
+function dispositionCount(disposition) {
+  return byDisposition.get(disposition) ?? 0;
+}
+
+const byDeviceRecord = Object.fromEntries(byDevice.entries());
 
 const missingSecretsUnique = secretPresence
   ? secretPresence.secrets.filter((s) => !s.present).map((s) => s.name)
@@ -264,20 +272,20 @@ const payload = {
     "Evidence-only PR #462 — no remediation. Physical device PASS requires human artifacts; automated S0–S3 ≠ physical PASS.",
   counts: {
     censusTotal: rows.length,
-    authS0S3Complete: byDisposition.AUTH_S0_S3_COMPLETE || 0,
-    publicS0Observed: byDisposition.PUBLIC_S0_OBSERVED || 0,
-    blockedCredentialOrDeploy: byDisposition.BLOCKED || 0,
-    authFlowFailed: byDisposition.AUTH_FLOW_FAILED || 0,
-    authContractMismatch: byDisposition.AUTH_CONTRACT_MISMATCH || 0,
-    otpExternalGate: byDisposition.OTP_EXTERNAL_GATE || 0,
-    providerGated: byDisposition.PROVIDER_GATED || 0,
-    dataFixtureGate: byDisposition[DATA_FIXTURE_GATE] || 0,
-    testCredentialGate: byDisposition[TEST_CREDENTIAL_GATE] || 0,
-    notExecuted: byDisposition.NOT_EXECUTED || 0,
+    authS0S3Complete: dispositionCount("AUTH_S0_S3_COMPLETE"),
+    publicS0Observed: dispositionCount("PUBLIC_S0_OBSERVED"),
+    blockedCredentialOrDeploy: dispositionCount("BLOCKED"),
+    authFlowFailed: dispositionCount("AUTH_FLOW_FAILED"),
+    authContractMismatch: dispositionCount("AUTH_CONTRACT_MISMATCH"),
+    otpExternalGate: dispositionCount("OTP_EXTERNAL_GATE"),
+    providerGated: dispositionCount("PROVIDER_GATED"),
+    dataFixtureGate: dispositionCount(DATA_FIXTURE_GATE),
+    testCredentialGate: dispositionCount(TEST_CREDENTIAL_GATE),
+    notExecuted: dispositionCount("NOT_EXECUTED"),
   },
-  byDevice,
+  byDevice: byDeviceRecord,
   byMissingSecret: Object.fromEntries(
-    Object.entries(byMissingSecret).map(([k, v]) => [k, { count: v.length, uatIds: v }]),
+    [...byMissingSecret.entries()].map(([k, v]) => [k, { count: v.length, uatIds: v }]),
   ),
   ghaSecretPresence: secretPresence
     ? {
@@ -287,11 +295,11 @@ const payload = {
       }
     : null,
   stopCondition:
-    (byDisposition.NOT_EXECUTED || 0) > 0
+    dispositionCount("NOT_EXECUTED") > 0
       ? "INCOMPLETE_CURRENT_RUN_EVIDENCE — one or more census rows were not executed"
       : missingSecretsUnique.length > 0
         ? "ONLY_TEST_SECRET_BLOCKERS — no further automated crawl until repo secrets wired"
-        : ((byDisposition.OTP_EXTERNAL_GATE || 0) + (byDisposition.PROVIDER_GATED || 0)) > 0
+        : dispositionCount("OTP_EXTERNAL_GATE") + dispositionCount("PROVIDER_GATED") > 0
           ? "AUTOMATED_CRAWL_COMPLETE_WITH_EXTERNAL_PROVIDER_GATES"
           : "AUTOMATED_CRAWL_COMPLETE",
   rows,
@@ -312,7 +320,7 @@ fs.writeFileSync(
     deployUrl: DEPLOY_URL,
     counts: payload.counts,
     stopCondition: payload.stopCondition,
-    byDisposition,
+    byDisposition: Object.fromEntries(byDisposition.entries()),
   }, null, 2)}\n`,
 );
 
@@ -344,7 +352,7 @@ const mdLines = [
   "",
   "| Device | Total | Auth S0–S3 | Public S0 | Blocked | OTP gate | Provider gate | Fixture gate | Cred gate | Not executed |",
   "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
-  ...Object.entries(byDevice).map(
+  ...Object.entries(byDeviceRecord).map(
     ([d, c]) =>
       `| ${d} | ${c.total} | ${c.authComplete} | ${c.publicS0} | ${c.blocked} | ${c.otpExternalGate} | ${c.providerGated} | ${c.dataFixtureGate} | ${c.testCredentialGate} | ${c.notExecuted} |`,
   ),

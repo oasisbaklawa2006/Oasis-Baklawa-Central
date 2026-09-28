@@ -197,7 +197,7 @@ let notExecutedCount = 0;
 let dataFixtureGateCount = 0;
 let testCredentialGateCount = 0;
 const authGateById = loadAuthGateById();
-const dataFixtureGateById = loadDataFixtureGateById(RUN_ID, ROOT);
+const dataFixtureGateById = loadDataFixtureGateById(RUN_ID);
 // Explicit count of census entries actually skipped via the public-continuation branch below —
 // this, not publicComplete.size, is the number that must reconcile against the census total,
 // since publicComplete can (correctly) contain IDs outside PUBLIC_RUNNABLE that this loop does

@@ -407,6 +407,26 @@ async function captureInteractionStates(
   return { uxEvidence, uxEvidenceSha256, shotNames, s0Name };
 }
 
+function resolveLoginBlockClassification(
+  loginClassification: AuthBlockClassification | null,
+  creds: { prefix: CredentialPrefix | null; missingSecretNames: string[] },
+  consoleErrors: string[],
+  networkErrors: string[],
+): AuthBlockClassification {
+  const base = loginClassification ?? AUTH_BLOCK_CLASSIFICATIONS.AUTH_FLOW_FAILED;
+  if (base !== AUTH_BLOCK_CLASSIFICATIONS.AUTH_FLOW_FAILED) return base;
+  const haystack = [...consoleErrors, ...networkErrors].join(" ");
+  if (
+    creds.prefix &&
+    creds.missingSecretNames.length === 0 &&
+    ((haystack.includes("400") && haystack.includes("auth/v1/token")) ||
+      haystack.includes("SESSION_CREATE_FAILED"))
+  ) {
+    return AUTH_BLOCK_CLASSIFICATIONS.TEST_CREDENTIAL_GATE;
+  }
+  return base;
+}
+
 export async function crawlTargetAuthenticated(
   page: Page,
   target: CrawlTarget,
@@ -631,20 +651,7 @@ export async function crawlTargetAuthenticated(
     blockClassification: wall.blocked
       ? DEPLOYMENT_PROTECTION_CLASS
       : stillOnLogin
-        ? (() => {
-            const base = loginClassification ?? AUTH_BLOCK_CLASSIFICATIONS.AUTH_FLOW_FAILED;
-            if (base !== AUTH_BLOCK_CLASSIFICATIONS.AUTH_FLOW_FAILED) return base;
-            const haystack = [...consoleErrors, ...networkErrors].join(" ");
-            if (
-              creds.prefix &&
-              creds.missingSecretNames.length === 0 &&
-              ((haystack.includes("400") && haystack.includes("auth/v1/token")) ||
-                haystack.includes("SESSION_CREATE_FAILED"))
-            ) {
-              return AUTH_BLOCK_CLASSIFICATIONS.TEST_CREDENTIAL_GATE;
-            }
-            return base;
-          })()
+        ? resolveLoginBlockClassification(loginClassification, creds, consoleErrors, networkErrors)
         : null,
     wallClassification: wall.blocked ? DEPLOYMENT_PROTECTION_CLASS : null,
     visualStatus: wall.blocked || stillOnLogin ? "BLOCKED" : "OBSERVED",
