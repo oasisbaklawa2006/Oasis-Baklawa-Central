@@ -1,4 +1,22 @@
 import { defineConfig, devices } from "@playwright/test";
+import { validateFactoryCertificationTarget } from "./src/lib/factoryCertificationEnvironmentPolicy";
+
+function resolveFactoryCertificationBaseUrl(): string {
+  const targetUrl = process.env.FACTORY_CERT_TARGET_URL?.trim();
+  if (!targetUrl) {
+    throw new Error("CERTIFICATION_ENV_REQUIRED: FACTORY_CERT_TARGET_URL is missing");
+  }
+  const policy = validateFactoryCertificationTarget({
+    targetUrl,
+    allowRemoteEphemeral: process.env.FACTORY_CERT_ALLOW_REMOTE_EPHEMERAL === "true",
+    allowedHost: process.env.FACTORY_CERT_ALLOWED_HOST,
+    environmentId: process.env.FACTORY_CERT_ENVIRONMENT_ID,
+  });
+  if (!policy.valid || !policy.normalizedUrl) {
+    throw new Error(`UNSAFE_CERTIFICATION_TARGET: ${policy.reason ?? "target rejected"}`);
+  }
+  return policy.normalizedUrl;
+}
 
 /**
  * Dedicated Factory Operations certification runner.
@@ -22,6 +40,7 @@ export default defineConfig({
   ],
   use: {
     ...devices["Desktop Chrome"],
+    baseURL: resolveFactoryCertificationBaseUrl(),
     baseURL: process.env.FACTORY_CERT_TARGET_URL?.trim(),
     trace: "off",
     screenshot: "off",
