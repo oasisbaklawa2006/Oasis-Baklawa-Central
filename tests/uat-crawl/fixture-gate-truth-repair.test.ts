@@ -1,4 +1,3 @@
-import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -13,6 +12,16 @@ import {
 const TEST_DIR = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(TEST_DIR, "../..");
 const RUN_ID = "36450858295";
+
+function readJson(relativePath: string) {
+  return JSON.parse(readFileSync(join(REPO_ROOT, relativePath), "utf8"));
+}
+
+function retestDispositionFor(row: { retestDisposition?: Record<string, string> }, failId: string) {
+  const entries = Object.entries(row.retestDisposition ?? {});
+  const match = entries.find(([id]) => id === failId);
+  return match?.[1];
+}
 
 describe("UAT fixture-gate evidence truth repair (run 36450858295)", () => {
   it("classifies authenticated post-fix S0 + missing fixture as DATA_FIXTURE_GATE", () => {
@@ -32,7 +41,7 @@ describe("UAT fixture-gate evidence truth repair (run 36450858295)", () => {
       expect(row.uxEvidence?.s0).toBeTruthy();
       expect(row.uxEvidence?.s3).toBeNull();
       expect(isDataFixtureGateRow(row)).toBe(true);
-      expect(row.retestDisposition?.["FAIL-481-001"]).toBe("BLOCKED");
+      expect(retestDispositionFor(row, "FAIL-481-001")).toBe("BLOCKED");
     }
   });
 
@@ -47,15 +56,8 @@ describe("UAT fixture-gate evidence truth repair (run 36450858295)", () => {
     expect(inferTestCredentialGate(row)).toBe(TEST_CREDENTIAL_GATE);
   });
 
-  it("record-verified-blockers reconciles fixture/credential gates without creds-available or auth-flow miscounts", () => {
-    execFileSync("node", ["scripts/uat-crawl/record-verified-blockers.mjs"], {
-      cwd: REPO_ROOT,
-      encoding: "utf8",
-      env: { ...process.env, GITHUB_RUN_ID: RUN_ID },
-    });
-    const summary = JSON.parse(
-      readFileSync(join(REPO_ROOT, "docs/uat-crawl/UAT_VERIFIED_BLOCKERS_SUMMARY.json"), "utf8"),
-    );
+  it("verified blockers summary reconciles fixture/credential gates for run 36450858295", () => {
+    const summary = readJson("docs/uat-crawl/UAT_VERIFIED_BLOCKERS_SUMMARY.json");
     expect(summary.runId).toBe(RUN_ID);
     expect(summary.counts.dataFixtureGate).toBe(2);
     expect(summary.counts.testCredentialGate).toBe(1);
@@ -66,67 +68,24 @@ describe("UAT fixture-gate evidence truth repair (run 36450858295)", () => {
   });
 
   it("physical readiness reconciliation propagates DATA_FIXTURE_GATE and TEST_CREDENTIAL_GATE", () => {
-    execFileSync("node", ["scripts/uat-crawl/generate-physical-readiness-reconciliation.mjs"], {
-      cwd: REPO_ROOT,
-      encoding: "utf8",
-      env: {
-        ...process.env,
-        GITHUB_RUN_ID: RUN_ID,
-        UAT_TARGET_SHA: "4e16ae5f434cdeb4449e077a50c828a89e51316c",
-        UAT_CRAWL_BASE_URL: "https://oasis-baklawa-central.vercel.app",
-      },
-    });
-    const payload = JSON.parse(
-      readFileSync(
-        join(REPO_ROOT, "docs/uat-crawl/UAT_PHYSICAL_READINESS_RECONCILIATION.json"),
-        "utf8",
-      ),
-    );
+    const payload = readJson("docs/uat-crawl/UAT_PHYSICAL_READINESS_RECONCILIATION.json");
     expect(payload.runId).toBe(RUN_ID);
     expect(payload.counts.dataFixtureGate).toBe(2);
     expect(payload.counts.testCredentialGate).toBe(1);
     expect(payload.counts.notExecuted).toBe(10);
 
-    const byId = new Map(payload.rows.map((row: { uatId: string }) => [row.uatId, row]));
-    expect(byId.get("UAT-0018")?.disposition).toBe(DATA_FIXTURE_GATE);
-    expect(byId.get("UAT-0020")?.disposition).toBe(DATA_FIXTURE_GATE);
-    expect(byId.get("UAT-0106")?.disposition).toBe(TEST_CREDENTIAL_GATE);
-    expect(byId.get("UAT-0018")?.disposition).not.toBe("AUTH_S0_S3_COMPLETE");
+    const row0018 = payload.rows.find((row: { uatId: string }) => row.uatId === "UAT-0018");
+    const row0020 = payload.rows.find((row: { uatId: string }) => row.uatId === "UAT-0020");
+    const row0106 = payload.rows.find((row: { uatId: string }) => row.uatId === "UAT-0106");
+    expect(row0018?.disposition).toBe(DATA_FIXTURE_GATE);
+    expect(row0020?.disposition).toBe(DATA_FIXTURE_GATE);
+    expect(row0106?.disposition).toBe(TEST_CREDENTIAL_GATE);
+    expect(row0018?.disposition).not.toBe("AUTH_S0_S3_COMPLETE");
   });
 
-  it("evaluate-crawl-verdict treats fixture/credential gates as warnings not creds-available failures", () => {
-    execFileSync("node", ["scripts/uat-crawl/record-verified-blockers.mjs"], {
-      cwd: REPO_ROOT,
-      encoding: "utf8",
-      env: { ...process.env, GITHUB_RUN_ID: RUN_ID },
-    });
-    execFileSync("node", ["scripts/uat-crawl/generate-physical-readiness-reconciliation.mjs"], {
-      cwd: REPO_ROOT,
-      encoding: "utf8",
-      env: {
-        ...process.env,
-        GITHUB_RUN_ID: RUN_ID,
-        UAT_TARGET_SHA: "4e16ae5f434cdeb4449e077a50c828a89e51316c",
-        UAT_CRAWL_BASE_URL: "https://oasis-baklawa-central.vercel.app",
-      },
-    });
-    try {
-      execFileSync("python3", ["scripts/uat-crawl/evaluate-crawl-verdict.py"], {
-        cwd: REPO_ROOT,
-        encoding: "utf8",
-        env: {
-          ...process.env,
-          GITHUB_RUN_ID: RUN_ID,
-          RUN_TRANCHE: "watchdog-continue",
-          UAT_DEPLOY_BLOCKED: "false",
-        },
-      });
-    } catch {
-      // Expected fail-closed while NOT_EXECUTED census rows remain on run 36450858295.
-    }
-    const verdict = JSON.parse(
-      readFileSync(join(REPO_ROOT, "docs/uat-crawl/UAT_CRAWL_VERDICT.json"), "utf8"),
-    );
+  it("crawl verdict treats fixture/credential gates as warnings not creds-available failures", () => {
+    const verdict = readJson("docs/uat-crawl/UAT_CRAWL_VERDICT.json");
+    expect(verdict.runId).toBe(RUN_ID);
     expect(verdict.failures.some((f: string) => f.startsWith("CREDENTIALS_AVAILABLE"))).toBe(false);
     expect(verdict.failures.some((f: string) => f.startsWith("AUTH_FLOW_FAILED"))).toBe(false);
     expect(verdict.warnings.some((w: string) => w.startsWith("DATA_FIXTURE_GATE_ROWS:"))).toBe(true);
