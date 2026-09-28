@@ -13,6 +13,7 @@ import {
   type AuthBlockClassification,
 } from "../auth/auth-contract";
 import { detectAccessWall, DEPLOYMENT_PROTECTION_CLASS } from "./access-wall";
+import { resolveLoginBlockClassification } from "./login-block-classification";
 import {
   appendFailureLedger,
   appendManifestRow,
@@ -405,26 +406,6 @@ async function captureInteractionStates(
   }
 
   return { uxEvidence, uxEvidenceSha256, shotNames, s0Name };
-}
-
-function resolveLoginBlockClassification(
-  loginClassification: AuthBlockClassification | null,
-  creds: { prefix: CredentialPrefix | null; missingSecretNames: string[] },
-  consoleErrors: string[],
-  networkErrors: string[],
-): AuthBlockClassification {
-  const base = loginClassification ?? AUTH_BLOCK_CLASSIFICATIONS.AUTH_FLOW_FAILED;
-  if (base !== AUTH_BLOCK_CLASSIFICATIONS.AUTH_FLOW_FAILED) return base;
-  const haystack = [...consoleErrors, ...networkErrors].join(" ");
-  if (
-    creds.prefix &&
-    creds.missingSecretNames.length === 0 &&
-    ((haystack.includes("400") && haystack.includes("auth/v1/token")) ||
-      haystack.includes("SESSION_CREATE_FAILED"))
-  ) {
-    return AUTH_BLOCK_CLASSIFICATIONS.TEST_CREDENTIAL_GATE;
-  }
-  return base;
 }
 
 export async function crawlTargetAuthenticated(
