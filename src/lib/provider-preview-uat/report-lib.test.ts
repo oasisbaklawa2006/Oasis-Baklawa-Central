@@ -42,17 +42,23 @@ describe("provider-preview report lib", () => {
 
   it("writes report only under governed directory", () => {
     writeProviderPreviewReport("# test\n");
-    const report = resolveProviderPreviewOutputFile("PROVIDER_PREVIEW_UAT_REPORT.md");
-    expect(readFileSync(report, "utf8")).toContain("# test");
+    expect(
+      readFileSync("test-results/provider-preview-uat/PROVIDER_PREVIEW_UAT_REPORT.md", "utf8"),
+    ).toContain("# test");
   });
 
   it("skips malformed manifest lines without throwing", () => {
-    const manifestRel = "test-results/provider-preview-uat/UAT_MANIFEST_PROVIDER_PREVIEW.jsonl";
     mkdirSync("test-results/provider-preview-uat", { recursive: true });
-    writeFileSync(manifestRel, '{"uatId":"UAT-0122"}\nnot-json\n', "utf8");
+    writeFileSync(
+      "test-results/provider-preview-uat/UAT_MANIFEST_PROVIDER_PREVIEW.jsonl",
+      '{"uatId":"UAT-0122"}\nnot-json\n',
+      "utf8",
+    );
     const rows = readManifestJsonl();
     expect(rows.length).toBe(2);
     expect(rows[1].uatId).toBe("evidence-stream");
-    rmSync(manifestRel, { force: true });
+    rmSync("test-results/provider-preview-uat/UAT_MANIFEST_PROVIDER_PREVIEW.jsonl", {
+      force: true,
+    });
   });
 });
