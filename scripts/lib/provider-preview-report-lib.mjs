@@ -1,50 +1,45 @@
 #!/usr/bin/env node
 /**
  * Shared helpers for provider-preview evidence merge (plain ESM for Node scripts).
- * Filesystem reads/writes use string-literal paths (Codacy path-traversal safe).
+ * Filesystem I/O uses fixed relative paths from repository root (Codacy-safe).
  */
 import fs from "node:fs";
 import path from "node:path";
 
-const MANIFEST_FILE = "UAT_MANIFEST_PROVIDER_PREVIEW.jsonl";
-const SUMMARY_FILE = "PROVIDER_PREVIEW_UAT_SUMMARY.json";
-const REPORT_FILE = "PROVIDER_PREVIEW_UAT_REPORT.md";
-const SECRET_PRESENCE_FILE = "UAT_SECRET_PRESENCE.json";
+const OUTPUT_REL = "test-results/provider-preview-uat";
 
-function governedOutputRoot(cwd = process.cwd()) {
-  return path.resolve(cwd, "test-results", "provider-preview-uat");
-}
-
-function assertGovernedOutputRoot(root) {
-  const segments = root.split(path.sep).filter(Boolean);
-  if (segments.at(-2) !== "test-results" || segments.at(-1) !== "provider-preview-uat") {
-    throw new Error("Provider-preview output root is outside the governed directory.");
+function assertRepositoryRoot() {
+  if (!fs.existsSync("package.json")) {
+    throw new Error("Provider-preview harness must run from the repository root.");
   }
 }
 
 export function resolveProviderPreviewOutputRoot(cwd = process.cwd()) {
-  const root = governedOutputRoot(cwd);
-  assertGovernedOutputRoot(root);
-  return root;
+  return path.join(cwd, OUTPUT_REL);
 }
 
 export function resolveProviderPreviewOutputFile(fileName, cwd = process.cwd()) {
-  const allowed = new Set([MANIFEST_FILE, SUMMARY_FILE, REPORT_FILE, SECRET_PRESENCE_FILE]);
+  const allowed = new Set([
+    "UAT_MANIFEST_PROVIDER_PREVIEW.jsonl",
+    "PROVIDER_PREVIEW_UAT_SUMMARY.json",
+    "PROVIDER_PREVIEW_UAT_REPORT.md",
+    "UAT_SECRET_PRESENCE.json",
+  ]);
   if (!allowed.has(fileName)) {
     throw new Error(`Disallowed provider-preview output file: ${fileName}`);
   }
+  const full = path.join(resolveProviderPreviewOutputRoot(cwd), fileName);
   const root = resolveProviderPreviewOutputRoot(cwd);
-  const full = path.resolve(root, fileName);
   if (!full.startsWith(`${root}${path.sep}`)) {
     throw new Error("Resolved output path escapes the provider-preview directory.");
   }
   return full;
 }
 
-export function ensureProviderPreviewOutputDir(cwd = process.cwd()) {
-  const root = resolveProviderPreviewOutputRoot(cwd);
-  fs.mkdirSync(path.resolve(root), { recursive: true });
-  return root;
+export function ensureProviderPreviewOutputDir() {
+  assertRepositoryRoot();
+  fs.mkdirSync("test-results/provider-preview-uat", { recursive: true });
+  return resolveProviderPreviewOutputRoot();
 }
 
 /** Escape untrusted manifest text before embedding in Markdown tables (CodeQL-safe). */
@@ -70,11 +65,13 @@ export function displayUrlForReport(value) {
   }
 }
 
-export function readManifestJsonl(cwd = process.cwd()) {
-  const root = resolveProviderPreviewOutputRoot(cwd);
-  const manifestPath = path.resolve(root, "UAT_MANIFEST_PROVIDER_PREVIEW.jsonl");
-  if (!fs.existsSync(manifestPath)) return [];
-  const lines = fs.readFileSync(manifestPath, "utf8").split(/\r?\n/).filter(Boolean);
+export function readManifestJsonl() {
+  assertRepositoryRoot();
+  if (!fs.existsSync("test-results/provider-preview-uat/UAT_MANIFEST_PROVIDER_PREVIEW.jsonl")) return [];
+  const lines = fs
+    .readFileSync("test-results/provider-preview-uat/UAT_MANIFEST_PROVIDER_PREVIEW.jsonl", "utf8")
+    .split(/\r?\n/)
+    .filter(Boolean);
   const rows = [];
   for (const line of lines) {
     try {
@@ -92,26 +89,26 @@ export function readManifestJsonl(cwd = process.cwd()) {
   return rows;
 }
 
-export function writeProviderPreviewSummary(jsonText, cwd = process.cwd()) {
-  const root = resolveProviderPreviewOutputRoot(cwd);
-  fs.mkdirSync(path.resolve(root), { recursive: true });
-  fs.writeFileSync(path.resolve(root, "PROVIDER_PREVIEW_UAT_SUMMARY.json"), jsonText);
+export function writeProviderPreviewSummary(jsonText) {
+  assertRepositoryRoot();
+  fs.mkdirSync("test-results/provider-preview-uat", { recursive: true });
+  fs.writeFileSync("test-results/provider-preview-uat/PROVIDER_PREVIEW_UAT_SUMMARY.json", jsonText);
 }
 
-export function writeProviderPreviewReport(markdownText, cwd = process.cwd()) {
-  const root = resolveProviderPreviewOutputRoot(cwd);
-  fs.mkdirSync(path.resolve(root), { recursive: true });
-  fs.writeFileSync(path.resolve(root, "PROVIDER_PREVIEW_UAT_REPORT.md"), markdownText);
+export function writeProviderPreviewReport(markdownText) {
+  assertRepositoryRoot();
+  fs.mkdirSync("test-results/provider-preview-uat", { recursive: true });
+  fs.writeFileSync("test-results/provider-preview-uat/PROVIDER_PREVIEW_UAT_REPORT.md", markdownText);
 }
 
-export function writeSecretPresenceAudit(jsonText, cwd = process.cwd()) {
-  const root = resolveProviderPreviewOutputRoot(cwd);
-  fs.mkdirSync(path.resolve(root), { recursive: true });
-  fs.writeFileSync(path.resolve(root, "UAT_SECRET_PRESENCE.json"), jsonText);
+export function writeSecretPresenceAudit(jsonText) {
+  assertRepositoryRoot();
+  fs.mkdirSync("test-results/provider-preview-uat", { recursive: true });
+  fs.writeFileSync("test-results/provider-preview-uat/UAT_SECRET_PRESENCE.json", jsonText);
 }
 
-export function appendManifestLine(line, cwd = process.cwd()) {
-  const root = resolveProviderPreviewOutputRoot(cwd);
-  fs.mkdirSync(path.resolve(root), { recursive: true });
-  fs.appendFileSync(path.resolve(root, "UAT_MANIFEST_PROVIDER_PREVIEW.jsonl"), line);
+export function appendManifestLine(line) {
+  assertRepositoryRoot();
+  fs.mkdirSync("test-results/provider-preview-uat", { recursive: true });
+  fs.appendFileSync("test-results/provider-preview-uat/UAT_MANIFEST_PROVIDER_PREVIEW.jsonl", line);
 }

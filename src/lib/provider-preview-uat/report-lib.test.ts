@@ -47,13 +47,12 @@ describe("provider-preview report lib", () => {
   });
 
   it("skips malformed manifest lines without throwing", () => {
-    const tmp = path.join(process.cwd(), "test-results", "provider-preview-uat");
-    const manifest = path.join(tmp, "UAT_MANIFEST_PROVIDER_PREVIEW.jsonl");
-    mkdirSync(tmp, { recursive: true });
-    writeFileSync(manifest, '{"uatId":"UAT-0122"}\nnot-json\n', "utf8");
+    const manifestRel = "test-results/provider-preview-uat/UAT_MANIFEST_PROVIDER_PREVIEW.jsonl";
+    mkdirSync("test-results/provider-preview-uat", { recursive: true });
+    writeFileSync(manifestRel, '{"uatId":"UAT-0122"}\nnot-json\n', "utf8");
     const rows = readManifestJsonl();
     expect(rows.length).toBe(2);
     expect(rows[1].uatId).toBe("evidence-stream");
-    rmSync(manifest, { force: true });
+    rmSync(manifestRel, { force: true });
   });
 });
