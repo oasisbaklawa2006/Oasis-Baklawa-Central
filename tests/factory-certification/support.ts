@@ -61,15 +61,17 @@ export function resolveFactoryCertificationTarget(): string {
   return policy.normalizedUrl;
 }
 
-function resolveFactoryCertificationLoginUrl(): string {
-  const validatedTarget = new URL(resolveFactoryCertificationTarget());
-  if (validatedTarget.protocol !== "http:" && validatedTarget.protocol !== "https:") {
-    throw new Error("UNSAFE_CERTIFICATION_TARGET: unsupported protocol");
+const FACTORY_CERTIFICATION_LOCAL_ORIGIN = "http://127.0.0.1:4173";
+const FACTORY_CERTIFICATION_STAFF_LOGIN_URL =
+  "http://127.0.0.1:4173/staff/login";
+
+function assertLocalFactoryCertificationBrowserTarget(): void {
+  const validatedTarget = resolveFactoryCertificationTarget();
+  if (validatedTarget !== FACTORY_CERTIFICATION_LOCAL_ORIGIN) {
+    throw new Error(
+      "UNSAFE_CERTIFICATION_TARGET: credentialed browser certification must use the governed local preview origin",
+    );
   }
-  validatedTarget.pathname = "/login";
-  validatedTarget.search = "";
-  validatedTarget.hash = "";
-  return validatedTarget.toString();
 }
 
 export function hasFactoryCertificationBackend(): boolean {
@@ -153,12 +155,14 @@ export async function loginToFactoryCertificationTarget(
   page: Page,
   credentials: FactoryCertificationCredentials,
 ): Promise<void> {
-  const loginUrl = resolveFactoryCertificationLoginUrl();
-  await page.goto(loginUrl, { waitUntil: "domcontentloaded", timeout: 60_000 });
-  const adminAccess = page.getByRole("button", { name: /^Admin Access$/i });
-  await expect(adminAccess).toBeVisible({ timeout: 30_000 });
-  await adminAccess.click();
-  await expect(page.getByRole("heading", { name: /^Employee Access$/i })).toBeVisible({ timeout: 30_000 });
+  assertLocalFactoryCertificationBrowserTarget();
+  await page.goto(FACTORY_CERTIFICATION_STAFF_LOGIN_URL, {
+    waitUntil: "domcontentloaded",
+    timeout: 60_000,
+  });
+  await expect(page.getByRole("heading", { name: /^Employee Access$/i })).toBeVisible({
+    timeout: 30_000,
+  });
 
   const emailInput = page.locator("#staff-email");
   await emailInput.fill(credentials.email);
