@@ -4,6 +4,18 @@ This branch is the Leap 11/14 integration tranche for Oasis Baklawa Appverse com
 
 Objective: build and continuously repair the executable cross-repository journey from authenticated Buyer catalogue/order intent through governed quotation/SO, payment/finance, production, inventory, packing/DPL, dispatch, independent gate, Trace, customer completion and complaint-window opening.
 
+## Current-main reconciliation (read-only census)
+
+| Authority | Evidence |
+|-----------|----------|
+| Central protected `main` | `f41b9cee85ac4e534de1b77f2abcead73795ef7e` (merged #618 UAT harness; Point100 branch reconciled here) |
+| Core production pin | SHA `7b2a09d4a70ee9632c264b552c3265f2495ce48a` — Core #290 lineage, protected Production Migration Release **#182** / run `34661721779` |
+| Merged Trace software (#37) | `894f27327381ce168d168530eba3c3722d71eaee` |
+| Programme dependency census | `appverse-control/dependency-graph.json` on current `main` (15 declared Point100 upstream edges) |
+| Executable fail-closed software blocker in harness | `oasis-trace-recovery-38` (Trace #38) until merged head binds Core #290 production authority |
+
+Live `main` supersedes stale graph rows where protected merges already landed (for example Central #588 AUTH-01 consumer, #591 AI chat consumer, #596 Point55 published products, #595 governance guards). Point100 does not certify those lanes; Mission Control must refresh graph state separately.
+
 Rules:
 - This is not an audit-only PR. Build the executable integration harness, adapters, fixtures, route bindings and repair code needed on Central to consume canonical authorities.
 - Reuse and bind canonical macro tranches: Buyer revenue, Core Finance, Core Inventory/Factory, Central CRM, Central Order→Gate, Management #558, AI Catalogue, merged Trace #37, Core Dispatch Finalization #260, and production-certified Core Trace reprint authority #290. Do not create shadow truth.
