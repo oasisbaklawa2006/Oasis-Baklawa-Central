@@ -1,30 +1,26 @@
 {
-  "generatedAt": "2026-09-28T17:03:01.018Z",
-  "runId": "36450858295",
+  "generatedAt": "2026-09-28T23:01:01.135Z",
+  "runId": "36495576511",
   "runAttempt": "1",
-  "runTranche": "watchdog-continue",
-  "currentMainSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+  "runTranche": "post-fix-483",
+  "currentMainSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
   "deployUrl": "https://oasis-baklawa-central.vercel.app",
   "counts": {
     "censusTotal": 131,
-    "authS0S3Complete": 103,
-    "publicS0Observed": 5,
+    "authS0S3Complete": 0,
+    "publicS0Observed": 0,
     "blockedCredentialOrDeploy": 0,
     "authFlowFailed": 0,
     "authContractMismatch": 0,
-    "otpExternalGate": 10,
+    "otpExternalGate": 0,
     "providerGated": 0,
     "dataFixtureGate": 2,
-    "testCredentialGate": 1,
-    "notExecuted": 10
+    "testCredentialGate": 0,
+    "notExecuted": 129
   },
   "stopCondition": "INCOMPLETE_CURRENT_RUN_EVIDENCE — one or more census rows were not executed",
   "byDisposition": {
-    "PUBLIC_S0_OBSERVED": 5,
-    "AUTH_S0_S3_COMPLETE": 103,
-    "OTP_EXTERNAL_GATE": 10,
-    "DATA_FIXTURE_GATE": 2,
-    "TEST_CREDENTIAL_GATE": 1,
-    "NOT_EXECUTED": 10
+    "NOT_EXECUTED": 129,
+    "DATA_FIXTURE_GATE": 2
   }
 }

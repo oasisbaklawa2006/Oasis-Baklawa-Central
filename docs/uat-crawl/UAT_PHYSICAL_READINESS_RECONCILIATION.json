@@ -1,59 +1,59 @@
 {
-  "generatedAt": "2026-09-28T17:03:01.018Z",
-  "runId": "36450858295",
+  "generatedAt": "2026-09-28T23:01:01.135Z",
+  "runId": "36495576511",
   "runAttempt": "1",
-  "runTranche": "watchdog-continue",
-  "lastGhaRun": "36450858295",
-  "currentMainSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+  "runTranche": "post-fix-483",
+  "lastGhaRun": "36495576511",
+  "currentMainSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
   "deployUrl": "https://oasis-baklawa-central.vercel.app",
-  "deployProvenance": "Current-main authority @ 4e16ae5f434cdeb4449e077a50c828a89e51316c (resolved dynamically at run time) — prior pinned-SHA evidence preserved append-only.",
+  "deployProvenance": "Current-main authority @ f41b9cee85ac4e534de1b77f2abcead73795ef7e (resolved dynamically at run time) — prior pinned-SHA evidence preserved append-only.",
   "policy": "Evidence-only PR #462 — no remediation. Physical device PASS requires human artifacts; automated S0–S3 ≠ physical PASS.",
   "counts": {
     "censusTotal": 131,
-    "authS0S3Complete": 103,
-    "publicS0Observed": 5,
+    "authS0S3Complete": 0,
+    "publicS0Observed": 0,
     "blockedCredentialOrDeploy": 0,
     "authFlowFailed": 0,
     "authContractMismatch": 0,
-    "otpExternalGate": 10,
+    "otpExternalGate": 0,
     "providerGated": 0,
     "dataFixtureGate": 2,
-    "testCredentialGate": 1,
-    "notExecuted": 10
+    "testCredentialGate": 0,
+    "notExecuted": 129
   },
   "byDevice": {
     "desktop": {
       "total": 105,
-      "authComplete": 96,
-      "publicS0": 5,
+      "authComplete": 0,
+      "publicS0": 0,
       "blocked": 0,
       "otpExternalGate": 0,
       "providerGated": 0,
       "dataFixtureGate": 0,
       "testCredentialGate": 0,
-      "notExecuted": 4
+      "notExecuted": 105
     },
     "phone": {
       "total": 14,
       "authComplete": 0,
       "publicS0": 0,
       "blocked": 0,
-      "otpExternalGate": 10,
+      "otpExternalGate": 0,
       "providerGated": 0,
       "dataFixtureGate": 2,
       "testCredentialGate": 0,
-      "notExecuted": 2
+      "notExecuted": 12
     },
     "tv": {
       "total": 8,
-      "authComplete": 7,
+      "authComplete": 0,
       "publicS0": 0,
       "blocked": 0,
       "otpExternalGate": 0,
       "providerGated": 0,
       "dataFixtureGate": 0,
-      "testCredentialGate": 1,
-      "notExecuted": 0
+      "testCredentialGate": 0,
+      "notExecuted": 8
     },
     "scanner": {
       "total": 4,
@@ -69,11 +69,9 @@
   },
   "byMissingSecret": {},
   "ghaSecretPresence": {
-    "presentCount": 30,
-    "missingCount": 1,
-    "missingNames": [
-      "TEST_PREVIEW_URL"
-    ]
+    "presentCount": 31,
+    "missingCount": 0,
+    "missingNames": []
   },
   "stopCondition": "INCOMPLETE_CURRENT_RUN_EVIDENCE — one or more census rows were not executed",
   "rows": [
@@ -84,13 +82,14 @@
       "state": "default",
       "role": "UNAUTHENTICATED",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "PUBLIC_S0_OBSERVED",
-      "s0s3Runnable": "PUBLIC_ONLY",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_PUBLIC_CONTINUATION.jsonl",
-      "note": "Public surfaces — S0 observed; full S0–S3 auth N/A without credentials"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0002",
@@ -99,12 +98,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0003",
@@ -113,12 +114,14 @@
       "state": "default",
       "role": "GATE_SECURITY",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0004",
@@ -127,13 +130,14 @@
       "state": "default",
       "role": "UNAUTHENTICATED",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "PUBLIC_S0_OBSERVED",
-      "s0s3Runnable": "PUBLIC_ONLY",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_PUBLIC_CONTINUATION.jsonl",
-      "note": "Public surfaces — S0 observed; full S0–S3 auth N/A without credentials"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0005",
@@ -142,13 +146,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "PUBLIC_S0_OBSERVED",
-      "s0s3Runnable": "PUBLIC_ONLY",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_PUBLIC_CONTINUATION.jsonl",
-      "note": "Public surfaces — S0 observed; full S0–S3 auth N/A without credentials"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0006",
@@ -157,14 +162,14 @@
       "state": "default",
       "role": "BUYER",
       "device": "phone",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "OTP_EXTERNAL_GATE",
-      "s0s3Runnable": "BLOCKED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "blockClassification": "OTP_EXTERNAL_GATE",
-      "credentialPrefix": "TEST_BUYER",
-      "evidenceSource": "auth manifest (current run)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0007",
@@ -173,14 +178,14 @@
       "state": "default",
       "role": "BUYER",
       "device": "phone",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "OTP_EXTERNAL_GATE",
-      "s0s3Runnable": "BLOCKED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "blockClassification": "OTP_EXTERNAL_GATE",
-      "credentialPrefix": "TEST_BUYER",
-      "evidenceSource": "auth manifest (current run)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0008",
@@ -189,13 +194,14 @@
       "state": "default",
       "role": "UNAUTHENTICATED",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "PUBLIC_S0_OBSERVED",
-      "s0s3Runnable": "PUBLIC_ONLY",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_PUBLIC_CONTINUATION.jsonl",
-      "note": "Public surfaces — S0 observed; full S0–S3 auth N/A without credentials"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0009",
@@ -204,13 +210,14 @@
       "state": "default",
       "role": "UNAUTHENTICATED",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "PUBLIC_S0_OBSERVED",
-      "s0s3Runnable": "PUBLIC_ONLY",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_PUBLIC_CONTINUATION.jsonl",
-      "note": "Public surfaces — S0 observed; full S0–S3 auth N/A without credentials"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0010",
@@ -219,12 +226,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0011",
@@ -233,12 +242,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0012",
@@ -247,12 +258,14 @@
       "state": "default",
       "role": "P_AND_A",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0013",
@@ -261,12 +274,14 @@
       "state": "default",
       "role": "FINANCE",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0014",
@@ -275,12 +290,14 @@
       "state": "default",
       "role": "FINANCE",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0015",
@@ -289,12 +306,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0016",
@@ -303,12 +322,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0017",
@@ -317,12 +338,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0018",
@@ -331,14 +354,14 @@
       "state": "sheet-review-open",
       "role": "ADMIN_SALES",
       "device": "phone",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
       "disposition": "DATA_FIXTURE_GATE",
       "s0s3Runnable": "FIXTURE_GATED",
       "missingSecretNames": [],
+      "evidenceSource": "UAT_MANIFEST_POST_FIX_483.jsonl",
       "blockClassification": "DATA_FIXTURE_GATE",
       "credentialPrefix": "TEST_SALES",
-      "evidenceSource": "UAT_MANIFEST_POST_FIX_483.jsonl",
       "note": "Authenticated post-fix S0 captured; governed pending-review fixture unavailable — historical FAIL-481-* remain BLOCKED.",
       "retestFailIds": [
         "FAIL-481-001",
@@ -360,12 +383,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0020",
@@ -374,14 +399,14 @@
       "state": "sheet-review-open",
       "role": "ADMIN_SALES",
       "device": "phone",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
       "disposition": "DATA_FIXTURE_GATE",
       "s0s3Runnable": "FIXTURE_GATED",
       "missingSecretNames": [],
+      "evidenceSource": "UAT_MANIFEST_POST_FIX_483.jsonl",
       "blockClassification": "DATA_FIXTURE_GATE",
       "credentialPrefix": "TEST_SALES",
-      "evidenceSource": "UAT_MANIFEST_POST_FIX_483.jsonl",
       "note": "Authenticated post-fix S0 captured; governed pending-review fixture unavailable — historical FAIL-481-* remain BLOCKED.",
       "retestFailIds": [
         "FAIL-481-001",
@@ -403,12 +428,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0022",
@@ -417,12 +444,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0023",
@@ -431,12 +460,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0024",
@@ -445,12 +476,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0025",
@@ -459,12 +492,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0026",
@@ -473,12 +508,14 @@
       "state": "default",
       "role": "DISPATCH",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0027",
@@ -487,12 +524,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0028",
@@ -501,12 +540,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0029",
@@ -515,12 +556,14 @@
       "state": "default",
       "role": "DISPATCH",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0030",
@@ -529,12 +572,14 @@
       "state": "default",
       "role": "FINANCE",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0031",
@@ -543,12 +588,14 @@
       "state": "default",
       "role": "FINANCE",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0032",
@@ -557,12 +604,14 @@
       "state": "default",
       "role": "FINANCE",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0033",
@@ -571,12 +620,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0034",
@@ -585,12 +636,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0035",
@@ -599,12 +652,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0036",
@@ -613,12 +668,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0037",
@@ -627,12 +684,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0038",
@@ -641,12 +700,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0039",
@@ -655,12 +716,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0040",
@@ -669,12 +732,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0041",
@@ -683,12 +748,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0042",
@@ -697,12 +764,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0043",
@@ -711,12 +780,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0044",
@@ -725,12 +796,14 @@
       "state": "default",
       "role": "SALES",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0045",
@@ -739,12 +812,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0046",
@@ -753,12 +828,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0047",
@@ -767,12 +844,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0048",
@@ -781,12 +860,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0049",
@@ -795,12 +876,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0050",
@@ -809,12 +892,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0051",
@@ -823,12 +908,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0052",
@@ -837,12 +924,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0053",
@@ -851,12 +940,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0054",
@@ -865,12 +956,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0055",
@@ -879,12 +972,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0056",
@@ -893,12 +988,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0057",
@@ -907,12 +1004,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0058",
@@ -921,12 +1020,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0059",
@@ -935,12 +1036,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0060",
@@ -949,12 +1052,14 @@
       "state": "default",
       "role": "P_AND_A",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0061",
@@ -963,12 +1068,14 @@
       "state": "default",
       "role": "P_AND_A",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0062",
@@ -977,12 +1084,14 @@
       "state": "default",
       "role": "RGS",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0063",
@@ -991,12 +1100,14 @@
       "state": "default",
       "role": "RGS",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0064",
@@ -1005,12 +1116,14 @@
       "state": "default",
       "role": "RGS",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0065",
@@ -1019,12 +1132,14 @@
       "state": "default",
       "role": "RGS",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0066",
@@ -1033,12 +1148,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0067",
@@ -1047,12 +1164,14 @@
       "state": "default",
       "role": "3PGS",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0068",
@@ -1061,12 +1180,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0069",
@@ -1075,12 +1196,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0070",
@@ -1089,12 +1212,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0071",
@@ -1103,12 +1228,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0072",
@@ -1117,12 +1244,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0073",
@@ -1131,12 +1260,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0074",
@@ -1145,12 +1276,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0075",
@@ -1159,12 +1292,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0076",
@@ -1173,12 +1308,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0077",
@@ -1187,12 +1324,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0078",
@@ -1201,12 +1340,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0079",
@@ -1215,12 +1356,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0080",
@@ -1229,12 +1372,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0081",
@@ -1243,12 +1388,14 @@
       "state": "default",
       "role": "P_AND_A",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0082",
@@ -1257,12 +1404,14 @@
       "state": "default",
       "role": "RGS",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0083",
@@ -1271,12 +1420,14 @@
       "state": "default",
       "role": "DISPATCH",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0084",
@@ -1285,12 +1436,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0085",
@@ -1299,12 +1452,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0086",
@@ -1313,12 +1468,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0087",
@@ -1327,12 +1484,14 @@
       "state": "default",
       "role": "RGS",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0088",
@@ -1341,12 +1500,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0089",
@@ -1355,12 +1516,14 @@
       "state": "default",
       "role": "DISPATCH",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0090",
@@ -1369,12 +1532,14 @@
       "state": "default",
       "role": "DISPATCH",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0091",
@@ -1383,12 +1548,14 @@
       "state": "default",
       "role": "DISPATCH",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0092",
@@ -1397,12 +1564,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0093",
@@ -1411,12 +1580,14 @@
       "state": "default",
       "role": "DISPATCH",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0094",
@@ -1425,12 +1596,14 @@
       "state": "filter-empty",
       "role": "DISPATCH",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0095",
@@ -1439,12 +1612,14 @@
       "state": "default",
       "role": "DISPATCH",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0096",
@@ -1453,12 +1628,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0097",
@@ -1467,12 +1644,14 @@
       "state": "default",
       "role": "3PGS",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0098",
@@ -1481,12 +1660,14 @@
       "state": "default",
       "role": "3PGS",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0099",
@@ -1495,12 +1676,14 @@
       "state": "default",
       "role": "3PGS",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0100",
@@ -1509,12 +1692,14 @@
       "state": "default",
       "role": "3PGS",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0101",
@@ -1523,12 +1708,14 @@
       "state": "default",
       "role": "3PGS",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0102",
@@ -1537,12 +1724,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0103",
@@ -1551,12 +1740,14 @@
       "state": "default",
       "role": "ADMIN_STAFF",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0104",
@@ -1565,12 +1756,14 @@
       "state": "default",
       "role": "SALES",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0105",
@@ -1579,12 +1772,14 @@
       "state": "default",
       "role": "SALES",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0106",
@@ -1593,15 +1788,14 @@
       "state": "default",
       "role": "TV",
       "device": "tv",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "TEST_CREDENTIAL_GATE",
-      "s0s3Runnable": "CREDENTIAL_GATED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "blockClassification": "TEST_CREDENTIAL_GATE",
-      "credentialPrefix": "TEST_TV_PRODUCTION",
-      "evidenceSource": "auth manifest (current run)",
-      "note": "Supabase password grant rejected for wired TEST_TV_PRODUCTION_* prefix (values not logged)."
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0107",
@@ -1610,12 +1804,14 @@
       "state": "default",
       "role": "TV",
       "device": "tv",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0108",
@@ -1624,12 +1820,14 @@
       "state": "default",
       "role": "TV",
       "device": "tv",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0109",
@@ -1638,12 +1836,14 @@
       "state": "default",
       "role": "TV",
       "device": "tv",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0110",
@@ -1652,12 +1852,14 @@
       "state": "default",
       "role": "TV",
       "device": "tv",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0111",
@@ -1666,12 +1868,14 @@
       "state": "default",
       "role": "TV",
       "device": "tv",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0112",
@@ -1680,12 +1884,14 @@
       "state": "default",
       "role": "RGS",
       "device": "tv",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0113",
@@ -1694,12 +1900,14 @@
       "state": "default",
       "role": "3PGS",
       "device": "tv",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "AUTH_S0_S3_COMPLETE",
-      "s0s3Runnable": "EVIDENCED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "evidenceSource": "UAT_MANIFEST_AUTH.jsonl (+ buyer/post-fix where applicable)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0114",
@@ -1708,14 +1916,14 @@
       "state": "default",
       "role": "BUYER",
       "device": "phone",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "OTP_EXTERNAL_GATE",
-      "s0s3Runnable": "BLOCKED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "blockClassification": "OTP_EXTERNAL_GATE",
-      "credentialPrefix": "TEST_BUYER",
-      "evidenceSource": "auth manifest (current run)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0115",
@@ -1724,14 +1932,14 @@
       "state": "default",
       "role": "BUYER",
       "device": "phone",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "OTP_EXTERNAL_GATE",
-      "s0s3Runnable": "BLOCKED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "blockClassification": "OTP_EXTERNAL_GATE",
-      "credentialPrefix": "TEST_BUYER",
-      "evidenceSource": "auth manifest (current run)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0116",
@@ -1740,14 +1948,14 @@
       "state": "default",
       "role": "BUYER",
       "device": "phone",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "OTP_EXTERNAL_GATE",
-      "s0s3Runnable": "BLOCKED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "blockClassification": "OTP_EXTERNAL_GATE",
-      "credentialPrefix": "TEST_BUYER",
-      "evidenceSource": "auth manifest (current run)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0117",
@@ -1756,14 +1964,14 @@
       "state": "default",
       "role": "BUYER",
       "device": "phone",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "OTP_EXTERNAL_GATE",
-      "s0s3Runnable": "BLOCKED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "blockClassification": "OTP_EXTERNAL_GATE",
-      "credentialPrefix": "TEST_BUYER",
-      "evidenceSource": "auth manifest (current run)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0118",
@@ -1772,14 +1980,14 @@
       "state": "default",
       "role": "BUYER",
       "device": "phone",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "OTP_EXTERNAL_GATE",
-      "s0s3Runnable": "BLOCKED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "blockClassification": "OTP_EXTERNAL_GATE",
-      "credentialPrefix": "TEST_BUYER",
-      "evidenceSource": "auth manifest (current run)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0119",
@@ -1788,14 +1996,14 @@
       "state": "default",
       "role": "BUYER",
       "device": "phone",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "OTP_EXTERNAL_GATE",
-      "s0s3Runnable": "BLOCKED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "blockClassification": "OTP_EXTERNAL_GATE",
-      "credentialPrefix": "TEST_BUYER",
-      "evidenceSource": "auth manifest (current run)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0120",
@@ -1804,14 +2012,14 @@
       "state": "default",
       "role": "BUYER",
       "device": "phone",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "OTP_EXTERNAL_GATE",
-      "s0s3Runnable": "BLOCKED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "blockClassification": "OTP_EXTERNAL_GATE",
-      "credentialPrefix": "TEST_BUYER",
-      "evidenceSource": "auth manifest (current run)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0121",
@@ -1820,14 +2028,14 @@
       "state": "default",
       "role": "BUYER",
       "device": "phone",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
-      "disposition": "OTP_EXTERNAL_GATE",
-      "s0s3Runnable": "BLOCKED",
+      "disposition": "NOT_EXECUTED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
-      "blockClassification": "OTP_EXTERNAL_GATE",
-      "credentialPrefix": "TEST_BUYER",
-      "evidenceSource": "auth manifest (current run)"
+      "evidenceSource": "none for current run",
+      "blockClassification": "NOT_EXECUTED",
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0122",
@@ -1836,14 +2044,14 @@
       "state": "default",
       "role": "AI_CATALOGUE",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
       "disposition": "NOT_EXECUTED",
-      "s0s3Runnable": "BLOCKED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
+      "evidenceSource": "none for current run",
       "blockClassification": "NOT_EXECUTED",
-      "credentialPrefix": null,
-      "evidenceSource": "auth manifest (current run)"
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0123",
@@ -1852,14 +2060,14 @@
       "state": "default",
       "role": "AI_CATALOGUE",
       "device": "phone",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
       "disposition": "NOT_EXECUTED",
-      "s0s3Runnable": "BLOCKED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
+      "evidenceSource": "none for current run",
       "blockClassification": "NOT_EXECUTED",
-      "credentialPrefix": null,
-      "evidenceSource": "auth manifest (current run)"
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0124",
@@ -1868,14 +2076,14 @@
       "state": "default",
       "role": "AI_APPROVER",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
       "disposition": "NOT_EXECUTED",
-      "s0s3Runnable": "BLOCKED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
+      "evidenceSource": "none for current run",
       "blockClassification": "NOT_EXECUTED",
-      "credentialPrefix": null,
-      "evidenceSource": "auth manifest (current run)"
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0125",
@@ -1884,14 +2092,14 @@
       "state": "default",
       "role": "AI_CATALOGUE",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
       "disposition": "NOT_EXECUTED",
-      "s0s3Runnable": "BLOCKED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
+      "evidenceSource": "none for current run",
       "blockClassification": "NOT_EXECUTED",
-      "credentialPrefix": null,
-      "evidenceSource": "auth manifest (current run)"
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0126",
@@ -1900,14 +2108,14 @@
       "state": "default",
       "role": "AI_CATALOGUE",
       "device": "desktop",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
       "disposition": "NOT_EXECUTED",
-      "s0s3Runnable": "BLOCKED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
+      "evidenceSource": "none for current run",
       "blockClassification": "NOT_EXECUTED",
-      "credentialPrefix": null,
-      "evidenceSource": "auth manifest (current run)"
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0127",
@@ -1916,14 +2124,14 @@
       "state": "camera-capture-flow",
       "role": "AI_CATALOGUE",
       "device": "phone",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
       "disposition": "NOT_EXECUTED",
-      "s0s3Runnable": "BLOCKED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
+      "evidenceSource": "none for current run",
       "blockClassification": "NOT_EXECUTED",
-      "credentialPrefix": null,
-      "evidenceSource": "auth manifest (current run)"
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0128",
@@ -1932,14 +2140,14 @@
       "state": "scan-home",
       "role": "TRACE_SCANNER",
       "device": "scanner",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
       "disposition": "NOT_EXECUTED",
-      "s0s3Runnable": "BLOCKED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
+      "evidenceSource": "none for current run",
       "blockClassification": "NOT_EXECUTED",
-      "credentialPrefix": null,
-      "evidenceSource": "auth manifest (current run)"
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0129",
@@ -1948,14 +2156,14 @@
       "state": "gate-scan",
       "role": "TRACE_SCANNER",
       "device": "scanner",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
       "disposition": "NOT_EXECUTED",
-      "s0s3Runnable": "BLOCKED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
+      "evidenceSource": "none for current run",
       "blockClassification": "NOT_EXECUTED",
-      "credentialPrefix": null,
-      "evidenceSource": "auth manifest (current run)"
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0130",
@@ -1964,14 +2172,14 @@
       "state": "carton-scan",
       "role": "TRACE_SCANNER",
       "device": "scanner",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
       "disposition": "NOT_EXECUTED",
-      "s0s3Runnable": "BLOCKED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
+      "evidenceSource": "none for current run",
       "blockClassification": "NOT_EXECUTED",
-      "credentialPrefix": null,
-      "evidenceSource": "auth manifest (current run)"
+      "note": "No current-run evidence row was produced for this census ID."
     },
     {
       "uatId": "UAT-0131",
@@ -1980,14 +2188,14 @@
       "state": "offline-queue",
       "role": "TRACE_SCANNER",
       "device": "scanner",
-      "buildSha": "4e16ae5f434cdeb4449e077a50c828a89e51316c",
+      "buildSha": "f41b9cee85ac4e534de1b77f2abcead73795ef7e",
       "deployUrl": "https://oasis-baklawa-central.vercel.app",
       "disposition": "NOT_EXECUTED",
-      "s0s3Runnable": "BLOCKED",
+      "s0s3Runnable": "NOT_EXECUTED",
       "missingSecretNames": [],
+      "evidenceSource": "none for current run",
       "blockClassification": "NOT_EXECUTED",
-      "credentialPrefix": null,
-      "evidenceSource": "auth manifest (current run)"
+      "note": "No current-run evidence row was produced for this census ID."
     }
   ]
 }

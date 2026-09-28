@@ -1,7 +1,7 @@
 {
-  "ai_uat": "success",
+  "ai_uat": "skipped",
   "credential_prefix_unblock": "skipped",
-  "post_fix_483": "skipped",
+  "post_fix_483": "success",
   "auth_rerun": "skipped",
   "tranche_03": "skipped",
   "tranche_04_auth": "skipped",
@@ -15,6 +15,6 @@
   "post_merge_497_005": "skipped",
   "record_verified_blockers": "skipped",
   "record_rebaseline": "skipped",
-  "reconciliation": "skipped",
-  "screenshot_wall": "skipped"
+  "reconciliation": "success",
+  "screenshot_wall": "success"
 }

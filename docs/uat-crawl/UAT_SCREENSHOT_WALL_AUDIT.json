@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-09-28T16:50:09.433248Z",
-  "runId": "36450858295",
+  "generatedAt": "2026-09-28T23:01:01.192318Z",
+  "runId": "36495576511",
   "wallDetected": false,
-  "rowsScanned": 131,
-  "uniqueScreenshotHashes": 277,
+  "rowsScanned": 2,
+  "uniqueScreenshotHashes": 2,
   "minRoutes": 5,
   "walls": [],
   "policy": "Duplicate hashes across many routes may indicate Vercel auth wall \u2014 combined with title/URL/origin guards, not standalone defect classification."

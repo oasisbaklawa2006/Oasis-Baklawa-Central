@@ -1,7 +1,7 @@
 # UAT Crawl Progress Summary
 
-**Generated:** 2026-09-28T22:56:15.764095Z
-**Run:** 36495024946 (tranche `auth-contract-smoke`)
+**Generated:** 2026-09-28T23:01:01.314816Z
+**Run:** 36495576511 (tranche `post-fix-483`)
 **Scope:** TARGETED_CRAWL_EVIDENCE
 **Final automated-crawl verdict:** PASS
 
@@ -16,9 +16,9 @@
 | Provider gated | 0 |
 | Auth flow failed | 0 |
 | Auth contract mismatch | 0 |
-| Data fixture gate | 0 |
+| Data fixture gate | 2 |
 | Test credential gate | 0 |
-| NOT EXECUTED | 0 |
+| NOT EXECUTED | 129 |
 
 **Failures:** none
 **Warnings:** none
