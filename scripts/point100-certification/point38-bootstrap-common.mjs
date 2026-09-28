@@ -1,7 +1,28 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
+import { isIP } from "node:net";
 
-const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
+function isLoopbackHostname(hostname) {
+  const normalized = String(hostname ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/^\[/, "")
+    .replace(/\]$/, "");
+
+  if (normalized === "localhost") return true;
+
+  if (isIP(normalized) === 4) {
+    const octets = normalized.split(".").map(Number);
+    return octets.length === 4 && octets[0] === 127;
+  }
+
+  if (isIP(normalized) === 6) {
+    const nonEmptySegments = normalized.split(":").filter(Boolean);
+    return nonEmptySegments.length === 1 && nonEmptySegments[0] === "1";
+  }
+
+  return false;
+}
 
 export const CREDENTIAL_FILE = "/tmp/oasis-factory-certification.env";
 export const RUN_TOKEN = "point100-point38-canonical-v1";
@@ -14,7 +35,7 @@ export function requireBootstrapEnv(name, label) {
 
 export function assertLoopbackHttpOrigin(rawUrl, label) {
   const parsed = new URL(rawUrl);
-  if (parsed.protocol !== "http:" || !LOOPBACK_HOSTS.has(parsed.hostname)) {
+  if (parsed.protocol !== "http:" || !isLoopbackHostname(parsed.hostname)) {
     throw new Error(`${label}_LOCAL_ONLY: refusing Supabase target ${parsed.origin}`);
   }
   if (parsed.username || parsed.password || parsed.pathname !== "/" || parsed.search || parsed.hash) {
@@ -54,7 +75,7 @@ export function firstRow(data) {
  */
 export function queryLocalPostgresScalar(localDbUrl, sql, operationLabel, localOnlyLabel) {
   const parsed = new URL(localDbUrl);
-  if (!["postgres:", "postgresql:"].includes(parsed.protocol) || !LOOPBACK_HOSTS.has(parsed.hostname)) {
+  if (!["postgres:", "postgresql:"].includes(parsed.protocol) || !isLoopbackHostname(parsed.hostname)) {
     throw new Error(`${localOnlyLabel}_LOCAL_ONLY: refusing Postgres target for ${operationLabel}`);
   }
   try {
