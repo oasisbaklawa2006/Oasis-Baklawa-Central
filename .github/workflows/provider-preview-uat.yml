@@ -120,6 +120,7 @@ jobs:
           "
 
       - name: Run provider-preview crawl
+        id: provider_preview_crawl
         continue-on-error: true
         env:
           UAT_TARGET_SHA: ${{ steps.main_sha.outputs.sha }}
@@ -141,3 +142,10 @@ jobs:
             test-results/provider-preview-uat/
           if-no-files-found: warn
           retention-days: 14
+
+      - name: Preserve provider-preview crawl failure
+        if: always() && steps.provider_preview_crawl.outcome == 'failure'
+        shell: bash
+        run: |
+          echo "::error::Provider-preview crawl failed. Evidence was preserved and uploaded for diagnosis."
+          exit 1
