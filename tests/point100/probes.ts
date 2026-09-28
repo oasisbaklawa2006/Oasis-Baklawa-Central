@@ -193,7 +193,7 @@ export async function executeStageProbe(
       const ok = verify.exists && sign.exists;
       return {
         ok,
-        detail: `trace_verify=${verify.exists} trace_sign=${sign.exists}; Core#260 production-certified software contract — Trace#37 software merged; physical device evidence remains UAT`,
+        detail: `trace_verify=${verify.exists} trace_sign=${sign.exists}; Core#290 production-certified software contract — Trace#37/#38 merged; physical device evidence remains UAT`,
       };
     }
     default:

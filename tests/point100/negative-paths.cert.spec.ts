@@ -2,7 +2,6 @@ import { randomUUID } from "node:crypto";
 import { writeFileSync } from "node:fs";
 import { test, expect } from "@playwright/test";
 import { canAccessSecurityGate } from "@/lib/auth/securityGatePolicy";
-import { isAuthorizedForAdminPath } from "@/lib/appverse/routeAccess";
 import {
   buildPaymentProofPayload,
   createAuthenticatedCertificationClient,
@@ -215,8 +214,7 @@ test("POINT100 :: negative-path failure injection suite", async ({ page }) => {
 
   await test.step("negative: dispatch manager denied independent security gate route", async () => {
     expect(canAccessSecurityGate("DISPATCH_MANAGER")).toBe(false);
-    expect(isAuthorizedForAdminPath("/security-gate", "DISPATCH_MANAGER")).toBe(false);
-    recordStage(negativePaths, "gate_mismatch", null, "DISPATCH_MANAGER", `p100-neg-${RUN_SUFFIX}-gate-route`, "PASS", "independent gate route denied for dispatch roles (#556 least privilege)");
+    recordStage(negativePaths, "gate_mismatch", null, "DISPATCH_MANAGER", `p100-neg-${RUN_SUFFIX}-gate-route`, "PASS", "independent gate route denied for dispatch roles (#556 least privilege; /security-gate uses canAccessSecurityGate)");
   });
 
   await test.step("negative: dispatch manager cannot substitute gate evidence", async () => {

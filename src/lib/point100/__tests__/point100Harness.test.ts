@@ -72,7 +72,7 @@ describe("point100 probe runner", () => {
     expect(isRpcMissingError("permission denied")).toBe(false);
   });
 
-  it("fails closed on trace handover while Trace #38 remains open", () => {
+  it("classifies trace handover software contracts as physical_uat_only when RPCs are present", () => {
     const stage = POINT100_LIFECYCLE_STAGES.find((s) => s.id === "trace_handover")!;
     const outcome = buildProbeOutcome({
       stage,
@@ -81,8 +81,8 @@ describe("point100 probe runner", () => {
       missingFixtureKeys: [],
       executed: false,
     });
-    expect(outcome.status).toBe("upstream_contract_missing");
-    expect(outcome.executable).toBe(false);
+    expect(outcome.status).toBe("physical_uat_only");
+    expect(outcome.executable).toBe(true);
   });
 
   it("summarizes capability matrix counts", () => {
@@ -105,8 +105,8 @@ describe("point100 probe runner", () => {
     ];
     const summary = summarizeCapabilityMatrix(probes);
     expect(summary.total).toBe(2);
-    expect(summary.physical_uat_only).toBe(0);
-    expect(summary.upstream_contract_missing).toBe(1);
+    expect(summary.physical_uat_only).toBe(1);
+    expect(summary.upstream_contract_missing).toBe(0);
     const matrix = buildCapabilityMatrix(probes, "test-env");
     expect(matrix.fail_closed).toBe(true);
     expect(matrix.environment_id).toBe("test-env");
@@ -128,11 +128,11 @@ describe("point100 probe runner", () => {
     if (original) process.env.FACTORY_CERT_GOLDEN_ORDER_ID = original;
   });
 
-  it("consumes merged inventory/Trace #37 authority but exposes current Trace #38 as a fail-closed blocker", () => {
+  it("consumes merged inventory and Trace software authority with no open software upstream blockers", () => {
     expect(POINT100_UPSTREAM_DEPENDENCIES.some((dep) => dep.pr === "#256" && dep.state === "merged")).toBe(true);
     expect(POINT100_UPSTREAM_DEPENDENCIES.some((dep) => dep.pr === "#259" && dep.state === "merged")).toBe(true);
     expect(POINT100_UPSTREAM_DEPENDENCIES.some((dep) => dep.pr === "#37" && dep.state === "merged")).toBe(true);
-    expect(POINT100_UPSTREAM_DEPENDENCIES.some((dep) => dep.pr === "#38" && dep.state === "open_pr")).toBe(true);
+    expect(POINT100_UPSTREAM_DEPENDENCIES.some((dep) => dep.pr === "#38" && dep.state === "merged")).toBe(true);
     const inventoryStage = POINT100_LIFECYCLE_STAGES.find((s) => s.id === "inventory_lot_allocation")!;
     const outcome = buildProbeOutcome({
       stage: inventoryStage,
@@ -147,8 +147,7 @@ describe("point100 probe runner", () => {
     });
     expect(outcome.status).toBe("implemented");
     const traceBlockers = upstreamBlockersForStage("trace_handover");
-    expect(traceBlockers).toHaveLength(1);
-    expect(traceBlockers[0]?.id).toBe("oasis-trace-recovery-38");
+    expect(traceBlockers).toHaveLength(0);
   });
 
   it("records Core #290 and Production Migration Release #182 as current production authority", () => {
@@ -174,7 +173,7 @@ describe("point100 probe runner", () => {
     expect(merged556?.affectedStageIds).toContain("dispatch_consignment");
   });
 
-  it("treats dispatch finalize as certified while preserving the open Trace #38 production blocker", () => {
+  it("treats dispatch finalize as certified with only external physical/provider production gates", () => {
     const originalSha = process.env.POINT100_CORE_VERIFIED_SHA;
     const originalBootstrap = process.env.POINT100_ALLOW_DISPOSABLE_BOOTSTRAP;
     const originalProduction = process.env.POINT100_PRODUCTION_CERTIFICATION_PERMITTED;
@@ -186,8 +185,8 @@ describe("point100 probe runner", () => {
     expect(isDisposableRehearsalMode()).toBe(false);
     expect(upstreamBlockersForStage("dispatch_consignment")).toHaveLength(0);
     const gateBlockers = productionGateBlockers();
-    expect(gateBlockers).toHaveLength(1);
-    expect(gateBlockers[0]?.id).toBe("oasis-trace-recovery-38");
+    expect(gateBlockers.length).toBeGreaterThan(0);
+    expect(gateBlockers.every((dep) => dep.state === "physical_uat_only")).toBe(true);
     expect(isRpcOnCertifiedCorePin(POINT100_DISPATCH_FINALIZE_RPC)).toBe(true);
     expect(isCoreDispatchProductionVerified()).toBe(true);
     if (originalSha === undefined) delete process.env.POINT100_CORE_VERIFIED_SHA;

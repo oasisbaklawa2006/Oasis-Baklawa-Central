@@ -67,13 +67,13 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
   await test.step("matrix: probe all lifecycle stages", async () => {
     const probes = await runLifecycleProbes();
     writeCapabilityMatrix(probes);
-    const blockers = probes.filter((probe) => probe.status === "upstream_contract_missing" || probe.status === "physical_uat_only");
-    upstreamBlockers.push(...blockers.map((blocker) => `${blocker.stageId}: ${blocker.detail}`));
-    for (const dep of POINT100_UPSTREAM_DEPENDENCIES.filter((candidate) => candidate.state !== "merged")) {
+    const softwareBlockers = probes.filter((probe) => probe.status === "upstream_contract_missing");
+    upstreamBlockers.push(...softwareBlockers.map((blocker) => `${blocker.stageId}: ${blocker.detail}`));
+    for (const dep of POINT100_UPSTREAM_DEPENDENCIES.filter((candidate) => candidate.state === "open_pr")) {
       upstreamBlockers.push(formatUpstreamBlocker(dep));
     }
     const matrixComplete = probes.length === 16 && probes.every((probe) => Boolean(probe.status));
-    recordStage(stages, "capability_matrix", null, null, null, matrixComplete ? "PASS" : "FAIL", `probes=${probes.length} blockers=${blockers.length}`);
+    recordStage(stages, "capability_matrix", null, null, null, matrixComplete ? "PASS" : "FAIL", `probes=${probes.length} software_blockers=${softwareBlockers.length}`);
     expect(matrixComplete, "Point100 capability matrix must contain all 16 classified stages").toBe(true);
   });
 
@@ -332,7 +332,6 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
     const trace = await executeStageProbe(client, "trace_handover", `p100-${RUN_SUFFIX}-trace`);
     recordStage(stages, "trace_handover", "trace_verify_handover_evidence_v1", null, `p100-${RUN_SUFFIX}-trace`, trace.ok ? "PASS" : "FAIL", `${trace.detail}; Trace#37 software merged — scanner/printer/TV physical PASS not claimed`);
     expect(trace.ok, trace.detail).toBe(true);
-    upstreamBlockers.push("trace_handover: scanner/printer/TV/physical handover remains physical_uat_only");
   });
 
   await test.step("completion: dispatch proof authority + complaint window probe", async () => {
@@ -392,10 +391,7 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
       stages,
       negative_paths: negativePaths,
       upstream_blockers: upstreamBlockers,
-      production_gate_blockers: [
-        ...productionGateBlockerNotes,
-        "physical_uat_only: Trace scanner/barcode printer/TV/handheld/mobile and physical Security Gate evidence remains outside software PASS",
-      ],
+      production_gate_blockers: productionGateBlockerNotes,
     });
     assertNoSilentSkips(ledger);
     const nonPass = [...stages, ...negativePaths].filter((entry) => entry.status !== "PASS");
