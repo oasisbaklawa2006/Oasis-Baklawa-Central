@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import path from "node:path";
 import type { Page } from "@playwright/test";
 import { classifyAccessWallFromSignals } from "../../src/lib/provider-preview-uat/access-wall";
@@ -28,6 +28,7 @@ import {
 import {
   ensureProviderPreviewOutputDir,
   resolveProviderPreviewOutputRoot,
+  writeSecretPresenceAudit,
 } from "../../scripts/lib/provider-preview-report-lib.mjs";
 
 const OUTPUT_ROOT = resolveProviderPreviewOutputRoot();
@@ -215,7 +216,7 @@ export async function crawlProviderPreviewTarget(
   return row;
 }
 
-export function writeSecretPresenceAudit(): void {
+export function recordSecretPresenceAudit(): void {
   const names = ["TEST_AI_STUDIO_PREVIEW_URL", "TEST_TRACE_PREVIEW_URL"] as const;
   const payload = {
     generatedAt: new Date().toISOString(),
@@ -224,6 +225,5 @@ export function writeSecretPresenceAudit(): void {
     secrets: names.map((name) => ({ name, present: Boolean(process.env[name]?.trim()) })),
   };
   ensureProviderPreviewOutputDir();
-  const out = path.join(OUTPUT_ROOT, "UAT_SECRET_PRESENCE.json");
-  writeFileSync(out, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+  writeSecretPresenceAudit(`${JSON.stringify(payload, null, 2)}\n`);
 }

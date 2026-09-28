@@ -1,11 +1,10 @@
 #!/usr/bin/env node
-import fs from "node:fs";
 import {
   displayUrlForReport,
-  ensureProviderPreviewOutputDir,
   escapeMarkdownTableCell,
   readManifestJsonl,
-  resolveProviderPreviewOutputFile,
+  writeProviderPreviewReport,
+  writeProviderPreviewSummary,
 } from "./lib/provider-preview-report-lib.mjs";
 
 const rows = readManifestJsonl();
@@ -24,11 +23,7 @@ for (const row of rows) {
   if (row.scannerAcceptanceStatus === "PHYSICAL_GATE_PENDING") summary.scannerPhysicalGatePending += 1;
 }
 
-ensureProviderPreviewOutputDir();
-const summaryPath = resolveProviderPreviewOutputFile("PROVIDER_PREVIEW_UAT_SUMMARY.json");
-const reportPath = resolveProviderPreviewOutputFile("PROVIDER_PREVIEW_UAT_REPORT.md");
-
-fs.writeFileSync(summaryPath, `${JSON.stringify(summary, null, 2)}\n`);
+writeProviderPreviewSummary(`${JSON.stringify(summary, null, 2)}\n`);
 
 let md = "# Provider-preview UAT (AI Studio + Trace)\n\n";
 md += `Generated: ${summary.generatedAt}  \n`;
@@ -44,5 +39,5 @@ for (const base of bases) {
   md += `- ${escapeMarkdownTableCell(base, 300)}\n`;
 }
 
-fs.writeFileSync(reportPath, md);
-console.log(`Wrote ${reportPath} and ${summaryPath}`);
+writeProviderPreviewReport(md);
+console.log("Wrote provider-preview UAT summary and report under test-results/provider-preview-uat/");

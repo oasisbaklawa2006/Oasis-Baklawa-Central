@@ -1,6 +1,6 @@
 import { test } from "@playwright/test";
 import { targetsForTranche } from "../../src/lib/provider-preview-uat/catalogue";
-import { crawlProviderPreviewTarget, writeSecretPresenceAudit } from "./crawl";
+import { crawlProviderPreviewTarget, recordSecretPresenceAudit } from "./crawl";
 
 const tranche = (process.env.PROVIDER_PREVIEW_RUN_TRANCHE?.trim() || "all") as
   | "ai-studio"
@@ -10,7 +10,7 @@ const tranche = (process.env.PROVIDER_PREVIEW_RUN_TRANCHE?.trim() || "all") as
 test.describe.configure({ mode: "serial" });
 
 test.beforeAll(() => {
-  writeSecretPresenceAudit();
+  recordSecretPresenceAudit();
 });
 
 for (const target of targetsForTranche(tranche)) {

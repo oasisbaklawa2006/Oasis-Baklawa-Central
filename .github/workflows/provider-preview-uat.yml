@@ -108,8 +108,7 @@ jobs:
             fi
           done
           node --input-type=module -e "
-            import fs from 'node:fs';
-            import { ensureProviderPreviewOutputDir, resolveProviderPreviewOutputFile } from './scripts/lib/provider-preview-report-lib.mjs';
+            import { writeSecretPresenceAudit } from './scripts/lib/provider-preview-report-lib.mjs';
             const names=['TEST_AI_STUDIO_PREVIEW_URL','TEST_TRACE_PREVIEW_URL'];
             const payload={
               generatedAt:new Date().toISOString(),
@@ -117,8 +116,7 @@ jobs:
               policy:'Names only — values never logged.',
               secrets:names.map((n)=>({name:n,present:Boolean(process.env[n]?.trim())}))
             };
-            ensureProviderPreviewOutputDir();
-            fs.writeFileSync(resolveProviderPreviewOutputFile('UAT_SECRET_PRESENCE.json'), JSON.stringify(payload,null,2)+'\\n');
+            writeSecretPresenceAudit(JSON.stringify(payload,null,2)+'\\n');
           "
 
       - name: Run provider-preview crawl

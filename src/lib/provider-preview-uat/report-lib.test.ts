@@ -7,6 +7,7 @@ import {
   readManifestJsonl,
   resolveProviderPreviewOutputFile,
   resolveProviderPreviewOutputRoot,
+  writeProviderPreviewReport,
 } from "../../../scripts/lib/provider-preview-report-lib.mjs";
 
 const mergeScriptSource = readFileSync(
@@ -37,6 +38,12 @@ describe("provider-preview report lib", () => {
   it("merge script uses shared escape helper (no inline pipe-only replace)", () => {
     expect(mergeScriptSource).toContain("escapeMarkdownTableCell");
     expect(mergeScriptSource).not.toMatch(/\.replace\(\/\\\|\/g/);
+  });
+
+  it("writes report only under governed directory", () => {
+    writeProviderPreviewReport("# test\n");
+    const report = resolveProviderPreviewOutputFile("PROVIDER_PREVIEW_UAT_REPORT.md");
+    expect(readFileSync(report, "utf8")).toContain("# test");
   });
 
   it("skips malformed manifest lines without throwing", () => {

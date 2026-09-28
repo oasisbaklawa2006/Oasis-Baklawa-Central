@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
-import { appendFileSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import {
+  appendManifestLine,
   ensureProviderPreviewOutputDir,
-  resolveProviderPreviewOutputFile,
 } from "../../../scripts/lib/provider-preview-report-lib.mjs";
 import type { ProviderPreviewTarget } from "./catalogue";
 import { PROVIDER_PREVIEW_TRANCHE } from "./catalogue";
@@ -43,12 +43,6 @@ export type ProviderPreviewManifestRow = {
   screenshotSha256: string;
 };
 
-export const DEFAULT_MANIFEST_FILE = "UAT_MANIFEST_PROVIDER_PREVIEW.jsonl";
-
-export function defaultManifestPath(cwd = process.cwd()): string {
-  return resolveProviderPreviewOutputFile(DEFAULT_MANIFEST_FILE, cwd);
-}
-
 export function emptyUxEvidence(): UxEvidence {
   return { s0: null, s1: null, s2: null, s3: null };
 }
@@ -74,12 +68,11 @@ export function attachRunMetadata(row: ProviderPreviewManifestRow): ProviderPrev
 
 export function appendManifestRow(row: ProviderPreviewManifestRow): void {
   ensureProviderPreviewOutputDir();
-  const resolvedManifest = defaultManifestPath();
   const sanitized: ProviderPreviewManifestRow = {
     ...attachRunMetadata(row),
     crawlBaseUrl: redactUrlForEvidence(row.crawlBaseUrl),
   };
-  appendFileSync(resolvedManifest, `${JSON.stringify(sanitized)}\n`, "utf8");
+  appendManifestLine(`${JSON.stringify(sanitized)}\n`);
 }
 
 export function slugRoute(route: string): string {
