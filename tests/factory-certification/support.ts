@@ -61,6 +61,17 @@ export function resolveFactoryCertificationTarget(): string {
   return policy.normalizedUrl;
 }
 
+function resolveFactoryCertificationLoginUrl(): string {
+  const validatedTarget = new URL(resolveFactoryCertificationTarget());
+  if (validatedTarget.protocol !== "http:" && validatedTarget.protocol !== "https:") {
+    throw new Error("UNSAFE_CERTIFICATION_TARGET: unsupported protocol");
+  }
+  validatedTarget.pathname = "/login";
+  validatedTarget.search = "";
+  validatedTarget.hash = "";
+  return validatedTarget.toString();
+}
+
 export function hasFactoryCertificationBackend(): boolean {
   return Boolean(
     process.env.FACTORY_CERT_SUPABASE_URL?.trim() &&
@@ -142,20 +153,18 @@ export async function loginToFactoryCertificationTarget(
   page: Page,
   credentials: FactoryCertificationCredentials,
 ): Promise<void> {
-  const target = resolveFactoryCertificationTarget();
-  await page.goto(`${target}/login`, { waitUntil: "domcontentloaded", timeout: 60_000 });
+  const loginUrl = resolveFactoryCertificationLoginUrl();
+  await page.goto(loginUrl, { waitUntil: "domcontentloaded", timeout: 60_000 });
   const adminAccess = page.getByRole("button", { name: /^Admin Access$/i });
   await expect(adminAccess).toBeVisible({ timeout: 30_000 });
   await adminAccess.click();
   await expect(page.getByRole("heading", { name: /^Employee Access$/i })).toBeVisible({ timeout: 30_000 });
 
   const emailInput = page.locator("#staff-email");
-  await emailInput.click();
-  await page.keyboard.insertText(credentials.email);
+  await emailInput.fill(credentials.email);
 
   const passwordInput = page.locator("#staff-password");
-  await passwordInput.click();
-  await page.keyboard.insertText(credentials.password);
+  await passwordInput.fill(credentials.password);
 
   await page.getByRole("button", { name: /^Login$/i }).click();
   await page.waitForURL((url) => !/\/(?:staff\/)?login(?:\/|$|\?)/i.test(url.pathname), { timeout: 120_000 });
