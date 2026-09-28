@@ -9,6 +9,10 @@ Dedicated harness for **UAT-0122..0127** (AI Studio) and **UAT-0128..0131** (Tra
 
 Values are never printed in CI output. Manifest rows store origin + pathname only.
 
+## Security notes (static analysis)
+
+Codacy path-traversal rules on `scripts/merge-provider-preview-uat-report.mjs` are addressed with an **allowlisted output directory** (`test-results/provider-preview-uat/`) via `scripts/lib/provider-preview-report-lib.mjs`. Manifest paths are not composed from crawled page content; only fixed filenames are permitted. Markdown report cells use full table escaping (backslash and pipe) to satisfy CodeQL incomplete-escaping checks.
+
 ## Physical gates
 
 - Trace scanner rows collect **software-preview** screenshots only. `scannerAcceptanceStatus` remains `PHYSICAL_GATE_PENDING`; Chromium does not certify scanner PASS.

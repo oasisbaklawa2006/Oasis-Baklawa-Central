@@ -25,8 +25,12 @@ import {
   secretNameForApp,
 } from "../../src/lib/provider-preview-uat/url";
 
-const ROOT = path.resolve(import.meta.dirname, "../..");
-const OUTPUT_ROOT = path.join(ROOT, "test-results");
+import {
+  ensureProviderPreviewOutputDir,
+  resolveProviderPreviewOutputRoot,
+} from "../../scripts/lib/provider-preview-report-lib.mjs";
+
+const OUTPUT_ROOT = resolveProviderPreviewOutputRoot();
 
 export type ViewportPreset = { width: number; height: number; label: string };
 
@@ -219,7 +223,7 @@ export function writeSecretPresenceAudit(): void {
     policy: "Secret names only — values never logged.",
     secrets: names.map((name) => ({ name, present: Boolean(process.env[name]?.trim()) })),
   };
-  const out = path.join(OUTPUT_ROOT, "provider-preview-uat", "UAT_SECRET_PRESENCE.json");
-  mkdirSync(path.dirname(out), { recursive: true });
+  ensureProviderPreviewOutputDir();
+  const out = path.join(OUTPUT_ROOT, "UAT_SECRET_PRESENCE.json");
   writeFileSync(out, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
 }

@@ -1,33 +1,14 @@
 #!/usr/bin/env node
 import fs from "node:fs";
-import path from "node:path";
+import {
+  displayUrlForReport,
+  ensureProviderPreviewOutputDir,
+  escapeMarkdownTableCell,
+  readManifestJsonl,
+  resolveProviderPreviewOutputFile,
+} from "./lib/provider-preview-report-lib.mjs";
 
-const RESULT_DIR = path.join("test-results", "provider-preview-uat");
-const MANIFEST = path.join(RESULT_DIR, "UAT_MANIFEST_PROVIDER_PREVIEW.jsonl");
-const REPORT = path.join(RESULT_DIR, "PROVIDER_PREVIEW_UAT_REPORT.md");
-const SUMMARY = path.join(RESULT_DIR, "PROVIDER_PREVIEW_UAT_SUMMARY.json");
-
-function displayUrl(value) {
-  const raw = String(value ?? "").trim();
-  if (!raw) return "";
-  try {
-    const url = new URL(raw);
-    return `${url.origin}${url.pathname}`;
-  } catch {
-    return "invalid URL";
-  }
-}
-
-function loadRows() {
-  if (!fs.existsSync(MANIFEST)) return [];
-  return fs
-    .readFileSync(MANIFEST, "utf8")
-    .split(/\r?\n/)
-    .filter(Boolean)
-    .map((line) => JSON.parse(line));
-}
-
-const rows = loadRows();
+const rows = readManifestJsonl();
 const summary = {
   generatedAt: new Date().toISOString(),
   harness: "provider-preview",
@@ -43,8 +24,11 @@ for (const row of rows) {
   if (row.scannerAcceptanceStatus === "PHYSICAL_GATE_PENDING") summary.scannerPhysicalGatePending += 1;
 }
 
-fs.mkdirSync(RESULT_DIR, { recursive: true });
-fs.writeFileSync(SUMMARY, `${JSON.stringify(summary, null, 2)}\n`);
+ensureProviderPreviewOutputDir();
+const summaryPath = resolveProviderPreviewOutputFile("PROVIDER_PREVIEW_UAT_SUMMARY.json");
+const reportPath = resolveProviderPreviewOutputFile("PROVIDER_PREVIEW_UAT_REPORT.md");
+
+fs.writeFileSync(summaryPath, `${JSON.stringify(summary, null, 2)}\n`);
 
 let md = "# Provider-preview UAT (AI Studio + Trace)\n\n";
 md += `Generated: ${summary.generatedAt}  \n`;
@@ -52,13 +36,13 @@ md += `Rows: ${summary.rowCount}  \n\n`;
 md += "| UAT | App | Route | Visual | Function | Scanner gate | Notes |\n";
 md += "| --- | --- | --- | --- | --- | --- | --- |\n";
 for (const row of rows) {
-  md += `| ${row.uatId} | ${row.app} | ${row.route} | ${row.visualStatus} | ${row.functionStatus} | ${row.scannerAcceptanceStatus} | ${String(row.notes).replace(/\|/g, "\\|").slice(0, 120)} |\n`;
+  md += `| ${escapeMarkdownTableCell(row.uatId, 80)} | ${escapeMarkdownTableCell(row.app, 40)} | ${escapeMarkdownTableCell(row.route, 80)} | ${escapeMarkdownTableCell(row.visualStatus, 20)} | ${escapeMarkdownTableCell(row.functionStatus, 20)} | ${escapeMarkdownTableCell(row.scannerAcceptanceStatus, 40)} | ${escapeMarkdownTableCell(row.notes, 120)} |\n`;
 }
 md += "\n## Deploy provenance (redacted)\n\n";
-const bases = [...new Set(rows.map((r) => displayUrl(r.crawlBaseUrl)).filter(Boolean))];
+const bases = [...new Set(rows.map((r) => displayUrlForReport(r.crawlBaseUrl)).filter(Boolean))];
 for (const base of bases) {
-  md += `- ${base}\n`;
+  md += `- ${escapeMarkdownTableCell(base, 300)}\n`;
 }
 
-fs.writeFileSync(REPORT, md);
-console.log(`Wrote ${REPORT} and ${SUMMARY}`);
+fs.writeFileSync(reportPath, md);
+console.log(`Wrote ${reportPath} and ${summaryPath}`);
