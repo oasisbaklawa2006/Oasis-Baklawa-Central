@@ -23,9 +23,9 @@ export function assertLoopbackHttpOrigin(rawUrl, label) {
   return parsed.origin;
 }
 
-export function parseCredentialFile(filePath = CREDENTIAL_FILE) {
+export function parseCredentialFile() {
   const values = new Map();
-  for (const line of readFileSync(filePath, "utf8").split(/\r?\n/)) {
+  for (const line of readFileSync(CREDENTIAL_FILE, "utf8").split(/\r?\n/)) {
     const match = /^export ([A-Z0-9_]+)='([^']*)'$/.exec(line.trim());
     if (match) values.set(match[1], match[2]);
   }
@@ -58,8 +58,9 @@ export function queryLocalPostgresScalar(localDbUrl, sql, operationLabel, localO
     throw new Error(`${localOnlyLabel}_LOCAL_ONLY: refusing Postgres target for ${operationLabel}`);
   }
   try {
-    return execFileSync("psql", ["-At", "-v", "ON_ERROR_STOP=1", "-q", "-c", sql], {
-      stdio: ["ignore", "pipe", "pipe"],
+    return execFileSync("psql", ["-At", "-v", "ON_ERROR_STOP=1", "-q"], {
+      input: sql,
+      stdio: ["pipe", "pipe", "pipe"],
       encoding: "utf8",
       env: {
         ...process.env,
