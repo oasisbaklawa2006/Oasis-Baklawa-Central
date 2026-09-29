@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { execFileSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { runLocalPostgresRoleStatement } from "../factory-certification/local-supabase-client.mjs";
@@ -34,12 +35,17 @@ if (checkedOutCoreSha !== requiredCoreSha.toLowerCase()) {
   );
 }
 
-const canonicalDispatchMigrationPath = path.join(
-  coreRepo,
-  "supabase/migrations/20260908020000_macro_dispatch_finalization_authority.sql",
-);
+const canonicalDispatchMigrationRelative =
+  "supabase/migrations/20260908020000_macro_dispatch_finalization_authority.sql";
 
-const migrationSql = await readFile(canonicalDispatchMigrationPath, "utf8");
+// Read the migration from the exact certified commit object rather than the
+// working tree. A dirty or locally edited checkout must never alter Point100
+// authority while still presenting the certified HEAD.
+const migrationSql = execFileSync(
+  "git",
+  ["-C", coreRepo, "show", `${requiredCoreSha}:${canonicalDispatchMigrationRelative}`],
+  { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 },
+);
 
 for (const marker of [
   "dispatch_proof_packets",
