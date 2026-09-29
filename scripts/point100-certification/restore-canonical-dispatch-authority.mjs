@@ -1,17 +1,24 @@
 #!/usr/bin/env node
 import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { runLocalPostgresRoleStatement } from "../factory-certification/local-supabase-client.mjs";
 
 const dbUrl = process.env.POINT100_LOCAL_DB_URL?.trim();
+const coreRepo = process.env.POINT100_CORE_REPO?.trim();
 
 if (!dbUrl) {
   throw new Error("Point100 canonical dispatch restore requires POINT100_LOCAL_DB_URL");
 }
+if (!coreRepo) {
+  throw new Error("Point100 canonical dispatch restore requires POINT100_CORE_REPO");
+}
 
-const CANONICAL_DISPATCH_MIGRATION_RELATIVE =
-  "oasis-supabase-core/supabase/migrations/20260908020000_macro_dispatch_finalization_authority.sql";
+const canonicalDispatchMigrationPath = path.join(
+  coreRepo,
+  "supabase/migrations/20260908020000_macro_dispatch_finalization_authority.sql",
+);
 
-const migrationSql = await readFile(CANONICAL_DISPATCH_MIGRATION_RELATIVE, "utf8");
+const migrationSql = await readFile(canonicalDispatchMigrationPath, "utf8");
 
 for (const marker of [
   "dispatch_proof_packets",
