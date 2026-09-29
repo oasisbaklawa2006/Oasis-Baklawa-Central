@@ -8,10 +8,10 @@ if (!dbUrl) {
   throw new Error("Point100 canonical dispatch restore requires POINT100_LOCAL_DB_URL");
 }
 
-const migrationSql = await readFile(
-  "oasis-supabase-core/supabase/migrations/20260908020000_macro_dispatch_finalization_authority.sql",
-  "utf8",
-);
+const CANONICAL_DISPATCH_MIGRATION_RELATIVE =
+  "oasis-supabase-core/supabase/migrations/20260908020000_macro_dispatch_finalization_authority.sql";
+
+const migrationSql = await readFile(CANONICAL_DISPATCH_MIGRATION_RELATIVE, "utf8");
 
 for (const marker of [
   "dispatch_proof_packets",

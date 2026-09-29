@@ -27,8 +27,25 @@ function isLoopbackHostname(hostname) {
 export const CREDENTIAL_FILE = "/tmp/oasis-factory-certification.env";
 export const RUN_TOKEN = "point100-point38-canonical-v1";
 
+/** Disposable Point100 bootstrap env keys — literal switch avoids dynamic process.env sinks. */
 export function requireBootstrapEnv(name, label) {
-  const value = process.env[name]?.trim();
+  let value;
+  switch (name) {
+    case "FACTORY_CERT_SUPABASE_URL":
+      value = process.env.FACTORY_CERT_SUPABASE_URL?.trim();
+      break;
+    case "FACTORY_CERT_SUPABASE_ANON_KEY":
+      value = process.env.FACTORY_CERT_SUPABASE_ANON_KEY?.trim();
+      break;
+    case "FACTORY_CERT_LOCAL_DB_URL":
+      value = process.env.FACTORY_CERT_LOCAL_DB_URL?.trim();
+      break;
+    case "FACTORY_CERT_LOCAL_SERVICE_ROLE_KEY":
+      value = process.env.FACTORY_CERT_LOCAL_SERVICE_ROLE_KEY?.trim();
+      break;
+    default:
+      throw new Error(`${label}_ENV_UNKNOWN: ${name}`);
+  }
   if (!value) throw new Error(`${label}_ENV_REQUIRED: ${name}`);
   return value;
 }
@@ -85,7 +102,7 @@ export function queryLocalPostgresScalar(
     throw new Error(`${localOnlyLabel}_LOCAL_ONLY: refusing Postgres target for ${operationLabel}`);
   }
 
-  const bindingEnv = {};
+  const bindingEnv = new Map();
   const bindingPrelude = [];
   for (const [name, rawValue] of Object.entries(bindings)) {
     if (!/^[a-z][a-z0-9_]*$/.test(name)) {
@@ -96,7 +113,10 @@ export function queryLocalPostgresScalar(
       throw new Error(`${localOnlyLabel}_SQL_BINDING_VALUE_INVALID: ${name}`);
     }
     const envName = `POINT100_SQL_${name.toUpperCase()}`;
-    bindingEnv[envName] = value;
+    if (!/^POINT100_SQL_[A-Z0-9_]+$/.test(envName)) {
+      throw new Error(`${localOnlyLabel}_SQL_BINDING_ENV_INVALID: ${envName}`);
+    }
+    bindingEnv.set(envName, value);
     bindingPrelude.push(`\\getenv ${name} ${envName}`);
   }
 
@@ -107,7 +127,7 @@ export function queryLocalPostgresScalar(
       encoding: "utf8",
       env: {
         ...process.env,
-        ...bindingEnv,
+        ...Object.fromEntries(bindingEnv),
         PGHOST: parsed.hostname,
         PGPORT: parsed.port || "5432",
         PGUSER: decodeURIComponent(parsed.username),
