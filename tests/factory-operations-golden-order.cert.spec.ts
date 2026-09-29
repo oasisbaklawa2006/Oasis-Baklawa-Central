@@ -686,13 +686,11 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
     record(ledger.stages, "3pgs_reserve_requirement_real_stock", "reserve_3pgs_requirement_stock", "HOD_ASSEMBLY", freshReserveCorrelationId, "PASS", `reservation_id=${realReservation?.id}, reserved_qty=${realReservation?.reserved_qty}`);
 
     // Core now enforces lot-level custody whenever GRN-created lot positions
-    // exist. The 3PGS store must allocate and physically pick the reservation
-    // before P&A can issue it; aggregate reserved_qty alone is not sufficient.
-    await switchRole(page, store3rdParty);
-    const { client: lotClient } = await createAuthenticatedCertificationClient(page);
-
+    // exist. HOD_ASSEMBLY is the canonical inventory-manage actor already
+    // holding this 3PGS reservation; allocate and pick through that same
+    // governed authority before issue.
     const lotAllocationCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-3pgs-lot-allocate`;
-    const { data: lotAllocations, error: lotAllocationError } = await lotClient.rpc("allocate_lots_to_reservation", {
+    const { data: lotAllocations, error: lotAllocationError } = await assemblyClient.rpc("allocate_lots_to_reservation", {
       p_reservation_id: realReservation?.id,
       p_allocate_qty: shortageQty,
       p_selection_mode: "fefo",
@@ -703,19 +701,18 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
       Array.isArray(lotAllocations) && lotAllocations.length > 0,
       "lot-tracked 3PGS stock must have at least one governed lot allocation",
     ).toBe(true);
-    record(ledger.stages, "3pgs_allocate_lots_to_reservation", "allocate_lots_to_reservation", "STORE_3RD_PARTY", lotAllocationCorrelationId, "PASS", `allocation_count=${Array.isArray(lotAllocations) ? lotAllocations.length : 0}`);
+    record(ledger.stages, "3pgs_allocate_lots_to_reservation", "allocate_lots_to_reservation", "HOD_ASSEMBLY", lotAllocationCorrelationId, "PASS", `allocation_count=${Array.isArray(lotAllocations) ? lotAllocations.length : 0}`);
 
     const pickCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-3pgs-pick`;
-    const { error: pickError } = await lotClient.rpc("pick_rgs_reservation", {
+    const { error: pickError } = await assemblyClient.rpc("pick_rgs_reservation", {
       p_reservation_id: realReservation?.id,
       p_pick_qty: shortageQty,
       p_correlation_id: pickCorrelationId,
     });
     expect(pickError, pickError?.message).toBeNull();
-    record(ledger.stages, "3pgs_pick_requirement_stock", "pick_rgs_reservation", "STORE_3RD_PARTY", pickCorrelationId, "PASS", `picked_qty=${shortageQty}`);
+    record(ledger.stages, "3pgs_pick_requirement_stock", "pick_rgs_reservation", "HOD_ASSEMBLY", pickCorrelationId, "PASS", `picked_qty=${shortageQty}`);
 
-    await switchRole(page, hodAssembly);
-    const { client: assemblyIssueClient } = await createAuthenticatedCertificationClient(page);
+    const assemblyIssueClient = assemblyClient;
     const issueCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-3pgs-issue`;
     const { data: issueEvent, error: issueError } = await assemblyIssueClient.rpc("issue_3pgs_requirement_stock", {
       p_requirement_id: pkgRequirementId,
@@ -726,10 +723,11 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
     expect(issueError, issueError?.message).toBeNull();
     record(ledger.stages, "3pgs_issue_requirement_stock", "issue_3pgs_requirement_stock", "HOD_ASSEMBLY", issueCorrelationId, "PASS", `issue_event_id=${issueEvent?.id}`);
 
-    // Receiver must be a DIFFERENT actor than the issuer (HOD_ASSEMBLY) --
-    // STORE_3RD_PARTY, the 3PGS store's own role, acknowledges physical
-    // custody actually leaving 3PGS for Assembly.
-    await switchRole(page, store3rdParty);
+    // Receiver must be a DIFFERENT actor than the issuer (HOD_ASSEMBLY).
+    // STORE_READY_GOODS is a distinct Core-authorized inventory-receive actor,
+    // so the certification proves the segregation-of-duties guard without
+    // granting STORE_3RD_PARTY authority that Core intentionally does not have.
+    await switchRole(page, storeReadyGoods);
     const { client: ackClient } = await createAuthenticatedCertificationClient(page);
     const acknowledgeCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-3pgs-acknowledge`;
     const { data: acknowledgedRequirement, error: acknowledgeError } = await ackClient.rpc("acknowledge_3pgs_requirement_receipt", {
@@ -739,7 +737,7 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
     });
     expect(acknowledgeError, acknowledgeError?.message).toBeNull();
     expect(acknowledgedRequirement?.status, "the 3PGS requirement must be fulfilled once acknowledged custody covers the full requested quantity").toBe("fulfilled");
-    record(ledger.stages, "3pgs_acknowledge_requirement_receipt", "acknowledge_3pgs_requirement_receipt", "STORE_3RD_PARTY", acknowledgeCorrelationId, "PASS", `status=${acknowledgedRequirement?.status}`);
+    record(ledger.stages, "3pgs_acknowledge_requirement_receipt", "acknowledge_3pgs_requirement_receipt", "STORE_READY_GOODS", acknowledgeCorrelationId, "PASS", `status=${acknowledgedRequirement?.status}`);
 
     const { data: pkgComponentAfter } = await ackClient
       .from("b2b_assembly_components")
