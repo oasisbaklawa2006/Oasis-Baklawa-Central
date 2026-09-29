@@ -23,13 +23,13 @@ export type Point100UpstreamDependency = {
   disposableRehearsalBypass?: boolean;
 };
 
-/** Production-certified Core boundary — current protected production release after Trace reprint authority #290. */
-export const POINT100_CORE_PRODUCTION_VERIFIED_SHA = "7b2a09d4a70ee9632c264b552c3265f2495ce48a";
+/** Production-certified Core boundary — current protected production release after dispatch carton ready-to-load authority #366. */
+export const POINT100_CORE_PRODUCTION_VERIFIED_SHA = "5840af1886e7be4a37ba7f27bd6d060ec39751da";
 
-export const POINT100_PRODUCTION_MIGRATION_GATE = "oasis-supabase-core#182";
+export const POINT100_PRODUCTION_MIGRATION_GATE = "oasis-supabase-core#243";
 
 /** GitHub Actions run certifying exact-SHA deploy, semantic parity and production contract smoke for the current protected release. */
-export const POINT100_PRODUCTION_MIGRATION_RUN_ID = "34661721779";
+export const POINT100_PRODUCTION_MIGRATION_RUN_ID = "36627797892";
 
 /** Governed Trace software contracts shipped on Core #259 and consumed by merged Trace #37. */
 export const POINT100_TRACE_SOFTWARE_RPCS = [
