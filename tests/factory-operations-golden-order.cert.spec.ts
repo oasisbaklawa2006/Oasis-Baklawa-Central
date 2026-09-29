@@ -685,8 +685,39 @@ test("FACT-E2E Gate 1B :: continuous golden order across RGS/Production/P&A/3PGS
     expect(Number(realReservation?.reserved_qty ?? 0), "with real 3PGS stock now available, the fresh reservation must reserve the full shortfall").toBe(shortageQty);
     record(ledger.stages, "3pgs_reserve_requirement_real_stock", "reserve_3pgs_requirement_stock", "HOD_ASSEMBLY", freshReserveCorrelationId, "PASS", `reservation_id=${realReservation?.id}, reserved_qty=${realReservation?.reserved_qty}`);
 
+    // Core now enforces lot-level custody whenever GRN-created lot positions
+    // exist. The 3PGS store must allocate and physically pick the reservation
+    // before P&A can issue it; aggregate reserved_qty alone is not sufficient.
+    await switchRole(page, store3rdParty);
+    const { client: lotClient } = await createAuthenticatedCertificationClient(page);
+
+    const lotAllocationCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-3pgs-lot-allocate`;
+    const { data: lotAllocations, error: lotAllocationError } = await lotClient.rpc("allocate_lots_to_reservation", {
+      p_reservation_id: realReservation?.id,
+      p_allocate_qty: shortageQty,
+      p_selection_mode: "fefo",
+      p_correlation_id: lotAllocationCorrelationId,
+    });
+    expect(lotAllocationError, lotAllocationError?.message).toBeNull();
+    expect(
+      Array.isArray(lotAllocations) && lotAllocations.length > 0,
+      "lot-tracked 3PGS stock must have at least one governed lot allocation",
+    ).toBe(true);
+    record(ledger.stages, "3pgs_allocate_lots_to_reservation", "allocate_lots_to_reservation", "STORE_3RD_PARTY", lotAllocationCorrelationId, "PASS", `allocation_count=${Array.isArray(lotAllocations) ? lotAllocations.length : 0}`);
+
+    const pickCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-3pgs-pick`;
+    const { error: pickError } = await lotClient.rpc("pick_rgs_reservation", {
+      p_reservation_id: realReservation?.id,
+      p_pick_qty: shortageQty,
+      p_correlation_id: pickCorrelationId,
+    });
+    expect(pickError, pickError?.message).toBeNull();
+    record(ledger.stages, "3pgs_pick_requirement_stock", "pick_rgs_reservation", "STORE_3RD_PARTY", pickCorrelationId, "PASS", `picked_qty=${shortageQty}`);
+
+    await switchRole(page, hodAssembly);
+    const { client: assemblyIssueClient } = await createAuthenticatedCertificationClient(page);
     const issueCorrelationId = `fact-e2e-golden-${RUN_SUFFIX}-3pgs-issue`;
-    const { data: issueEvent, error: issueError } = await assemblyClient.rpc("issue_3pgs_requirement_stock", {
+    const { data: issueEvent, error: issueError } = await assemblyIssueClient.rpc("issue_3pgs_requirement_stock", {
       p_requirement_id: pkgRequirementId,
       p_reservation_id: realReservation?.id,
       p_issue_qty: shortageQty,
