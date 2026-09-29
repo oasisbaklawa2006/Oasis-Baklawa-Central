@@ -225,9 +225,22 @@ test("POINT100 :: negative-path failure injection suite", async ({ page }) => {
       p_carton_id: "00000000-0000-4000-8000-000000000099",
       p_scan_evidence_id: "00000000-0000-4000-8000-000000000098",
     });
-    const rejected = Boolean(error) || (data as { ok?: boolean } | null)?.ok === false;
-    expect(rejected, "dispatch role/unknown carton gate release must fail").toBe(true);
-    recordStage(negativePaths, "gate_mismatch", "release_b2b_dispatch_carton_at_gate_v1", "DISPATCH_MANAGER", correlationId, "PASS", error?.message ?? `ok=${String((data as { ok?: boolean } | null)?.ok)}`);
+    expect(error, error?.message).toBeNull();
+    const result = data as { ok?: boolean; blockers?: Array<{ code?: string }> } | null;
+    const blockerCodes = Array.isArray(result?.blockers)
+      ? result.blockers.map((blocker) => String(blocker?.code ?? ""))
+      : [];
+    expect(result?.ok, "unknown carton gate release must fail closed").toBe(false);
+    expect(blockerCodes, "gate rejection must identify the canonical carton_not_found blocker").toContain("carton_not_found");
+    recordStage(
+      negativePaths,
+      "gate_mismatch",
+      "release_b2b_dispatch_carton_at_gate_v1",
+      "DISPATCH_MANAGER",
+      correlationId,
+      "PASS",
+      `blockers=${blockerCodes.join(",")}`,
+    );
   });
 
   await test.step("negative: duplicate scan correlation returns the existing event", async () => {
