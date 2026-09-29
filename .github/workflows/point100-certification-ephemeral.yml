@@ -14,6 +14,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: point100-certification-${{ github.event.pull_request.number || github.ref }}
@@ -29,9 +30,7 @@ jobs:
       POINT100_ALLOW_LOCAL_RESET: "true"
       POINT100_ALLOW_DISPOSABLE_BOOTSTRAP: "false"
       POINT100_DISPATCH_PRODUCTION_VERIFIED: "true"
-      POINT100_CORE_VERIFIED_SHA: 7b2a09d4a70ee9632c264b552c3265f2495ce48a
-      POINT100_PRODUCTION_MIGRATION_RUN_ID: "34661721779"
-      POINT100_RECERT_AFTER_CORE_MIGRATION_RUN_ID: "34661721779"
+      POINT100_CORE_VERIFIED_SHA: cefc50a09aa08fa24fbc9deb662701f307752734
       FACTORY_CERT_CORE_REPO: ${{ github.workspace }}/oasis-supabase-core
       FACTORY_CERT_ALLOW_LOCAL_RESET: "true"
       FACTORY_CERT_CREDENTIAL_FILE: /tmp/oasis-factory-certification.env
@@ -43,12 +42,51 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Verify protected Core production deployment evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CORE_RELEASE_REPO: oasisbaklawa2006/oasis-supabase-core
+          EXPECTED_RELEASE_SHA: ${{ env.POINT100_CORE_VERIFIED_SHA }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "${EXPECTED_RELEASE_SHA}" =~ ^[0-9a-f]{40}$ ]]
+
+          mapfile -t candidate_runs < <(
+            gh api --paginate               "repos/${CORE_RELEASE_REPO}/actions/workflows/production-migration-release.yml/runs?event=workflow_dispatch&status=completed&branch=main&per_page=100"               --jq ".workflow_runs[] | select(.head_sha == \"${EXPECTED_RELEASE_SHA}\" and .conclusion == \"success\") | .id"
+          )
+
+          release_run_id=""
+          for run_id in "${candidate_runs[@]}"; do
+            preflight_conclusion="$(
+              gh api "repos/${CORE_RELEASE_REPO}/actions/runs/${run_id}/jobs?filter=latest&per_page=100"                 --jq '[.jobs[] | select(.name == "Production ledger and dry-run verification")][0].conclusion // ""'
+            )"
+            deploy_conclusion="$(
+              gh api "repos/${CORE_RELEASE_REPO}/actions/runs/${run_id}/jobs?filter=latest&per_page=100"                 --jq '[.jobs[] | select(.name == "Approved production migration deployment")][0].conclusion // ""'
+            )"
+            if [[ "${preflight_conclusion}" == "success" && "${deploy_conclusion}" == "success" ]]; then
+              release_run_id="${run_id}"
+              break
+            fi
+          done
+
+          if [[ -z "${release_run_id}" ]]; then
+            echo "POINT100_PRODUCTION_RELEASE_NOT_CERTIFIED: no successful protected deploy=true Production Migration Release exists for Core ${EXPECTED_RELEASE_SHA}" >&2
+            exit 1
+          fi
+
+          {
+            echo "POINT100_PRODUCTION_MIGRATION_RUN_ID=${release_run_id}"
+            echo "POINT100_RECERT_AFTER_CORE_MIGRATION_RUN_ID=${release_run_id}"
+          } >> "${GITHUB_ENV}"
+          echo "Point100 bound to protected production deployment run ${release_run_id} for Core ${EXPECTED_RELEASE_SHA}."
+
       - name: Checkout production-certified Core schema authority
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
           repository: oasisbaklawa2006/oasis-supabase-core
-          ref: 7b2a09d4a70ee9632c264b552c3265f2495ce48a
+          ref: ${{ env.POINT100_CORE_VERIFIED_SHA }}
           path: oasis-supabase-core
 
       - name: Set up pinned Supabase CLI
@@ -71,8 +109,9 @@ jobs:
           bash -n scripts/point100-certification/stop-ephemeral.sh
           bash -n scripts/point100-certification/run-dress-rehearsal.sh
           bash -n scripts/point100-certification/recert-after-core-260.sh
-          test "${POINT100_CORE_VERIFIED_SHA}" = "7b2a09d4a70ee9632c264b552c3265f2495ce48a"
-          test "${POINT100_PRODUCTION_MIGRATION_RUN_ID}" = "34661721779"
+          test "${POINT100_CORE_VERIFIED_SHA}" = "cefc50a09aa08fa24fbc9deb662701f307752734"
+          [[ "${POINT100_PRODUCTION_MIGRATION_RUN_ID}" =~ ^[0-9]+$ ]]
+          test "${POINT100_RECERT_AFTER_CORE_MIGRATION_RUN_ID}" = "${POINT100_PRODUCTION_MIGRATION_RUN_ID}"
           test "${POINT100_ALLOW_DISPOSABLE_BOOTSTRAP}" = "false"
 
       - name: Unit tests (Point100 harness library)
