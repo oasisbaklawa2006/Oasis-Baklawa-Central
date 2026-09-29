@@ -65,120 +65,6 @@ function isFinanceCalendarConflictImminent() {
   return kolkataToday > utcToday;
 }
 
-function insertFinalPaymentRequestMaintenance(
-  localDbUrl,
-  financeActorId,
-  piId,
-  commercialVersionId,
-  financeDplReceiptId,
-  correlationId,
-  idempotencyKey,
-) {
-  const sql = `
-BEGIN;
-SET LOCAL request.jwt.claim.sub = :'finance_actor_id';
-SET LOCAL request.jwt.claim.role = 'authenticated';
-WITH totals AS (
-  SELECT public.calculate_finance_dpl_commercial_totals_v1(
-    :'order_id'::uuid,
-    :'pi_id'::uuid,
-    :'commercial_version_id'::uuid,
-    :'finance_dpl_receipt_id'::uuid
-  ) AS payload
-),
-coverage AS (
-  SELECT public.get_sales_order_final_payment_coverage_v1(
-    :'order_id'::uuid,
-    :'pi_id'::uuid,
-    :'commercial_version_id'::uuid,
-    (totals.payload->>'final_payable_total')::numeric
-  ) AS payload
-  FROM totals
-),
-inserted AS (
-  INSERT INTO public.sales_order_pi_final_payment_requests (
-    order_id, company_id, proforma_invoice_id, commercial_version_id,
-    finance_dpl_receipt_id, revision_number, customer_visible_pi_number,
-    dpl_fingerprint, currency, taxable_total, tax_total, final_payable_total,
-    verified_payment_at_issue, wallet_applied_at_issue, approved_credit_at_issue,
-    balance_due_at_issue, payment_action, payment_instructions, document_reference,
-    request_fingerprint, reason, source_channel, source_reference, correlation_id,
-    idempotency_key, issued_by, issued_role, issued_at
-  )
-  SELECT
-    o.id,
-    o.company_id,
-    pi.id,
-    cv.id,
-    dpl.id,
-    coalesce((SELECT max(revision_number) FROM public.sales_order_pi_final_payment_requests prior WHERE prior.order_id = o.id), 0) + 1,
-    pi.customer_visible_pi_number,
-    totals.payload->>'dpl_fingerprint',
-    'INR',
-    (totals.payload->>'taxable_total')::numeric,
-    (totals.payload->>'tax_total')::numeric,
-    (totals.payload->>'final_payable_total')::numeric,
-    (coverage.payload->>'verified_payment_total')::numeric,
-    (coverage.payload->>'wallet_applied_total')::numeric,
-    (coverage.payload->>'approved_credit_total')::numeric,
-    (coverage.payload->>'balance_due')::numeric,
-    'BANK_TRANSFER',
-    'Point100 synthetic certification bank-transfer settlement',
-    'point100://final-payment-pi/p38',
-    encode(extensions.digest(:'idempotency_key', 'sha256'), 'hex'),
-    'Point100 governed final-payment PI revision',
-    'CENTRAL',
-    'point100:' || :'order_id',
-    :'correlation_id',
-    :'idempotency_key',
-    :'finance_actor_id'::uuid,
-    'FINANCE_EXEC',
-    statement_timestamp() - interval '2 days'
-  FROM public.orders o
-  JOIN public.sales_order_proforma_invoices pi
-    ON pi.id = :'pi_id'::uuid AND pi.order_id = o.id
-  JOIN public.sales_order_commercial_versions cv
-    ON cv.id = :'commercial_version_id'::uuid AND cv.order_id = o.id
-  JOIN public.finance_dpl_receipts dpl
-    ON dpl.id = :'finance_dpl_receipt_id'::uuid AND dpl.order_id = o.id
-  CROSS JOIN totals
-  CROSS JOIN coverage
-  WHERE o.id = :'order_id'::uuid
-  ON CONFLICT (idempotency_key) DO NOTHING
-  RETURNING id::text AS request_id, balance_due_at_issue::text AS balance_due
-)
-SELECT coalesce(
-  (SELECT request_id || '|' || balance_due FROM inserted LIMIT 1),
-  (
-    SELECT r.id::text || '|' || r.balance_due_at_issue::text
-      FROM public.sales_order_pi_final_payment_requests r
-     WHERE r.idempotency_key = :'idempotency_key'
-     LIMIT 1
-  )
-);
-COMMIT;`;
-  const row = queryLocalPostgresScalar(
-    localDbUrl,
-    sql,
-    "Point38 final-payment request maintenance insert",
-    LOCAL_LABEL,
-    {
-      finance_actor_id: financeActorId,
-      order_id: point38OrderId,
-      pi_id: piId,
-      commercial_version_id: commercialVersionId,
-      finance_dpl_receipt_id: financeDplReceiptId,
-      correlation_id: correlationId,
-      idempotency_key: idempotencyKey,
-    },
-  );
-  const [requestId, balanceDueRaw] = row.split("|");
-  if (!requestId) throw new Error("POINT100_POINT38_FINAL_PAYMENT_REQUEST_ID_MISSING");
-  const balanceDue = Number(balanceDueRaw);
-  if (!Number.isFinite(balanceDue)) throw new Error(`POINT100_POINT38_FINAL_PAYMENT_BALANCE_INVALID: ${balanceDueRaw}`);
-  return { finalPaymentRequestId: requestId, balanceDue };
-}
-
 const backendUrl = assertLoopbackHttpOrigin(requireBootstrapEnv("FACTORY_CERT_SUPABASE_URL", LOCAL_LABEL), LOCAL_LABEL);
 const anonKey = requireBootstrapEnv("FACTORY_CERT_SUPABASE_ANON_KEY", LOCAL_LABEL);
 const localDbUrl = requireBootstrapEnv("FACTORY_CERT_LOCAL_DB_URL", LOCAL_LABEL);
@@ -364,16 +250,9 @@ async function issueFinalPaymentRequest(
 ) {
   const requestCorrelation = `${RUN_TOKEN}:final-payment-request`;
   if (isFinanceCalendarConflictImminent()) {
-    const maintenance = insertFinalPaymentRequestMaintenance(
-      localDbUrl,
-      financeActorId,
-      piId,
-      commercialVersionId,
-      financeDplReceiptId,
-      requestCorrelation,
-      requestCorrelation,
+    throw new Error(
+      "POINT100_POINT38_FINANCE_CALENDAR_CONFLICT: Core final-payment/invoice calendar gate (Asia/Kolkata vs UTC) blocks canonical issuance in this window",
     );
-    return maintenance;
   }
   const requestResult = await finance.rpc("issue_sales_order_pi_final_payment_request_v1", {
     p_order_id: point38OrderId,
