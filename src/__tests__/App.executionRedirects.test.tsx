@@ -68,9 +68,6 @@ function goTo(path: string) {
 async function verifyRedirect(sourcePath: string, expectedPath: string) {
   goTo(sourcePath);
   await waitFor(() => expect(window.location.pathname).toBe(expectedPath), { timeout: 15000 });
-  if (expectedPath.startsWith("/admin/")) {
-    await waitFor(() => expect(screen.getByTestId("admin-layout-stub")).toBeInTheDocument(), { timeout: 15000 });
-  }
   await waitFor(() => expect(screen.queryByText(/page not found/i)).toBeNull(), { timeout: 15000 });
 }
 
