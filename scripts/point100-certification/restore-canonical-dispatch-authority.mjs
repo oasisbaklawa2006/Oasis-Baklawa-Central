@@ -18,30 +18,13 @@ if (!requiredCoreSha || !/^[0-9a-f]{40}$/i.test(requiredCoreSha)) {
 }
 
 async function readCheckedOutCoreSha(repoRoot) {
-  const gitDir = path.join(repoRoot, ".git");
-  const head = (await readFile(path.join(gitDir, "HEAD"), "utf8")).trim();
-  if (/^[0-9a-f]{40}$/i.test(head)) return head.toLowerCase();
-
-  const match = /^ref:\s+(refs\/[A-Za-z0-9._\/-]+)$/.exec(head);
-  if (!match || match[1].includes("..")) {
-    throw new Error("Refusing Point100 restore: unable to resolve Core checkout HEAD");
+  const head = (await readFile(path.join(repoRoot, ".git", "HEAD"), "utf8")).trim();
+  if (!/^[0-9a-f]{40}$/i.test(head)) {
+    throw new Error(
+      "Refusing Point100 restore: Core checkout must be detached at the exact certified SHA",
+    );
   }
-  const refName = match[1];
-  try {
-    const loose = (await readFile(path.join(gitDir, refName), "utf8")).trim();
-    if (/^[0-9a-f]{40}$/i.test(loose)) return loose.toLowerCase();
-  } catch {
-    // fall through to packed-refs
-  }
-  const packed = await readFile(path.join(gitDir, "packed-refs"), "utf8");
-  const row = packed
-    .split(/\r?\n/)
-    .find((line) => line.endsWith(` ${refName}`) && /^[0-9a-f]{40}\s/.test(line));
-  const sha = row?.split(/\s+/)[0] ?? "";
-  if (!/^[0-9a-f]{40}$/i.test(sha)) {
-    throw new Error("Refusing Point100 restore: Core checkout ref is not resolvable");
-  }
-  return sha.toLowerCase();
+  return head.toLowerCase();
 }
 
 const checkedOutCoreSha = await readCheckedOutCoreSha(coreRepo);
