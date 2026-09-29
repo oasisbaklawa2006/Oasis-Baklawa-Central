@@ -1,6 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
-const DISPOSABLE_CERT_BASE_URL = "http://localhost:4173";
+/** Must match governed disposable preview bind in point100-certification-ephemeral.yml */
+const DISPOSABLE_CERT_BASE_URL = "http://127.0.0.1:4173";
 
 /**
  * Point100 cross-lifecycle dress rehearsal runner.

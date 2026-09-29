@@ -41,6 +41,9 @@ function isRemoteEphemeralAllowed(): boolean {
   return process.env.FACTORY_CERT_ALLOW_REMOTE_EPHEMERAL === "true";
 }
 
+/** Fixed staff login route — never composed from external input. */
+export const FACTORY_CERTIFICATION_STAFF_LOGIN_PATH = "/staff/login";
+
 export function hasFactoryCertificationTarget(): boolean {
   return Boolean(process.env.FACTORY_CERT_TARGET_URL?.trim());
 }
@@ -61,7 +64,7 @@ export function resolveFactoryCertificationTarget(): string {
   return policy.normalizedUrl;
 }
 
-function assertLocalFactoryCertificationBrowserTarget(): void {
+function assertLocalFactoryCertificationBrowserTarget(): string {
   const validatedTarget = resolveFactoryCertificationTarget();
   const localPolicy = validateFactoryCertificationTarget({
     targetUrl: validatedTarget,
@@ -72,6 +75,26 @@ function assertLocalFactoryCertificationBrowserTarget(): void {
       "UNSAFE_CERTIFICATION_TARGET: credentialed browser certification must use a governed loopback preview origin",
     );
   }
+  return localPolicy.normalizedUrl;
+}
+
+/**
+ * Staff login URL for credentialed browser certification: validated loopback origin
+ * plus the fixed /staff/login path (no dynamic path segments or string concatenation).
+ */
+export function resolveFactoryCertificationStaffLoginUrl(): string {
+  const origin = assertLocalFactoryCertificationBrowserTarget();
+  const loginUrl = new URL(FACTORY_CERTIFICATION_STAFF_LOGIN_PATH, origin);
+  if (
+    loginUrl.pathname !== FACTORY_CERTIFICATION_STAFF_LOGIN_PATH ||
+    loginUrl.search.length > 0 ||
+    loginUrl.hash.length > 0
+  ) {
+    throw new Error(
+      "UNSAFE_CERTIFICATION_TARGET: staff login URL must be exactly /staff/login on the validated preview origin",
+    );
+  }
+  return loginUrl.href;
 }
 
 export function hasFactoryCertificationBackend(): boolean {
@@ -155,8 +178,8 @@ export async function loginToFactoryCertificationTarget(
   page: Page,
   credentials: FactoryCertificationCredentials,
 ): Promise<void> {
-  assertLocalFactoryCertificationBrowserTarget();
-  await page.goto("/staff/login", {
+  const staffLoginUrl = resolveFactoryCertificationStaffLoginUrl();
+  await page.goto(staffLoginUrl, {
     waitUntil: "domcontentloaded",
     timeout: 60_000,
   });
