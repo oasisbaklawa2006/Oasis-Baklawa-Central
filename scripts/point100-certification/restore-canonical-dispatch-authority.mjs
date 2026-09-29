@@ -5,12 +5,50 @@ import { runLocalPostgresRoleStatement } from "../factory-certification/local-su
 
 const dbUrl = process.env.POINT100_LOCAL_DB_URL?.trim();
 const coreRepo = process.env.POINT100_CORE_REPO?.trim();
+const requiredCoreSha = process.env.POINT100_CORE_VERIFIED_SHA?.trim();
 
 if (!dbUrl) {
   throw new Error("Point100 canonical dispatch restore requires POINT100_LOCAL_DB_URL");
 }
 if (!coreRepo) {
   throw new Error("Point100 canonical dispatch restore requires POINT100_CORE_REPO");
+}
+if (!requiredCoreSha || !/^[0-9a-f]{40}$/i.test(requiredCoreSha)) {
+  throw new Error("Point100 canonical dispatch restore requires a full POINT100_CORE_VERIFIED_SHA");
+}
+
+async function readCheckedOutCoreSha(repoRoot) {
+  const gitDir = path.join(repoRoot, ".git");
+  const head = (await readFile(path.join(gitDir, "HEAD"), "utf8")).trim();
+  if (/^[0-9a-f]{40}$/i.test(head)) return head.toLowerCase();
+
+  const match = /^ref:\s+(refs\/[A-Za-z0-9._\/-]+)$/.exec(head);
+  if (!match || match[1].includes("..")) {
+    throw new Error("Refusing Point100 restore: unable to resolve Core checkout HEAD");
+  }
+  const refName = match[1];
+  try {
+    const loose = (await readFile(path.join(gitDir, refName), "utf8")).trim();
+    if (/^[0-9a-f]{40}$/i.test(loose)) return loose.toLowerCase();
+  } catch {
+    // fall through to packed-refs
+  }
+  const packed = await readFile(path.join(gitDir, "packed-refs"), "utf8");
+  const row = packed
+    .split(/\r?\n/)
+    .find((line) => line.endsWith(` ${refName}`) && /^[0-9a-f]{40}\s/.test(line));
+  const sha = row?.split(/\s+/)[0] ?? "";
+  if (!/^[0-9a-f]{40}$/i.test(sha)) {
+    throw new Error("Refusing Point100 restore: Core checkout ref is not resolvable");
+  }
+  return sha.toLowerCase();
+}
+
+const checkedOutCoreSha = await readCheckedOutCoreSha(coreRepo);
+if (checkedOutCoreSha !== requiredCoreSha.toLowerCase()) {
+  throw new Error(
+    `Refusing Point100 restore: unexpected Core SHA ${checkedOutCoreSha}; expected ${requiredCoreSha.toLowerCase()}`,
+  );
 }
 
 const canonicalDispatchMigrationPath = path.join(
