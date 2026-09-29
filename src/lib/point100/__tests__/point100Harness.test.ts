@@ -150,11 +150,11 @@ describe("point100 probe runner", () => {
     expect(traceBlockers).toHaveLength(0);
   });
 
-  it("records Core #290 and Production Migration Release #182 as current production authority", () => {
+  it("records retained Core #290 authority and Production Migration Release #243 as current production authority", () => {
     const merged290 = POINT100_UPSTREAM_DEPENDENCIES.find((dep) => dep.id === "core-trace-reprint-290");
-    const merged182 = POINT100_UPSTREAM_DEPENDENCIES.find((dep) => dep.id === "core-production-migration-182");
+    const merged243 = POINT100_UPSTREAM_DEPENDENCIES.find((dep) => dep.id === "core-production-migration-243");
     expect(merged290?.state).toBe("merged");
-    expect(merged182?.state).toBe("merged");
+    expect(merged243?.state).toBe("merged");
     const originalSha = process.env.POINT100_CORE_VERIFIED_SHA;
     process.env.POINT100_CORE_VERIFIED_SHA = POINT100_CORE_PRODUCTION_VERIFIED_SHA;
     expect(isCoreProductionVerified()).toBe(true);
@@ -199,7 +199,7 @@ describe("point100 probe runner", () => {
     else process.env.POINT100_DISPATCH_PRODUCTION_VERIFIED = originalDispatch;
   });
 
-  it("embeds Core #290/#182 provenance in capability matrix", () => {
+  it("embeds current Core/#243 provenance in capability matrix", () => {
     const originalSha = process.env.POINT100_CORE_VERIFIED_SHA;
     process.env.POINT100_CORE_VERIFIED_SHA = POINT100_CORE_PRODUCTION_VERIFIED_SHA;
     const matrix = buildCapabilityMatrix([], "test-env");
