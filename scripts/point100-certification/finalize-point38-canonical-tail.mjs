@@ -15,7 +15,6 @@ import {
   assertNoError,
   firstRow,
   parseCredentialFile,
-  queryLocalPostgresScalar,
   readCredential,
   requireBootstrapEnv,
 } from "./point38-bootstrap-common.mjs";
@@ -37,37 +36,7 @@ function roleCredentials(role) {
 
 const backendUrl = assertLoopbackHttpOrigin(requireBootstrapEnv("FACTORY_CERT_SUPABASE_URL", LOCAL_LABEL), LOCAL_LABEL);
 const anonKey = requireBootstrapEnv("FACTORY_CERT_SUPABASE_ANON_KEY", LOCAL_LABEL);
-const localDbUrl = requireBootstrapEnv("FACTORY_CERT_LOCAL_DB_URL", LOCAL_LABEL);
 const point38OrderId = credentialValue("FACTORY_CERT_POINT38_ORDER_ID");
-
-/** Core gate release requires ready_to_load/loaded; finance clearance has no carton-promotion RPC yet. */
-function promoteCartonForGateReadiness(cartonId) {
-  const bindings = { carton_id: cartonId };
-  const updated = queryLocalPostgresScalar(
-    localDbUrl,
-    `UPDATE public.b2b_dispatch_cartons
-        SET status = 'ready_to_load',
-            physical_location = 'READY_TO_LOAD_BAY'
-      WHERE id = :'carton_id'::uuid
-        AND status = 'locked'
-      RETURNING id::text;`,
-    "Point38 tail carton gate-readiness promotion",
-    LOCAL_LABEL,
-    bindings,
-  );
-  if (!updated) {
-    const currentStatus = queryLocalPostgresScalar(
-      localDbUrl,
-      "SELECT status FROM public.b2b_dispatch_cartons WHERE id = :'carton_id'::uuid;",
-      "Point38 tail carton status lookup",
-      LOCAL_LABEL,
-      bindings,
-    );
-    if (currentStatus !== "ready_to_load" && currentStatus !== "loaded" && currentStatus !== "handed_over") {
-      throw new Error(`POINT100_POINT38_TAIL_CARTON_NOT_GATE_READY: status=${currentStatus}`);
-    }
-  }
-}
 
 function newClient() {
   return createClient(backendUrl, anonKey, {
@@ -103,7 +72,7 @@ try {
 
   const { data: cartons, error: cartonError } = await dispatchRole.client
     .from("b2b_dispatch_cartons")
-    .select("id,carton_code")
+    .select("id,carton_code,current_version,status")
     .eq("consignment_id", consignmentId)
     .order("created_at", { ascending: false })
     .limit(1);
@@ -146,7 +115,28 @@ try {
   }
   if (!gateScanId) throw new Error("POINT100_POINT38_TAIL_GATE_SCAN_ID_MISSING");
 
-  promoteCartonForGateReadiness(cartonId);
+  // #366 closed the historical locked -> ready_to_load authority gap.
+  // Use the canonical authenticated Core RPC; Point100 must never manufacture
+  // gate-ready carton state with direct SQL.
+  const currentVersion = Number(cartons?.[0]?.current_version);
+  if (!Number.isInteger(currentVersion)) {
+    throw new Error("POINT100_POINT38_TAIL_CARTON_VERSION_MISSING");
+  }
+  const readyCorrelation = `${RUN_TOKEN}:carton-ready-to-load`;
+  const { data: readyCarton, error: readyError } = await dispatchRole.client.rpc(
+    "mark_b2b_dispatch_carton_ready_to_load_v1",
+    {
+      p_carton_id: cartonId,
+      p_expected_version: currentVersion,
+      p_correlation_id: readyCorrelation,
+    },
+  );
+  assertNoError(readyError, "Point38 tail governed carton ready-to-load transition");
+  if (!["ready_to_load", "loaded", "handed_over"].includes(String(readyCarton?.status ?? ""))) {
+    throw new Error(
+      `POINT100_POINT38_TAIL_CARTON_NOT_GATE_READY: status=${String(readyCarton?.status ?? "unknown")}`,
+    );
+  }
 
   const { data: gateDecisionData, error: gateDecisionError } = await gateRole.client.rpc("release_b2b_dispatch_carton_at_gate_v1", {
     p_carton_id: cartonId,
