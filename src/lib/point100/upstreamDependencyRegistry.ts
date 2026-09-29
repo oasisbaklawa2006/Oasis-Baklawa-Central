@@ -105,7 +105,7 @@ export const POINT100_UPSTREAM_DEPENDENCIES: readonly Point100UpstreamDependency
     pr: "#260",
     state: "merged",
     affectedStageIds: ["dispatch_consignment", "order_complete"],
-    blockerDetail: "Core #260 release_order_to_dispatched_v1 on production pin #182.",
+    blockerDetail: "Core #260 release_order_to_dispatched_v1 retained on production pin #243.",
     failClosedStatus: "implemented",
   },
   {
@@ -195,13 +195,13 @@ export const POINT100_UPSTREAM_DEPENDENCIES: readonly Point100UpstreamDependency
     pr: "#38",
     state: "merged",
     affectedStageIds: ["trace_handover"],
-    blockerDetail: "Trace #38 Point95/99 recovery lane merged 2026-09-19 against Core #290 production authority.",
+    blockerDetail: "Trace #38 Point95/99 recovery lane merged 2026-09-19; retained on the current Core production authority.",
     failClosedStatus: "implemented",
   },
   {
-    id: "core-production-migration-182",
+    id: "core-production-migration-243",
     repository: "oasis-supabase-core",
-    pr: "#182",
+    pr: "#243",
     state: "merged",
     affectedStageIds: [
       "finance_dispatch_clearance",
@@ -211,7 +211,7 @@ export const POINT100_UPSTREAM_DEPENDENCIES: readonly Point100UpstreamDependency
       "customer_dispatch_proof",
       "order_complete",
     ],
-    blockerDetail: "Protected Production Migration Release #182 / run 34661721779 on Core SHA 7b2a09d4.",
+    blockerDetail: "Protected Production Migration Release #243 / run 36627797892 on Core SHA 5840af18, including dispatch carton ready-to-load authority #366.",
     failClosedStatus: "implemented",
   },
   {
