@@ -383,9 +383,10 @@ export const FACTORY_OPERATIONS_ROUTES: FactoryRouteEntry[] = [
     subsystem: "INVENTORY",
     technicallyAllowedRoles: ADMIN_STAFF_ROLES_REFERENCE,
     intendedPrimaryAudience: [],
-    status: "FACTORY_CURRENT",
+    status: "LEGACY_REDIRECT",
+    legacyRedirectTarget: "/admin/ready-goods",
     deviceClass: "DESKTOP",
-    evidence: "Gated only by shared /admin ADMIN_STAFF_ROLES. No dedicated 'inventory manager' role exists (see ROLE_NOT_IMPLEMENTED) -- reachable by any ADMIN_STAFF_ROLES member; no specific intended audience role identified.",
+    evidence: "App.tsx intentionally redirects this legacy command-center route to the canonical /admin/ready-goods surface.",
   },
   {
     route: "/admin/inventory-receiving",
@@ -433,9 +434,10 @@ export const FACTORY_OPERATIONS_ROUTES: FactoryRouteEntry[] = [
     subsystem: "INVENTORY",
     technicallyAllowedRoles: ADMIN_STAFF_ROLES_REFERENCE,
     intendedPrimaryAudience: [],
-    status: "FACTORY_CURRENT",
+    status: "LEGACY_REDIRECT",
+    legacyRedirectTarget: "/admin/inventory",
     deviceClass: "DESKTOP",
-    evidence: "Gated only by shared /admin ADMIN_STAFF_ROLES.",
+    evidence: "App.tsx intentionally redirects this legacy risk-board route to the canonical /admin/inventory surface.",
   },
 
   // ── 3PGS / THIRD-PARTY GOODS ─────────────────────────────────────────────
@@ -595,9 +597,10 @@ export const FACTORY_OPERATIONS_ROUTES: FactoryRouteEntry[] = [
     subsystem: "PRODUCTION_EXECUTION",
     technicallyAllowedRoles: ADMIN_STAFF_ROLES_REFERENCE,
     intendedPrimaryAudience: [],
-    status: "FACTORY_CURRENT",
+    status: "LEGACY_REDIRECT",
+    legacyRedirectTarget: "/admin/live-work-queues",
     deviceClass: "DESKTOP",
-    evidence: "Point86: useExecutionCommandCenter now reads canonical Core department-queue routing contract (production_jobs, b2b_assembly_jobs, inventory_reservations, b2b_dispatch_consignments, b2b_procurement_requirements) instead of operational_queue_items.",
+    evidence: "App.tsx intentionally redirects this legacy command-center route to the canonical /admin/live-work-queues surface.",
   },
   {
     route: "/admin/execution-risk",
