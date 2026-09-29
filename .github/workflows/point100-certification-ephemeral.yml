@@ -195,4 +195,8 @@ jobs:
             kill "${preview_pid}" 2>/dev/null || true
             wait "${preview_pid}" 2>/dev/null || true
           fi
-          bash scripts/point100-certification/stop-ephemeral.sh
+          if [[ -d "${POINT100_CORE_REPO}" ]]; then
+            bash scripts/point100-certification/stop-ephemeral.sh
+          else
+            echo "Disposable Core was never started; cleanup not required."
+          fi
