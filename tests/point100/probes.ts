@@ -183,9 +183,19 @@ export async function executeStageProbe(
         return { ok: false, detail: String((error as { message?: unknown }).message ?? error) };
       }
       if (error) {
-        return { ok: true, detail: `RPC signature resolved; fail-closed probe rejected as expected: ${error.message}` };
+        return { ok: false, detail: `unexpected gate RPC error: ${error.message}` };
       }
-      return { ok: true, detail: `RPC signature resolved; probe result=${JSON.stringify(data)}` };
+      const result = data as { ok?: boolean; blockers?: Array<{ code?: string }> } | null;
+      const blockerCodes = Array.isArray(result?.blockers)
+        ? result.blockers.map((blocker) => String(blocker?.code ?? ""))
+        : [];
+      const expectedRejection = result?.ok === false && blockerCodes.includes("carton_not_found");
+      return {
+        ok: expectedRejection,
+        detail: expectedRejection
+          ? "gate RPC resolved and rejected the nonexistent carton with carton_not_found"
+          : `unexpected gate probe result=${JSON.stringify(data)}`,
+      };
     }
     case "trace_handover": {
       const verify = await probeRpcExists("trace_verify_handover_evidence_v1");
