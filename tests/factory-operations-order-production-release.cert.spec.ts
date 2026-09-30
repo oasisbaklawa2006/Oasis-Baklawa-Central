@@ -61,18 +61,6 @@ function credentialsForRoleOrSkip(role: string) {
   return credentials!;
 }
 
-type CertificationClient = Awaited<ReturnType<typeof createAuthenticatedCertificationClient>>["client"];
-
-async function readOrderStatus(client: CertificationClient, orderId: string): Promise<string> {
-  const { data: orderRows, error: orderError } = await client
-    .from("orders")
-    .select("id,status")
-    .eq("id", orderId)
-    .limit(1);
-  if (orderError) throw new Error(`BACKEND_READ_FAILED orders: ${orderError.message}`);
-  return String(orderRows?.[0]?.status ?? "");
-}
-
 test.describe.configure({ mode: "serial" });
 
 test("POINT-37 :: governed confirmed → in_production production release", async ({ page }) => {
@@ -270,6 +258,12 @@ test("POINT-37 :: governed confirmed → in_production production release", asyn
     const actionButton = () => orderRow().getByRole("button", { name: /Send to Factory/i });
     await expect(actionButton(), "Send to Factory must be available").toBeVisible({ timeout: 30_000 });
 
+    // Arm the response barrier before clicking so database truth is read only after the governed RPC completes.
+    const releaseResponsePromise = page.waitForResponse(
+      /\/rest\/v1\/rpc\/release_order_to_in_production_v1(?:\?|$)/,
+      { timeout: 60_000 },
+    );
+
     // Realtime refetches can briefly disable the row action; re-resolve locators and poll until RPC fires.
     let lastReleaseClickAt = 0;
     await expect
@@ -299,16 +293,20 @@ test("POINT-37 :: governed confirmed → in_production production release", asyn
     expect(rpcCalls.some((c) => c.fn === "release_order_to_manufacturing_v1")).toBe(false);
     expect(patchCalls.length, "no direct orders.update during release").toBe(0);
 
+    const releaseResponse = await releaseResponsePromise;
+    expect(
+      releaseResponse.status(),
+      "governed production release RPC must complete successfully",
+    ).toBeLessThan(400);
+
     const { client } = await createAuthenticatedCertificationClient(page);
-    await expect
-      .poll(
-        () => readOrderStatus(client, orderId),
-        {
-          timeout: 30_000,
-          message: "governed production release must commit in_production database truth",
-        },
-      )
-      .toBe("in_production");
+    const { data: orderRows, error: orderError } = await client
+      .from("orders")
+      .select("id,status")
+      .eq("id", orderId)
+      .limit(1);
+    if (orderError) throw new Error(`BACKEND_READ_FAILED orders: ${orderError.message}`);
+    expect(String(orderRows?.[0]?.status)).toBe("in_production");
 
     const { data: historyRows, error: historyError } = await client
       .from("order_status_history")
