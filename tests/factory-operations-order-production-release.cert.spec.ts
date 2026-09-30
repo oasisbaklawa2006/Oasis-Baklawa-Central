@@ -211,6 +211,7 @@ test("POINT-37 :: governed confirmed → in_production production release", asyn
   // ---- UI + governed release: single ADMIN session (avoid flaky second OM navigation) ----
   await test.step("UI + release: Send to Factory uses governed RPC only", async () => {
     const rpcCalls: Array<{ fn: string; args: Record<string, unknown> | undefined }> = [];
+    const releaseResponses: Array<Promise<{ status: number; body: unknown }>> = [];
     const patchCalls: string[] = [];
     page.on("request", (req) => {
       if (req.method() === "POST" && /\/rest\/v1\/rpc\//.test(req.url())) {
@@ -228,6 +229,20 @@ test("POINT-37 :: governed confirmed → in_production production release", asyn
       }
       if (req.method() === "PATCH" && /\/rest\/v1\/orders/.test(req.url())) {
         patchCalls.push(req.url());
+      }
+    });
+    page.on("response", (response) => {
+      const req = response.request();
+      if (
+        req.method() === "POST"
+        && /\/rest\/v1\/rpc\/release_order_to_in_production_v1(?:\?|$)/.test(response.url())
+      ) {
+        releaseResponses.push(
+          (async () => ({
+            status: response.status(),
+            body: await response.json().catch(() => null),
+          }))(),
+        );
       }
     });
 
@@ -287,14 +302,36 @@ test("POINT-37 :: governed confirmed → in_production production release", asyn
     expect(rpcCalls.some((c) => c.fn === "release_order_to_manufacturing_v1")).toBe(false);
     expect(patchCalls.length, "no direct orders.update during release").toBe(0);
 
+    await expect
+      .poll(() => releaseResponses.length, {
+        timeout: 30_000,
+        message: "governed production release RPC must complete",
+      })
+      .toBe(1);
+    const releaseResponse = await releaseResponses[0];
+    expect(releaseResponse.status, `release RPC HTTP status; body=${JSON.stringify(releaseResponse.body)}`).toBeLessThan(400);
+    const releaseBody = releaseResponse.body as { ok?: boolean; new_status?: string; blockers?: unknown };
+    expect(releaseBody?.ok, `release RPC must authorize transition; body=${JSON.stringify(releaseResponse.body)}`).toBe(true);
+    expect(releaseBody?.new_status).toBe("in_production");
+
     const { client } = await createAuthenticatedCertificationClient(page);
-    const { data: orderRows, error: orderError } = await client
-      .from("orders")
-      .select("id,status")
-      .eq("id", orderId)
-      .limit(1);
-    if (orderError) throw new Error(`BACKEND_READ_FAILED orders: ${orderError.message}`);
-    expect(String(orderRows?.[0]?.status)).toBe("in_production");
+    await expect
+      .poll(
+        async () => {
+          const { data: orderRows, error: orderError } = await client
+            .from("orders")
+            .select("id,status")
+            .eq("id", orderId)
+            .limit(1);
+          if (orderError) throw new Error(`BACKEND_READ_FAILED orders: ${orderError.message}`);
+          return String(orderRows?.[0]?.status ?? "");
+        },
+        {
+          timeout: 30_000,
+          message: "governed production release must commit in_production database truth",
+        },
+      )
+      .toBe("in_production");
 
     const { data: historyRows, error: historyError } = await client
       .from("order_status_history")
