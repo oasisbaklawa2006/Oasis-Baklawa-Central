@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { writeFileSync } from "node:fs";
-import { test, expect } from "@playwright/test";
+import { test, expect, type Locator, type Page, type Response } from "@playwright/test";
 import { factoryCertificationCredentialSpec } from "../src/lib/factoryCertificationCredentialPolicy";
 import {
   createAuthenticatedCertificationClient,
@@ -59,6 +59,52 @@ function credentialsForRoleOrSkip(role: string) {
   const credentials = readFactoryCertificationCredentials(role);
   test.skip(!credentials, `CREDENTIAL_REQUIRED: ${spec.emailEnv} + ${spec.passwordEnv}`);
   return credentials!;
+}
+
+type RpcCall = {
+  fn: string;
+  args: Record<string, unknown> | undefined;
+};
+
+async function clickAndWaitForProductionRelease(
+  page: Page,
+  rpcCalls: RpcCall[],
+  orderRow: () => Locator,
+  actionButton: () => Locator,
+): Promise<Response> {
+  let lastReleaseClickAt = 0;
+
+  const responsePromise = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST"
+      && /\/rest\/v1\/rpc\/release_order_to_in_production_v1(?:\?|$)/.test(response.url()),
+    { timeout: 60_000 },
+  );
+
+  await expect
+    .poll(
+      async () => {
+        if (rpcCalls.some((call) => call.fn === "release_order_to_in_production_v1")) return true;
+
+        const row = orderRow();
+        const button = actionButton();
+        const ready = await row.isVisible() && await button.isVisible() && await button.isEnabled();
+        if (!ready) return false;
+
+        const now = Date.now();
+        if (now - lastReleaseClickAt < 1_000) return false;
+
+        await button.scrollIntoViewIfNeeded();
+        await button.click({ timeout: 5_000 }).catch(() => undefined);
+        lastReleaseClickAt = now;
+
+        return rpcCalls.some((call) => call.fn === "release_order_to_in_production_v1");
+      },
+      { timeout: 60_000 },
+    )
+    .toBe(true);
+
+  return responsePromise;
 }
 
 test.describe.configure({ mode: "serial" });
@@ -210,7 +256,7 @@ test("POINT-37 :: governed confirmed → in_production production release", asyn
 
   // ---- UI + governed release: single ADMIN session (avoid flaky second OM navigation) ----
   await test.step("UI + release: Send to Factory uses governed RPC only", async () => {
-    const rpcCalls: Array<{ fn: string; args: Record<string, unknown> | undefined }> = [];
+    const rpcCalls: RpcCall[] = [];
     const patchCalls: string[] = [];
     page.on("request", (req) => {
       if (req.method() === "POST" && /\/rest\/v1\/rpc\//.test(req.url())) {
@@ -258,37 +304,13 @@ test("POINT-37 :: governed confirmed → in_production production release", asyn
     const actionButton = () => orderRow().getByRole("button", { name: /Send to Factory/i });
     await expect(actionButton(), "Send to Factory must be available").toBeVisible({ timeout: 30_000 });
 
-    // Realtime refetches can briefly disable the row action; re-resolve locators and poll until RPC fires.
-    let lastReleaseClickAt = 0;
-    const [releaseResponse] = await Promise.all([
-      page.waitForResponse(
-        (response) => {
-          const request = response.request();
-          return request.method() === "POST"
-            && /\/rest\/v1\/rpc\/release_order_to_in_production_v1(?:\?|$)/.test(response.url());
-        },
-        { timeout: 60_000 },
-      ),
-      expect
-        .poll(
-          async () => {
-            if (rpcCalls.some((c) => c.fn === "release_order_to_in_production_v1")) return true;
-            const button = actionButton();
-            if (!(await orderRow().isVisible()) || !(await button.isVisible()) || !(await button.isEnabled())) {
-              return false;
-            }
-            const now = Date.now();
-            if (now - lastReleaseClickAt >= 1_000) {
-              await button.scrollIntoViewIfNeeded();
-              await button.click({ timeout: 5_000 }).catch(() => undefined);
-              lastReleaseClickAt = now;
-            }
-            return rpcCalls.some((c) => c.fn === "release_order_to_in_production_v1");
-          },
-          { timeout: 60_000 },
-        )
-        .toBe(true),
-    ]);
+    // Realtime refetches can briefly disable the row action; retry without duplicating the governed RPC.
+    const releaseResponse = await clickAndWaitForProductionRelease(
+      page,
+      rpcCalls,
+      orderRow,
+      actionButton,
+    );
     record("ui_action_available", null, "ADMIN", "PASS", "Send to Factory clicked");
 
     const releaseCalls = rpcCalls.filter((c) => c.fn === "release_order_to_in_production_v1");
