@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Final Point100 software recertification boundary after Core #366:
-#   - Core main exact SHA 5840af1886e7be4a37ba7f27bd6d060ec39751da
+# Final Point100 software recertification boundary after Core #371:
+#   - Core main exact SHA 5800f4b84ae72e7fef06d57c11fc22b3117f3c52
 #   - protected Production Migration Release deploy job SUCCESS for that exact SHA
 #   - semantic parity + production contract smoke SUCCESS
 #
@@ -13,14 +13,14 @@ set -euo pipefail
 
 : "${POINT100_CORE_REPO:?Set POINT100_CORE_REPO to oasis-supabase-core checkout}"
 
-export POINT100_CORE_VERIFIED_SHA="${POINT100_CORE_VERIFIED_SHA:-5840af1886e7be4a37ba7f27bd6d060ec39751da}"
+export POINT100_CORE_VERIFIED_SHA="${POINT100_CORE_VERIFIED_SHA:-5800f4b84ae72e7fef06d57c11fc22b3117f3c52}"
 : "${POINT100_RECERT_AFTER_CORE_MIGRATION_RUN_ID:?Set POINT100_RECERT_AFTER_CORE_MIGRATION_RUN_ID to the successful protected deploy=true Production Migration Release run}"
 export POINT100_PRODUCTION_MIGRATION_RUN_ID="${POINT100_RECERT_AFTER_CORE_MIGRATION_RUN_ID}"
 export POINT100_DISPATCH_PRODUCTION_VERIFIED=true
 export POINT100_ALLOW_LOCAL_RESET="${POINT100_ALLOW_LOCAL_RESET:-true}"
 export POINT100_ALLOW_DISPOSABLE_BOOTSTRAP=false
 
-if [[ "${POINT100_CORE_VERIFIED_SHA}" != "5840af1886e7be4a37ba7f27bd6d060ec39751da" ]]; then
+if [[ "${POINT100_CORE_VERIFIED_SHA}" != "5800f4b84ae72e7fef06d57c11fc22b3117f3c52" ]]; then
   echo "Refusing Point100 final recert: unexpected Core SHA ${POINT100_CORE_VERIFIED_SHA}" >&2
   exit 1
 fi
@@ -30,7 +30,7 @@ if [[ ! "${POINT100_RECERT_AFTER_CORE_MIGRATION_RUN_ID}" =~ ^[0-9]+$ ]]; then
   exit 1
 fi
 
-echo "==> Point100 final software recert after Core #366 protected production deployment"
+echo "==> Point100 final software recert after Core #371 protected production deployment"
 echo "    Core SHA: ${POINT100_CORE_VERIFIED_SHA}"
 echo "    Production Migration Release run: ${POINT100_RECERT_AFTER_CORE_MIGRATION_RUN_ID}"
 echo "    Disposable shadow bootstrap: ${POINT100_ALLOW_DISPOSABLE_BOOTSTRAP}"
