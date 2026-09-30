@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { writeFileSync } from "node:fs";
-import { test, expect, type Response } from "@playwright/test";
+import { test, expect } from "@playwright/test";
 import { factoryCertificationCredentialSpec } from "../src/lib/factoryCertificationCredentialPolicy";
 import {
   createAuthenticatedCertificationClient,
@@ -211,7 +211,6 @@ test("POINT-37 :: governed confirmed → in_production production release", asyn
   // ---- UI + governed release: single ADMIN session (avoid flaky second OM navigation) ----
   await test.step("UI + release: Send to Factory uses governed RPC only", async () => {
     const rpcCalls: Array<{ fn: string; args: Record<string, unknown> | undefined }> = [];
-    const releaseResponses: Response[] = [];
     const patchCalls: string[] = [];
     page.on("request", (req) => {
       if (req.method() === "POST" && /\/rest\/v1\/rpc\//.test(req.url())) {
@@ -229,15 +228,6 @@ test("POINT-37 :: governed confirmed → in_production production release", asyn
       }
       if (req.method() === "PATCH" && /\/rest\/v1\/orders/.test(req.url())) {
         patchCalls.push(req.url());
-      }
-    });
-    page.on("response", (response) => {
-      const req = response.request();
-      if (
-        req.method() === "POST"
-        && /\/rest\/v1\/rpc\/release_order_to_in_production_v1(?:\?|$)/.test(response.url())
-      ) {
-        releaseResponses.push(response);
       }
     });
 
@@ -270,25 +260,35 @@ test("POINT-37 :: governed confirmed → in_production production release", asyn
 
     // Realtime refetches can briefly disable the row action; re-resolve locators and poll until RPC fires.
     let lastReleaseClickAt = 0;
-    await expect
-      .poll(
-        async () => {
-          if (rpcCalls.some((c) => c.fn === "release_order_to_in_production_v1")) return true;
-          const button = actionButton();
-          if (!(await orderRow().isVisible()) || !(await button.isVisible()) || !(await button.isEnabled())) {
-            return false;
-          }
-          const now = Date.now();
-          if (now - lastReleaseClickAt >= 1_000) {
-            await button.scrollIntoViewIfNeeded();
-            await button.click({ timeout: 5_000 }).catch(() => undefined);
-            lastReleaseClickAt = now;
-          }
-          return rpcCalls.some((c) => c.fn === "release_order_to_in_production_v1");
+    const [releaseResponse] = await Promise.all([
+      page.waitForResponse(
+        (response) => {
+          const request = response.request();
+          return request.method() === "POST"
+            && /\/rest\/v1\/rpc\/release_order_to_in_production_v1(?:\?|$)/.test(response.url());
         },
         { timeout: 60_000 },
-      )
-      .toBe(true);
+      ),
+      expect
+        .poll(
+          async () => {
+            if (rpcCalls.some((c) => c.fn === "release_order_to_in_production_v1")) return true;
+            const button = actionButton();
+            if (!(await orderRow().isVisible()) || !(await button.isVisible()) || !(await button.isEnabled())) {
+              return false;
+            }
+            const now = Date.now();
+            if (now - lastReleaseClickAt >= 1_000) {
+              await button.scrollIntoViewIfNeeded();
+              await button.click({ timeout: 5_000 }).catch(() => undefined);
+              lastReleaseClickAt = now;
+            }
+            return rpcCalls.some((c) => c.fn === "release_order_to_in_production_v1");
+          },
+          { timeout: 60_000 },
+        )
+        .toBe(true),
+    ]);
     record("ui_action_available", null, "ADMIN", "PASS", "Send to Factory clicked");
 
     const releaseCalls = rpcCalls.filter((c) => c.fn === "release_order_to_in_production_v1");
@@ -297,13 +297,6 @@ test("POINT-37 :: governed confirmed → in_production production release", asyn
     expect(rpcCalls.some((c) => c.fn === "release_order_to_manufacturing_v1")).toBe(false);
     expect(patchCalls.length, "no direct orders.update during release").toBe(0);
 
-    await expect
-      .poll(() => releaseResponses.length, {
-        timeout: 30_000,
-        message: "governed production release RPC must complete",
-      })
-      .toBe(1);
-    const releaseResponse = releaseResponses[0];
     const releaseBody = await releaseResponse.json().catch(() => null) as {
       ok?: boolean;
       new_status?: string;
