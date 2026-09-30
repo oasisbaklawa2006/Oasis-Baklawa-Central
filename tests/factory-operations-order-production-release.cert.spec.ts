@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { writeFileSync } from "node:fs";
-import { test, expect } from "@playwright/test";
+import { test, expect, type Response } from "@playwright/test";
 import { factoryCertificationCredentialSpec } from "../src/lib/factoryCertificationCredentialPolicy";
 import {
   createAuthenticatedCertificationClient,
@@ -211,7 +211,7 @@ test("POINT-37 :: governed confirmed → in_production production release", asyn
   // ---- UI + governed release: single ADMIN session (avoid flaky second OM navigation) ----
   await test.step("UI + release: Send to Factory uses governed RPC only", async () => {
     const rpcCalls: Array<{ fn: string; args: Record<string, unknown> | undefined }> = [];
-    const releaseResponses: Array<Promise<{ status: number; body: unknown }>> = [];
+    const releaseResponses: Response[] = [];
     const patchCalls: string[] = [];
     page.on("request", (req) => {
       if (req.method() === "POST" && /\/rest\/v1\/rpc\//.test(req.url())) {
@@ -237,12 +237,7 @@ test("POINT-37 :: governed confirmed → in_production production release", asyn
         req.method() === "POST"
         && /\/rest\/v1\/rpc\/release_order_to_in_production_v1(?:\?|$)/.test(response.url())
       ) {
-        releaseResponses.push(
-          (async () => ({
-            status: response.status(),
-            body: await response.json().catch(() => null),
-          }))(),
-        );
+        releaseResponses.push(response);
       }
     });
 
@@ -308,10 +303,20 @@ test("POINT-37 :: governed confirmed → in_production production release", asyn
         message: "governed production release RPC must complete",
       })
       .toBe(1);
-    const releaseResponse = await releaseResponses[0];
-    expect(releaseResponse.status, `release RPC HTTP status; body=${JSON.stringify(releaseResponse.body)}`).toBeLessThan(400);
-    const releaseBody = releaseResponse.body as { ok?: boolean; new_status?: string; blockers?: unknown };
-    expect(releaseBody?.ok, `release RPC must authorize transition; body=${JSON.stringify(releaseResponse.body)}`).toBe(true);
+    const releaseResponse = releaseResponses[0];
+    const releaseBody = await releaseResponse.json().catch(() => null) as {
+      ok?: boolean;
+      new_status?: string;
+      blockers?: unknown;
+    } | null;
+    expect(
+      releaseResponse.status(),
+      `release RPC HTTP status; body=${JSON.stringify(releaseBody)}`,
+    ).toBeLessThan(400);
+    expect(
+      releaseBody?.ok,
+      `release RPC must authorize transition; body=${JSON.stringify(releaseBody)}`,
+    ).toBe(true);
     expect(releaseBody?.new_status).toBe("in_production");
 
     const { client } = await createAuthenticatedCertificationClient(page);
