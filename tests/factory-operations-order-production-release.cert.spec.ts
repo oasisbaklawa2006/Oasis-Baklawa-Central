@@ -61,6 +61,18 @@ function credentialsForRoleOrSkip(role: string) {
   return credentials!;
 }
 
+type CertificationClient = Awaited<ReturnType<typeof createAuthenticatedCertificationClient>>["client"];
+
+async function readOrderStatus(client: CertificationClient, orderId: string): Promise<string> {
+  const { data: orderRows, error: orderError } = await client
+    .from("orders")
+    .select("id,status")
+    .eq("id", orderId)
+    .limit(1);
+  if (orderError) throw new Error(`BACKEND_READ_FAILED orders: ${orderError.message}`);
+  return String(orderRows?.[0]?.status ?? "");
+}
+
 test.describe.configure({ mode: "serial" });
 
 test("POINT-37 :: governed confirmed → in_production production release", async ({ page }) => {
@@ -290,15 +302,7 @@ test("POINT-37 :: governed confirmed → in_production production release", asyn
     const { client } = await createAuthenticatedCertificationClient(page);
     await expect
       .poll(
-        async () => {
-          const { data: orderRows, error: orderError } = await client
-            .from("orders")
-            .select("id,status")
-            .eq("id", orderId)
-            .limit(1);
-          if (orderError) throw new Error(`BACKEND_READ_FAILED orders: ${orderError.message}`);
-          return String(orderRows?.[0]?.status ?? "");
-        },
+        () => readOrderStatus(client, orderId),
         {
           timeout: 30_000,
           message: "governed production release must commit in_production database truth",
