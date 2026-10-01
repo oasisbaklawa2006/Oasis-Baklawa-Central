@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   computeSupportTicketSlaState,
@@ -68,5 +69,26 @@ describe("supportTicketPolicy", () => {
         NOW,
       ),
     ).toBe(false);
+  });
+});
+
+
+describe("support ticket query completeness", () => {
+  it("paginates the active support-ticket population with a stable range cursor", () => {
+    const source = readFileSync("src/lib/support/supportTicketQueries.ts", "utf8");
+    expect(source).toContain('.select("*", { count: "exact" })');
+    expect(source).toContain(".range(offset, offset + SUPPORT_TICKET_PAGE_SIZE - 1)");
+    expect(source).toContain('.order("created_at", { ascending: false })');
+    expect(source).toContain('.order("id", { ascending: true })');
+  });
+
+  it.each([
+    "src/hooks/useManagementCommandCenter.ts",
+    "src/pages/admin/AdminDashboard.tsx",
+    "src/pages/admin/AdminExceptions.tsx",
+  ])("%s consumes the shared paginated loader", (path) => {
+    const source = readFileSync(path, "utf8");
+    expect(source).toContain("loadActiveSupportTicketsPaginated");
+    expect(source).not.toMatch(/from\(["']support_tickets["']\)\.select/);
   });
 });
