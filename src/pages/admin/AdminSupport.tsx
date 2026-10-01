@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { Loader2, CheckCircle2, AlertTriangle, Clock, User, Star, Shield, ChevronDown, ChevronUp, RefreshCw } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
+import { computeSupportTicketSlaState, isSupportTicketActive, isSupportTicketSlaBreached } from "@/lib/support/supportTicketPolicy";
 
 interface Ticket {
   id: string;
@@ -125,7 +126,14 @@ const AdminSupport = () => {
     setResolving(ticket.id);
     const { error } = await supabase
       .from("support_tickets")
-      .update({ status: "resolved", sla_resolved_at: new Date().toISOString(), sla_state: "On Time" })
+      .update((() => {
+        const resolvedAt = new Date().toISOString();
+        return {
+          status: "resolved",
+          sla_resolved_at: resolvedAt,
+          sla_state: computeSupportTicketSlaState({ ...ticket, sla_resolved_at: resolvedAt }, new Date(resolvedAt)),
+        };
+      })())
       .eq("id", ticket.id);
     if (error) toast.error("Failed to update");
     else {
@@ -171,13 +179,13 @@ const AdminSupport = () => {
     return s?.full_name || s?.email || id.slice(0, 8);
   };
 
-  const activeTickets = tickets.filter(t => t.status !== "resolved");
+  const activeTickets = tickets.filter(isSupportTicketActive);
   const resolvedTickets = tickets.filter(t => t.status === "resolved");
 
   // Top Offenders: staff with NEVER_RESPONDED tickets
   const offenderMap = new Map<string, number>();
   tickets.forEach(t => {
-    if (computeSlaState(t) === "NEVER_RESPONDED" && t.assigned_employee_id) {
+    if (computeSupportTicketSlaState(t) === "NEVER_RESPONDED" && t.assigned_employee_id) {
       offenderMap.set(t.assigned_employee_id, (offenderMap.get(t.assigned_employee_id) || 0) + 1);
     }
   });
@@ -194,7 +202,7 @@ const AdminSupport = () => {
   ];
 
   const renderTicketRow = (t: Ticket) => {
-    const sla = computeSlaState(t);
+    const sla = computeSupportTicketSlaState(t);
     const isExpanded = expandedId === t.id;
     return (
       <div key={t.id} className="border-t border-border">
@@ -315,8 +323,8 @@ const AdminSupport = () => {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
           { label: "Active", value: activeTickets.length, color: "text-primary" },
-          { label: "SLA Breached", value: activeTickets.filter(t => ["Late", "No Response", "NEVER_RESPONDED"].includes(computeSlaState(t))).length, color: "text-destructive" },
-          { label: "Never Responded", value: activeTickets.filter(t => computeSlaState(t) === "NEVER_RESPONDED").length, color: "text-destructive" },
+          { label: "SLA Breached", value: activeTickets.filter(t => isSupportTicketSlaBreached(t)).length, color: "text-destructive" },
+          { label: "Never Responded", value: activeTickets.filter(t => computeSupportTicketSlaState(t) === "NEVER_RESPONDED").length, color: "text-destructive" },
           { label: "Avg Resolution", value: resolvedTickets.length > 0 ? `${Math.round(resolvedTickets.reduce((sum, t) => {
             if (!t.created_at || !t.sla_resolved_at) return sum;
             return sum + (new Date(t.sla_resolved_at).getTime() - new Date(t.created_at).getTime()) / 3600000;
