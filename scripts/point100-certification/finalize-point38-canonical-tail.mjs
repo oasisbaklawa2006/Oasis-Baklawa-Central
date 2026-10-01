@@ -157,7 +157,7 @@ try {
   const dispatchedAt = new Date().toISOString();
   const trackingReference = "P100-TRK-POINT38-CANONICAL";
   const proofIdentity = `${RUN_TOKEN}:dispatch-proof`;
-  const { data: proofData, error: proofError } = await gateRole.client.rpc("record_dispatch_proof_packet_v1", {
+  const { data: proofData, error: proofError } = await dispatchRole.client.rpc("record_dispatch_proof_packet_v1", {
     p_order_id: point38OrderId,
     p_transport_snapshot: {
       transporter: "POINT100 SYNTHETIC CARRIER",
@@ -172,13 +172,13 @@ try {
     p_dispatched_at: dispatchedAt,
     p_correlation_id: proofIdentity,
     p_idempotency_key: proofIdentity,
-    p_actor_id: gateRole.actorId,
+    p_actor_id: dispatchRole.actorId,
   });
   assertNoError(proofError, "Point38 tail immutable dispatch proof");
   const dispatchProofId = String(firstRow(proofData)?.dispatch_proof_id ?? "");
   if (!dispatchProofId) throw new Error("POINT100_POINT38_TAIL_DISPATCH_PROOF_ID_MISSING");
 
-  const { data: finalizeData, error: finalizeError } = await gateRole.client.rpc("release_order_to_dispatched_v1", {
+  const { data: finalizeData, error: finalizeError } = await dispatchRole.client.rpc("release_order_to_dispatched_v1", {
     p_order_id: point38OrderId,
     p_tracking_number: trackingReference,
     p_courier_name: "POINT100 SYNTHETIC CARRIER",
@@ -191,7 +191,7 @@ try {
     throw new Error(`POINT100_POINT38_TAIL_FINALIZE_BLOCKED: ${JSON.stringify(finalize)}`);
   }
 
-  const { data: exitFactsData, error: exitFactsError } = await gateRole.client.rpc("get_finance_exit_facts_v1", {
+  const { data: exitFactsData, error: exitFactsError } = await dispatchRole.client.rpc("get_finance_exit_facts_v1", {
     p_order_id: point38OrderId,
   });
   assertNoError(exitFactsError, "Point38 tail final finance-exit verification");

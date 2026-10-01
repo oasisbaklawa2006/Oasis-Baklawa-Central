@@ -398,6 +398,7 @@ async function executeGateTailForTail(
   cartonCode: string,
   runSuffix: string,
   gateSecurity: ReturnType<typeof credentialsForRoleOrSkip>,
+  dispatchManager: ReturnType<typeof credentialsForRoleOrSkip>,
 ) {
   await switchRole(page, gateSecurity);
   const { client: gate } = await createAuthenticatedCertificationClient(page);
@@ -437,10 +438,14 @@ async function executeGateTailForTail(
     .eq("id", gateScanId);
   expect(gateVerifyError, gateVerifyError?.message).toBeNull();
 
+  await switchRole(page, dispatchManager);
+  const { client: dispatch } = await createAuthenticatedCertificationClient(page);
+  const dispatchActorId = requireString((await dispatch.auth.getUser()).data.user?.id, "DISPATCH_MANAGER actor id");
+
   const dispatchedAt = new Date().toISOString();
   const trackingReference = `P100-TRK-${runSuffix}`.slice(0, 96);
   const proofIdentity = `point100-${runSuffix}-dispatch-proof`;
-  const { data: proofData, error: proofError } = await gate.rpc("record_dispatch_proof_packet_v1", {
+  const { data: proofData, error: proofError } = await dispatch.rpc("record_dispatch_proof_packet_v1", {
     p_order_id: orderId,
     p_transport_snapshot: {
       transporter: "POINT100 SYNTHETIC CARRIER",
@@ -455,12 +460,12 @@ async function executeGateTailForTail(
     p_dispatched_at: dispatchedAt,
     p_correlation_id: proofIdentity,
     p_idempotency_key: proofIdentity,
-    p_actor_id: gateActorId,
+    p_actor_id: dispatchActorId,
   });
   expect(proofError, proofError?.message).toBeNull();
   const dispatchProofId = requireString(firstRow(proofData).dispatch_proof_id, "dispatch proof id");
 
-  const { data: finalizeData, error: finalizeError } = await gate.rpc("release_order_to_dispatched_v1", {
+  const { data: finalizeData, error: finalizeError } = await dispatch.rpc("release_order_to_dispatched_v1", {
     p_order_id: orderId,
     p_tracking_number: trackingReference,
     p_courier_name: "POINT100 SYNTHETIC CARRIER",
@@ -472,7 +477,7 @@ async function executeGateTailForTail(
   expect(finalize?.ok, `dispatch finalization blockers=${JSON.stringify(finalize?.blockers ?? [])}`).toBe(true);
   expect(finalize?.new_status).toBe("dispatched");
 
-  const { data: finalFactsData, error: finalFactsError } = await gate.rpc("get_finance_exit_facts_v1", { p_order_id: orderId });
+  const { data: finalFactsData, error: finalFactsError } = await dispatch.rpc("get_finance_exit_facts_v1", { p_order_id: orderId });
   expect(finalFactsError, finalFactsError?.message).toBeNull();
   const finalFacts = firstRow(finalFactsData);
   const finalOrderStatus = requireString(finalFacts.order_status, "final order status");
@@ -545,6 +550,7 @@ export async function executeCanonicalDispatchTail(input: {
     custody.cartonCode,
     runSuffix,
     gateSecurity,
+    dispatchManager,
   );
 
   return {

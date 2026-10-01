@@ -4,6 +4,7 @@ import {
   credentialsForRoleOrSkip,
   hasPoint100HarnessEnv,
   loginToFactoryCertificationTarget,
+  createAuthenticatedCertificationClient,
   recordStage,
   writeCapabilityMatrix,
   writeDressRehearsalLedger,
@@ -27,8 +28,9 @@ test("POINT100 :: generate capability/blocker matrix from executable probes", as
 
   const admin = credentialsForRoleOrSkip("ADMIN");
   await loginToFactoryCertificationTarget(page, admin);
+  const { client } = await createAuthenticatedCertificationClient(page);
 
-  const probes = await runLifecycleProbes();
+  const probes = await runLifecycleProbes(client);
   writeCapabilityMatrix(probes);
 
   const matrixStages: import("./support").Point100StageRecord[] = [];

@@ -158,12 +158,12 @@ function isPostgrestFunctionResolutionError(error: unknown): boolean {
   return code === "PGRST202" || message.includes("could not find the function");
 }
 
-export async function certifiedDispatchFinalizeProbe(): Promise<{
+export async function certifiedDispatchFinalizeProbe(client?: SupabaseClient): Promise<{
   ready: boolean;
   note: string;
   upstreamNotes: string[];
 }> {
-  const dispatchedRpc = await probeRpcExists(POINT100_DISPATCH_FINALIZE_RPC, point100RpcProbeArgs(POINT100_DISPATCH_FINALIZE_RPC));
+  const dispatchedRpc = await probeRpcExists(POINT100_DISPATCH_FINALIZE_RPC, point100RpcProbeArgs(POINT100_DISPATCH_FINALIZE_RPC), client);
   const onCertifiedPin = isRpcOnCertifiedCorePin(POINT100_DISPATCH_FINALIZE_RPC);
   const ready = onCertifiedPin && dispatchedRpc.exists;
   const note = ready
@@ -178,7 +178,7 @@ export async function certifiedDispatchFinalizeProbe(): Promise<{
 
 export { macro556DispatchRoutesPresent } from "../../src/lib/point100/dispatchRouteCensus";
 
-export async function runLifecycleProbes(): Promise<Point100ProbeOutcome[]> {
+export async function runLifecycleProbes(client?: SupabaseClient): Promise<Point100ProbeOutcome[]> {
   const outcomes: Point100ProbeOutcome[] = [];
 
   for (const stage of POINT100_LIFECYCLE_STAGES) {
@@ -187,7 +187,7 @@ export async function runLifecycleProbes(): Promise<Point100ProbeOutcome[]> {
     const rpcResults = [];
 
     for (const rpc of rpcNames) {
-      const probe = await probeRpcExists(rpc, point100RpcProbeArgs(rpc));
+      const probe = await probeRpcExists(rpc, point100RpcProbeArgs(rpc), client);
       const onCertifiedPin = isRpcOnCertifiedCorePin(rpc);
       rpcResults.push({
         rpc,
@@ -290,8 +290,8 @@ export async function executeStageProbe(
       };
     }
     case "trace_handover": {
-      const verify = await probeRpcExists("trace_verify_handover_evidence_v1", point100RpcProbeArgs("trace_verify_handover_evidence_v1"));
-      const sign = await probeRpcExists("trace_sign_handover_evidence_v1", point100RpcProbeArgs("trace_sign_handover_evidence_v1"));
+      const verify = await probeRpcExists("trace_verify_handover_evidence_v1", point100RpcProbeArgs("trace_verify_handover_evidence_v1"), client);
+      const sign = await probeRpcExists("trace_sign_handover_evidence_v1", point100RpcProbeArgs("trace_sign_handover_evidence_v1"), client);
       const ok = verify.exists && sign.exists;
       return {
         ok,

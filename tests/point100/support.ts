@@ -5,6 +5,7 @@
 
 import { writeFileSync } from "node:fs";
 import { expect, type Page } from "@playwright/test";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildCapabilityMatrix, type Point100ProbeOutcome } from "../../src/lib/point100/capabilityStatus";
 import { POINT100_LIFECYCLE_STAGES } from "../../src/lib/point100/lifecycleStages";
 import {
@@ -178,12 +179,16 @@ export function writeCapabilityMatrix(probes: Point100ProbeOutcome[]): void {
 export async function probeRpcExists(
   rpcName: string,
   args: Record<string, unknown> = {},
+  authenticatedClient?: SupabaseClient,
 ): Promise<{ exists: boolean; detail: string }> {
-  const backend = resolveFactoryCertificationBackend();
-  const { createClient } = await import("@supabase/supabase-js");
-  const client = createClient(backend.url, backend.anonKey, {
-    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
-  });
+  let client = authenticatedClient;
+  if (!client) {
+    const backend = resolveFactoryCertificationBackend();
+    const { createClient } = await import("@supabase/supabase-js");
+    client = createClient(backend.url, backend.anonKey, {
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    });
+  }
   const { error } = await client.rpc(rpcName as never, args as never);
   if (!error) return { exists: true, detail: "RPC resolved on disposable certification backend" };
   const message = error.message ?? String(error);
