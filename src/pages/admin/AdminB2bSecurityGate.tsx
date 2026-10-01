@@ -15,9 +15,7 @@ import {
   recordGovernedCustomerDispatchCommunication,
 } from "@/lib/order-authority/dispatchCustomerCommunicationClient";
 import {
-  GATE_SCAN_POST_RELEASE_STATUS,
   GATE_SCAN_PRE_RELEASE_STATUS,
-  GATE_SCAN_RELEASE_DENIED_STATUS,
   gateScanCorrelationId,
 } from "@/utils/gateScanEvidence";
 
@@ -145,22 +143,17 @@ const AdminB2bSecurityGate = () => {
       const result = await releaseB2bCartonAtDispatchGate(carton.id, scan.id);
       if (!result.ok) {
         const blockerText = result.blockers.map((blocker) => blocker.message || blocker.code).join("; ") || "Gate release denied";
-        const { error: denialEvidenceError } = await supabase
-          .from("operational_scan_records")
-          .update({ verification_status: GATE_SCAN_RELEASE_DENIED_STATUS, mismatch_reason: blockerText })
-          .eq("id", scan.id);
-        if (denialEvidenceError) toast.error(`Gate denial was authoritative, but scan evidence refresh failed: ${denialEvidenceError.message}`);
+        // operational_scan_records is immutable evidence. The authoritative
+        // denied outcome is already append-only in b2b_dispatch_gate_decisions;
+        // never rewrite the scan row after Core evaluates it.
         setState("error");
         setMessage(`BLOCKED — ${blockerText}`);
         addHistory(barcode, consignment.consignment_number, "error", blockerText);
         return;
       }
 
-      const { error: verifyError } = await supabase
-        .from("operational_scan_records")
-        .update({ verification_status: GATE_SCAN_POST_RELEASE_STATUS })
-        .eq("id", scan.id);
-      if (verifyError) throw new Error(verifyError.message);
+      // The immutable scan remains "scanned". Successful release truth is the
+      // append-only b2b_dispatch_gate_decisions row written by Core.
       setState("success");
       setMessage(`AUTHORIZED: ${carton.carton_code} — ${consignment.consignment_number}`);
       addHistory(barcode, consignment.consignment_number, "success", "Finance Dispatch Clearance, final DPL membership and E-way evidence revalidated by Core.");
