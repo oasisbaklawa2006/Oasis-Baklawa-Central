@@ -17,8 +17,7 @@ function isLoopbackHostname(hostname) {
   }
 
   if (isIP(normalized) === 6) {
-    const nonEmptySegments = normalized.split(":").filter(Boolean);
-    return nonEmptySegments.length === 1 && nonEmptySegments[0] === "1";
+    return normalized === "::1";
   }
 
   return false;
