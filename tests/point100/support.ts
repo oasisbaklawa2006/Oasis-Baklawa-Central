@@ -189,15 +189,15 @@ export async function probeRpcExists(rpcName: string): Promise<{ exists: boolean
     return { exists: true, detail: hint || message };
   }
   if (message.toLowerCase().includes("could not find the function")) {
-    if (message.includes(rpcName)) {
-      return { exists: true, detail: message };
-    }
-    return { exists: false, detail: message };
+    return { exists: false, detail: hint || message };
   }
-  if (message.includes("PGRST202")) {
-    return { exists: message.includes(rpcName), detail: message };
+  if (String((error as { code?: string }).code ?? "") === "PGRST202") {
+    return { exists: false, detail: hint || message };
   }
-  return { exists: true, detail: message };
+  // Any other response proves that PostgREST resolved the RPC name and reached
+  // authorization/business validation. Do not turn a function-resolution
+  // failure into a false-positive capability PASS.
+  return { exists: true, detail: hint || message };
 }
 
 export function assertNoSilentSkips(ledger: Point100DressRehearsalLedger): void {
