@@ -10,6 +10,7 @@ import type { UserFactRow } from "@/lib/management-reporting/operationalMetricsP
 import type { ProductComplianceRow } from "@/lib/management-reporting/eanComplianceRegistry";
 import { hasModuleAccess, getAllowedModulesForRole } from "@/lib/appverse/roleAccess";
 import { useAuth } from "@/hooks/useAuth";
+import { isSupportTicketSlaBreached, type SupportTicketLifecycleFacts } from "@/lib/support/supportTicketPolicy";
 
 export interface ManagementCommandCenterFilters {
   periodStart: string;
@@ -103,9 +104,7 @@ export function useManagementCommandCenter() {
           .limit(MAX_PRODUCTS),
         supabase
           .from("support_tickets")
-          .select("id", { count: "exact", head: true })
-          .neq("status", "resolved")
-          .lt("sla_resolution_due", new Date().toISOString()),
+          .select("id,status,sla_first_response_due,sla_action_due,sla_resolution_due,sla_first_response_at,sla_action_at,sla_resolved_at"),
         supabase
           .from("ledger_disputes")
           .select("id, status, ledger:bi_monthly_ledgers(total_amount)", { count: "exact" })
@@ -269,7 +268,9 @@ export function useManagementCommandCenter() {
           fssai_number: c.fssai_number,
           gst_number: c.gst_number,
         })),
-        slaBreachedSupportCount: slaFailed ? null : (slaRes.count ?? 0),
+        slaBreachedSupportCount: slaFailed
+          ? null
+          : ((slaRes.data ?? []) as SupportTicketLifecycleFacts[]).filter((ticket) => isSupportTicketSlaBreached(ticket)).length,
         disputedLedgerCount: disputesFailed ? null : openDisputes.length,
         disputedOrHeldAmount,
         disputedOrHeldUnavailable: disputesFailed || disputesTruncated,

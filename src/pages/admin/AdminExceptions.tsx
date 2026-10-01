@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, AlertTriangle, Ban, FileWarning, Headphones, Scale } from "lucide-react";
 import { useLanguage } from "@/hooks/useLanguage";
+import { isSupportTicketActive } from "@/lib/support/supportTicketPolicy";
 
 interface SupportTicket {
   id: string; order_id: string; issue_type: string; description: string;
@@ -24,11 +25,11 @@ const AdminExceptions = () => {
   useEffect(() => {
     const fetch = async () => {
       const [ticketRes, moqRes, cancelRes] = await Promise.all([
-        supabase.from("support_tickets").select("*").eq("status", "open").order("created_at", { ascending: false }),
+        supabase.from("support_tickets").select("*").order("created_at", { ascending: false }),
         supabase.from("moq_rules").select("*").eq("is_active", true),
         supabase.from("orders").select("id, status, company:companies(business_name)").eq("status", "cancelled").limit(50),
       ]);
-      setTickets((ticketRes.data as SupportTicket[]) ?? []);
+      setTickets(((ticketRes.data as SupportTicket[]) ?? []).filter(isSupportTicketActive));
       setMoqRules((moqRes.data as MoqRule[]) ?? []);
       setCancelledOrders((cancelRes.data as any[]) ?? []);
       setLoading(false);
