@@ -76,18 +76,6 @@ const routeDepartment = (issueType: string): string => {
   return "Operations";
 };
 
-const computeSlaState = (ticket: Ticket): string => {
-  const now = new Date();
-  if (ticket.sla_resolved_at) return "On Time";
-  if (ticket.sla_resolution_due && new Date(ticket.sla_resolution_due) < now) {
-    if (!ticket.sla_first_response_at) return "NEVER_RESPONDED";
-    return "No Response";
-  }
-  if (ticket.sla_action_due && new Date(ticket.sla_action_due) < now && !ticket.sla_action_at) return "Late";
-  if (ticket.sla_first_response_due && new Date(ticket.sla_first_response_due) < now && !ticket.sla_first_response_at) return "No Response";
-  return "On Time";
-};
-
 const formatTimeLeft = (due: string | null): string => {
   if (!due) return "—";
   const diff = new Date(due).getTime() - Date.now();
