@@ -124,20 +124,49 @@ test("POINT100 :: negative-path failure injection suite", async ({ page }) => {
     recordStage(negativePaths, "provider_replay", "record_order_payment_proof_v1", "FINANCE_HEAD", payload.p_correlation_id, "PASS", second.error?.message ?? "idempotent replay");
   });
 
-  await test.step("negative: stock shortage on RGS reserve", async () => {
+  await test.step("negative: stock shortage cannot over-reserve RGS inventory", async () => {
     await switchRole(page, storeReadyGoods);
     const { client } = await createAuthenticatedCertificationClient(page);
     const correlationId = `p100-neg-${RUN_SUFFIX}-stock-shortage`;
-    const { error } = await client.rpc("reserve_rgs_stock", {
+    const noStockSku = `POINT100-NO-STOCK-${RUN_SUFFIX}`;
+    const { data, error } = await client.rpc("reserve_rgs_stock", {
+      p_reservation_number: `P100-NEG-${RUN_SUFFIX}`,
       p_order_id: goldenOrderId,
-      p_order_item_id: goldenOrderItemId,
       p_product_id: "20000000-0000-4000-8000-000000000101",
-      p_sku: "CERT-ARABIC-001",
-      p_quantity: 99999,
+      p_sku: noStockSku,
+      p_requested_qty: 99999,
+      p_source_department: "READY_GOODS_STORE",
       p_correlation_id: correlationId,
+      p_priority: "normal",
+      p_location_code: "FINISHED_GOODS",
+      p_queue_item_id: null,
+      p_customer_id: null,
+      p_demand_source_type: "b2b",
+      p_demand_reference: null,
     });
-    expect(error, "excessive reserve must fail closed").not.toBeNull();
-    recordStage(negativePaths, "stock_shortage", "reserve_rgs_stock", "STORE_READY_GOODS", correlationId, "PASS", error!.message);
+    expect(error, error?.message).toBeNull();
+    const reservation = (Array.isArray(data) ? data[0] : data) as {
+      requested_qty?: number | string;
+      reserved_qty?: number | string;
+      reservation_status?: string;
+    } | null;
+    const requestedQty = Number(reservation?.requested_qty ?? NaN);
+    const reservedQty = Number(reservation?.reserved_qty ?? NaN);
+    expect(requestedQty, "shortage probe must preserve the requested quantity").toBe(99999);
+    expect(reservedQty, "shortage probe must never reserve more than requested").toBeLessThan(requestedQty);
+    expect(
+      ["pending", "partially_reserved"],
+      `unexpected shortage reservation status: ${reservation?.reservation_status ?? "missing"}`,
+    ).toContain(String(reservation?.reservation_status ?? ""));
+    recordStage(
+      negativePaths,
+      "stock_shortage",
+      "reserve_rgs_stock",
+      "STORE_READY_GOODS",
+      correlationId,
+      "PASS",
+      `status=${reservation?.reservation_status} requested=${requestedQty} reserved=${reservedQty}`,
+    );
   });
 
   await test.step("negative: invalid carton open rejected", async () => {
