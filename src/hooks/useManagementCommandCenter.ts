@@ -11,6 +11,7 @@ import type { ProductComplianceRow } from "@/lib/management-reporting/eanComplia
 import { hasModuleAccess, getAllowedModulesForRole } from "@/lib/appverse/roleAccess";
 import { useAuth } from "@/hooks/useAuth";
 import { isSupportTicketSlaBreached, type SupportTicketLifecycleFacts } from "@/lib/support/supportTicketPolicy";
+import { loadActiveSupportTicketsPaginated } from "@/lib/support/supportTicketQueries";
 
 export interface ManagementCommandCenterFilters {
   periodStart: string;
@@ -102,9 +103,7 @@ export function useManagementCommandCenter() {
             { count: "exact" },
           )
           .limit(MAX_PRODUCTS),
-        supabase
-          .from("support_tickets")
-          .select("id,status,sla_first_response_due,sla_action_due,sla_resolution_due,sla_first_response_at,sla_action_at,sla_resolved_at"),
+        loadActiveSupportTicketsPaginated(),
         supabase
           .from("ledger_disputes")
           .select("id, status, ledger:bi_monthly_ledgers(total_amount)", { count: "exact" })
