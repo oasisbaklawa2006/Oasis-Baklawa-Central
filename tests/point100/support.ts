@@ -175,14 +175,17 @@ export function writeCapabilityMatrix(probes: Point100ProbeOutcome[]): void {
   writeFileSync("point100-capability-matrix.json", `${JSON.stringify(matrix, null, 2)}\n`, "utf8");
 }
 
-export async function probeRpcExists(rpcName: string): Promise<{ exists: boolean; detail: string }> {
+export async function probeRpcExists(
+  rpcName: string,
+  args: Record<string, unknown> = {},
+): Promise<{ exists: boolean; detail: string }> {
   const backend = resolveFactoryCertificationBackend();
   const { createClient } = await import("@supabase/supabase-js");
   const client = createClient(backend.url, backend.anonKey, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
   });
-  const { error } = await client.rpc(rpcName as never, {} as never);
-  if (!error) return { exists: true, detail: "RPC callable without auth (unexpected but present)" };
+  const { error } = await client.rpc(rpcName as never, args as never);
+  if (!error) return { exists: true, detail: "RPC resolved on disposable certification backend" };
   const message = error.message ?? String(error);
   const hint = String((error as { hint?: string }).hint ?? "");
   if (hint.toLowerCase().includes("perhaps you meant to call")) {
@@ -194,9 +197,9 @@ export async function probeRpcExists(rpcName: string): Promise<{ exists: boolean
   if (String((error as { code?: string }).code ?? "") === "PGRST202") {
     return { exists: false, detail: hint || message };
   }
-  // Any other response proves that PostgREST resolved the RPC name and reached
-  // authorization/business validation. Do not turn a function-resolution
-  // failure into a false-positive capability PASS.
+  // With canonical parameter names supplied, any non-resolution error means
+  // PostgREST found the RPC and reached auth/business validation. This keeps
+  // capability discovery fail-closed without requiring a successful mutation.
   return { exists: true, detail: hint || message };
 }
 

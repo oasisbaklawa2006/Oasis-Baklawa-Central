@@ -29,6 +29,7 @@ import {
   certifiedDispatchFinalizeProbe,
   executeStageProbe,
   macro556DispatchRoutesPresent,
+  point100RpcProbeArgs,
   runLifecycleProbes,
 } from "./probes";
 
@@ -245,16 +246,28 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
   });
 
   await test.step("inventory: certified Core lot/putaway RPC contract probes", async () => {
-    const putawayProbe = await probeRpcExists("allocate_b2b_inventory_putaway");
-    const lotExceptionProbe = await probeRpcExists("record_inventory_lot_exception");
+    const putawayProbe = await probeRpcExists(
+      "allocate_b2b_inventory_putaway",
+      point100RpcProbeArgs("allocate_b2b_inventory_putaway"),
+    );
+    const lotExceptionProbe = await probeRpcExists(
+      "record_inventory_lot_exception",
+      point100RpcProbeArgs("record_inventory_lot_exception"),
+    );
     const ok = putawayProbe.exists && lotExceptionProbe.exists;
     recordStage(stages, "inventory_lot_allocation", "record_inventory_lot_exception", "STORE_READY_GOODS", `p100-${RUN_SUFFIX}-lot-rpc`, ok ? "PASS" : "FAIL", `allocate_b2b_inventory_putaway=${putawayProbe.exists}; record_inventory_lot_exception=${lotExceptionProbe.exists}; core_sha=${POINT100_CORE_PRODUCTION_VERIFIED_SHA.slice(0, 8)}; migration_run=${POINT100_PRODUCTION_MIGRATION_RUN_ID}`);
     expect(ok, `${putawayProbe.detail}; ${lotExceptionProbe.detail}`).toBe(true);
   });
 
   await test.step("factory: certified Core production QC RPC contract probes", async () => {
-    const acceptProbe = await probeRpcExists("accept_production_job");
-    const outputProbe = await probeRpcExists("record_production_output");
+    const acceptProbe = await probeRpcExists(
+      "accept_production_job",
+      point100RpcProbeArgs("accept_production_job"),
+    );
+    const outputProbe = await probeRpcExists(
+      "record_production_output",
+      point100RpcProbeArgs("record_production_output"),
+    );
     const ok = acceptProbe.exists && outputProbe.exists;
     recordStage(stages, "production_qc", "accept_production_job", "PROD_ARABIC_SWEETS", `p100-${RUN_SUFFIX}-factory-rpc`, ok ? "PASS" : "FAIL", `accept_production_job=${acceptProbe.exists}; record_production_output=${outputProbe.exists}; core_sha=${POINT100_CORE_PRODUCTION_VERIFIED_SHA.slice(0, 8)}; migration_run=${POINT100_PRODUCTION_MIGRATION_RUN_ID}`);
     expect(ok, `${acceptProbe.detail}; ${outputProbe.detail}`).toBe(true);
