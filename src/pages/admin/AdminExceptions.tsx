@@ -14,10 +14,16 @@ interface MoqRule {
   validation_mode: string | null; is_active: boolean | null;
 }
 
+interface CancelledOrder {
+  id: string;
+  status: string;
+  company?: { business_name: string } | null;
+}
+
 const AdminExceptions = () => {
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [moqRules, setMoqRules] = useState<MoqRule[]>([]);
-  const [cancelledOrders, setCancelledOrders] = useState<{ id: string; company?: { business_name: string } | null; status: string }[]>([]);
+  const [cancelledOrders, setCancelledOrders] = useState<CancelledOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"escalations" | "moq" | "cancellations">("escalations");
   const { t } = useLanguage();
@@ -31,7 +37,7 @@ const AdminExceptions = () => {
       ]);
       setTickets(((ticketRes.data as SupportTicket[]) ?? []).filter(isSupportTicketActive));
       setMoqRules((moqRes.data as MoqRule[]) ?? []);
-      setCancelledOrders((cancelRes.data as any[]) ?? []);
+      setCancelledOrders((cancelRes.data as CancelledOrder[]) ?? []);
       setLoading(false);
     };
     fetch();
