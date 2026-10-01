@@ -1,17 +1,4 @@
-import { canAccessSecurityGate, isDispatchRole } from "@/lib/auth/securityGatePolicy";
-import { canAccessCentralOrderPool } from "@/lib/centralOrderPool/centralOrderPoolAccess";
-import { getRoleDestination } from "@/lib/auth-routing";
-import {
-  getAllowedModulesForRole,
-  hasModuleAccess,
-  type AppVerseModuleKey,
-} from "./roleAccess";
-
-export const GOLDEN_CHAIN_OPERATOR_ROUTE = "/admin/golden-chain-operator";
-export const COMMERCIAL_DISPATCH_TV_ROUTE = "/admin/dispatch-tv";
-
-const GOLDEN_CHAIN_OPERATOR_MODULE_KEYS: AppVerseModuleKey[] = ["dispatch", "finance", "inventory"];
-const COMMERCIAL_DISPATCH_TV_KIOSK_ROLES = new Set(["TV_DISPLAY"]);
+import type { AppVerseModuleKey } from "./roleAccess";
 
 const ADMIN_ROUTE_MODULES: Array<{ prefix: string; moduleKey: AppVerseModuleKey }> = [
   { prefix: "/admin/execution/production", moduleKey: "production" },
@@ -113,56 +100,4 @@ export function getRequiredModuleForAdminPath(pathname: string): AppVerseModuleK
     pathname === prefix || pathname.startsWith(`${prefix}/`),
   ).sort((a, b) => b.prefix.length - a.prefix.length);
   return matches[0]?.moduleKey ?? null;
-}
-
-function isGoldenChainOperatorPath(pathname: string): boolean {
-  return pathname === GOLDEN_CHAIN_OPERATOR_ROUTE || pathname.startsWith(`${GOLDEN_CHAIN_OPERATOR_ROUTE}/`);
-}
-
-function isCommercialDispatchTvPath(pathname: string): boolean {
-  return pathname === COMMERCIAL_DISPATCH_TV_ROUTE || pathname.startsWith(`${COMMERCIAL_DISPATCH_TV_ROUTE}/`);
-}
-
-/** Kiosk TV_DISPLAY gets dispatch-tv only; other roles use standard orders module authority. */
-export function canAccessCommercialDispatchTvRoute(role: string | null | undefined): boolean {
-  const normalized = role?.trim().toUpperCase();
-  if (!normalized) return false;
-  if (COMMERCIAL_DISPATCH_TV_KIOSK_ROLES.has(normalized)) return true;
-  return hasModuleAccess(getAllowedModulesForRole(role), "orders");
-}
-
-/** Phase 24L pilot: finance and inventory operators share the wizard with dispatch. */
-export function canAccessGoldenChainOperatorRoute(role: string | null | undefined): boolean {
-  const allowedModules = getAllowedModulesForRole(role);
-  return GOLDEN_CHAIN_OPERATOR_MODULE_KEYS.some((moduleKey) => hasModuleAccess(allowedModules, moduleKey));
-}
-
-function isCentralOrderPoolPath(pathname: string): boolean {
-  return pathname === "/admin/central-pool" || pathname.startsWith("/admin/central-pool/");
-}
-
-/** Resolve the governed redirect target when an admin route is denied for the current role. */
-export function getUnauthorizedAdminRedirect(role: string | null | undefined): string {
-  const normalizedRole = role?.trim().toUpperCase();
-  if (normalizedRole === "SALES_EXECUTIVE") return "/sales/dashboard";
-  return getRoleDestination(role);
-}
-
-/** Complete AdminRouteGuard authorization for a concrete /admin path and role. */
-export function isAuthorizedForAdminPath(pathname: string, role: string | null | undefined): boolean {
-  if (pathname === "/security-gate" || pathname.startsWith("/security-gate/")) {
-    return canAccessSecurityGate(role);
-  }
-  if (!pathname.startsWith("/admin")) return true;
-  if (isCentralOrderPoolPath(pathname)) return canAccessCentralOrderPool(role);
-  if (isGoldenChainOperatorPath(pathname)) return canAccessGoldenChainOperatorRoute(role);
-  if (isCommercialDispatchTvPath(pathname)) return canAccessCommercialDispatchTvRoute(role);
-  const requiredModule = getRequiredModuleForAdminPath(pathname);
-  // P0 #456: Dispatch roles may use App-Verse home (/admin) only via dashboard;
-  // any other unmapped /admin path that falls back to dashboard must fail closed.
-  if (isDispatchRole(role) && requiredModule === "dashboard" && pathname !== "/admin") {
-    return false;
-  }
-  const allowedModules = getAllowedModulesForRole(role);
-  return requiredModule !== null && hasModuleAccess(allowedModules, requiredModule);
 }

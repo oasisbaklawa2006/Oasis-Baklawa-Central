@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
+import { isSupportTicketActive, isSupportTicketSlaBreached, type SupportTicketLifecycleFacts } from "@/lib/support/supportTicketPolicy";
 
 interface AlertItem { label: string; count: number; route: string; severity: "high" | "medium" | "info"; }
 interface AuditEntry { id: string; action_type: string | null; module_name: string | null; entity_name: string | null; created_at: string; }
@@ -209,20 +210,23 @@ const AdminDashboard = () => {
   const { format } = useCurrency();
 
   const fetchData = useCallback(async () => {
-    const [pendingApps, products, allOrders, unpaidOrders, supportOpen, users, moqRules, exchangeRates, auditLogs, pricingSlabs, inventoryRes, slaBreached] = await Promise.all([
+    const [pendingApps, products, allOrders, unpaidOrders, supportTicketsRes, users, moqRules, exchangeRates, auditLogs, pricingSlabs, inventoryRes] = await Promise.all([
       supabase.from("b2b_applications").select("id", { count: "exact", head: true }).eq("status", "pending"),
       supabase.from("products").select("id", { count: "exact", head: true }),
       supabase.from("orders").select("id, status, payment_status, sales_order_value, advance_paid, advance_required"),
       supabase.from("orders").select("sales_order_value, advance_paid").neq("payment_status", "paid"),
-      supabase.from("support_tickets").select("id", { count: "exact", head: true }).eq("status", "open"),
+      supabase.from("support_tickets").select("id,status,sla_first_response_due,sla_action_due,sla_resolution_due,sla_first_response_at,sla_action_at,sla_resolved_at"),
       supabase.from("users").select("id", { count: "exact", head: true }),
       supabase.from("moq_rules").select("id", { count: "exact", head: true }),
       supabase.from("exchange_rates").select("id", { count: "exact", head: true }),
       supabase.from("audit_logs").select("id, action_type, module_name, entity_name, created_at").order("created_at", { ascending: false }).limit(10),
       supabase.from("pricing_slabs").select("id", { count: "exact", head: true }),
       supabase.from("factory_inventory").select("product_id, quantity"),
-      supabase.from("support_tickets").select("id", { count: "exact", head: true }).neq("status", "resolved").lt("sla_resolution_due", new Date().toISOString()),
     ]);
+
+    const supportTickets = (supportTicketsRes.data ?? []) as SupportTicketLifecycleFacts[];
+    const activeSupportTickets = supportTickets.filter(isSupportTicketActive);
+    const slaBreachedSupportTickets = activeSupportTickets.filter((ticket) => isSupportTicketSlaBreached(ticket));
 
     const orders = (allOrders.data ?? []) as { id: string; status: string; payment_status: string | null; sales_order_value: number | null; advance_paid: number | null; advance_required: number | null }[];
     const actionableOrders = orders.filter(o => !["draft", "cart", "cancelled"].includes(o.status));
@@ -247,8 +251,8 @@ const AdminDashboard = () => {
       pendingApps: pendingApps.count ?? 0, products: products.count ?? 0,
       pricingSlabs: pricingSlabs.count ?? 0, totalOrders: actionableOrders.length,
       users: users.count ?? 0, moqRules: moqRules.count ?? 0,
-      exchangeRates: exchangeRates.count ?? 0, supportOpen: supportOpen.count ?? 0,
-      slaBreached: slaBreached.count ?? 0,
+      exchangeRates: exchangeRates.count ?? 0, supportOpen: activeSupportTickets.length,
+      slaBreached: slaBreachedSupportTickets.length,
       totalDue, financeHold, totalPhysicalStock, lowStockCount, immediateCash, pendingCollections,
     });
 
@@ -257,8 +261,8 @@ const AdminDashboard = () => {
     if (pc.awaiting_final_payment > 0) a.push({ label: "Awaiting Payment", count: pc.awaiting_final_payment, route: "/admin/accounts-release", severity: "high" });
     if (pc.cleared_for_dispatch > 0) a.push({ label: t("Dispatch Ready"), count: pc.cleared_for_dispatch, route: "/admin/packing-dispatch", severity: "medium" });
     if (financeHold > 0) a.push({ label: "Finance Hold", count: financeHold, route: "/admin/accounts-release", severity: "high" });
-    if ((supportOpen.count ?? 0) > 0) a.push({ label: "Support Escalations", count: supportOpen.count ?? 0, route: "/admin/exceptions", severity: "medium" });
-    if ((slaBreached.count ?? 0) > 0) a.push({ label: "SLA Breached", count: slaBreached.count ?? 0, route: "/admin/support", severity: "high" });
+    if (activeSupportTickets.length > 0) a.push({ label: "Support Escalations", count: activeSupportTickets.length, route: "/admin/exceptions", severity: "medium" });
+    if (slaBreachedSupportTickets.length > 0) a.push({ label: "SLA Breached", count: slaBreachedSupportTickets.length, route: "/admin/support", severity: "high" });
     if (lowStockCount > 0) a.push({ label: "Low Stock", count: lowStockCount, route: "/admin/inventory", severity: "high" });
     const packedAggregate = dashboardPackedCount(pc);
     if (packedAggregate > 0 && packedAggregate > 3 * (pc.dispatched || 1)) {
