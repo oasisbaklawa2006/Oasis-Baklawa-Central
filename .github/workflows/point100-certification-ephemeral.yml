@@ -44,42 +44,40 @@ jobs:
 
       - name: Verify protected Core production deployment evidence
         env:
-          GH_TOKEN: ${{ github.token }}
           CORE_RELEASE_REPO: oasisbaklawa2006/oasis-supabase-core
           EXPECTED_RELEASE_SHA: ${{ env.POINT100_CORE_VERIFIED_SHA }}
+          EXPECTED_RELEASE_RUN_ID: "36636198402"
         shell: bash
         run: |
           set -euo pipefail
           [[ "${EXPECTED_RELEASE_SHA}" =~ ^[0-9a-f]{40}$ ]]
+          [[ "${EXPECTED_RELEASE_RUN_ID}" =~ ^[0-9]+$ ]]
 
-          mapfile -t candidate_runs < <(
-            gh api --paginate               "repos/${CORE_RELEASE_REPO}/actions/workflows/production-migration-release.yml/runs?event=workflow_dispatch&status=completed&branch=main&per_page=100"               --jq ".workflow_runs[] | select(.head_sha == \"${EXPECTED_RELEASE_SHA}\" and .conclusion == \"success\") | .id"
-          )
+          # The workflow GITHUB_TOKEN is repository-scoped and cannot be used as
+          # cross-repository Actions evidence. Core is public, so verify the exact
+          # pinned protected release with two unauthenticated, read-only API calls.
+          run_api="https://api.github.com/repos/${CORE_RELEASE_REPO}/actions/runs/${EXPECTED_RELEASE_RUN_ID}"
+          jobs_api="${run_api}/jobs?filter=latest&per_page=100"
+          run_json="$(curl --fail --silent --show-error --retry 3 --retry-all-errors             -H "Accept: application/vnd.github+json"             -H "X-GitHub-Api-Version: 2022-11-28"             "${run_api}")"
+          jobs_json="$(curl --fail --silent --show-error --retry 3 --retry-all-errors             -H "Accept: application/vnd.github+json"             -H "X-GitHub-Api-Version: 2022-11-28"             "${jobs_api}")"
 
-          release_run_id=""
-          for run_id in "${candidate_runs[@]}"; do
-            preflight_conclusion="$(
-              gh api "repos/${CORE_RELEASE_REPO}/actions/runs/${run_id}/jobs?filter=latest&per_page=100"                 --jq '[.jobs[] | select(.name == "Production ledger and dry-run verification")][0].conclusion // ""'
-            )"
-            deploy_conclusion="$(
-              gh api "repos/${CORE_RELEASE_REPO}/actions/runs/${run_id}/jobs?filter=latest&per_page=100"                 --jq '[.jobs[] | select(.name == "Approved production migration deployment")][0].conclusion // ""'
-            )"
-            if [[ "${preflight_conclusion}" == "success" && "${deploy_conclusion}" == "success" ]]; then
-              release_run_id="${run_id}"
-              break
-            fi
-          done
+          run_sha="$(jq -r '.head_sha // ""' <<<"${run_json}")"
+          run_event="$(jq -r '.event // ""' <<<"${run_json}")"
+          run_branch="$(jq -r '.head_branch // ""' <<<"${run_json}")"
+          run_conclusion="$(jq -r '.conclusion // ""' <<<"${run_json}")"
+          preflight_conclusion="$(jq -r '[.jobs[] | select(.name == "Production ledger and dry-run verification")][0].conclusion // ""' <<<"${jobs_json}")"
+          deploy_conclusion="$(jq -r '[.jobs[] | select(.name == "Approved production migration deployment")][0].conclusion // ""' <<<"${jobs_json}")"
 
-          if [[ -z "${release_run_id}" ]]; then
-            echo "POINT100_PRODUCTION_RELEASE_NOT_CERTIFIED: no successful protected deploy=true Production Migration Release exists for Core ${EXPECTED_RELEASE_SHA}" >&2
+          if [[ "${run_sha}" != "${EXPECTED_RELEASE_SHA}"              || "${run_event}" != "workflow_dispatch"              || "${run_branch}" != "main"              || "${run_conclusion}" != "success"              || "${preflight_conclusion}" != "success"              || "${deploy_conclusion}" != "success" ]]; then
+            echo "POINT100_PRODUCTION_RELEASE_NOT_CERTIFIED: pinned Core release evidence failed exact-SHA/job verification" >&2
             exit 1
           fi
 
           {
-            echo "POINT100_PRODUCTION_MIGRATION_RUN_ID=${release_run_id}"
-            echo "POINT100_RECERT_AFTER_CORE_MIGRATION_RUN_ID=${release_run_id}"
+            echo "POINT100_PRODUCTION_MIGRATION_RUN_ID=${EXPECTED_RELEASE_RUN_ID}"
+            echo "POINT100_RECERT_AFTER_CORE_MIGRATION_RUN_ID=${EXPECTED_RELEASE_RUN_ID}"
           } >> "${GITHUB_ENV}"
-          echo "Point100 bound to protected production deployment run ${release_run_id} for Core ${EXPECTED_RELEASE_SHA}."
+          echo "Point100 bound to protected production deployment run ${EXPECTED_RELEASE_RUN_ID} for Core ${EXPECTED_RELEASE_SHA}."
 
       - name: Checkout production-certified Core schema authority
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
