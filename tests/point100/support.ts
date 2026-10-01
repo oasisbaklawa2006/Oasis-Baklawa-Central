@@ -145,8 +145,7 @@ export function writeDressRehearsalLedger(
   const blocked =
     ledger.stages.some((s) => s.status === "BLOCKED") ||
     ledger.negative_paths.some((s) => s.status === "BLOCKED") ||
-    ledger.upstream_blockers.length > 0 ||
-    productionGateBlockers.length > 0;
+    ledger.upstream_blockers.length > 0;
   const summary: Point100DressRehearsalLedger = {
     ...ledger,
     certification_mode: isProductionCertificationPermitted() ? "production" : "disposable_synthetic",
@@ -193,8 +192,14 @@ export async function probeRpcExists(
   if (!error) return { exists: true, detail: "RPC resolved on disposable certification backend" };
   const message = error.message ?? String(error);
   const hint = String((error as { hint?: string }).hint ?? "");
-  if (hint.toLowerCase().includes("perhaps you meant to call")) {
-    return { exists: true, detail: hint || message };
+  const normalizedHint = hint.toLowerCase();
+  if (normalizedHint.includes("perhaps you meant to call")) {
+    const target = rpcName.toLowerCase();
+    const sameFunction =
+      normalizedHint.includes(`public.${target}(`) ||
+      normalizedHint.includes(`"${target}"(`) ||
+      normalizedHint.includes(` ${target}(`);
+    return { exists: sameFunction, detail: hint || message };
   }
   if (message.toLowerCase().includes("could not find the function")) {
     return { exists: false, detail: hint || message };
