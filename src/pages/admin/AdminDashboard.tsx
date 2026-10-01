@@ -16,7 +16,8 @@ import {
 } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
-import { isSupportTicketActive, isSupportTicketSlaBreached, type SupportTicketLifecycleFacts } from "@/lib/support/supportTicketPolicy";
+import { isSupportTicketSlaBreached, type SupportTicketLifecycleFacts } from "@/lib/support/supportTicketPolicy";
+import { loadActiveSupportTicketsPaginated } from "@/lib/support/supportTicketQueries";
 
 interface AlertItem { label: string; count: number; route: string; severity: "high" | "medium" | "info"; }
 interface AuditEntry { id: string; action_type: string | null; module_name: string | null; entity_name: string | null; created_at: string; }
@@ -215,7 +216,7 @@ const AdminDashboard = () => {
       supabase.from("products").select("id", { count: "exact", head: true }),
       supabase.from("orders").select("id, status, payment_status, sales_order_value, advance_paid, advance_required"),
       supabase.from("orders").select("sales_order_value, advance_paid").neq("payment_status", "paid"),
-      supabase.from("support_tickets").select("id,status,sla_first_response_due,sla_action_due,sla_resolution_due,sla_first_response_at,sla_action_at,sla_resolved_at"),
+      loadActiveSupportTicketsPaginated(),
       supabase.from("users").select("id", { count: "exact", head: true }),
       supabase.from("moq_rules").select("id", { count: "exact", head: true }),
       supabase.from("exchange_rates").select("id", { count: "exact", head: true }),
@@ -224,8 +225,7 @@ const AdminDashboard = () => {
       supabase.from("factory_inventory").select("product_id, quantity"),
     ]);
 
-    const supportTickets = (supportTicketsRes.data ?? []) as SupportTicketLifecycleFacts[];
-    const activeSupportTickets = supportTickets.filter(isSupportTicketActive);
+    const activeSupportTickets = (supportTicketsRes.data ?? []) as SupportTicketLifecycleFacts[];
     const slaBreachedSupportTickets = activeSupportTickets.filter((ticket) => isSupportTicketSlaBreached(ticket));
 
     const orders = (allOrders.data ?? []) as { id: string; status: string; payment_status: string | null; sales_order_value: number | null; advance_paid: number | null; advance_required: number | null }[];
