@@ -175,6 +175,7 @@ export function writeCapabilityMatrix(probes: Point100ProbeOutcome[]): void {
   writeFileSync("point100-capability-matrix.json", `${JSON.stringify(matrix, null, 2)}\n`, "utf8");
 }
 
+// Protected RPC capability probes must execute under the authenticated stage actor when one is available.
 export async function probeRpcExists(
   rpcName: string,
   args: Record<string, unknown> = {},
