@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { buildCapabilityMatrix, summarizeCapabilityMatrix } from "../capabilityStatus";
 import { POINT100_LIFECYCLE_STAGES, POINT100_NEGATIVE_PATHS, stagesForNegativePath } from "../lifecycleStages";
@@ -20,6 +21,14 @@ import {
   resolveProductionMigrationRunId,
 } from "../upstreamDependencies";
 import { macro556DispatchRoutesPresent } from "../dispatchRouteCensus";
+
+describe("point100 bootstrap loopback policy", () => {
+  it("accepts only canonical IPv6 loopback in bootstrap source", () => {
+    const source = readFileSync("scripts/point100-certification/point38-bootstrap-common.mjs", "utf8");
+    expect(source).toContain('return normalized === "::1";');
+    expect(source).not.toContain('normalized.split(":").filter(Boolean)');
+  });
+});
 
 describe("point100 lifecycle stages", () => {
   it("defines 16 sequential stages covering the full operational lifecycle", () => {
