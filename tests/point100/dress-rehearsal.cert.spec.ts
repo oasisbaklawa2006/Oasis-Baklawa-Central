@@ -326,7 +326,7 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
     expect(finalInvoiceReady, "Point38 must expose a final invoice before dispatch certification").toBe(true);
     expect(clearanceReady, "Point38 must expose active Finance Dispatch Clearance").toBe(true);
 
-    const dispatchProbe = await certifiedDispatchFinalizeProbe();
+    const dispatchProbe = await certifiedDispatchFinalizeProbe(client);
     recordStage(
       stages,
       "dispatch_consignment",
