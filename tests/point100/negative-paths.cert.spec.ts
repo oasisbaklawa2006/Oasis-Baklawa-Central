@@ -19,6 +19,34 @@ import {
 const RUN_SUFFIX = `${Date.now()}-${randomUUID().slice(0, 8)}`;
 const negativePaths: Point100StageRecord[] = [];
 
+type GovernedRpcError = { code?: string; message?: string } | null;
+
+function expectGovernedRejection(
+  error: GovernedRpcError,
+  label: string,
+  expectedFragments: string[] = [],
+): string {
+  expect(error, label).not.toBeNull();
+  const code = String(error?.code ?? "");
+  const message = String(error?.message ?? "");
+  const normalized = `${code} ${message}`.toLowerCase();
+  const unresolved = code === "PGRST202" || normalized.includes("could not find the function");
+  expect(unresolved, `${label}: RPC did not resolve — ${message}`).toBe(false);
+  const transportFailure =
+    normalized.includes("failed to fetch") ||
+    normalized.includes("fetch failed") ||
+    normalized.includes("network error") ||
+    normalized.includes("connection refused");
+  expect(transportFailure, `${label}: transport failure is not governed rejection — ${message}`).toBe(false);
+  if (expectedFragments.length > 0) {
+    expect(
+      expectedFragments.some((fragment) => normalized.includes(fragment.toLowerCase())),
+      `${label}: unexpected rejection — code=${code} message=${message}`,
+    ).toBe(true);
+  }
+  return message;
+}
+
 test.describe.configure({ mode: "serial" });
 
 test("POINT100 :: negative-path failure injection suite", async ({ page }) => {
@@ -49,8 +77,12 @@ test("POINT100 :: negative-path failure injection suite", async ({ page }) => {
       p_lines: [{ order_item_id: goldenOrderItemId, selected_qty: 1 }],
       p_correlation_id: correlationId,
     });
-    expect(error, "STORE_3RD_PARTY must not create consignment").not.toBeNull();
-    recordStage(negativePaths, "wrong_tenant_role", "create_b2b_dispatch_consignment", "STORE_3RD_PARTY", correlationId, "PASS", error!.message);
+    const rejection = expectGovernedRejection(
+      error,
+      "STORE_3RD_PARTY must not create consignment",
+      ["dispatch", "not_authorized", "not authorized", "permission"],
+    );
+    recordStage(negativePaths, "wrong_tenant_role", "create_b2b_dispatch_consignment", "STORE_3RD_PARTY", correlationId, "PASS", rejection);
   });
 
   await test.step("negative: insufficient payment proof rejected", async () => {
@@ -83,8 +115,12 @@ test("POINT100 :: negative-path failure injection suite", async ({ page }) => {
         scope: "neg-insufficient",
       }),
     );
-    expect(error, "zero-amount payment proof must be rejected").not.toBeNull();
-    recordStage(negativePaths, "insufficient_payment", "record_order_payment_proof_v1", "FINANCE_HEAD", correlationId, "PASS", error!.message);
+    const rejection = expectGovernedRejection(
+      error,
+      "zero-amount payment proof must be rejected",
+      ["payment", "amount", "invalid", "evidence"],
+    );
+    recordStage(negativePaths, "insufficient_payment", "record_order_payment_proof_v1", "FINANCE_HEAD", correlationId, "PASS", rejection);
   });
 
   await test.step("negative: provider replay is idempotent only after a successful first call", async () => {
@@ -177,8 +213,12 @@ test("POINT100 :: negative-path failure injection suite", async ({ page }) => {
       p_consignment_id: "00000000-0000-4000-8000-000000000099",
       p_carton_code: `INVALID-${RUN_SUFFIX}`,
     });
-    expect(error, "invalid consignment must reject carton open").not.toBeNull();
-    recordStage(negativePaths, "invalid_carton", "open_b2b_dispatch_carton", "DISPATCH_MANAGER", correlationId, "PASS", error!.message);
+    const rejection = expectGovernedRejection(
+      error,
+      "invalid consignment must reject carton open",
+      ["consignment", "carton", "not found"],
+    );
+    recordStage(negativePaths, "invalid_carton", "open_b2b_dispatch_carton", "DISPATCH_MANAGER", correlationId, "PASS", rejection);
   });
 
   await test.step("negative: duplicate production release is idempotent", async () => {
@@ -237,8 +277,12 @@ test("POINT100 :: negative-path failure injection suite", async ({ page }) => {
       p_lines: [{ order_item_id: goldenOrderItemId, selected_qty: 1 }],
       p_correlation_id: correlationId,
     });
-    expect(error, "FINANCE_HEAD must not create dispatch consignment").not.toBeNull();
-    recordStage(negativePaths, "wrong_tenant_role", "create_b2b_dispatch_consignment", "FINANCE_HEAD", correlationId, "PASS", error!.message);
+    const rejection = expectGovernedRejection(
+      error,
+      "FINANCE_HEAD must not create dispatch consignment",
+      ["dispatch", "not_authorized", "not authorized", "permission"],
+    );
+    recordStage(negativePaths, "wrong_tenant_role", "create_b2b_dispatch_consignment", "FINANCE_HEAD", correlationId, "PASS", rejection);
   });
 
   await test.step("negative: dispatch manager denied independent security gate route", async () => {
@@ -254,13 +298,32 @@ test("POINT100 :: negative-path failure injection suite", async ({ page }) => {
       p_carton_id: "00000000-0000-4000-8000-000000000099",
       p_scan_evidence_id: "00000000-0000-4000-8000-000000000098",
     });
-    expect(error, error?.message).toBeNull();
+    if (error) {
+      const rejection = expectGovernedRejection(
+        error,
+        "DISPATCH_MANAGER must not hold independent Security Gate authority",
+        ["not_authorized", "not authorized", "gate authority", "independent security gate"],
+      );
+      recordStage(
+        negativePaths,
+        "gate_mismatch",
+        "release_b2b_dispatch_carton_at_gate_v1",
+        "DISPATCH_MANAGER",
+        correlationId,
+        "PASS",
+        `server_rbac_rejection=${rejection}`,
+      );
+      return;
+    }
     const result = data as { ok?: boolean; blockers?: Array<{ code?: string }> } | null;
     const blockerCodes = Array.isArray(result?.blockers)
       ? result.blockers.map((blocker) => String(blocker?.code ?? ""))
       : [];
     expect(result?.ok, "unknown carton gate release must fail closed").toBe(false);
-    expect(blockerCodes, "gate rejection must identify the canonical carton_not_found blocker").toContain("carton_not_found");
+    expect(
+      blockerCodes,
+      "pre-hardening Core must still reject the nonexistent carton; post-hardening Core rejects Dispatch at RBAC",
+    ).toContain("carton_not_found");
     recordStage(
       negativePaths,
       "gate_mismatch",
@@ -268,7 +331,7 @@ test("POINT100 :: negative-path failure injection suite", async ({ page }) => {
       "DISPATCH_MANAGER",
       correlationId,
       "PASS",
-      `blockers=${blockerCodes.join(",")}`,
+      `pre_hardening_soft_rejection=blockers:${blockerCodes.join(",")}`,
     );
   });
 
@@ -361,8 +424,12 @@ test("POINT100 :: negative-path failure injection suite", async ({ page }) => {
     expect(holdEventId, "apply_finance_hold_v1 must return control_event_id").not.toBe("");
     try {
       const guard = await client.rpc("assert_no_blocking_finance_hold_v1", { p_order_id: point37OrderId });
-      expect(guard.error, "active Finance hold must block the canonical guard").not.toBeNull();
-      recordStage(negativePaths, "active_finance_hold", "assert_no_blocking_finance_hold_v1", "FINANCE_HEAD", correlationId, "PASS", guard.error!.message);
+      const rejection = expectGovernedRejection(
+        guard.error,
+        "active Finance hold must block the canonical guard",
+        ["finance_blocking_hold_active", "blocking", "hold"],
+      );
+      recordStage(negativePaths, "active_finance_hold", "assert_no_blocking_finance_hold_v1", "FINANCE_HEAD", correlationId, "PASS", rejection);
     } finally {
       const released = await client.rpc("release_finance_hold_v1", {
         p_hold_event_id: holdEventId,
@@ -387,8 +454,12 @@ test("POINT100 :: negative-path failure injection suite", async ({ page }) => {
       p_reason: "POINT100 negative quarantine probe",
       p_correlation_id: correlationId,
     });
-    expect(error, "unknown lot position must fail closed").not.toBeNull();
-    recordStage(negativePaths, "quarantined_expired_lot", "record_inventory_lot_exception", "STORE_READY_GOODS", correlationId, "PASS", error!.message);
+    const rejection = expectGovernedRejection(
+      error,
+      "unknown lot position must fail closed",
+      ["lot", "position", "inventory", "not found"],
+    );
+    recordStage(negativePaths, "quarantined_expired_lot", "record_inventory_lot_exception", "STORE_READY_GOODS", correlationId, "PASS", rejection);
   });
 
   await test.step("negative: trace handover verify rejects invalid evidence", async () => {
