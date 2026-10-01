@@ -56,8 +56,10 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
 
   const admin = credentialsForRoleOrSkip("ADMIN");
   const financeHead = credentialsForRoleOrSkip("FINANCE_HEAD");
+  const storeReadyGoods = credentialsForRoleOrSkip("STORE_READY_GOODS");
   const prodArabic = credentialsForRoleOrSkip("PROD_ARABIC_SWEETS");
   const dispatchManager = credentialsForRoleOrSkip("DISPATCH_MANAGER");
+  const gateSecurity = credentialsForRoleOrSkip("GATE_SECURITY");
 
   const goldenOrderId = fixtureOrderId("FACTORY_CERT_GOLDEN_ORDER_ID");
   const point37OrderId = fixtureOrderId("FACTORY_CERT_POINT37_ORDER_ID");
@@ -66,7 +68,9 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
 
   await test.step("matrix: probe all lifecycle stages", async () => {
-    const probes = await runLifecycleProbes();
+    await loginToFactoryCertificationTarget(page, admin);
+    const { client } = await createAuthenticatedCertificationClient(page);
+    const probes = await runLifecycleProbes(client);
     writeCapabilityMatrix(probes);
     const softwareBlockers = probes.filter((probe) => probe.status === "upstream_contract_missing");
     upstreamBlockers.push(...softwareBlockers.map((blocker) => `${blocker.stageId}: ${blocker.detail}`));
@@ -246,13 +250,17 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
   });
 
   await test.step("inventory: certified Core lot/putaway RPC contract probes", async () => {
+    await switchRole(page, storeReadyGoods);
+    const { client } = await createAuthenticatedCertificationClient(page);
     const putawayProbe = await probeRpcExists(
       "allocate_b2b_inventory_putaway",
       point100RpcProbeArgs("allocate_b2b_inventory_putaway"),
+      client,
     );
     const lotExceptionProbe = await probeRpcExists(
       "record_inventory_lot_exception",
       point100RpcProbeArgs("record_inventory_lot_exception"),
+      client,
     );
     const ok = putawayProbe.exists && lotExceptionProbe.exists;
     recordStage(stages, "inventory_lot_allocation", "record_inventory_lot_exception", "STORE_READY_GOODS", `p100-${RUN_SUFFIX}-lot-rpc`, ok ? "PASS" : "FAIL", `allocate_b2b_inventory_putaway=${putawayProbe.exists}; record_inventory_lot_exception=${lotExceptionProbe.exists}; core_sha=${POINT100_CORE_PRODUCTION_VERIFIED_SHA.slice(0, 8)}; migration_run=${POINT100_PRODUCTION_MIGRATION_RUN_ID}`);
@@ -260,13 +268,17 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
   });
 
   await test.step("factory: certified Core production QC RPC contract probes", async () => {
+    await switchRole(page, prodArabic);
+    const { client } = await createAuthenticatedCertificationClient(page);
     const acceptProbe = await probeRpcExists(
       "accept_production_job",
       point100RpcProbeArgs("accept_production_job"),
+      client,
     );
     const outputProbe = await probeRpcExists(
       "record_production_output",
       point100RpcProbeArgs("record_production_output"),
+      client,
     );
     const ok = acceptProbe.exists && outputProbe.exists;
     recordStage(stages, "production_qc", "accept_production_job", "PROD_ARABIC_SWEETS", `p100-${RUN_SUFFIX}-factory-rpc`, ok ? "PASS" : "FAIL", `accept_production_job=${acceptProbe.exists}; record_production_output=${outputProbe.exists}; core_sha=${POINT100_CORE_PRODUCTION_VERIFIED_SHA.slice(0, 8)}; migration_run=${POINT100_PRODUCTION_MIGRATION_RUN_ID}`);
@@ -333,9 +345,10 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
   });
 
   await test.step("gate: release_b2b_dispatch_carton_at_gate_v1 contract probe", async () => {
+    await switchRole(page, gateSecurity);
     const { client } = await createAuthenticatedCertificationClient(page);
     const gate = await executeStageProbe(client, "security_gate", `p100-${RUN_SUFFIX}-gate`);
-    recordStage(stages, "security_gate", "release_b2b_dispatch_carton_at_gate_v1", "DISPATCH_MANAGER", `p100-${RUN_SUFFIX}-gate`, gate.ok ? "PASS" : "BLOCKED", `${gate.detail} — independent gate RPC contract probe only; physical scanner evidence remains Leap 13`);
+    recordStage(stages, "security_gate", "release_b2b_dispatch_carton_at_gate_v1", "GATE_SECURITY", `p100-${RUN_SUFFIX}-gate`, gate.ok ? "PASS" : "BLOCKED", `${gate.detail} — independent gate RPC contract probe only; physical scanner evidence remains Leap 13`);
     if (!gate.ok) upstreamBlockers.push(`security_gate: ${gate.detail}`);
     expect(gate.ok, gate.detail).toBe(true);
   });
@@ -348,8 +361,13 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
   });
 
   await test.step("completion: dispatch proof authority + complaint window probe", async () => {
+    await switchRole(page, dispatchManager);
     const { client } = await createAuthenticatedCertificationClient(page);
-    const proofRpc = await probeRpcExists("record_dispatch_proof_packet_v1");
+    const proofRpc = await probeRpcExists(
+      "record_dispatch_proof_packet_v1",
+      point100RpcProbeArgs("record_dispatch_proof_packet_v1"),
+      client,
+    );
     const exitFactsResult = await client.rpc("get_finance_exit_facts_v1", { p_order_id: point38OrderId });
     const rawExitFacts = Array.isArray(exitFactsResult.data) ? exitFactsResult.data[0] : exitFactsResult.data;
     const dispatchProofId = rawExitFacts && typeof rawExitFacts === "object"
@@ -359,7 +377,7 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
     recordStage(stages, "customer_dispatch_proof", "record_dispatch_proof_packet_v1", "DISPATCH_MANAGER", null, proofReady ? "PASS" : "BLOCKED", exitFactsResult.error?.message ?? `rpc_exists=${proofRpc.exists} dispatch_proof_id=${String(dispatchProofId)}`);
     expect(proofReady, "Point38 must expose immutable dispatch proof and the canonical proof RPC").toBe(true);
 
-    const orderCompleteProbe = await certifiedDispatchFinalizeProbe();
+    const orderCompleteProbe = await certifiedDispatchFinalizeProbe(client);
     recordStage(
       stages,
       "order_complete",
