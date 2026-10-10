@@ -82,6 +82,17 @@ describe("Finance Exit surface authority guard", () => {
     ]) expect(page).not.toContain(forbidden);
   });
 
+  it("B2B gate treats operational scan evidence as immutable", () => {
+    const page = source("src/pages/admin/AdminB2bSecurityGate.tsx");
+    const scanStart = page.indexOf('.from("operational_scan_records")');
+    expect(scanStart).toBeGreaterThan(-1);
+    expect(page).toContain("GATE_SCAN_PRE_RELEASE_STATUS");
+    expect(page).not.toContain("GATE_SCAN_POST_RELEASE_STATUS");
+    expect(page).not.toContain("GATE_SCAN_RELEASE_DENIED_STATUS");
+    expect(page).not.toMatch(/from\("operational_scan_records"\)[\s\S]{0,160}\.update\(/);
+    expect(page).toContain("b2b_dispatch_gate_decisions");
+  });
+
   it("Finance DPL receipt client accepts no browser DPL snapshot, lines or carton IDs", () => {
     const client = source("src/lib/order-authority/financeExitAuthorityClient.ts");
     const start = client.indexOf("export async function receiveSubmittedB2bDpls");

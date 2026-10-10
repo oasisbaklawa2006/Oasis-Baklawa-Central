@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, AlertTriangle, Ban, FileWarning, Headphones, Scale } from "lucide-react";
 import { useLanguage } from "@/hooks/useLanguage";
-import { isSupportTicketActive } from "@/lib/support/supportTicketPolicy";
+import { loadActiveSupportTicketsPaginated } from "@/lib/support/supportTicketQueries";
 
 interface SupportTicket {
   id: string; order_id: string; issue_type: string; description: string;
@@ -25,17 +25,19 @@ const AdminExceptions = () => {
   const [moqRules, setMoqRules] = useState<MoqRule[]>([]);
   const [cancelledOrders, setCancelledOrders] = useState<CancelledOrder[]>([]);
   const [loading, setLoading] = useState(true);
+  const [ticketsError, setTicketsError] = useState<string | null>(null);
   const [tab, setTab] = useState<"escalations" | "moq" | "cancellations">("escalations");
   const { t } = useLanguage();
 
   useEffect(() => {
     const fetch = async () => {
       const [ticketRes, moqRes, cancelRes] = await Promise.all([
-        supabase.from("support_tickets").select("*").order("created_at", { ascending: false }),
+        loadActiveSupportTicketsPaginated(),
         supabase.from("moq_rules").select("*").eq("is_active", true),
         supabase.from("orders").select("id, status, company:companies(business_name)").eq("status", "cancelled").limit(50),
       ]);
-      setTickets(((ticketRes.data as SupportTicket[]) ?? []).filter(isSupportTicketActive));
+      setTickets(ticketRes.error ? [] : (ticketRes.data as SupportTicket[]) ?? []);
+      setTicketsError(ticketRes.error?.message ?? null);
       setMoqRules((moqRes.data as MoqRule[]) ?? []);
       setCancelledOrders((cancelRes.data as CancelledOrder[]) ?? []);
       setLoading(false);
@@ -75,7 +77,9 @@ const AdminExceptions = () => {
       {/* Content */}
       {tab === "escalations" && (
         <div className="rounded-xl border border-border bg-card overflow-hidden" style={{ boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
-          {tickets.length === 0 ? <p className="p-6 text-ui-label text-muted-foreground">No open escalations.</p> : (
+          {ticketsError ? (
+            <p className="p-6 text-ui-label text-destructive">Failed to load support escalations: {ticketsError}</p>
+          ) : tickets.length === 0 ? <p className="p-6 text-ui-label text-muted-foreground">No open escalations.</p> : (
             <table className="w-full text-sm">
               <thead><tr className="bg-muted/50">
                 <th className="text-left px-4 py-3 text-ui-label text-muted-foreground">Date</th>
