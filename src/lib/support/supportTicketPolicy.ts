@@ -10,7 +10,8 @@ export type SupportTicketLifecycleFacts = {
 
 export type SupportTicketSlaState = "On Time" | "Late" | "No Response" | "NEVER_RESPONDED";
 
-const TERMINAL_SUPPORT_STATUSES = new Set(["resolved", "closed", "rejected", "cancelled"]);
+export const SUPPORT_TICKET_TERMINAL_STATUSES = ["resolved", "closed", "rejected", "cancelled"] as const;
+const TERMINAL_SUPPORT_STATUSES = new Set<string>(SUPPORT_TICKET_TERMINAL_STATUSES);
 
 function normalizedStatus(status: string | null | undefined): string {
   return String(status ?? "").trim().toLowerCase();

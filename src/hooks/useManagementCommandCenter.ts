@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { endOfMonth, format, startOfMonth, subMonths } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -11,6 +11,7 @@ import type { ProductComplianceRow } from "@/lib/management-reporting/eanComplia
 import { hasModuleAccess, getAllowedModulesForRole } from "@/lib/appverse/roleAccess";
 import { useAuth } from "@/hooks/useAuth";
 import { isSupportTicketSlaBreached, type SupportTicketLifecycleFacts } from "@/lib/support/supportTicketPolicy";
+import { loadActiveSupportTicketsPaginated } from "@/lib/support/supportTicketQueries";
 
 export interface ManagementCommandCenterFilters {
   periodStart: string;
@@ -59,8 +60,10 @@ export function useManagementCommandCenter() {
   const [projection, setProjection] = useState<ManagementCommandCenterProjection | null>(null);
   const [eanTotal, setEanTotal] = useState(0);
   const [companyOptions, setCompanyOptions] = useState<Array<{ id: string; label: string }>>([]);
+  const requestGenerationRef = useRef(0);
 
   const refresh = useCallback(async () => {
+    const requestGeneration = ++requestGenerationRef.current;
     setLoading(true);
     setError(null);
     try {
@@ -102,9 +105,7 @@ export function useManagementCommandCenter() {
             { count: "exact" },
           )
           .limit(MAX_PRODUCTS),
-        supabase
-          .from("support_tickets")
-          .select("id,status,sla_first_response_due,sla_action_due,sla_resolution_due,sla_first_response_at,sla_action_at,sla_resolved_at"),
+        loadActiveSupportTicketsPaginated(),
         supabase
           .from("ledger_disputes")
           .select("id, status, ledger:bi_monthly_ledgers(total_amount)", { count: "exact" })
@@ -301,6 +302,8 @@ export function useManagementCommandCenter() {
         disputesTruncated,
       });
 
+      if (requestGeneration !== requestGenerationRef.current) return;
+
       setProjection(built);
       setEanTotal(built.eanRegistryTotal);
       setCompanyOptions(
@@ -309,10 +312,13 @@ export function useManagementCommandCenter() {
           .sort((a, b) => a.label.localeCompare(b.label)),
       );
     } catch (e) {
+      if (requestGeneration !== requestGenerationRef.current) return;
       setError(e instanceof Error ? e.message : "Failed to load management reporting");
       setProjection(null);
     } finally {
-      setLoading(false);
+      if (requestGeneration === requestGenerationRef.current) {
+        setLoading(false);
+      }
     }
   }, [canViewFinance, filters]);
 
