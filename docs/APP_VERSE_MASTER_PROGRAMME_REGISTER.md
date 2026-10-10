@@ -130,8 +130,47 @@ Programme Progress: X/100
 | 52 | Complete AI Studio mobile approval and controlled launch | NOT STARTED |
 | 53 | Implement deferred-detail handling | NOT STARTED |
 | 54 | Implement the approved-product publication contract | NOT STARTED |
+| 54a | Oasis Connect — governed multi-channel publication & consumer contract (`ASM-OC-01`) | IN PROGRESS |
 | 55 | Publish operational product data to Central | NOT STARTED |
 | 56 | Publish customer-safe product data to the Customer App | NOT STARTED |
+
+### Point 54a — Oasis Connect: Governed Multi-Channel Publication & Consumer Contract
+
+**Parent:** Point 54 — Implement the approved-product publication contract  
+**Status:** IN PROGRESS  
+**Current stage:** CONNECT-1 — census and contract freeze  
+**ASM work item:** `ASM-OC-01 — OASIS CONNECT`  
+**Owner:** Mission Control / `Oasis-Baklawa-Central`  
+**Repositories:** `oasis-supabase-core`, `oasis-ai-studio`, `Oasis-Baklawa-Central`, `oasis-trace`
+
+**Purpose:** Create the plug-and-play consumer/channel integration layer through which one canonical approved Oasis product/product-intelligence source can serve different downstream consumers using governed channel profiles and consumer authorization. Reference consumers include the B2B Buyer App, future B2C App, B2C website, B2B website, WhatsApp catalogue, CRM, catalogue/PDF outputs, Trace/Labelling, and future marketplace/API consumers. No separate product master may be created for individual channels.
+
+**Cross-point dependencies:**
+
+- Point 54a defines the shared Oasis Connect publication/consumer contract.
+- Point 55 may use Oasis Connect to publish approved operational product data to Central.
+- Point 56 may use Oasis Connect to publish customer-safe product data to Customer App/B2C consumers.
+- Point 93 may use Oasis Connect/Core contracts where required for Central–Trace product/label command/event integration.
+- Point 95 retains existing Trace printer/reprint authority for label execution and verification.
+- Oasis Connect does not replace Points 55, 56, 93 or 95; it provides the common governed connection mechanism those points may consume.
+
+**Dependency exception:** Point 54a may begin architecture, census, contract definition and non-mutating design work early, before Points 3–53 are complete, because this work defines future integration boundaries and prevents incompatible implementation from being created independently across AI Studio, Core, Central and Trace. Point 54a may not be declared COMPLETE, deployed to production, or activate cross-application runtime dependencies until the required predecessor and linked-point gates are satisfied.
+
+Authorized under this exception: read-only repository census; existing-contract discovery; architecture definition; field-authority registry design; channel-profile design; API/RPC contract design; schema proposal; UI/configuration design; test-plan creation; repository-local non-production implementation only after the owning repository receives an explicit ASM route.
+
+Not authorized: production migrations; production Edge Function deployment; schema mutation outside the owning Core route; bypassing repository ownership; replacement of existing Trace authority; independent Central/AI Studio commercial-authority changes.
+
+**Programme percentage:** unchanged. Point 54 remains open under the existing register sequence. This subpoint does not increase programme completion percentage.
+
+**Repository authority:**
+
+- **Supabase Core** — shared persistence, RLS, RPCs, security, credentials, audit and backend contracts.
+- **AI Studio** — catalogue/product intelligence plus Oasis Connect configuration/projection UX.
+- **Central** — operational and commercial truth.
+- **Trace** — physical printing, reprinting, scanning and label execution.
+- **Mission Control** — cross-repository sequencing, scope control and certification.
+
+Canonical routing record: [`docs/APPVERSE_ASM_OASIS_CONNECT_2026-09-20.md`](APPVERSE_ASM_OASIS_CONNECT_2026-09-20.md).
 
 ## Phase D — Central: CRM, intake and command
 

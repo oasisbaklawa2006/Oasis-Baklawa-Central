@@ -17,6 +17,7 @@ import {
 } from "./supabaseStockFinalizationStore";
 import { createSupabaseReservationService } from "@/lib/inventory-reservations/supabaseReservationRepository";
 import type { ReservationService } from "@/lib/inventory-reservations/reservationService";
+import { isStockFinalizationDemoPermitted } from "@/lib/integration-contracts";
 
 export type StockFinalizationPersistenceMode = "supabase" | "demo" | "unavailable";
 
@@ -34,10 +35,7 @@ function isTestMode(): boolean {
 }
 
 function isDemoFinalizeAllowed(): boolean {
-  return (
-    typeof import.meta !== "undefined" &&
-    import.meta.env?.VITE_STOCK_FINALIZATION_DEMO === "true"
-  );
+  return isStockFinalizationDemoPermitted();
 }
 
 export async function createStockFinalizationBundle(

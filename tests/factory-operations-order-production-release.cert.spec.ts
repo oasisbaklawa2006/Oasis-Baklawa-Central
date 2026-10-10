@@ -258,6 +258,12 @@ test("POINT-37 :: governed confirmed → in_production production release", asyn
     const actionButton = () => orderRow().getByRole("button", { name: /Send to Factory/i });
     await expect(actionButton(), "Send to Factory must be available").toBeVisible({ timeout: 30_000 });
 
+    // Arm the response barrier before clicking so database truth is read only after the governed RPC completes.
+    const releaseResponsePromise = page.waitForResponse(
+      /\/rest\/v1\/rpc\/release_order_to_in_production_v1(?:\?|$)/,
+      { timeout: 60_000 },
+    );
+
     // Realtime refetches can briefly disable the row action; re-resolve locators and poll until RPC fires.
     let lastReleaseClickAt = 0;
     await expect
@@ -286,6 +292,12 @@ test("POINT-37 :: governed confirmed → in_production production release", asyn
     expect(releaseCalls[0].args?.p_order_id).toBe(orderId);
     expect(rpcCalls.some((c) => c.fn === "release_order_to_manufacturing_v1")).toBe(false);
     expect(patchCalls.length, "no direct orders.update during release").toBe(0);
+
+    const releaseResponse = await releaseResponsePromise;
+    expect(
+      releaseResponse.status(),
+      "governed production release RPC must complete successfully",
+    ).toBeLessThan(400);
 
     const { client } = await createAuthenticatedCertificationClient(page);
     const { data: orderRows, error: orderError } = await client

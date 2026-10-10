@@ -139,6 +139,7 @@ export class FinanceGovernanceError extends Error {
   constructor(
     public readonly code:
       | "authority_denied"
+      | "core_prerequisite"
       | "forbidden_action"
       | "validation_failed"
       | "reason_required",

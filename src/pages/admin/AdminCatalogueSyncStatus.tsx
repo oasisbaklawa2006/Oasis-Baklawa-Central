@@ -7,6 +7,12 @@ import {
   type CatalogueSyncResult,
   type CatalogueSyncStatus,
 } from "@/lib/catalogue-connector";
+import {
+  fetchPublishedOperationalProducts,
+  isProductPublishedOperational,
+  type PublishedOperationalProductIndex,
+} from "@/lib/published-products";
+import { OperationalReadOnlyBanner } from "@/components/admin/OperationalReadOnlyBanner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -49,10 +55,13 @@ interface MappingRow {
   sync_status: CatalogueSyncStatus;
   last_synced_at: string | null;
   product_name: string | null;
+  published_operationally: boolean | null;
 }
 
 export default function AdminCatalogueSyncStatus() {
   const [rows, setRows] = useState<MappingRow[]>([]);
+  const [publishedIndex, setPublishedIndex] = useState<PublishedOperationalProductIndex | null>(null);
+  const [publicationUnavailable, setPublicationUnavailable] = useState(false);
   const [loading, setLoading] = useState(true);
   const [jsonInput, setJsonInput] = useState("");
   const [importing, setImporting] = useState(false);
@@ -63,45 +72,56 @@ export default function AdminCatalogueSyncStatus() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    setPublicationUnavailable(false);
     try {
-      const { data, error } = await supabase
+      const mappingsResult = await supabase
         .from("catalogue_product_mappings")
         .select(
           "id, sku, external_catalogue_product_id, central_product_id, source_version, sync_status, last_synced_at",
         )
         .order("last_synced_at", { ascending: false, nullsFirst: false })
         .limit(200);
+
+      const { data, error } = mappingsResult;
       if (error) throw error;
 
-      const mappings = data ?? [];
-      const productIds = [
-        ...new Set(mappings.map((m) => m.central_product_id).filter(Boolean)),
-      ] as string[];
-
-      let nameById: Record<string, string> = {};
-      if (productIds.length > 0) {
-        const { data: products } = await supabase
-          .from("products")
-          .select("id, name")
-          .in("id", productIds);
-        nameById = Object.fromEntries((products ?? []).map((p) => [p.id, p.name]));
+      let published: PublishedOperationalProductIndex | null = null;
+      try {
+        published = await fetchPublishedOperationalProducts(supabase);
+        setPublishedIndex(published);
+      } catch (publicationError) {
+        console.error("[AdminCatalogueSyncStatus:publication]", publicationError);
+        setPublishedIndex(null);
+        setPublicationUnavailable(true);
       }
 
+      const mappings = data ?? [];
       setRows(
-        mappings.map((m) => ({
-          id: m.id,
-          sku: m.sku,
-          external_catalogue_product_id: m.external_catalogue_product_id,
-          central_product_id: m.central_product_id,
-          source_version: m.source_version,
-          sync_status: m.sync_status as CatalogueSyncStatus,
-          last_synced_at: m.last_synced_at,
-          product_name: m.central_product_id ? nameById[m.central_product_id] ?? null : null,
-        })),
+        mappings.map((m) => {
+          const publishedProduct =
+            published && m.central_product_id
+              ? published.byProductId.get(m.central_product_id) ?? null
+              : null;
+          return {
+            id: m.id,
+            sku: m.sku,
+            external_catalogue_product_id: m.external_catalogue_product_id,
+            central_product_id: m.central_product_id,
+            source_version: m.source_version,
+            sync_status: m.sync_status as CatalogueSyncStatus,
+            last_synced_at: m.last_synced_at,
+            product_name: publishedProduct?.productName ?? null,
+            published_operationally: published
+              ? isProductPublishedOperational(published, m.central_product_id)
+              : null,
+          };
+        }),
       );
     } catch (e) {
-      console.error("[AdminCatalogueSyncStatus]", e);
+      console.error("[AdminCatalogueSyncStatus:mappings]", e);
       setRows([]);
+      setPublishedIndex(null);
+      setPublicationUnavailable(false);
     } finally {
       setLoading(false);
     }
@@ -153,6 +173,12 @@ export default function AdminCatalogueSyncStatus() {
 
   return (
     <div className="space-y-4 max-w-6xl">
+      <OperationalReadOnlyBanner
+        warnings={[
+          "Publication status is sourced from Core published_products_v1(). Draft, rejected, or unpublished products never appear in this projection.",
+        ]}
+      />
+
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold tracking-tight flex items-center gap-2">
@@ -160,10 +186,23 @@ export default function AdminCatalogueSyncStatus() {
             Catalogue sync status
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Pilot intake: paste an approved AI Catalogue Builder snapshot (JSON). Central maps to{" "}
-            <code className="text-xs">products</code> — never deletes rows. Webhook/pull comes in a
-            later phase.
+            Pilot intake: paste an approved AI Catalogue Builder snapshot (JSON). Connector sync writes
+            operational master data to <code className="text-xs">products</code>; publication visibility is
+            read from Core <code className="text-xs">published_products_v1()</code> only.
           </p>
+          {publishedIndex && (
+            <p className="text-xs text-muted-foreground mt-1">
+              Published operational projection: {publishedIndex.products.length} product
+              {publishedIndex.products.length === 1 ? "" : "s"} at{" "}
+              {new Date(publishedIndex.loadedAt).toLocaleString()}
+            </p>
+          )}
+          {publicationUnavailable && (
+            <p className="text-xs text-destructive mt-1">
+              Publication projection is currently unavailable. Catalogue mappings are retained; publication
+              state is not inferred locally.
+            </p>
+          )}
         </div>
         <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
@@ -234,7 +273,7 @@ export default function AdminCatalogueSyncStatus() {
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Mappings</CardTitle>
-          <CardDescription>SKU · Central product · builder version · last sync</CardDescription>
+          <CardDescription>SKU · Central product · builder version · publication · last sync</CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -253,6 +292,7 @@ export default function AdminCatalogueSyncStatus() {
                   <TableHead>SKU</TableHead>
                   <TableHead>Central product</TableHead>
                   <TableHead>Source version</TableHead>
+                  <TableHead>Publication</TableHead>
                   <TableHead>Last synced</TableHead>
                   <TableHead>Status</TableHead>
                 </TableRow>
@@ -274,6 +314,19 @@ export default function AdminCatalogueSyncStatus() {
                       )}
                     </TableCell>
                     <TableCell>{row.source_version}</TableCell>
+                    <TableCell>
+                      {row.central_product_id ? (
+                        row.published_operationally === null ? (
+                          <Badge variant="outline">Unavailable</Badge>
+                        ) : (
+                          <Badge variant={row.published_operationally ? "default" : "outline"}>
+                            {row.published_operationally ? "Published" : "Not published"}
+                          </Badge>
+                        )
+                      ) : (
+                        <span className="text-muted-foreground text-sm">—</span>
+                      )}
+                    </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
                       {row.last_synced_at
                         ? new Date(row.last_synced_at).toLocaleString()

@@ -1,0 +1,86 @@
+/**
+ * Fail closed when governed previews hit Vercel deployment protection instead of the app shell.
+ */
+
+export const DEPLOYMENT_PROTECTION_CLASS = "DEPLOYMENT_PROTECTION" as const;
+
+export type AccessWallResult = {
+  blocked: boolean;
+  classification: typeof DEPLOYMENT_PROTECTION_CLASS | null;
+  reason: string;
+};
+
+const VERCEL_WALL_TITLE_PATTERNS = [/login\s*[–-]\s*vercel/i, /^vercel$/i];
+const VERCEL_WALL_URL_PATTERNS = [
+  { hostname: /^vercel\.com$/i, pathname: /^\/(?:login|sso)(?:\/|$)/i },
+  { hostname: /(?:^|\.)vercel\.app$/i, pathname: /^\/_vercel(?:\/|$)/i },
+];
+const VERCEL_WALL_BODY_PATTERNS = [
+  /log in to vercel/i,
+  /deployment protection/i,
+  /this deployment is protected/i,
+  /authenticate to access/i,
+  /vercel authentication/i,
+];
+
+const PROVIDER_APP_MARKERS = [/trace/i, /scan/i, /studio/i, /catalogue/i, /media/i, /oasis/i, /baklawa/i];
+
+export function classifyAccessWallFromSignals(title: string, url: string, bodyText: string): AccessWallResult {
+  const bodyLower = bodyText.toLowerCase();
+  const markers: string[] = [];
+
+  for (const pattern of VERCEL_WALL_TITLE_PATTERNS) {
+    if (pattern.test(title)) {
+      markers.push(`title:${title}`);
+      break;
+    }
+  }
+  let parsedUrl: URL | null = null;
+  try {
+    parsedUrl = new URL(url);
+  } catch {
+    parsedUrl = null;
+  }
+  if (
+    parsedUrl &&
+    VERCEL_WALL_URL_PATTERNS.some(
+      ({ hostname, pathname }) =>
+        hostname.test(parsedUrl.hostname) && pathname.test(parsedUrl.pathname),
+    )
+  ) {
+    markers.push(`url:${parsedUrl.hostname}${parsedUrl.pathname}`);
+  }
+  for (const pattern of VERCEL_WALL_BODY_PATTERNS) {
+    if (pattern.test(bodyLower)) {
+      markers.push(`body:${pattern.source}`);
+      break;
+    }
+  }
+
+  const hasAppMarker = PROVIDER_APP_MARKERS.some((pattern) => pattern.test(`${title} ${bodyLower}`));
+  const urlWall = markers.some((marker) => marker.startsWith("url:"));
+
+  if (urlWall || (markers.length > 0 && !hasAppMarker)) {
+    return {
+      blocked: true,
+      classification: DEPLOYMENT_PROTECTION_CLASS,
+      reason: `Vercel deployment-protection wall detected (${markers.join("; ")})`,
+    };
+  }
+
+  return { blocked: false, classification: null, reason: "" };
+}
+
+
+/**
+ * Classify a navigation URL rejected by the preview-host allowlist.
+ * The caller must never persist the raw rejected URL in evidence.
+ */
+export function classifyBlockedNavigationUrl(
+  url: string,
+): typeof DEPLOYMENT_PROTECTION_CLASS | "NAVIGATION_REDIRECT_BLOCKED" {
+  const wall = classifyAccessWallFromSignals("", url, "");
+  return wall.blocked && wall.classification
+    ? wall.classification
+    : "NAVIGATION_REDIRECT_BLOCKED";
+}

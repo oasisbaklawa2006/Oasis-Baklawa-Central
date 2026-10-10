@@ -1,0 +1,78 @@
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { describe, expect, it } from "vitest";
+import {
+  displayUrlForReport,
+  escapeMarkdownTableCell,
+  readManifestJsonl,
+  resolveProviderPreviewOutputFile,
+  resolveProviderPreviewOutputRoot,
+  writeProviderPreviewReport,
+} from "../../../scripts/lib/provider-preview-report-lib.mjs";
+
+const mergeScriptSource = readFileSync(
+  "scripts/merge-provider-preview-uat-report.mjs",
+  "utf8",
+);
+
+function withTemporaryWorkingDirectory(run: () => void): void {
+  const originalCwd = process.cwd();
+  const tempCwd = mkdtempSync(path.join(tmpdir(), "provider-preview-report-"));
+  try {
+    process.chdir(tempCwd);
+    run();
+  } finally {
+    process.chdir(originalCwd);
+    rmSync(tempCwd, { recursive: true, force: true });
+  }
+}
+
+describe("provider-preview report lib", () => {
+  it("escapes backslashes and pipes for Markdown table cells (CodeQL regression)", () => {
+    expect(escapeMarkdownTableCell("note | pipe")).toBe("note \\| pipe");
+    expect(escapeMarkdownTableCell("back\\slash")).toBe("back\\\\slash");
+    expect(escapeMarkdownTableCell("a\nb")).toBe("a b");
+  });
+
+  it("resolves output files only inside the governed directory", () => {
+    const root = resolveProviderPreviewOutputRoot();
+    const manifest = resolveProviderPreviewOutputFile("UAT_MANIFEST_PROVIDER_PREVIEW.jsonl");
+    expect(manifest.startsWith(`${root}${path.sep}`)).toBe(true);
+    expect(() => resolveProviderPreviewOutputFile("../escape.json")).toThrow(/Disallowed/);
+  });
+
+  it("redacts URL userinfo for report provenance", () => {
+    expect(displayUrlForReport("https://user:secret@host.vercel.app/path?q=1#x")).toBe(
+      "https://host.vercel.app/path",
+    );
+  });
+
+  it("merge script uses shared escape helper (no inline pipe-only replace)", () => {
+    expect(mergeScriptSource).toContain("escapeMarkdownTableCell");
+    expect(mergeScriptSource).not.toMatch(/\.replace\(\/\\\|\/g/);
+  });
+
+  it("writes report only under governed directory", () => {
+    withTemporaryWorkingDirectory(() => {
+      writeProviderPreviewReport("# test\n");
+      expect(
+        readFileSync("test-results/provider-preview-uat/PROVIDER_PREVIEW_UAT_REPORT.md", "utf8"),
+      ).toContain("# test");
+    });
+  });
+
+  it("skips malformed manifest lines without throwing", () => {
+    withTemporaryWorkingDirectory(() => {
+      mkdirSync("test-results/provider-preview-uat", { recursive: true });
+      writeFileSync(
+        "test-results/provider-preview-uat/UAT_MANIFEST_PROVIDER_PREVIEW.jsonl",
+        '{"uatId":"UAT-0122"}\nnot-json\n',
+        "utf8",
+      );
+      const rows = readManifestJsonl();
+      expect(rows.length).toBe(2);
+      expect(rows[1].uatId).toBe("evidence-stream");
+    });
+  });
+});

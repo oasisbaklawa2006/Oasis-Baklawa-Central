@@ -29,8 +29,8 @@ describe("Point 74 — CRM-lite sales assistance (Agent #8 workstation lock)", (
 
   it("writes interactions through governed client_interactions contract", () => {
     expect(interactions).toContain('from("client_interactions").insert');
-    expect(dashboard).toContain('from("client_interactions").insert');
     expect(dashboard).toContain("account_manager_id");
+    expect(dashboard).not.toMatch(/from\(\s*["']client_interactions["']\s*\)\s*\.\s*insert/);
   });
 
   it("links roster clients into the assist workspace", () => {
@@ -50,7 +50,7 @@ describe("Point 74 — CRM-lite sales assistance (Agent #8 workstation lock)", (
     expect(workspace).toContain("setActiveTab(\"assist\")");
     expect(workspace).toContain("assistFocusCompanyId");
     expect(dashboard).toContain("Open assist");
-    expect(dashboard).toContain("setLogCompany(c.id)");
+    expect(dashboard).toContain("setAssistFocusCompanyId(c.id)");
   });
 
   it("does not expand into commission payout mutation (P78 collateral boundary)", () => {

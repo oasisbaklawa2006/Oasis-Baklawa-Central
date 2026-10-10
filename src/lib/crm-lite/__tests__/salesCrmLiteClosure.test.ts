@@ -27,7 +27,8 @@ describe("CRM-lite Lane E closure — Points 74–78", () => {
   it("P75 — exposes repeat-contact queue and crm_tasks writes", () => {
     expect(workspace).toContain("Repeat-contact queue");
     expect(workspace).toContain('from("crm_tasks").insert');
-    expect(workspace).toContain("Create repeat-contact task");
+    expect(workspace).toContain("Create task");
+    expect(workspace).toContain("Repeat-contact task created");
     expect(workspace).toContain('follow_up_date');
   });
 
@@ -42,7 +43,9 @@ describe("CRM-lite Lane E closure — Points 74–78", () => {
   it("P77 — surfaces first-line tickets via order to company linkage", () => {
     expect(workspace).toContain('from("support_tickets")');
     expect(workspace).toContain("order:orders(company_id, order_number)");
-    expect(workspace).toContain("/admin/support");
+    expect(workspace).toContain("SalesSupportEscalationDialog");
+    expect(workspace).toContain("Escalate to support");
+    expect(workspace).not.toContain("/admin/support");
   });
 
   it("P78 — surfaces commission-risk ticket feedback read-only", () => {

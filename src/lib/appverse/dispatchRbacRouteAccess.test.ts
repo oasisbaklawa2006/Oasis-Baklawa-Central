@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { canAccessSecurityGate } from "@/lib/auth/securityGatePolicy";
 import { getAllowedModulesForRole } from "./roleAccess";
-import { getRequiredModuleForAdminPath, isAuthorizedForAdminPath } from "./routeAccess";
+import { getRequiredModuleForAdminPath, getUnauthorizedAdminRedirect, isAuthorizedForAdminPath } from "./routeAccess";
 
 const DISPATCH_ROLES = ["DISPATCH_MANAGER", "DISPATCH_INCHARGE", "DISPATCH_HEAD"] as const;
 
@@ -27,6 +27,9 @@ const FORBIDDEN_ADMIN_ROUTES = [
   "/admin/carton-explorer",
   "/admin/scan-timeline",
   "/admin/order-management",
+  "/admin/central-pool",
+  "/admin/orders",
+  "/admin/cmd-war-room",
   "/admin/packing-dispatch",
   "/admin/dispatch",
   "/admin/target-vs-actual",
@@ -97,6 +100,10 @@ describe("Dispatch RBAC — security gate policy", () => {
   it.each(DISPATCH_ROLES)("denies %s from /security-gate (independent gate release authority)", (role) => {
     expect(canAccessSecurityGate(role)).toBe(false);
   });
+
+  it.each(DISPATCH_ROLES)("denies %s from /security-gate via isAuthorizedForAdminPath", (role) => {
+    expect(isAuthorizedForAdminPath("/security-gate", role)).toBe(false);
+  });
 });
 
 describe("Dispatch RBAC — dashboard fallback fail-closed", () => {
@@ -138,6 +145,10 @@ describe("Dispatch RBAC — UAT-005 finance surface regression", () => {
     "/admin/accounts-release",
   ] as const;
 
+  it.each(DISPATCH_ROLES)("UAT-005: denied finance routes redirect $role to governed dispatch landing", (role) => {
+    expect(getUnauthorizedAdminRedirect(role)).toBe("/admin/dispatch-mgmt");
+  });
+
   it.each(
     DISPATCH_ROLES.flatMap((role) =>
       UAT_005_FORBIDDEN_FINANCE_ROUTES.map((path) => ({ role, path })),
@@ -169,6 +180,12 @@ describe("Dispatch RBAC — commercial Dispatch TV audience", () => {
 
   it.each(DISPATCH_ROLES)("denies %s from commercial Dispatch TV", (role) => {
     expect(isAuthorizedForAdminPath("/admin/dispatch-tv", role)).toBe(false);
+  });
+});
+
+describe("Dispatch RBAC — central order pool hub", () => {
+  it("denies PACKING_SUPERVISOR from the commercial order pool composition hub", () => {
+    expect(isAuthorizedForAdminPath("/admin/central-pool", "PACKING_SUPERVISOR")).toBe(false);
   });
 });
 

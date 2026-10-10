@@ -61,8 +61,7 @@ export function useOperatorInboxObservability(refreshKey: number) {
 
     next.messagesVolumeToday = await safeCount("messages today", async () => {
       const r = await supabase
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .from("whatsapp_messages" as any)
+        .from("whatsapp_messages")
         .select("id", { count: "exact", head: true })
         .gte("created_at", dayStart);
       return { count: r.count, error: r.error as Error | null };
@@ -70,8 +69,7 @@ export function useOperatorInboxObservability(refreshKey: number) {
 
     next.openPacketsPending = await safeCount("open packets", async () => {
       const r = await supabase
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .from("whatsapp_message_packets" as any)
+        .from("whatsapp_message_packets")
         .select("id", { count: "exact", head: true })
         .eq("status", "open");
       return { count: r.count, error: r.error as Error | null };
@@ -79,8 +77,7 @@ export function useOperatorInboxObservability(refreshKey: number) {
 
     next.failedOperatorReplies = await safeCount("failed operator replies", async () => {
       const r = await supabase
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .from("whatsapp_messages" as any)
+        .from("whatsapp_messages")
         .select("id", { count: "exact", head: true })
         .eq("direction", "outbound")
         .eq("provider", "operator_reply")
@@ -90,8 +87,7 @@ export function useOperatorInboxObservability(refreshKey: number) {
 
     try {
       const { data: sampleRows, error: sampleErr } = await supabase
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .from("whatsapp_message_packets" as any)
+        .from("whatsapp_message_packets")
         .select("stitched_content")
         .eq("status", "open")
         .order("last_message_at", { ascending: false })
@@ -114,8 +110,7 @@ export function useOperatorInboxObservability(refreshKey: number) {
 
     try {
       const { data: provRows, error: provErr } = await supabase
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .from("whatsapp_messages" as any)
+        .from("whatsapp_messages")
         .select("provider")
         .gte("created_at", dayStart)
         .limit(2000);

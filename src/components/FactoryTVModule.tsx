@@ -146,7 +146,7 @@ const FactoryTVModule = ({ category, departmentFilter, title }: FactoryTVModuleP
   }
 
   return (
-    <div className="fixed inset-0 bg-gray-900 text-white z-[100] flex flex-col overflow-hidden">
+    <div className="fixed inset-0 bg-gray-900 text-white z-[100] flex flex-col overflow-hidden" data-testid="macro-factory-tv-surface">
       <header className="flex items-center justify-between px-8 py-4 bg-gray-800 border-b-2 border-emerald-500 shrink-0">
         <div className="flex items-center gap-4">
           <Package size={36} className="text-emerald-400" />

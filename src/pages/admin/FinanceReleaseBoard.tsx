@@ -428,7 +428,7 @@ const FinanceReleaseBoard = () => {
   );
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 px-3 sm:px-4">
+    <div className="mx-auto max-w-6xl space-y-6 px-3 sm:px-4" data-testid="macro-finance-release-surface">
       <div>
         <h1 className="font-display text-2xl font-bold text-foreground md:text-3xl">Finance Release Board</h1>
         <p className="mt-1 text-sm text-muted-foreground">

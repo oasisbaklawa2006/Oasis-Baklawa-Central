@@ -4,6 +4,14 @@ import { mapQueueRow, type MappedQueueItem, type QueueItemRow } from "@/lib/pers
 import type { WorkQueueId } from "@/lib/work-queues/queueTypes";
 import type { ListDepartmentQueueItemsFilter, ListOpenQueueItemsFilter } from "./operationalExecutionTypes";
 
+/**
+ * QUARANTINED — Point86: operational_queue_items is a dead projection with no
+ * proven Core writer for department execution workloads. New reads must use
+ * `@/lib/department-queues` canonical Core authority instead. This store remains
+ * only for legacy preview/dev paths until fully retired.
+ */
+export const OPERATIONAL_QUEUE_ITEMS_QUARANTINED = true;
+
 export interface OperationalQueueReadStore {
   getQueueItem(id: string): Promise<MappedQueueItem | null>;
   listOpenQueueItems(filter?: ListOpenQueueItemsFilter): Promise<MappedQueueItem[]>;
@@ -58,7 +66,7 @@ export function createSupabaseOperationalQueueReadStore(client: SupabaseClient):
         .limit(limit);
       const { data: openData, error: openErr } = await openQuery;
       if (openErr) throw new Error(openErr.message);
-      let rows = (openData ?? []) as QueueItemRow[];
+      const rows = (openData ?? []) as QueueItemRow[];
       if (filter.includeCompletedToday) {
         const dayStart = new Date();
         dayStart.setHours(0, 0, 0, 0);

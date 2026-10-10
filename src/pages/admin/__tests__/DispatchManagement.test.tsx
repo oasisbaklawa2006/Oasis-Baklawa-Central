@@ -84,6 +84,7 @@ function makeQuery(table: string) {
   const chain = () => builder;
   builder.select = chain;
   builder.eq = chain;
+  builder.in = chain;
   builder.order = chain;
   builder.limit = chain;
   builder.then = (resolve: (result: { data: unknown; error: { message: string } | null }) => void) => {

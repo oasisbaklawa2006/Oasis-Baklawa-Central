@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { rgsGovernedRpc } from "@/lib/rgsGovernedRpc";
+import { productionGovernedRpc } from "@/lib/production-lifecycle";
 import { toast } from "sonner";
 import { CheckCircle2, ClipboardCheck, Loader2 } from "lucide-react";
 
@@ -95,16 +95,11 @@ export default function DayEndSignoffTab({ department, userId }: Props) {
 
   const submit = async (notes: string, correctsId: string | null) => {
     setSubmitting(true);
-    const { error } = await rgsGovernedRpc.rpc("submit_production_day_end", {
+    const { error } = await productionGovernedRpc.submitDayEnd({
       p_department: department,
-      // A correction must reference the SAME business_date as the record it
-      // corrects (the RPC itself rejects a mismatch) -- use that record's
-      // date directly rather than re-deriving today's date, which would
-      // only coincidentally match.
       p_business_date: correctsId && current ? current.business_date : todayIso(),
       p_exception_notes: notes.trim() || null,
       p_corrects_signoff_id: correctsId,
-      p_correlation_id: crypto.randomUUID(),
     });
     if (error) {
       toast.error(error.message || "Could not submit the day-end signoff");

@@ -3,9 +3,18 @@ import {
   FACTORY_OPERATIONS_ROUTES,
   type FactoryRouteEntry,
 } from "./factoryOperationsRouteRegistry";
-import { getAllowedModulesForRole, hasModuleAccess } from "./appverse/roleAccess";
-import { canAccessGoldenChainOperatorRoute, getRequiredModuleForAdminPath } from "./appverse/routeAccess";
+import { getAllowedModulesForRole, hasModuleAccess, type AppVerseModuleKey } from "./appverse/roleAccess";
+import { getRequiredModuleForAdminPath } from "./appverse/routeModuleAccess";
 import { canAccessThreePgsOperator } from "./threePgsAccess";
+
+const GOLDEN_CHAIN_OPERATOR_MODULE_KEYS: AppVerseModuleKey[] = ["dispatch", "finance", "inventory"];
+
+function canAccessGoldenChainOperatorCertificationRoute(role: string): boolean {
+  const allowedModules = getAllowedModulesForRole(role);
+  return GOLDEN_CHAIN_OPERATOR_MODULE_KEYS.some((moduleKey) =>
+    hasModuleAccess(allowedModules, moduleKey),
+  );
+}
 
 /**
  * Factory certification must reproduce Central's complete route authorization,
@@ -38,7 +47,7 @@ export function isEffectivelyAuthorizedFactoryRole(
   if (!entry.route.startsWith("/admin")) return true;
 
   if (entry.route === "/admin/golden-chain-operator") {
-    return canAccessGoldenChainOperatorRoute(canonicalRole);
+    return canAccessGoldenChainOperatorCertificationRoute(canonicalRole);
   }
 
   const requiredModule = getRequiredModuleForAdminPath(entry.route);

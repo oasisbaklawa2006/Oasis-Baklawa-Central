@@ -1,32 +1,34 @@
 package com.oasisbaklawa.centraltv.net
 
-import android.net.Uri
 import com.oasisbaklawa.centraltv.BuildConfig
+import java.net.URI
 
 /**
- * Second, independent layer enforcing "no arbitrary URL navigation, no
- * external browser launches, HTTPS-only" -- on top of (not instead of)
- * network_security_config.xml's cleartext ban. Every navigation the WebView
- * is about to perform is checked here first; anything that fails is refused
- * in-app rather than handed to an external Activity/browser.
+ * HTTPS-only navigation allowlist for Central and Trace governed TV origins.
  */
 object AllowlistPolicy {
 
-    private val allowedOrigin: Uri by lazy { Uri.parse(BuildConfig.CENTRAL_WEB_ORIGIN) }
+    private val allowedHosts: Set<String> by lazy {
+        setOf(
+            hostOf(BuildConfig.CENTRAL_WEB_ORIGIN),
+            hostOf(BuildConfig.TRACE_WEB_ORIGIN),
+        ).filterNotNull().toSet()
+    }
+
+    internal fun hostOf(origin: String): String? =
+        runCatching { URI(origin.trim()).host?.lowercase() }.getOrNull()
+
+    internal fun isHostAllowed(host: String?, allowed: Set<String> = allowedHosts): Boolean {
+        val normalized = host?.trim()?.lowercase() ?: return false
+        return allowed.contains(normalized)
+    }
 
     fun isNavigationAllowed(url: String?): Boolean {
         if (url.isNullOrBlank()) return false
-        val uri = runCatching { Uri.parse(url) }.getOrNull() ?: return false
+        val uri = runCatching { URI(url.trim()) }.getOrNull() ?: return false
         if (uri.scheme != "https") return false
-        if (uri.host.isNullOrBlank()) return false
-        return uri.host.equals(allowedOrigin.host, ignoreCase = true)
+        return isHostAllowed(uri.host)
     }
 
-    /**
-     * Anything that would leave the WebView -- mailto:, tel:, intent:, a
-     * target=_blank window.open(), a download -- is rejected outright. The TV
-     * has no legitimate reason to hand off to another app; it is a read-only
-     * operational display, not a general browser.
-     */
     fun isExternalHandoffAllowed(): Boolean = false
 }

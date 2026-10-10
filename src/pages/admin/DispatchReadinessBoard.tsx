@@ -207,7 +207,7 @@ export default function DispatchReadinessBoard() {
   };
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 p-4 pb-24">
+    <div className="mx-auto max-w-6xl space-y-6 p-4 pb-24" data-testid="macro-dispatch-readiness-surface">
       <header className="flex flex-wrap items-center gap-2 border-b border-border pb-4">
         <Truck className="h-7 w-7 text-primary" aria-hidden />
         <h1 className="text-xl font-bold tracking-tight">Dispatch readiness</h1>

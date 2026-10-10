@@ -69,7 +69,7 @@ export function OperatorInboxOperationalContextPanel({ packet, events }: Props) 
       </div>
       <p className="mt-2 text-[10px] text-muted-foreground">
         For finance / dispatch / approvals, open{" "}
-        <Link className="font-medium text-primary underline-offset-2 hover:underline" to="/admin/orders">
+        <Link className="font-medium text-primary underline-offset-2 hover:underline" to="/admin/central-pool">
           Orders
         </Link>{" "}
         and use order trace from there.

@@ -66,6 +66,40 @@ select_vercel_authored_success_status() {
   '
 }
 
+# Build the durable dead-target marker for a failed exact-tuple AI-UAT correlation.
+ai_uat_dead_target_marker() {
+  local head="$1" deployment_id="$2"
+  printf 'APPVERSE_CONTROLLER:AI_UAT_DEAD_TARGET:%s:%s' "$head" "$deployment_id"
+}
+
+# Count correlated AI-UAT terminal failures for one exact head+deployment tuple.
+correlated_ai_uat_failure_count() {
+  local runs_json="$1" head="$2" deployment_id="$3" merged_at="$4"
+  local expected_title
+  expected_title="$(expected_ai_uat_run_title "$head" "$deployment_id")"
+  jq -r --arg merged_at "$merged_at" --arg expected_title "$expected_title" '
+    [.[]
+      | select(.created_at > $merged_at)
+      | select(.event == "workflow_dispatch")
+      | select(.head_branch == "main")
+      | select(.display_title == $expected_title)
+      | select(.conclusion == "failure" or .conclusion == "cancelled" or .conclusion == "timed_out" or .conclusion == "action_required")
+    ] | length
+  ' <<<"$runs_json"
+}
+
+# Report whether correlated AI-UAT failures have exhausted retry for one tuple.
+ai_uat_tuple_is_dead() {
+  local failure_count="$1"
+  [[ "$failure_count" -ge 2 ]]
+}
+
+# Report whether the Dispatch PR head is behind current trusted main.
+is_historical_dispatch_head() {
+  local dispatch_head="$1" main_head="$2"
+  [[ -n "$dispatch_head" && -n "$main_head" && "$dispatch_head" != "$main_head" ]]
+}
+
 # Accept an AI-UAT run when its deterministic workflow identity matches exact-head evidence.
 ai_uat_run_matches_title() {
   local run_json="$1" head="$2" deployment_id="$3" merged_at="$4"

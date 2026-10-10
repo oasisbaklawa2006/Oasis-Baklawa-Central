@@ -16,6 +16,11 @@ export type ThreePgsSnapshotLoadResult = {
   error: string | null;
 };
 
+type SalesStockSummary = {
+  available_qty: number;
+  reserved_qty: number;
+};
+
 export async function loadThreePgsCommandCentreSnapshot(): Promise<Snapshot> {
   const [balances, demand, procurement, assembly, receipts] = await Promise.all([
     governedReadDb.from<Balance>("inventory_stock_balances")
@@ -67,6 +72,56 @@ export async function loadThreePgsCommandCentreSnapshot(): Promise<Snapshot> {
     receipts: receiptRows,
     grns: grns.data ?? [],
   };
+}
+
+export async function loadThreePgsSalesSatelliteSnapshot(): Promise<Snapshot> {
+  const [demand, stockSummary] = await Promise.all([
+    governedReadDb.from<PriorityDemand>("b2b_3pgs_sales_satellite_demand")
+      .select("demand_id, demand_reference, demand_source_type, priority_rank, sku, location_code, outstanding_qty")
+      .order("priority_rank", { ascending: true })
+      .limit(100),
+    governedReadDb.from<SalesStockSummary>("b2b_3pgs_sales_satellite_stock_summary")
+      .select("available_qty, reserved_qty")
+      .limit(1),
+  ]);
+
+  const sourceError = [demand, stockSummary].find((result) => result.error !== null)?.error;
+  if (sourceError) throw new Error(sourceError.message);
+
+  const summary = stockSummary.data?.[0];
+  const balances: Balance[] = summary
+    ? [{
+        id: "sales-3pgs-aggregate",
+        sku: "AGGREGATE",
+        location_code: THREE_PGS_STORE_CODE,
+        available_qty: Number(summary.available_qty ?? 0),
+        reserved_qty: Number(summary.reserved_qty ?? 0),
+        picked_qty: 0,
+        damaged_qty: 0,
+        expired_qty: 0,
+        quarantine_qty: 0,
+      }]
+    : [];
+
+  return {
+    balances,
+    demand: demand.data ?? [],
+    procurement: [],
+    assembly: [],
+    receipts: [],
+    grns: [],
+  };
+}
+
+export async function loadThreePgsSalesSatelliteSnapshotSafe(): Promise<ThreePgsSnapshotLoadResult> {
+  try {
+    return { snapshot: await loadThreePgsSalesSatelliteSnapshot(), error: null };
+  } catch (err) {
+    return {
+      snapshot: null,
+      error: err instanceof Error ? err.message : "Failed to load governed Sales 3PGS projection.",
+    };
+  }
 }
 
 export async function loadThreePgsCommandCentreSnapshotSafe(): Promise<ThreePgsSnapshotLoadResult> {

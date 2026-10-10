@@ -1,5 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
 
+/** Must match governed disposable preview bind in factory-certification-ephemeral.yml */
+const DISPOSABLE_CERT_BASE_URL = "http://127.0.0.1:4173";
+
 /**
  * Dedicated Factory Operations certification runner.
  *
@@ -22,6 +25,7 @@ export default defineConfig({
   ],
   use: {
     ...devices["Desktop Chrome"],
+    baseURL: DISPOSABLE_CERT_BASE_URL,
     trace: "off",
     screenshot: "off",
     video: "off",

@@ -1,21 +1,19 @@
 import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { isRealtimeEnabled } from "@/hooks/useRealtime";
-import { removeDuplicateRealtimeChannel } from "@/utils/realtime";
+import { useScopedRealtimeSubscription } from "@/hooks/useScopedRealtimeSubscription";
 
 /**
  * Shared single-subscription hook per table.
- * Prevents memory leaks by deduplicating channels and cleaning up on unmount.
+ * Point23: snapshot-first invalidation via scoped channel; cleans up on unmount.
  */
 export function useStableSubscription(
   tableName: string,
   queryKeys: string[][] = [],
   enabled = true,
-  onChange?: () => void
+  onChange?: () => void,
 ) {
   const queryClient = useQueryClient();
-  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const queryKeysRef = useRef(queryKeys);
   const onChangeRef = useRef(onChange);
 
@@ -24,68 +22,21 @@ export function useStableSubscription(
     onChangeRef.current = onChange;
   }, [queryKeys, onChange]);
 
-  useEffect(() => {
-    if (!enabled || !isRealtimeEnabled) return;
+  const snapshot = async () => {
+    queryKeysRef.current.forEach((key) => {
+      queryClient.invalidateQueries({ queryKey: key });
+    });
+    onChangeRef.current?.();
+  };
 
-    let retries = 0;
-    let retryTimer: ReturnType<typeof setTimeout> | null = null;
-    let cancelled = false;
-    const MAX_RETRIES = 5;
-    const baseChannelName = `stable-${tableName}`;
-
-    const connect = () => {
-      if (cancelled) return;
-      removeDuplicateRealtimeChannel(baseChannelName);
-
-      try {
-        const channel = supabase
-          .channel(baseChannelName)
-          .on(
-            "postgres_changes",
-            { event: "*", schema: "public", table: tableName },
-            () => {
-              queryKeysRef.current.forEach((key) => {
-                queryClient.invalidateQueries({ queryKey: key });
-              });
-              onChangeRef.current?.();
-            }
-          )
-          .subscribe((status) => {
-            if (status === "SUBSCRIBED") {
-              retries = 0;
-            } else if (
-              (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") &&
-              !cancelled &&
-              retries < MAX_RETRIES
-            ) {
-              retries += 1;
-              if (channelRef.current) {
-                void supabase.removeChannel(channelRef.current);
-                channelRef.current = null;
-              }
-              retryTimer = setTimeout(connect, 10000);
-            }
-          });
-
-        channelRef.current = channel;
-      } catch (err) {
-        console.warn(`[useStableSubscription:${tableName}] connect failed`, err);
-        if (!cancelled && retries < MAX_RETRIES) {
-          retries += 1;
-          retryTimer = setTimeout(connect, 10000);
-        }
-      }
-    };
-
-    connect();
-
-    return () => {
-      cancelled = true;
-      if (retryTimer) clearTimeout(retryTimer);
-      if (channelRef.current) {
-        supabase.removeChannel(channelRef.current);
-        channelRef.current = null;
-      }
-    };
-  }, [tableName, enabled, queryClient]);
+  useScopedRealtimeSubscription({
+    domain: "postgres_table",
+    scope: { type: "global_staff", tableName },
+    changes: [{ event: "*", schema: "public", table: tableName }],
+    enabled: enabled && isRealtimeEnabled,
+    mode: "invalidate",
+    snapshot,
+    onDelta: snapshot,
+    pollingFallbackMs: 30_000,
+  });
 }

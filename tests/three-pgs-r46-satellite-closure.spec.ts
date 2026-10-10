@@ -31,6 +31,14 @@ function readAuthRoutingSource(): string {
   return readFileSync(join(ROOT, "src/lib/auth-routing.ts"), "utf8");
 }
 
+function readThreePgsSnapshotLoaderSource(): string {
+  return readFileSync(join(ROOT, "src/lib/threePgsSnapshotLoader.ts"), "utf8");
+}
+
+function readThreePgsSatelliteVisibilitySource(): string {
+  return readFileSync(join(ROOT, "src/pages/admin/ThreePgsSatelliteVisibility.tsx"), "utf8");
+}
+
 const ADMIN_MODULE_GUARD_BRANCHES = [
   {
     pathname: "/admin/3pgs-visibility",
@@ -95,6 +103,30 @@ test.describe("R4.6 3PGS satellite/mobile/TV closure", () => {
     expect(canAccessThreePgsSatelliteSalesRoute("ADMIN")).toBe(false);
     expect(canAccessThreePgsSatelliteSalesRoute("SUPER_ADMIN")).toBe(false);
     expect(canAccessThreePgsSatelliteAdminShell("SALES_EXECUTIVE")).toBe(false);
+  });
+
+  test("uses least-privilege Core projections for the Sales 3PGS route", () => {
+    const loaderSource = readThreePgsSnapshotLoaderSource();
+    const visibilitySource = readThreePgsSatelliteVisibilitySource();
+
+    const salesLoaderStart = loaderSource.indexOf("export async function loadThreePgsSalesSatelliteSnapshot()");
+    const salesLoaderEnd = loaderSource.indexOf("export async function loadThreePgsSalesSatelliteSnapshotSafe()", salesLoaderStart);
+    expect(salesLoaderStart).toBeGreaterThan(-1);
+    expect(salesLoaderEnd).toBeGreaterThan(salesLoaderStart);
+
+    const salesLoader = loaderSource.slice(salesLoaderStart, salesLoaderEnd);
+    expect(salesLoader).toContain('"b2b_3pgs_sales_satellite_demand"');
+    expect(salesLoader).toContain('"b2b_3pgs_sales_satellite_stock_summary"');
+    expect(salesLoader).not.toContain('"b2b_procurement_requirements"');
+    expect(salesLoader).not.toContain('"b2b_assembly_3pgs_requirements"');
+    expect(salesLoader).not.toContain('"b2b_inventory_receipts"');
+    expect(salesLoader).not.toContain('"b2b_inventory_grns"');
+    expect(salesLoader).not.toContain('"inventory_reservations"');
+    expect(salesLoader).not.toContain('"inventory_stock_balances"');
+
+    expect(visibilitySource).toMatch(
+      /audience\s*===\s*"b2b"[\s\S]*loadThreePgsSalesSatelliteSnapshotSafe\(\)[\s\S]*loadThreePgsCommandCentreSnapshotSafe\(\)/,
+    );
   });
 
   test("registers the kiosk 3PGS TV route for the dedicated TV audience", () => {

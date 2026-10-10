@@ -99,9 +99,14 @@ describe("PF-6B Central credit, wallet and exposure authority contract", () => {
     expect(releaseBoard).not.toContain("updateOrderFinanceVerification");
     expect(releaseBoard).not.toContain("Approve Credit");
     const salesDashboard = source("pages/sales/SalesDashboard.tsx");
+    const salesPerformanceHub = source("pages/admin/SalesPerformanceHub.tsx");
     expect(salesDashboard).toContain("getWalletBalance");
     expect(salesDashboard).toContain('wallet_balance: null');
     expect(salesDashboard).not.toContain("wallet_balance || 0");
+    expect(salesPerformanceHub).toContain("getWalletBalance");
+    expect(salesPerformanceHub).not.toContain("wallet_balance, account_manager_id");
+    expect(salesPerformanceHub).not.toContain("wallet_balance || 0");
+    expect(salesPerformanceHub).toContain('"Unavailable"');
 
     expect(accounts).toContain("loadGovernedFinanceExitProjection");
     expect(accounts).toContain("facts?.settlement");

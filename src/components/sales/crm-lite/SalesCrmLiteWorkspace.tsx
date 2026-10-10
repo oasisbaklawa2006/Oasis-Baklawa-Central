@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
-import { format } from "date-fns";
+import { format, addDays, parseISO } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,29 +9,33 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2, AlertCircle, Bell, Star, ExternalLink } from "lucide-react";
+import { Loader2, AlertCircle, Bell, Star } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import SalesCrmAssistPanel from "@/components/sales/crm-lite/SalesCrmAssistPanel";
 import CreditRequestModal from "@/components/CreditRequestModal";
 import { resolveCreditBinding } from "@/lib/order-authority/creditWalletAuthorityClient";
 import { parseCrmLiteTickets } from "@/lib/crm-lite/parseCrmLiteTickets";
 import type { CrmLiteCompany, CrmLiteInteraction, CrmLiteTask, CrmLiteTicket, GovernedCreditOrder } from "@/lib/crm-lite/salesCrmLiteTypes";
+import SalesSupportEscalationDialog from "@/components/sales/crm-lite/SalesSupportEscalationDialog";
 
 interface Props {
   userId: string;
   companies: CrmLiteCompany[];
   assistFocusCompanyId?: string | null;
+  initialTab?: string;
 }
 
 const todayIso = () => format(new Date(), "yyyy-MM-dd");
 
-export default function SalesCrmLiteWorkspace({ userId, companies, assistFocusCompanyId }: Props) {
+export default function SalesCrmLiteWorkspace({ userId, companies, assistFocusCompanyId, initialTab }: Props) {
   const companyIds = useMemo(() => companies.map((c) => c.id), [companies]);
   const companyMap = useMemo(() => Object.fromEntries(companies.map((c) => [c.id, c.business_name || "Unknown"])), [companies]);
 
   const [activeTab, setActiveTab] = useState("assist");
 
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [supportDialogOpen, setSupportDialogOpen] = useState(false);
   const [dueFollowUps, setDueFollowUps] = useState<CrmLiteInteraction[]>([]);
   const [tasks, setTasks] = useState<CrmLiteTask[]>([]);
   const [tickets, setTickets] = useState<CrmLiteTicket[]>([]);
@@ -58,6 +61,7 @@ export default function SalesCrmLiteWorkspace({ userId, companies, assistFocusCo
       return;
     }
     setLoading(true);
+    setLoadError(null);
     const today = todayIso();
 
     const [followUpRes, taskRes, orderRes] = await Promise.all([
@@ -83,6 +87,17 @@ export default function SalesCrmLiteWorkspace({ userId, companies, assistFocusCo
         .order("created_at", { ascending: false })
         .limit(40),
     ]);
+
+    if (followUpRes.error || taskRes.error || orderRes.error) {
+      setLoadError(
+        followUpRes.error?.message
+          || taskRes.error?.message
+          || orderRes.error?.message
+          || "Could not load CRM workspace data.",
+      );
+      setLoading(false);
+      return;
+    }
 
     setDueFollowUps((followUpRes.data as CrmLiteInteraction[]) ?? []);
     setTasks((taskRes.data as CrmLiteTask[]) ?? []);
@@ -130,6 +145,12 @@ export default function SalesCrmLiteWorkspace({ userId, companies, assistFocusCo
     }
   }, [assistFocusCompanyId]);
 
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
+
   const pendingTasks = tasks.filter((t) => t.status === "pending");
   const overdueTasks = pendingTasks.filter((t) => t.due_date < todayIso());
   const openTickets = tickets.filter((t) => t.status !== "resolved");
@@ -175,7 +196,7 @@ export default function SalesCrmLiteWorkspace({ userId, companies, assistFocusCo
 
   const handleCreateTaskFromFollowUp = async (interaction: CrmLiteInteraction) => {
     if (!interaction.company_id || !interaction.follow_up_date) return;
-    const { error } = await supabase.from("crm_tasks").insert({
+    const { error: taskError } = await supabase.from("crm_tasks").insert({
       company_id: interaction.company_id,
       sales_exec_id: userId,
       task_type: "repeat_contact",
@@ -183,11 +204,49 @@ export default function SalesCrmLiteWorkspace({ userId, companies, assistFocusCo
       due_date: interaction.follow_up_date,
       description: interaction.notes ? `Repeat contact: ${interaction.notes}` : "Repeat contact from CRM follow-up",
     });
-    if (error) {
-      toast({ title: "Task not created", description: error.message, variant: "destructive" });
+    if (taskError) {
+      toast({ title: "Task not created", description: taskError.message, variant: "destructive" });
       return;
     }
-    toast({ title: "Repeat-contact task created" });
+    const { error: clearError } = await supabase
+      .from("client_interactions")
+      .update({ follow_up_date: null })
+      .eq("id", interaction.id);
+    if (clearError) {
+      toast({
+        title: "Task created; follow-up not cleared",
+        description: clearError.message,
+        variant: "destructive",
+      });
+    } else {
+      toast({ title: "Repeat-contact task created" });
+    }
+    void refresh();
+  };
+
+  const handleSnoozeFollowUp = async (interaction: CrmLiteInteraction, days = 7) => {
+    if (!interaction.follow_up_date) return;
+    const nextDate = format(addDays(parseISO(interaction.follow_up_date), days), "yyyy-MM-dd");
+    const { error } = await supabase
+      .from("client_interactions")
+      .update({ follow_up_date: nextDate })
+      .eq("id", interaction.id);
+    if (error) {
+      toast({ title: "Snooze failed", description: error.message, variant: "destructive" });
+      return;
+    }
+    void refresh();
+  };
+
+  const handleDismissFollowUp = async (interaction: CrmLiteInteraction) => {
+    const { error } = await supabase
+      .from("client_interactions")
+      .update({ follow_up_date: null })
+      .eq("id", interaction.id);
+    if (error) {
+      toast({ title: "Could not dismiss follow-up", description: error.message, variant: "destructive" });
+      return;
+    }
     void refresh();
   };
 
@@ -217,6 +276,11 @@ export default function SalesCrmLiteWorkspace({ userId, companies, assistFocusCo
     return tier.replace(/_/g, " ");
   };
 
+  const supportOrderOptions = creditOrders.map((order) => ({
+    orderId: order.id,
+    orderNumber: order.order_number,
+  }));
+
   if (loading && companyIds.length > 0) {
     return (
       <Card>
@@ -237,6 +301,12 @@ export default function SalesCrmLiteWorkspace({ userId, companies, assistFocusCo
           </p>
         </CardHeader>
         <CardContent>
+          {loadError ? (
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm">
+              <p className="text-destructive">{loadError}</p>
+              <Button size="sm" variant="outline" onClick={() => void refresh()}>Retry</Button>
+            </div>
+          ) : null}
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="flex h-auto flex-wrap gap-1">
               <TabsTrigger value="assist">Assist</TabsTrigger>
@@ -281,9 +351,17 @@ export default function SalesCrmLiteWorkspace({ userId, companies, assistFocusCo
                           Due {item.follow_up_date ? format(new Date(item.follow_up_date), "dd MMM yyyy") : "—"}
                         </p>
                       </div>
-                      <Button size="sm" variant="outline" onClick={() => void handleCreateTaskFromFollowUp(item)}>
-                        Create repeat-contact task
-                      </Button>
+                      <div className="flex flex-wrap gap-2">
+                        <Button size="sm" variant="outline" onClick={() => void handleCreateTaskFromFollowUp(item)}>
+                          Create task
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => void handleSnoozeFollowUp(item)}>
+                          Snooze 7d
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => void handleDismissFollowUp(item)}>
+                          Mark done
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -309,6 +387,7 @@ export default function SalesCrmLiteWorkspace({ userId, companies, assistFocusCo
                       <SelectItem value="follow_up">Follow-up</SelectItem>
                       <SelectItem value="repeat_contact">Repeat contact</SelectItem>
                       <SelectItem value="sample">Sample</SelectItem>
+                      <SelectItem value="sample_request">Sample request</SelectItem>
                       <SelectItem value="opportunity">Opportunity</SelectItem>
                     </SelectContent>
                   </Select>
@@ -410,12 +489,18 @@ export default function SalesCrmLiteWorkspace({ userId, companies, assistFocusCo
             </TabsContent>
 
             <TabsContent value="tickets" className="mt-4 space-y-3">
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-xs text-muted-foreground">
-                  First-line view of support tickets on your roster orders (via order → company linkage).
+                  Support tickets on your roster orders. Escalate new issues without admin queue access.
                 </p>
-                <Button asChild size="sm" variant="outline" className="gap-1 text-xs">
-                  <Link to="/admin/support"><ExternalLink size={12} /> Full support queue</Link>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1 text-xs"
+                  disabled={supportOrderOptions.length === 0}
+                  onClick={() => setSupportDialogOpen(true)}
+                >
+                  Escalate to support
                 </Button>
               </div>
               {openTickets.length === 0 ? (
@@ -516,6 +601,12 @@ export default function SalesCrmLiteWorkspace({ userId, companies, assistFocusCo
         orderId={creditOrderId}
         proformaInvoiceId={creditPiId}
         commercialVersionId={creditCommercialVersionId}
+      />
+      <SalesSupportEscalationDialog
+        open={supportDialogOpen}
+        onOpenChange={setSupportDialogOpen}
+        orders={supportOrderOptions}
+        onSubmitted={() => void refresh()}
       />
     </>
   );

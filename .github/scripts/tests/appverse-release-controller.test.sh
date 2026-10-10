@@ -128,6 +128,29 @@ assert_eq "$marker" \
   "APPVERSE_CONTROLLER:AI_UAT_CORRELATION:${head}:${deployment_id}:${target}" \
   "durable correlation marker shape"
 
+dead_marker="$(ai_uat_dead_target_marker "$head" "$deployment_id")"
+assert_eq "$dead_marker" \
+  "APPVERSE_CONTROLLER:AI_UAT_DEAD_TARGET:${head}:${deployment_id}" \
+  "dead-target marker shape"
+
+failed_run="$(jq -n \
+  --arg title "$title" \
+  --arg created "2026-01-02T00:00:00Z" \
+  '{event:"workflow_dispatch",head_branch:"main",display_title:$title,created_at:$created,conclusion:"failure"}')"
+runs_one_failure="$(jq -n --argjson run "$failed_run" '[$run]')"
+runs_two_failures="$(jq -n --argjson run "$failed_run" '[$run,$run]')"
+
+assert_eq "$(correlated_ai_uat_failure_count "$runs_one_failure" "$head" "$deployment_id" "$merged_at")" \
+  "1" \
+  "one correlated AI-UAT failure is counted"
+assert_eq "$(correlated_ai_uat_failure_count "$runs_two_failures" "$head" "$deployment_id" "$merged_at")" \
+  "2" \
+  "repeated correlated AI-UAT failures are counted"
+assert_fail "single failure is not terminal" ai_uat_tuple_is_dead 1
+assert_pass "two failures make tuple dead" ai_uat_tuple_is_dead 2
+assert_pass "historical dispatch head is stale" is_historical_dispatch_head "$head" "def4567890def4567890def4567890def4567890"
+assert_fail "current dispatch head is not stale" is_historical_dispatch_head "$head" "$head"
+
 # 5) URL normalization accepts the real Vercel team hostname shape and rejects
 # lookalikes. Vercel separates the deployment slug from the team slug with a
 # hyphen, not a DNS label boundary.

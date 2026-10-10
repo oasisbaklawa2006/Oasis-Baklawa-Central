@@ -1,14 +1,17 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { Link, MemoryRouter, Route, Routes } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { createMemoryRouter, Link, RouterProvider } from "react-router-dom";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import AdminRouteGuard from "../AdminRouteGuard";
 
+let mockAuthState = {
+  user: { id: "dispatch-test-user" } as { id: string } | null,
+  role: "DISPATCH_MANAGER" as string | null,
+  loading: false,
+  profileReady: true,
+};
+
 vi.mock("@/hooks/useAuth", () => ({
-  useAuth: () => ({
-    user: { id: "dispatch-test-user" },
-    role: "DISPATCH_MANAGER",
-    loading: false,
-  }),
+  useAuth: () => mockAuthState,
 }));
 
 vi.mock("@/integrations/supabase/client", () => ({
@@ -23,39 +26,105 @@ vi.mock("sonner", () => ({
   toast: { error: vi.fn() },
 }));
 
-function GuardedRoutes() {
-  return (
-    <AdminRouteGuard>
-      <Routes>
-        <Route path="/admin/finance" element={<div>Finance secret</div>} />
-        <Route
-          path="/admin/dispatch-mgmt"
-          element={
+/** Mount AdminRouteGuard at a given admin path and return the memory router for location assertions. */
+function renderGuardAt(initialPath: string) {
+  const router = createMemoryRouter(
+    [
+      {
+        path: "/admin/finance",
+        element: (
+          <AdminRouteGuard>
+            <div>Finance secret</div>
+          </AdminRouteGuard>
+        ),
+      },
+      {
+        path: "/admin/dispatch-mgmt",
+        element: (
+          <AdminRouteGuard>
             <div>
               <span>Dispatch landing</span>
               <Link to="/admin/finance">Try Finance again</Link>
             </div>
-          }
-        />
-      </Routes>
-    </AdminRouteGuard>
+          </AdminRouteGuard>
+        ),
+      },
+    ],
+    { initialEntries: [initialPath], initialIndex: 0 },
   );
+
+  render(<RouterProvider router={router} />);
+  return router;
 }
+
+beforeEach(() => {
+  mockAuthState = {
+    user: { id: "dispatch-test-user" },
+    role: "DISPATCH_MANAGER",
+    loading: false,
+    profileReady: true,
+  };
+});
 
 describe("AdminRouteGuard repeated forbidden-route enforcement", () => {
   it("never renders Finance and redirects repeated attempts back to the Dispatch destination", async () => {
-    render(
-      <MemoryRouter initialEntries={["/admin/finance"]}>
-        <GuardedRoutes />
-      </MemoryRouter>,
-    );
+    const router = renderGuardAt("/admin/finance");
 
     expect(screen.queryByText("Finance secret")).toBeNull();
-    expect(await screen.findByText("Dispatch landing")).toBeTruthy();
+    await waitFor(() => {
+      expect(screen.getByText("Dispatch landing")).toBeTruthy();
+    });
+    expect(router.state.location.pathname).toBe("/admin/dispatch-mgmt");
 
     fireEvent.click(screen.getByRole("link", { name: "Try Finance again" }));
 
     expect(screen.queryByText("Finance secret")).toBeNull();
-    expect(await screen.findByText("Dispatch landing")).toBeTruthy();
+    await waitFor(() => {
+      expect(screen.getByText("Dispatch landing")).toBeTruthy();
+    });
+    expect(router.state.location.pathname).toBe("/admin/dispatch-mgmt");
+  });
+});
+
+describe("AdminRouteGuard synchronous denial", () => {
+  it("uses render-time Navigate instead of leaving the forbidden route mounted", async () => {
+    const router = renderGuardAt("/admin/finance");
+
+    expect(screen.queryByText("Finance secret")).toBeNull();
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe("/admin/dispatch-mgmt");
+    });
+  });
+});
+
+describe("AdminRouteGuard hydration fail-closed (UAT-005)", () => {
+  it("redirects DISPATCH_MANAGER off /admin/finance before profileReady settles when cached role is known", async () => {
+    mockAuthState = {
+      user: { id: "dispatch-test-user" },
+      role: "DISPATCH_MANAGER",
+      loading: false,
+      profileReady: false,
+    };
+
+    const router = renderGuardAt("/admin/finance");
+
+    expect(screen.queryByText("Finance secret")).toBeNull();
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe("/admin/dispatch-mgmt");
+    });
+  });
+
+  it("keeps forbidden finance content suppressed while role is unknown during hydration", () => {
+    mockAuthState = {
+      user: { id: "dispatch-test-user" },
+      role: null,
+      loading: false,
+      profileReady: false,
+    };
+
+    const router = renderGuardAt("/admin/finance");
+
+    expect(screen.queryByText("Finance secret")).toBeNull();
+    expect(router.state.location.pathname).toBe("/admin/finance");
   });
 });

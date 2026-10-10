@@ -13,7 +13,7 @@ export interface DepartmentBoardConfig {
   id: DepartmentBoardId;
   title: string;
   route: string;
-  /** Admin module guard key — must exist in adminModuleAccess. */
+  /** Admin module guard key — must exist in roleAccess ROLE_MODULE_ACCESS. */
   moduleKey: string;
   queueTypes: WorkQueueId[];
   ownerDepartment: string;

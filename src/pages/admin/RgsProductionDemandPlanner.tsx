@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Factory, PlusCircle, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import { productionGovernedRpc } from "@/lib/production-lifecycle";
 import { rgsGovernedRpc } from "@/lib/rgsGovernedRpc";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -159,11 +160,10 @@ export default function RgsProductionDemandPlanner() {
     let routed = 0;
     let failed = 0;
     for (const reservationId of demand.reservationIds) {
-      const { error: rpcError } = await rgsGovernedRpc.rpc("create_production_shortage_demand", {
+      const { error: rpcError } = await productionGovernedRpc.createShortageDemand({
         p_reservation_id: reservationId,
         p_department: demand.department,
         p_priority: "normal",
-        p_correlation_id: crypto.randomUUID(),
       });
       if (rpcError) failed += 1; else routed += 1;
     }

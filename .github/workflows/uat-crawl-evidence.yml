@@ -1,0 +1,74 @@
+name: UAT Crawl Evidence (authenticated)
+
+# Default-branch dispatch registration only — enables GitHub "Run workflow" UI
+# for the canonical #462 evidence pipeline on cursor/physical-uat-readiness-matrix-e763.
+#
+# Do NOT execute UAT evidence collection from main. When dispatching:
+# Actions → UAT Crawl Evidence (authenticated) → Run workflow
+# → branch: cursor/physical-uat-readiness-matrix-e763
+# → run_tranche: watchdog-continue (or other evidence-branch tranche)
+# → target_url: blank (optional)
+#
+# Selecting the evidence branch runs that branch's full workflow definition.
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_url:
+        description: "Optional override — defaults to TEST_PREVIEW_URL secret (must be *.vercel.app or localhost)"
+        required: false
+        type: string
+      run_tranche:
+        description: "Crawl tranche: post-fix-483 (UAT-0018/0020), auth-rerun (0002–0020 minus buyer sheet), tranche-03 (0021–0030), or combined"
+        required: true
+        default: post-fix-483
+        type: choice
+        options:
+          - post-fix-483
+          - auth-rerun
+          - tranche-03
+          - both
+          - buyer-mobile
+          - ai-uat
+          - post-merge-proofs
+          - public-continuation
+          - s2-gap-deepening
+          - post-merge-497-main
+          - watchdog-continue
+          - current-main-rebaseline
+          - credential-prefix-unblock
+          - all
+
+permissions:
+  contents: read
+
+concurrency:
+  group: uat-crawl-evidence-registration
+  cancel-in-progress: false
+
+jobs:
+  refuse-main-execution:
+    name: Refuse main-branch UAT evidence execution
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Fail closed — select evidence branch to execute UAT crawl
+        shell: bash
+        env:
+          DISPATCH_REF: ${{ github.ref }}
+          DISPATCH_EVENT: ${{ github.event_name }}
+          REQUESTED_TRANCHE: ${{ github.event.inputs.run_tranche }}
+        run: |
+          set -euo pipefail
+          if [[ "$DISPATCH_EVENT" != "workflow_dispatch" ]]; then
+            echo "::error::This main-branch file registers manual dispatch only. It does not support push or other triggers."
+            exit 1
+          fi
+          if [[ "$DISPATCH_REF" == "refs/heads/main" ]]; then
+            echo "::error::Main is not an evidence execution lane."
+            echo "::error::In Actions → UAT Crawl Evidence (authenticated) → Run workflow, select branch cursor/physical-uat-readiness-matrix-e763."
+            echo "::error::Requested tranche (not executed on main): ${REQUESTED_TRANCHE:-<none>}"
+            exit 1
+          fi
+          echo "::error::Unexpected ref $DISPATCH_REF — evidence execution must use cursor/physical-uat-readiness-matrix-e763."
+          exit 1

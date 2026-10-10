@@ -1,31 +1,26 @@
 import { useEffect, useRef } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-import { isAuthorizedForAdminPath } from "@/lib/appverse/routeAccess";
-import { getRoleDestination } from "@/lib/auth-routing";
+import {
+  getUnauthorizedAdminRedirect,
+  isAuthorizedForAdminPath,
+} from "@/lib/appverse/routeAccess";
 
-function getUnauthorizedRedirect(role: string | null | undefined): string {
-  const normalizedRole = role?.trim().toUpperCase();
-  if (normalizedRole === "SALES_EXECUTIVE") return "/sales/dashboard";
-  const destination = getRoleDestination(role);
-  return destination === "/customer-app-redirect" ? "/admin" : destination;
-}
-
+/** Enforce admin-route RBAC after profile hydration; deny with render-time redirect. */
 export default function AdminRouteGuard({ children }: { children: React.ReactNode }) {
-  const { user, role, loading: authLoading } = useAuth();
+  const { user, role, loading: authLoading, profileReady } = useAuth();
   const location = useLocation();
-  const navigate = useNavigate();
   const lastLoggedViolation = useRef<string | null>(null);
 
   const enforce = Boolean(user && location.pathname.startsWith("/admin"));
+  const roleReady = !enforce || profileReady;
   const authorized = !enforce || isAuthorizedForAdminPath(location.pathname, role);
 
   useEffect(() => {
-    if (!enforce || authLoading) return;
-    if (authorized) {
-      lastLoggedViolation.current = null;
+    if (!enforce || authLoading || !profileReady || authorized) {
+      if (authorized) lastLoggedViolation.current = null;
       return;
     }
 
@@ -43,13 +38,18 @@ export default function AdminRouteGuard({ children }: { children: React.ReactNod
       });
       toast.error("Security Violation — Unauthorized admin access blocked.");
     }
+  }, [enforce, authorized, authLoading, profileReady, user, role, location.pathname]);
 
-    // Redirect on every blocked render. Audit de-duplication must never suppress
-    // enforcement if the same forbidden route is attempted again later.
-    navigate(getUnauthorizedRedirect(role), { replace: true });
-  }, [enforce, authorized, authLoading, user, role, location.pathname, navigate]);
-
-  if (authLoading && enforce) return null;
-  if (!authorized) return null;
+  if ((authLoading || !roleReady) && enforce) {
+    // Cached/stale role may already prove the path is forbidden before profileReady
+    // settles; redirect immediately so direct-route probes do not remain on finance.
+    if (role && !authorized) {
+      return <Navigate to={getUnauthorizedAdminRedirect(role)} replace />;
+    }
+    return null;
+  }
+  if (!authorized && enforce) {
+    return <Navigate to={getUnauthorizedAdminRedirect(role)} replace />;
+  }
   return <>{children}</>;
 }

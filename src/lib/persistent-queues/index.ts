@@ -13,3 +13,4 @@ export {
 } from "./persistentQueueRepository";
 export * from "./supabasePersistentQueueRepository";
 export * from "./inMemoryQueueStore";
+export * from "./queueFailureBridge";

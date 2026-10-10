@@ -14,6 +14,8 @@ import {
   RefreshCw,
 } from "lucide-react";
 import TopNavBar from "@/components/TopNavBar";
+import { assertNotShadowWrite } from "@/lib/exception-governance";
+import { blockLegacyPartialSplitMutation } from "@/lib/order-partial-fulfilment";
 
 const DEPARTMENTS = ["Baklawa", "Chocolate", "Laddu", "Bakery", "Hampers", "Packaging Store"];
 
@@ -55,6 +57,12 @@ interface InventoryItem {
   stock: number;
 }
 
+interface ProductWithFactoryInventory {
+  id: string;
+  name: string;
+  factory_inventory: { quantity: number | null }[] | null;
+}
+
 const AdminOperations = () => {
   const [activeTab, setActiveTab] = useState<"routing" | "store">("routing");
 
@@ -64,7 +72,6 @@ const AdminOperations = () => {
   /** Orders finance has cleared but status is still submitted/approved (upstream of this queue). */
   const [financeReadyCount, setFinanceReadyCount] = useState<number | null>(null);
   const [packedReadyCount, setPackedReadyCount] = useState<number | null>(null);
-  const [splittingOrder, setSplittingOrder] = useState<string | null>(null);
 
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [adjustingProduct, setAdjustingProduct] = useState<InventoryItem | null>(null);
@@ -118,12 +125,12 @@ const AdminOperations = () => {
     setFinanceReadyCount(readyCountRes.error ? null : readyCountRes.count ?? 0);
     setPackedReadyCount(packedCountRes.error ? null : packedCountRes.count ?? 0);
 
-    const { data: productData } = await (supabase as any)
+    const { data: productData } = await supabase
       .from("products")
-      .select(`id, name, factory_inventory ( quantity )`);
+      .select("id, name, factory_inventory ( quantity )");
 
     if (productData) {
-      const formattedInventory = productData.map((p: any) => ({
+      const formattedInventory = (productData as ProductWithFactoryInventory[]).map((p) => ({
         id: p.id,
         name: p.name,
         stock: p.factory_inventory?.[0]?.quantity || 0,
@@ -139,64 +146,11 @@ const AdminOperations = () => {
     void fetchOpsData();
   }, []);
 
-  const handleSmartSplit = async (order: OpsOrder) => {
-    setSplittingOrder(order.id);
-    try {
-      let itemsOptimized = 0;
-      for (const item of order.order_items || []) {
-        if (item.production_status === "completed" || !item.product_id) continue;
-
-        const invItem = inventory.find((i) => i.id === item.product_id);
-        if (!invItem || invItem.stock <= 0) continue;
-
-        const allocateQty = Math.min(invItem.stock, item.quantity);
-        const newStockLevel = invItem.stock - allocateQty;
-        const remainingQtyToBake = item.quantity - allocateQty;
-
-        await (supabase as any)
-          .from("factory_inventory")
-          .update({ quantity: newStockLevel })
-          .eq("product_id", item.product_id);
-
-        await (supabase as any).from("inventory_adjustments").insert({
-          product_id: item.product_id,
-          adjustment_type: "smart_fulfillment",
-          quantity: -allocateQty,
-          notes: `Auto-fulfilled for Order #${order.id.split("-")[0].toUpperCase()}`,
-        });
-
-        if (remainingQtyToBake === 0) {
-          await supabase
-            .from("order_items")
-            .update({ production_status: "completed", department: "Ready Goods Store" })
-            .eq("id", item.id);
-        } else {
-          await supabase.from("order_items").update({ quantity: remainingQtyToBake }).eq("id", item.id);
-
-          await supabase.from("order_items").insert({
-            order_id: order.id,
-            product_id: item.product_id,
-            quantity: allocateQty,
-            pack_size: item.pack_size,
-            carton_type: item.carton_type,
-            department: "Ready Goods Store",
-            production_status: "completed",
-            task_type: item.task_type,
-          });
-        }
-        itemsOptimized++;
-      }
-
-      if (itemsOptimized > 0) {
-        toast.success(`Smart Split complete! Pulled from Ready Goods.`, { icon: "✨" });
-        await fetchOpsData({ silent: true });
-      } else {
-        toast.info("No items could be fulfilled from current stock.");
-      }
-    } catch (error) {
-      toast.error("Error during Smart Split.");
-    }
-    setSplittingOrder(null);
+  const handleLegacyPartialSplitBlocked = (order: OpsOrder) => {
+    const block = blockLegacyPartialSplitMutation("AdminOperations.autoFillFromReadyGoods");
+    toast.error(block.message, {
+      description: `Order ${order.id.slice(0, 8).toUpperCase()} — use governed reservation and production release workflows.`,
+    });
   };
 
   const handleAssignDepartment = async (itemId: string, department: string) => {
@@ -214,6 +168,18 @@ const AdminOperations = () => {
 
   const handleAdjustStock = async () => {
     if (!adjustingProduct || adjustAmount === "" || Number(adjustAmount) <= 0) return;
+    if (adjustReason === "wastage" || adjustReason === "damage") {
+      try {
+        assertNotShadowWrite("factory_inventory", `${adjustReason} adjustment blocked`);
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Wastage and damage must be recorded through governed production or inventory exception surfaces.",
+        );
+        return;
+      }
+    }
     setIsSubmitting(true);
     const amount = Number(adjustAmount);
     const isDeduction = adjustReason === "wastage" || adjustReason === "damage";
@@ -227,24 +193,24 @@ const AdminOperations = () => {
     }
 
     try {
-      const { data: existingStock } = await (supabase as any)
+      const { data: existingStock } = await supabase
         .from("factory_inventory")
         .select("id")
         .eq("product_id", adjustingProduct.id)
         .single();
 
       if (existingStock) {
-        await (supabase as any)
+        await supabase
           .from("factory_inventory")
           .update({ quantity: newStockLevel, last_updated: new Date().toISOString() })
           .eq("product_id", adjustingProduct.id);
       } else {
-        await (supabase as any)
+        await supabase
           .from("factory_inventory")
           .insert({ product_id: adjustingProduct.id, quantity: newStockLevel });
       }
 
-      await (supabase as any).from("inventory_adjustments").insert({
+      await supabase.from("inventory_adjustments").insert({
         product_id: adjustingProduct.id,
         adjustment_type: adjustReason,
         quantity: amount,
@@ -266,7 +232,7 @@ const AdminOperations = () => {
     if (!taskProduct || !taskDept || !taskQty) return;
     setIsSubmitting(true);
     try {
-      const { data: orderData, error: orderError } = await (supabase as any)
+      const { data: orderData, error: orderError } = await supabase
         .from("orders")
         .insert({ status: "in_production", sales_order_value: 0 })
         .select("id")
@@ -274,7 +240,7 @@ const AdminOperations = () => {
 
       if (orderError) throw orderError;
 
-      const { error: itemError } = await (supabase as any).from("order_items").insert({
+      const { error: itemError } = await supabase.from("order_items").insert({
         order_id: orderData.id,
         product_id: taskProduct,
         quantity: taskQty,
@@ -444,16 +410,11 @@ const AdminOperations = () => {
                       <div className="flex items-center gap-3">
                         {canBeOptimized && (
                           <button
-                            onClick={() => handleSmartSplit(order)}
-                            disabled={splittingOrder === order.id}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 rounded-lg text-xs font-bold transition-all disabled:opacity-50"
+                            onClick={() => handleLegacyPartialSplitBlocked(order)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 rounded-lg text-xs font-bold transition-all"
+                            title="Partial fulfilment requires governed Core authority (Point 76)"
                           >
-                            {splittingOrder === order.id ? (
-                              <Loader2 size={14} className="animate-spin" />
-                            ) : (
-                              <Wand2 size={14} />
-                            )}{" "}
-                            Auto-Fill
+                            <Wand2 size={14} /> Auto-Fill (governed)
                           </button>
                         )}
                         {!isInternalTask && (

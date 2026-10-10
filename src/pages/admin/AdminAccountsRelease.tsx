@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { FileText, Loader2, LockKeyhole, ReceiptText, RefreshCw, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -64,6 +65,8 @@ function stage(facts: FinanceExitFacts | null, finalPaymentPi: FinalPaymentPiFac
 
 const AdminAccountsRelease = () => {
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
+  const focusOrderId = searchParams.get("orderId")?.trim() || null;
   const [orders, setOrders] = useState<FinanceOrder[]>([]);
   const [selected, setSelected] = useState<FinanceOrder | null>(null);
   const selectedIdRef = useRef<string | null>(null);
@@ -122,9 +125,30 @@ const AdminAccountsRelease = () => {
     }
   }, []);
 
+  const choose = useCallback(async (order: FinanceOrder) => {
+    selectedIdRef.current = order.id;
+    setSelected(order);
+    setFacts(null);
+    setFinalPaymentPi(null);
+    await refreshFacts(order);
+  }, [refreshFacts]);
+
   useEffect(() => {
-    void loadOrders();
-  }, [loadOrders]);
+    void loadOrders(focusOrderId ?? undefined);
+  }, [loadOrders, focusOrderId]);
+
+  useEffect(() => {
+    if (!focusOrderId || loading) return;
+    const target = orders.find((order) => order.id === focusOrderId);
+    if (!target) {
+      if (orders.length > 0) {
+        toast.error("Handoff order not found in Finance Exit queue.");
+      }
+      return;
+    }
+    if (selectedIdRef.current === focusOrderId) return;
+    void choose(target);
+  }, [focusOrderId, loading, orders, choose]);
 
   const run = async (name: string, action: () => Promise<unknown>) => {
     const actionOrder = selected;
@@ -146,14 +170,6 @@ const AdminAccountsRelease = () => {
     }
   };
 
-  const choose = async (order: FinanceOrder) => {
-    selectedIdRef.current = order.id;
-    setSelected(order);
-    setFacts(null);
-    setFinalPaymentPi(null);
-    await refreshFacts(order);
-  };
-
   const actorId = user?.id ?? "";
   const finalPaymentInputIncomplete =
     !finalPaymentDocumentReference.trim() ||
@@ -169,7 +185,7 @@ const AdminAccountsRelease = () => {
     ewayStatus === "VALIDATED" && (!ewayNumber.trim() || !ewayDocumentReference.trim());
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-testid="macro-finance-clearance-surface">
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-display-h2 text-foreground">Finance Exit Board</h1>
@@ -466,6 +482,7 @@ const AdminAccountsRelease = () => {
                     Record E-way decision
                   </Button>
                   <Button
+                    data-testid="macro-finance-clearance-action"
                     disabled={!actorId || !facts?.finalInvoiceId || !facts.ewayEvidenceId || facts.dispatchCleared || acting !== null}
                     onClick={() => void run("clearance", () => decideFinanceDispatchClearance({
                       finalInvoiceId: facts!.finalInvoiceId!,

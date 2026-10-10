@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  internalPhoneEmailFromIdentifier,
   isEmailIdentifier,
   normalizeIdentifier,
   normalizePhone,
@@ -40,6 +41,14 @@ describe("auth-identity", () => {
       const r = normalizePhone("abc---");
       expect(r.digits).toBe("");
       expect(r.e164).toBe("");
+    });
+  });
+
+  describe("internalPhoneEmailFromIdentifier", () => {
+    it("matches Edge internal email for +91, 91, and 10-digit variants", () => {
+      expect(internalPhoneEmailFromIdentifier("+919999792959")).toBe("919999792959@phone.oasis.local");
+      expect(internalPhoneEmailFromIdentifier("919999792959")).toBe("919999792959@phone.oasis.local");
+      expect(internalPhoneEmailFromIdentifier("9999792959")).toBe("919999792959@phone.oasis.local");
     });
   });
 
