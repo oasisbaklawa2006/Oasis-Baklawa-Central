@@ -5,6 +5,7 @@
 
 import { writeFileSync } from "node:fs";
 import { expect, type Page } from "@playwright/test";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildCapabilityMatrix, type Point100ProbeOutcome } from "../../src/lib/point100/capabilityStatus";
 import { POINT100_LIFECYCLE_STAGES } from "../../src/lib/point100/lifecycleStages";
 import {
@@ -178,14 +179,32 @@ export function writeCapabilityMatrix(probes: Point100ProbeOutcome[]): void {
 export async function probeRpcExists(
   rpcName: string,
   args: Record<string, unknown> = {},
+  authenticatedClient?: SupabaseClient,
 ): Promise<{ exists: boolean; detail: string }> {
-  const backend = resolveFactoryCertificationBackend();
-  const { createClient } = await import("@supabase/supabase-js");
-  const client = createClient(backend.url, backend.anonKey, {
-    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
-  });
+  let client = authenticatedClient;
+  if (!client) {
+    const backend = resolveFactoryCertificationBackend();
+    const { createClient } = await import("@supabase/supabase-js");
+    client = createClient(backend.url, backend.anonKey, {
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    });
+  }
+
+  // Preserve canonical PostgREST parameter names while allowing the probe to
+  // execute through an authenticated role. Protected RPCs may be hidden from
+  // anon schema discovery even though they are correctly granted to
+  // authenticated; a role-bound client proves resolution without requiring a
+  // successful mutation.
   const { error } = await client.rpc(rpcName as never, args as never);
-  if (!error) return { exists: true, detail: "RPC resolved on disposable certification backend" };
+  if (!error) {
+    return {
+      exists: true,
+      detail: authenticatedClient
+        ? "RPC resolved through authenticated certification client"
+        : "RPC resolved on disposable certification backend",
+    };
+  }
+
   const message = error.message ?? String(error);
   const hint = String((error as { hint?: string }).hint ?? "");
   if (hint.toLowerCase().includes("perhaps you meant to call")) {
@@ -197,9 +216,10 @@ export async function probeRpcExists(
   if (String((error as { code?: string }).code ?? "") === "PGRST202") {
     return { exists: false, detail: hint || message };
   }
-  // With canonical parameter names supplied, any non-resolution error means
-  // PostgREST found the RPC and reached auth/business validation. This keeps
-  // capability discovery fail-closed without requiring a successful mutation.
+
+  // Canonical parameter names + any non-resolution error mean PostgREST found
+  // the RPC and reached authorization/business validation. This is fail-closed
+  // on function discovery while avoiding a mutation-success requirement.
   return { exists: true, detail: hint || message };
 }
 
