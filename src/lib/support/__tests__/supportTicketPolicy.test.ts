@@ -140,6 +140,32 @@ describe("support ticket query completeness", () => {
     expect(source).not.toContain(".range(");
   });
 
+  it("advances past a page boundary that lands on a null created_at row", async () => {
+    const { loadActiveSupportTicketsPaginated } = await import("../supportTicketQueries");
+
+    // created_at is nullable and Postgres sorts NULL first under DESC order,
+    // so a full page of null-created_at tickets is a real boundary: a naive
+    // cursor would try created_at.lt.null / created_at.eq.null, which never
+    // matches, silently dropping the remaining active population.
+    const pageOne = Array.from({ length: 500 }, (_, i) => ({
+      id: `n-${i}`,
+      status: "open",
+      created_at: null,
+    }));
+    const pageTwo = [{ id: "t-rest", status: "open", created_at: "2026-09-30T10:00:00.000Z" }];
+    const { chain, orCalls } = makeTicketsChain([
+      { data: pageOne, error: null },
+      { data: pageTwo, error: null },
+    ]);
+    fromMock.mockReturnValue(chain);
+
+    const result = await loadActiveSupportTicketsPaginated();
+
+    expect(result.error).toBeNull();
+    expect(result.data).toHaveLength(501);
+    expect(orCalls[2]).toBe("created_at.not.is.null,and(created_at.is.null,id.gt.n-499)");
+  });
+
   it("surfaces a read failure instead of silently returning an empty population", async () => {
     const { loadActiveSupportTicketsPaginated } = await import("../supportTicketQueries");
     const { chain } = makeTicketsChain([{ data: [], error: { message: "connection reset" } }]);

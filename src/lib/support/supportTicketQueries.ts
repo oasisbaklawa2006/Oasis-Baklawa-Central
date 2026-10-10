@@ -30,10 +30,17 @@ const ACTIVE_STATUS_FILTER =
  * shift subsequent offsets and duplicate or skip an active ticket. Keyset
  * pagination anchors each page to the last row actually returned, which is
  * stable under concurrent writes.
+ *
+ * created_at is nullable, and Postgres sorts NULL first under DESC order, so
+ * a cursor can legitimately land on a null-created_at row. `lt`/`eq` never
+ * match NULL, so the cursor branches on whether the anchor row's created_at
+ * is null: when it is, the next page is every non-null row plus the
+ * remaining null-created_at rows ordered after this id; otherwise it is the
+ * usual (created_at, id) boundary.
  */
 export async function loadActiveSupportTicketsPaginated(): Promise<SupportTicketQueryResult> {
   const rows: SupportTicketRow[] = [];
-  let cursor: { createdAt: string; id: string } | null = null;
+  let cursor: { createdAt: string | null; id: string } | null = null;
 
   for (;;) {
     let query = supabase
@@ -45,9 +52,12 @@ export async function loadActiveSupportTicketsPaginated(): Promise<SupportTicket
       .limit(SUPPORT_TICKET_PAGE_SIZE);
 
     if (cursor) {
-      query = query.or(
-        `created_at.lt.${cursor.createdAt},and(created_at.eq.${cursor.createdAt},id.gt.${cursor.id})`,
-      );
+      query =
+        cursor.createdAt === null
+          ? query.or(`created_at.not.is.null,and(created_at.is.null,id.gt.${cursor.id})`)
+          : query.or(
+              `created_at.lt.${cursor.createdAt},and(created_at.eq.${cursor.createdAt},id.gt.${cursor.id})`,
+            );
     }
 
     const { data, error } = await query;
@@ -62,7 +72,7 @@ export async function loadActiveSupportTicketsPaginated(): Promise<SupportTicket
     if (page.length < SUPPORT_TICKET_PAGE_SIZE) break;
 
     const last = page[page.length - 1];
-    cursor = { createdAt: last.created_at as string, id: last.id as string };
+    cursor = { createdAt: last.created_at, id: last.id as string };
   }
 
   return { data: rows, error: null };
