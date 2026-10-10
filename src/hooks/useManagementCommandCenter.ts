@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { endOfMonth, format, startOfMonth, subMonths } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -60,8 +60,10 @@ export function useManagementCommandCenter() {
   const [projection, setProjection] = useState<ManagementCommandCenterProjection | null>(null);
   const [eanTotal, setEanTotal] = useState(0);
   const [companyOptions, setCompanyOptions] = useState<Array<{ id: string; label: string }>>([]);
+  const requestGenerationRef = useRef(0);
 
   const refresh = useCallback(async () => {
+    const requestGeneration = ++requestGenerationRef.current;
     setLoading(true);
     setError(null);
     try {
@@ -300,6 +302,8 @@ export function useManagementCommandCenter() {
         disputesTruncated,
       });
 
+      if (requestGeneration !== requestGenerationRef.current) return;
+
       setProjection(built);
       setEanTotal(built.eanRegistryTotal);
       setCompanyOptions(
@@ -308,10 +312,13 @@ export function useManagementCommandCenter() {
           .sort((a, b) => a.label.localeCompare(b.label)),
       );
     } catch (e) {
+      if (requestGeneration !== requestGenerationRef.current) return;
       setError(e instanceof Error ? e.message : "Failed to load management reporting");
       setProjection(null);
     } finally {
-      setLoading(false);
+      if (requestGeneration === requestGenerationRef.current) {
+        setLoading(false);
+      }
     }
   }, [canViewFinance, filters]);
 

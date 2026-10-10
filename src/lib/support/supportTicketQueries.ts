@@ -23,20 +23,34 @@ const ACTIVE_STATUS_FILTER =
  * treat one SELECT response as a complete operational queue. The server filter
  * excludes canonical lowercase terminal states; the shared client predicate is
  * applied again so case variants such as "CANCELLED" remain terminal too.
+ *
+ * Pagination uses a (created_at, id) keyset cursor rather than offset/range:
+ * offset pagination re-evaluates the full ordering on every request, so a row
+ * inserted or updated ahead of the current boundary between page requests can
+ * shift subsequent offsets and duplicate or skip an active ticket. Keyset
+ * pagination anchors each page to the last row actually returned, which is
+ * stable under concurrent writes.
  */
 export async function loadActiveSupportTicketsPaginated(): Promise<SupportTicketQueryResult> {
   const rows: SupportTicketRow[] = [];
-  let offset = 0;
-  let expectedTotal: number | null = null;
+  let cursor: { createdAt: string; id: string } | null = null;
 
   for (;;) {
-    const { data, error, count } = await supabase
+    let query = supabase
       .from("support_tickets")
-      .select("*", { count: "exact" })
+      .select("*")
       .or(ACTIVE_STATUS_FILTER)
       .order("created_at", { ascending: false })
       .order("id", { ascending: true })
-      .range(offset, offset + SUPPORT_TICKET_PAGE_SIZE - 1);
+      .limit(SUPPORT_TICKET_PAGE_SIZE);
+
+    if (cursor) {
+      query = query.or(
+        `created_at.lt.${cursor.createdAt},and(created_at.eq.${cursor.createdAt},id.gt.${cursor.id})`,
+      );
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       return { data: [], error: { message: error.message } };
@@ -44,11 +58,11 @@ export async function loadActiveSupportTicketsPaginated(): Promise<SupportTicket
 
     const page = (data ?? []) as SupportTicketRow[];
     rows.push(...page.filter(isSupportTicketActive));
-    expectedTotal = count ?? expectedTotal;
 
-    if (page.length === 0) break;
-    offset += page.length;
-    if (expectedTotal !== null && offset >= expectedTotal) break;
+    if (page.length < SUPPORT_TICKET_PAGE_SIZE) break;
+
+    const last = page[page.length - 1];
+    cursor = { createdAt: last.created_at as string, id: last.id as string };
   }
 
   return { data: rows, error: null };
