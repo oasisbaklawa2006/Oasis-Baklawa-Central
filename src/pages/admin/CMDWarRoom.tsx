@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Eye, EyeOff, RefreshCw, Tag } from "lucide-react";
 import { toast } from "sonner";
 import { useScopedRealtimeSubscription } from "@/hooks/useScopedRealtimeSubscription";
+import { resolvePersistedReferenceAccessUrl } from "@/lib/document-storage/documentStorageClient";
 import {
   COMPANIES_ALL_CHANGES,
   ORDER_ITEMS_ALL_CHANGES,
@@ -207,14 +208,22 @@ const CMDWarRoom = () => {
       .select("order_id, file_url, attachment_type")
       .in("order_id", orderIds);
     const attByOrder: Record<string, string[]> = {};
-    attachments?.forEach((a) => {
+    for (const a of attachments ?? []) {
       const t = (a.attachment_type || "").toLowerCase();
       const url = (a.file_url || "").toLowerCase();
       const looksImage = t.includes("image") || /\.(png|jpe?g|gif|webp)$/i.test(url);
-      if (!looksImage || !a.order_id || !a.file_url) return;
+      if (!looksImage || !a.order_id || !a.file_url) continue;
       if (!attByOrder[a.order_id]) attByOrder[a.order_id] = [];
-      attByOrder[a.order_id].push(a.file_url);
-    });
+      let displayUrl = a.file_url;
+      if (a.file_url.startsWith("storage:")) {
+        try {
+          displayUrl = await resolvePersistedReferenceAccessUrl(supabase, a.file_url, "private");
+        } catch {
+          continue;
+        }
+      }
+      attByOrder[a.order_id].push(displayUrl);
+    }
 
     setOrders(
       data.map((o) => {

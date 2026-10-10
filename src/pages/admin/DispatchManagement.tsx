@@ -628,7 +628,9 @@ export default function DispatchManagement() {
       setEvidenceCorrelationId(crypto.randomUUID());
     } catch (err) {
       if (uploadedRef) {
-        await deleteGovernedObject(supabase, uploadedRef);
+        await deleteGovernedObject(supabase, uploadedRef).catch((cleanupErr) => {
+          console.error("Failed to delete orphaned carton evidence", cleanupErr);
+        });
       }
       toast.error(err instanceof Error ? err.message : "Failed to record evidence.");
     } finally {

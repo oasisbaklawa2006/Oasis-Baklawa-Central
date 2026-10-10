@@ -7,7 +7,9 @@ import {
 
 describe("documentStorageCensus", () => {
   it("records Central main SHA and referenced storage contract anchors", () => {
-    expect(POINT22_STORAGE_CONTRACT_SHAS.centralMain).toMatch(/^[0-9a-f]{40}$/);
+    expect(POINT22_STORAGE_CONTRACT_SHAS.centralMain).toBe(
+      "a470983bc2fccdd27086fded633546d60c2946f3",
+    );
     expect(POINT22_STORAGE_CONTRACT_SHAS.coreProductImagesLimits).toContain("product_images");
   });
 

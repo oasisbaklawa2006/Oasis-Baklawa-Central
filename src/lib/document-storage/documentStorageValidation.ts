@@ -134,7 +134,7 @@ export function buildDeterministicStorageKey(input: {
 }
 
 export function planGovernedUpload(request: GovernedUploadRequest): import("./documentStorageTypes").GovernedUploadPlan {
-  assertNoDemoFallback(process.env.VITE_DOCUMENT_STORAGE_MODE);
+  assertNoDemoFallback(import.meta.env.VITE_DOCUMENT_STORAGE_MODE as string | undefined);
   const policy = policyForDocumentClass(request.documentClass);
 
   if (!policy.centralUploadAllowed) {

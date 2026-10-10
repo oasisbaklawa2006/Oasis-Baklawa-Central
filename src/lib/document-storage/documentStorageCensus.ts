@@ -97,7 +97,7 @@ export const POINT22_FOREIGN_PREREQUISITES = [
   "Core: whatsapp_attachments ingress, retention, and protected corpus handling (Point41 boundary).",
 ] as const;
 
-export const POINT22_CENTRAL_MAIN_SHA = "64a107dfc167be76673a3d18f177a72472dcb241";
+export const POINT22_CENTRAL_MAIN_SHA = "a470983bc2fccdd27086fded633546d60c2946f3";
 
 export const POINT22_STORAGE_CONTRACT_SHAS = {
   centralMain: POINT22_CENTRAL_MAIN_SHA,
