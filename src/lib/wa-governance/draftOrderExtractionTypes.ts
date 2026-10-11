@@ -9,13 +9,15 @@ export type DraftOrderReadinessDimensionKey =
   | "address"
   | "payment_terms";
 
-export type DraftOrderReadinessStatus = "ready" | "partial" | "missing";
+export type DraftOrderReadinessStatus = "ready" | "partial" | "missing" | "pending";
 
 export interface DraftOrderReadinessDimension {
   dimension: DraftOrderReadinessDimensionKey;
   score: number;
   status: DraftOrderReadinessStatus;
   explanation: string;
+  gate?: string;
+  hold_code?: string | null;
 }
 
 export interface DraftOrderLineItem {

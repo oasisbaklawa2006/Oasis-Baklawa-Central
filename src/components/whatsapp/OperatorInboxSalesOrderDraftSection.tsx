@@ -368,7 +368,9 @@ function GovernanceSlots({
               {draftOrderDimensionLabel(
                 dimension.dimension as Parameters<typeof draftOrderDimensionLabel>[0],
               )}
-              : {dimension.score}% ({dimension.status})
+              : {dimension.score}% ({dimension.status}
+              {dimension.gate ? ` · ${dimension.gate}` : ""}
+              {dimension.hold_code ? ` · ${dimension.hold_code}` : ""})
             </li>
           ))}
         </ul>

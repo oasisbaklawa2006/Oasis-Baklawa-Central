@@ -11,6 +11,43 @@ export const SALES_ORDER_DRAFT_REQUIRED_READINESS_DIMENSIONS = [
 
 export const SALES_ORDER_DRAFT_MIN_APPROVAL_SCORE = 40;
 
+export const SALES_ORDER_DRAFT_SO_RECORDABLE_DIMENSIONS = [
+  "client",
+  "product",
+  "quantity",
+] as const;
+
+export function validateSalesOrderSoRecordableReadiness(
+  dimensions: DraftOrderReadinessDimension[],
+): ReadinessValidationResult {
+  const byKey = new Map(dimensions.map((dimension) => [dimension.dimension, dimension]));
+  const blockingDimensions: DraftOrderReadinessDimension[] = [];
+  const messages: string[] = [];
+
+  for (const key of SALES_ORDER_DRAFT_SO_RECORDABLE_DIMENSIONS) {
+    const dimension = byKey.get(key);
+    if (!dimension) {
+      messages.push(`Missing readiness dimension: ${key}.`);
+      continue;
+    }
+    if (
+      dimension.status === "missing" ||
+      dimension.score < SALES_ORDER_DRAFT_MIN_APPROVAL_SCORE
+    ) {
+      blockingDimensions.push(dimension);
+      messages.push(
+        `${key} is not ready (${dimension.score}% — ${dimension.status}). ${dimension.explanation}`,
+      );
+    }
+  }
+
+  return {
+    valid: blockingDimensions.length === 0 && messages.length === 0,
+    blockingDimensions,
+    messages,
+  };
+}
+
 export function validateSalesOrderDraftReadiness(
   dimensions: DraftOrderReadinessDimension[],
 ): ReadinessValidationResult {
@@ -45,5 +82,22 @@ export function validateSalesOrderDraftReadiness(
 export function canTransitionToApproved(
   dimensions: DraftOrderReadinessDimension[],
 ): ReadinessValidationResult {
+  const soRecordable = validateSalesOrderSoRecordableReadiness(dimensions);
+  if (!soRecordable.valid) {
+    return soRecordable;
+  }
+  const downstream = dimensions.filter(
+    (dimension) =>
+      dimension.dimension === "address" || dimension.dimension === "payment_terms",
+  );
+  const pendingOnly = downstream.every(
+    (dimension) =>
+      dimension.status === "pending" ||
+      dimension.status === "ready" ||
+      dimension.score >= SALES_ORDER_DRAFT_MIN_APPROVAL_SCORE,
+  );
+  if (pendingOnly) {
+    return soRecordable;
+  }
   return validateSalesOrderDraftReadiness(dimensions);
 }
