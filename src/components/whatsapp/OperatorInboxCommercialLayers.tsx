@@ -120,6 +120,11 @@ export function OperatorInboxCommercialLayers({
     return () => { cancelled = true; };
   }, [caseId, packetId]);
 
+  // Identifies the in-flight (or most recently started) party search. Bumped
+  // whenever party type, query, or case changes, so a response that resolves
+  // after its inputs are superseded can never apply its results.
+  const partySearchRequestRef = useRef(0);
+
   // MC#629 activation repair: the original communicator is never silently
   // prefilled from SUBMITTING_SENDER. Forwarding does not transfer
   // authorship, so an employee's transport identity must not become the
@@ -130,8 +135,9 @@ export function OperatorInboxCommercialLayers({
   //
   // The whole draft (not just sameAsSender) is reset on a case change so a
   // confirmation for a new case can never carry a previous case's party,
-  // label, phone, method or evidence.
+  // label, phone, method, evidence, or a stale in-flight search response.
   useEffect(() => {
+    partySearchRequestRef.current += 1;
     setSameAsSender(false);
     setOriginalPartyType("CONTACT");
     setOriginalPartyId("");
@@ -141,6 +147,7 @@ export function OperatorInboxCommercialLayers({
     setOriginalEvidence("");
     setPartyQuery("");
     setPartyResults([]);
+    setPartySearchBusy(false);
     setPartySearchError(null);
   }, [caseId]);
 
@@ -164,8 +171,6 @@ export function OperatorInboxCommercialLayers({
     setSameAsSender(false);
     setter(value);
   };
-
-  const partySearchRequestRef = useRef(0);
 
   const searchParties = async () => {
     if (originalPartyType === "UNKNOWN") return;
@@ -283,7 +288,7 @@ export function OperatorInboxCommercialLayers({
               ) : null}
 
               <div className="grid gap-2 sm:grid-cols-2">
-                <select className="h-9 rounded border border-input bg-background px-2" value={originalPartyType} onChange={(event) => { setOriginalPartyType(event.target.value as typeof originalPartyType); setOriginalPartyId(""); setPartyQuery(""); setPartyResults([]); setSameAsSender(false); }}>
+                <select className="h-9 rounded border border-input bg-background px-2" value={originalPartyType} onChange={(event) => { partySearchRequestRef.current += 1; setPartySearchBusy(false); setPartySearchError(null); setOriginalPartyType(event.target.value as typeof originalPartyType); setOriginalPartyId(""); setPartyQuery(""); setPartyResults([]); setSameAsSender(false); }}>
                   {["CONTACT","CUSTOMER","EMPLOYEE","COMPANY","UNKNOWN"].map((item) => <option key={item} value={item}>{human(item)}</option>)}
                 </select>
                 <select className="h-9 rounded border border-input bg-background px-2" value={originalMethod} onChange={(event) => editOriginalField(setOriginalMethod)(event.target.value as typeof originalMethod)}>
@@ -298,7 +303,7 @@ export function OperatorInboxCommercialLayers({
                 <div className="mt-2 rounded border border-slate-200 p-2">
                   <p className="mb-1 font-semibold text-slate-700">Search {human(originalPartyType === "CUSTOMER" ? "COMPANY" : originalPartyType).toLowerCase()} records — never type a UUID blind</p>
                   <div className="flex gap-2">
-                    <Input value={partyQuery} onChange={(event) => { setPartyQuery(event.target.value); setPartyResults([]); }} placeholder="Search name / phone…" />
+                    <Input value={partyQuery} onChange={(event) => { partySearchRequestRef.current += 1; setPartySearchBusy(false); setPartyQuery(event.target.value); setPartyResults([]); }} placeholder="Search name / phone…" />
                     <Button type="button" variant="outline" size="sm" disabled={partySearchBusy || partyQuery.trim().length < 2} onClick={() => void searchParties()}>Search</Button>
                   </div>
                   {partySearchError ? <p className="mt-1 text-amber-900" role="alert">{partySearchError}</p> : null}
