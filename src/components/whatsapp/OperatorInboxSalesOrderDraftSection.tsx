@@ -343,7 +343,13 @@ function GovernanceSlots({
     order_creator_name: string | null;
     order_handler_name: string | null;
     approver_name: string | null;
-    readiness_dimensions: { dimension: string; score: number; status: string }[];
+    readiness_dimensions: {
+      dimension: string;
+      score: number;
+      status: string;
+      gate?: string;
+      hold_code?: string | null;
+    }[];
   };
 }) {
   return (
