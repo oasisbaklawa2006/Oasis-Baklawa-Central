@@ -36,16 +36,20 @@ const fetchWhatsAppCommercialLayersMock = vi.fn(async () => ({
 const fetchWhatsAppCaseInboundMessagesMock = vi.fn(async () => []);
 
 vi.mock("@/lib/wa-governance/caseDecisionDesk", () => ({
-  fetchWhatsAppCaseInboundMessages: (...args: unknown[]) => fetchWhatsAppCaseInboundMessagesMock(...args),
+  fetchWhatsAppCaseInboundMessages: (...args: Parameters<typeof fetchWhatsAppCaseInboundMessagesMock>) =>
+    fetchWhatsAppCaseInboundMessagesMock(...args),
 }));
 
 const confirmWhatsAppOriginalCommunicatorMock = vi.fn(async () => ({}));
 const searchWhatsAppCasePartiesMock = vi.fn(async (): Promise<WhatsAppCasePartyCandidate[]> => []);
 
 vi.mock("@/lib/wa-governance/caseCommercialLayers", () => ({
-  fetchWhatsAppCommercialLayers: (...args: unknown[]) => fetchWhatsAppCommercialLayersMock(...args),
-  confirmWhatsAppOriginalCommunicator: (...args: unknown[]) => confirmWhatsAppOriginalCommunicatorMock(...args),
-  searchWhatsAppCaseParties: (...args: unknown[]) => searchWhatsAppCasePartiesMock(...args),
+  fetchWhatsAppCommercialLayers: (...args: Parameters<typeof fetchWhatsAppCommercialLayersMock>) =>
+    fetchWhatsAppCommercialLayersMock(...args),
+  confirmWhatsAppOriginalCommunicator: (...args: Parameters<typeof confirmWhatsAppOriginalCommunicatorMock>) =>
+    confirmWhatsAppOriginalCommunicatorMock(...args),
+  searchWhatsAppCaseParties: (...args: Parameters<typeof searchWhatsAppCasePartiesMock>) =>
+    searchWhatsAppCasePartiesMock(...args),
   proposeWhatsAppCaseChange: vi.fn(),
   decideWhatsAppCaseProposedChange: vi.fn(),
   acceptWhatsAppCaseHandoff: vi.fn(),
