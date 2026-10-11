@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, Loader2, RefreshCw, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -127,8 +127,21 @@ export function OperatorInboxCommercialLayers({
   // declare the two are the same person (direct-message case only), but
   // that is a deliberate action with its own evidence requirement, not an
   // automatic default -- see handleSameAsSender below.
+  //
+  // The whole draft (not just sameAsSender) is reset on a case change so a
+  // confirmation for a new case can never carry a previous case's party,
+  // label, phone, method or evidence.
   useEffect(() => {
     setSameAsSender(false);
+    setOriginalPartyType("CONTACT");
+    setOriginalPartyId("");
+    setOriginalLabel("");
+    setOriginalPhone("");
+    setOriginalMethod("");
+    setOriginalEvidence("");
+    setPartyQuery("");
+    setPartyResults([]);
+    setPartySearchError(null);
   }, [caseId]);
 
   const handleSameAsSender = () => {
@@ -144,24 +157,42 @@ export function OperatorInboxCommercialLayers({
     setSameAsSender(true);
   };
 
+  // Any manual edit after a "same as sender" declaration must invalidate it
+  // -- same_as_submitting_sender must never be submitted true for an
+  // identity the operator has since changed.
+  const editOriginalField = <T,>(setter: (value: T) => void) => (value: T) => {
+    setSameAsSender(false);
+    setter(value);
+  };
+
+  const partySearchRequestRef = useRef(0);
+
   const searchParties = async () => {
     if (originalPartyType === "UNKNOWN") return;
+    const requestId = ++partySearchRequestRef.current;
+    const searchType = originalPartyType === "CUSTOMER" ? "COMPANY" : originalPartyType;
+    const query = partyQuery;
     setPartySearchBusy(true);
     setPartySearchError(null);
     try {
-      const searchType = originalPartyType === "CUSTOMER" ? "COMPANY" : originalPartyType;
-      setPartyResults(await searchWhatsAppCaseParties(supabase, searchType, partyQuery));
+      const results = await searchWhatsAppCaseParties(supabase, searchType, query);
+      // Discard results for a since-superseded party type or query -- an
+      // operator switching mid-search must never see candidates of the
+      // wrong kind selectable under the new type.
+      if (requestId !== partySearchRequestRef.current) return;
+      setPartyResults(results);
     } catch (caught) {
+      if (requestId !== partySearchRequestRef.current) return;
       setPartySearchError(caught instanceof Error ? caught.message : "Party search failed");
     } finally {
-      setPartySearchBusy(false);
+      if (requestId === partySearchRequestRef.current) setPartySearchBusy(false);
     }
   };
 
   const selectParty = (candidate: WhatsAppCasePartyCandidate) => {
     setOriginalPartyId(candidate.id);
     setOriginalLabel(candidate.displayLabel);
-    if (candidate.phone) setOriginalPhone(candidate.phone);
+    setOriginalPhone(candidate.phone ?? "");
     setSameAsSender(false);
   };
 
@@ -252,10 +283,10 @@ export function OperatorInboxCommercialLayers({
               ) : null}
 
               <div className="grid gap-2 sm:grid-cols-2">
-                <select className="h-9 rounded border border-input bg-background px-2" value={originalPartyType} onChange={(event) => { setOriginalPartyType(event.target.value as typeof originalPartyType); setOriginalPartyId(""); setPartyResults([]); setSameAsSender(false); }}>
+                <select className="h-9 rounded border border-input bg-background px-2" value={originalPartyType} onChange={(event) => { setOriginalPartyType(event.target.value as typeof originalPartyType); setOriginalPartyId(""); setPartyQuery(""); setPartyResults([]); setSameAsSender(false); }}>
                   {["CONTACT","CUSTOMER","EMPLOYEE","COMPANY","UNKNOWN"].map((item) => <option key={item} value={item}>{human(item)}</option>)}
                 </select>
-                <select className="h-9 rounded border border-input bg-background px-2" value={originalMethod} onChange={(event) => setOriginalMethod(event.target.value as typeof originalMethod)}>
+                <select className="h-9 rounded border border-input bg-background px-2" value={originalMethod} onChange={(event) => editOriginalField(setOriginalMethod)(event.target.value as typeof originalMethod)}>
                   <option value="">Select verification method…</option>
                   {["DIRECT_MESSAGE","FORWARDED_MESSAGE","CALLBACK","EMPLOYEE_REPORT","CUSTOMER_NOMINATED","OPERATOR_VERIFIED"].map((item) => <option key={item} value={item}>{human(item)}</option>)}
                 </select>
@@ -267,7 +298,7 @@ export function OperatorInboxCommercialLayers({
                 <div className="mt-2 rounded border border-slate-200 p-2">
                   <p className="mb-1 font-semibold text-slate-700">Search {human(originalPartyType === "CUSTOMER" ? "COMPANY" : originalPartyType).toLowerCase()} records — never type a UUID blind</p>
                   <div className="flex gap-2">
-                    <Input value={partyQuery} onChange={(event) => setPartyQuery(event.target.value)} placeholder="Search name / phone…" />
+                    <Input value={partyQuery} onChange={(event) => { setPartyQuery(event.target.value); setPartyResults([]); }} placeholder="Search name / phone…" />
                     <Button type="button" variant="outline" size="sm" disabled={partySearchBusy || partyQuery.trim().length < 2} onClick={() => void searchParties()}>Search</Button>
                   </div>
                   {partySearchError ? <p className="mt-1 text-amber-900" role="alert">{partySearchError}</p> : null}
@@ -289,8 +320,8 @@ export function OperatorInboxCommercialLayers({
               )}
 
               <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                <Input value={originalLabel} onChange={(event) => setOriginalLabel(event.target.value)} placeholder="Original communicator name / label" />
-                <Input value={originalPhone} onChange={(event) => setOriginalPhone(event.target.value)} placeholder="Phone (optional)" />
+                <Input value={originalLabel} onChange={(event) => editOriginalField(setOriginalLabel)(event.target.value)} placeholder="Original communicator name / label" />
+                <Input value={originalPhone} onChange={(event) => editOriginalField(setOriginalPhone)(event.target.value)} placeholder="Phone (optional)" />
               </div>
               <Input className="mt-2" value={originalEvidence} onChange={(event) => setOriginalEvidence(event.target.value)} placeholder="Evidence: direct message, callback note, forward source…" />
 
