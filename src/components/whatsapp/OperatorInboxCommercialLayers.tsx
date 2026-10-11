@@ -18,6 +18,8 @@ import {
   newWhatsAppCaseCommercialActionKey,
   proposeWhatsAppCaseChange,
   releaseReviewedWhatsAppCaseReply,
+  searchWhatsAppCaseParties,
+  type WhatsAppCasePartyCandidate,
   type WhatsAppCommercialLayers,
 } from "@/lib/wa-governance/caseCommercialLayers";
 
@@ -73,8 +75,13 @@ export function OperatorInboxCommercialLayers({
   const [originalPartyId, setOriginalPartyId] = useState("");
   const [originalLabel, setOriginalLabel] = useState("");
   const [originalPhone, setOriginalPhone] = useState("");
-  const [originalMethod, setOriginalMethod] = useState<"DIRECT_MESSAGE"|"FORWARDED_MESSAGE"|"CALLBACK"|"EMPLOYEE_REPORT"|"CUSTOMER_NOMINATED"|"OPERATOR_VERIFIED">("DIRECT_MESSAGE");
+  const [originalMethod, setOriginalMethod] = useState<""|"DIRECT_MESSAGE"|"FORWARDED_MESSAGE"|"CALLBACK"|"EMPLOYEE_REPORT"|"CUSTOMER_NOMINATED"|"OPERATOR_VERIFIED">("");
   const [originalEvidence, setOriginalEvidence] = useState("");
+  const [sameAsSender, setSameAsSender] = useState(false);
+  const [partyQuery, setPartyQuery] = useState("");
+  const [partyResults, setPartyResults] = useState<WhatsAppCasePartyCandidate[]>([]);
+  const [partySearchBusy, setPartySearchBusy] = useState(false);
+  const [partySearchError, setPartySearchError] = useState<string | null>(null);
 
   const [proposalInterpretationId, setProposalInterpretationId] = useState("");
   const [proposalType, setProposalType] = useState<string>("QUANTITY");
@@ -113,17 +120,50 @@ export function OperatorInboxCommercialLayers({
     return () => { cancelled = true; };
   }, [caseId, packetId]);
 
+  // MC#629 activation repair: the original communicator is never silently
+  // prefilled from SUBMITTING_SENDER. Forwarding does not transfer
+  // authorship, so an employee's transport identity must not become the
+  // default "original communicator" guess. An operator may explicitly
+  // declare the two are the same person (direct-message case only), but
+  // that is a deliberate action with its own evidence requirement, not an
+  // automatic default -- see handleSameAsSender below.
   useEffect(() => {
-    if (originalIdentity) return;
+    setSameAsSender(false);
+  }, [caseId]);
+
+  const handleSameAsSender = () => {
     if (!submittingIdentity) return;
     const partyType = text(submittingIdentity, "party_type");
-    if (["EMPLOYEE","CUSTOMER","CONTACT","COMPANY","UNKNOWN"].includes(partyType)) {
+    if (["EMPLOYEE", "CUSTOMER", "CONTACT", "COMPANY", "UNKNOWN"].includes(partyType)) {
       setOriginalPartyType(partyType as typeof originalPartyType);
     }
     setOriginalPartyId(text(submittingIdentity, "party_id"));
     setOriginalLabel(text(submittingIdentity, "display_label"));
     setOriginalPhone(text(submittingIdentity, "phone_e164"));
-  }, [originalIdentity, submittingIdentity]);
+    setOriginalMethod("DIRECT_MESSAGE");
+    setSameAsSender(true);
+  };
+
+  const searchParties = async () => {
+    if (originalPartyType === "UNKNOWN") return;
+    setPartySearchBusy(true);
+    setPartySearchError(null);
+    try {
+      const searchType = originalPartyType === "CUSTOMER" ? "COMPANY" : originalPartyType;
+      setPartyResults(await searchWhatsAppCaseParties(supabase, searchType, partyQuery));
+    } catch (caught) {
+      setPartySearchError(caught instanceof Error ? caught.message : "Party search failed");
+    } finally {
+      setPartySearchBusy(false);
+    }
+  };
+
+  const selectParty = (candidate: WhatsAppCasePartyCandidate) => {
+    setOriginalPartyId(candidate.id);
+    setOriginalLabel(candidate.displayLabel);
+    if (candidate.phone) setOriginalPhone(candidate.phone);
+    setSameAsSender(false);
+  };
 
   const run = async (name: string, operation: () => Promise<unknown>, success: string) => {
     setBusy(name); setError(null); setFeedback(null);
@@ -200,22 +240,64 @@ export function OperatorInboxCommercialLayers({
           ) : (
             <>
               <p className="mb-2 text-slate-600">Forwarding does not transfer authorship. Confirm who actually expressed the instruction and how that was verified.</p>
+
+              {submittingIdentity ? (
+                <div className="mb-3 rounded border border-slate-200 bg-slate-50 p-2">
+                  <p className="text-slate-700">Submitting sender (transport only): <span className="font-semibold">{text(submittingIdentity, "display_label") || text(submittingIdentity, "phone_e164") || "unknown"}</span></p>
+                  <Button type="button" size="sm" variant="outline" className="mt-2" disabled={busy !== null} onClick={handleSameAsSender}>
+                    Same person sent this directly (requires evidence below)
+                  </Button>
+                  {sameAsSender ? <p className="mt-1 text-[11px] font-semibold uppercase text-amber-700">Declared same as sender — still requires explicit evidence before confirming.</p> : null}
+                </div>
+              ) : null}
+
               <div className="grid gap-2 sm:grid-cols-2">
-                <select className="h-9 rounded border border-input bg-background px-2" value={originalPartyType} onChange={(event) => setOriginalPartyType(event.target.value as typeof originalPartyType)}>
+                <select className="h-9 rounded border border-input bg-background px-2" value={originalPartyType} onChange={(event) => { setOriginalPartyType(event.target.value as typeof originalPartyType); setOriginalPartyId(""); setPartyResults([]); setSameAsSender(false); }}>
                   {["CONTACT","CUSTOMER","EMPLOYEE","COMPANY","UNKNOWN"].map((item) => <option key={item} value={item}>{human(item)}</option>)}
                 </select>
                 <select className="h-9 rounded border border-input bg-background px-2" value={originalMethod} onChange={(event) => setOriginalMethod(event.target.value as typeof originalMethod)}>
+                  <option value="">Select verification method…</option>
                   {["DIRECT_MESSAGE","FORWARDED_MESSAGE","CALLBACK","EMPLOYEE_REPORT","CUSTOMER_NOMINATED","OPERATOR_VERIFIED"].map((item) => <option key={item} value={item}>{human(item)}</option>)}
                 </select>
+              </div>
+
+              {originalPartyType === "UNKNOWN" ? (
+                <p className="mt-2 rounded border border-amber-200 bg-amber-50 p-2 text-amber-900">Author cannot be verified yet — this stays UNKNOWN and requests clarification. UNKNOWN does not satisfy the separate commercial-customer verification gate below.</p>
+              ) : (
+                <div className="mt-2 rounded border border-slate-200 p-2">
+                  <p className="mb-1 font-semibold text-slate-700">Search {human(originalPartyType === "CUSTOMER" ? "COMPANY" : originalPartyType).toLowerCase()} records — never type a UUID blind</p>
+                  <div className="flex gap-2">
+                    <Input value={partyQuery} onChange={(event) => setPartyQuery(event.target.value)} placeholder="Search name / phone…" />
+                    <Button type="button" variant="outline" size="sm" disabled={partySearchBusy || partyQuery.trim().length < 2} onClick={() => void searchParties()}>Search</Button>
+                  </div>
+                  {partySearchError ? <p className="mt-1 text-amber-900" role="alert">{partySearchError}</p> : null}
+                  {partyResults.length ? (
+                    <div className="mt-2 max-h-36 space-y-1 overflow-y-auto">
+                      {partyResults.map((candidate) => (
+                        <button key={candidate.id} type="button" className={`w-full rounded px-2 py-1.5 text-left ${originalPartyId === candidate.id ? "bg-emerald-50 ring-1 ring-emerald-300" : "hover:bg-slate-50"}`} onClick={() => selectParty(candidate)}>
+                          {candidate.displayLabel}{candidate.phone ? ` · ${candidate.phone}` : ""}{candidate.companyName ? ` · ${candidate.companyName}` : ""}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                  {originalPartyId ? (
+                    <p className="mt-2 rounded border border-emerald-200 bg-emerald-50 p-2 text-emerald-900"><CheckCircle2 className="mr-1 inline h-3.5 w-3.5" />Selected: {originalLabel || originalPartyId}</p>
+                  ) : (
+                    <p className="mt-1 text-[11px] text-slate-500">No one selected yet. Confirm is disabled until a real record is selected.</p>
+                  )}
+                </div>
+              )}
+
+              <div className="mt-2 grid gap-2 sm:grid-cols-2">
                 <Input value={originalLabel} onChange={(event) => setOriginalLabel(event.target.value)} placeholder="Original communicator name / label" />
                 <Input value={originalPhone} onChange={(event) => setOriginalPhone(event.target.value)} placeholder="Phone (optional)" />
-                {originalPartyType !== "UNKNOWN" ? <Input value={originalPartyId} onChange={(event) => setOriginalPartyId(event.target.value)} placeholder="Canonical party UUID" /> : null}
-                <Input value={originalEvidence} onChange={(event) => setOriginalEvidence(event.target.value)} placeholder="Evidence: direct message, callback note, forward source…" />
               </div>
-              <Button type="button" size="sm" className="mt-2" disabled={!mayTriage || busy !== null || !originalLabel.trim() || !originalEvidence.trim() || (originalPartyType !== "UNKNOWN" && !originalPartyId.trim())}
+              <Input className="mt-2" value={originalEvidence} onChange={(event) => setOriginalEvidence(event.target.value)} placeholder="Evidence: direct message, callback note, forward source…" />
+
+              <Button type="button" size="sm" className="mt-2" disabled={!mayTriage || busy !== null || !originalMethod || !originalLabel.trim() || !originalEvidence.trim() || (originalPartyType !== "UNKNOWN" && !originalPartyId.trim())}
                 onClick={() => void run("original-communicator", () => confirmWhatsAppOriginalCommunicator(supabase, {
                   caseId, partyType: originalPartyType, partyId: originalPartyId || null, displayLabel: originalLabel, phoneE164: originalPhone || null,
-                  verificationMethod: originalMethod, evidence: { note: originalEvidence, packet_id: packetId },
+                  verificationMethod: originalMethod as "DIRECT_MESSAGE"|"FORWARDED_MESSAGE"|"CALLBACK"|"EMPLOYEE_REPORT"|"CUSTOMER_NOMINATED"|"OPERATOR_VERIFIED", evidence: { note: originalEvidence, packet_id: packetId, same_as_submitting_sender: sameAsSender },
                   idempotencyKey: newWhatsAppCaseCommercialActionKey("original", caseId),
                 }), "Original communicator confirmed with evidence.")}>Confirm original communicator</Button>
             </>
