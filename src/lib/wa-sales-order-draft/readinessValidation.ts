@@ -103,9 +103,10 @@ export function canTransitionToApproved(
   );
   const pendingOnly = downstream.every(
     (dimension) =>
-      dimension.status === "pending" ||
-      dimension.status === "ready" ||
-      dimension.score >= SALES_ORDER_DRAFT_MIN_APPROVAL_SCORE,
+      dimension.status !== "missing" &&
+      (dimension.status === "pending" ||
+        dimension.status === "ready" ||
+        dimension.score >= SALES_ORDER_DRAFT_MIN_APPROVAL_SCORE),
   );
   if (pendingOnly) {
     return soRecordable;

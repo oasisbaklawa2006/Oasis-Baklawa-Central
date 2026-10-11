@@ -56,4 +56,13 @@ describe("SO_RECORDABLE readiness (MC#631)", () => {
     );
     expect(canTransitionToApproved(withMissingAddress).valid).toBe(false);
   });
+
+  it("blocks when downstream dimension is missing even with a high score", () => {
+    const withScoredMissingPayment = baseDimensions.map((d) =>
+      d.dimension === "payment_terms"
+        ? { ...d, status: "missing" as const, score: 100 }
+        : d,
+    );
+    expect(canTransitionToApproved(withScoredMissingPayment).valid).toBe(false);
+  });
 });
