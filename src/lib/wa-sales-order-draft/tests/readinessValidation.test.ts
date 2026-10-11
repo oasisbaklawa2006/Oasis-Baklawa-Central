@@ -39,4 +39,21 @@ describe("SO_RECORDABLE readiness (MC#631)", () => {
     );
     expect(canTransitionToApproved(broken).valid).toBe(false);
   });
+
+  it("blocks approval when downstream dimensions are absent from the array", () => {
+    const coreOnly = baseDimensions.filter(
+      (d) => d.dimension !== "address" && d.dimension !== "payment_terms",
+    );
+    const result = canTransitionToApproved(coreOnly);
+    expect(result.valid).toBe(false);
+    expect(result.messages.some((m) => m.includes("address"))).toBe(true);
+    expect(result.messages.some((m) => m.includes("payment_terms"))).toBe(true);
+  });
+
+  it("blocks when downstream dimensions are missing status rather than pending", () => {
+    const withMissingAddress = baseDimensions.map((d) =>
+      d.dimension === "address" ? { ...d, status: "missing" as const, score: 0 } : d,
+    );
+    expect(canTransitionToApproved(withMissingAddress).valid).toBe(false);
+  });
 });

@@ -86,6 +86,17 @@ export function canTransitionToApproved(
   if (!soRecordable.valid) {
     return soRecordable;
   }
+  const byKey = new Map(dimensions.map((dimension) => [dimension.dimension, dimension]));
+  const missingDownstream = (["address", "payment_terms"] as const).filter(
+    (key) => !byKey.has(key),
+  );
+  if (missingDownstream.length > 0) {
+    return {
+      valid: false,
+      blockingDimensions: [],
+      messages: missingDownstream.map((key) => `Missing readiness dimension: ${key}.`),
+    };
+  }
   const downstream = dimensions.filter(
     (dimension) =>
       dimension.dimension === "address" || dimension.dimension === "payment_terms",
