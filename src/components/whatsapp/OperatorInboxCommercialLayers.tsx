@@ -198,6 +198,8 @@ export function OperatorInboxCommercialLayers({
     setOriginalPartyId(candidate.id);
     setOriginalLabel(candidate.displayLabel);
     setOriginalPhone(candidate.phone ?? "");
+    setOriginalMethod("");
+    setOriginalEvidence("");
     setSameAsSender(false);
   };
 
@@ -288,7 +290,7 @@ export function OperatorInboxCommercialLayers({
               ) : null}
 
               <div className="grid gap-2 sm:grid-cols-2">
-                <select className="h-9 rounded border border-input bg-background px-2" value={originalPartyType} onChange={(event) => { partySearchRequestRef.current += 1; setPartySearchBusy(false); setPartySearchError(null); setOriginalPartyType(event.target.value as typeof originalPartyType); setOriginalPartyId(""); setOriginalLabel(""); setOriginalPhone(""); setPartyQuery(""); setPartyResults([]); setSameAsSender(false); }}>
+                <select className="h-9 rounded border border-input bg-background px-2" value={originalPartyType} onChange={(event) => { partySearchRequestRef.current += 1; setPartySearchBusy(false); setPartySearchError(null); setOriginalPartyType(event.target.value as typeof originalPartyType); setOriginalPartyId(""); setOriginalLabel(""); setOriginalPhone(""); setOriginalMethod(""); setOriginalEvidence(""); setPartyQuery(""); setPartyResults([]); setSameAsSender(false); }}>
                   {["CONTACT","CUSTOMER","EMPLOYEE","COMPANY","UNKNOWN"].map((item) => <option key={item} value={item}>{human(item)}</option>)}
                 </select>
                 <select className="h-9 rounded border border-input bg-background px-2" value={originalMethod} onChange={(event) => editOriginalField(setOriginalMethod)(event.target.value as typeof originalMethod)}>
