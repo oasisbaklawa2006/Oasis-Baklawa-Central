@@ -1,0 +1,3082 @@
+{
+  "captured_on": "2026-10-13",
+  "source": "Wix Catalog V1 Query Products",
+  "site_id": "880c7f4f-83ac-46aa-ac0c-5814cb68a3c8",
+  "live_domain": "https://www.oasisbaklawa.com/",
+  "total_visible_products": 439,
+  "products": [
+    {
+      "id": "ba70a9c3-eaf8-cd30-a2cf-99727954bcad",
+      "name": "Premium Baklawa Pack",
+      "slug": "premium-baklawa-pack",
+      "visible": true,
+      "path": "/product-page/premium-baklawa-pack"
+    },
+    {
+      "id": "72570e1d-e7da-a545-937f-bf0828a8fec8",
+      "name": "Misr-15",
+      "slug": "misr-15",
+      "visible": true,
+      "path": "/product-page/misr-15"
+    },
+    {
+      "id": "821d088c-d223-61c8-3d5e-f874ff7a44b0",
+      "name": "Misr-24",
+      "slug": "misr-24",
+      "visible": true,
+      "path": "/product-page/misr-24"
+    },
+    {
+      "id": "bd25697d-3f15-5894-0576-64f14c283ad0",
+      "name": "Medley III",
+      "slug": "medley-iii",
+      "visible": true,
+      "path": "/product-page/medley-iii"
+    },
+    {
+      "id": "3d82f486-6dfd-2678-9eff-b899d8a771ab",
+      "name": "Medley IV",
+      "slug": "medley-iv",
+      "visible": true,
+      "path": "/product-page/medley-iv"
+    },
+    {
+      "id": "26ece4b5-9e72-7f4b-b4c2-052ad1c4d52d",
+      "name": "Fern 25",
+      "slug": "fern-25",
+      "visible": true,
+      "path": "/product-page/fern-25"
+    },
+    {
+      "id": "3be3ad0a-256c-4ae5-b37b-f210be48e2c0",
+      "name": "Fern 9",
+      "slug": "fern-9",
+      "visible": true,
+      "path": "/product-page/fern-9"
+    },
+    {
+      "id": "d040cb45-06f4-5d87-0d3e-cccb2abbd642",
+      "name": "Rosello 12",
+      "slug": "rosello-12",
+      "visible": true,
+      "path": "/product-page/rosello-12"
+    },
+    {
+      "id": "c3a11d38-00fe-9b1b-51ac-a1fdb81b7c01",
+      "name": "Marine 25",
+      "slug": "marine-25",
+      "visible": true,
+      "path": "/product-page/marine-25"
+    },
+    {
+      "id": "d5ef53c8-8cfb-2a92-cffc-2d117efc8bcf",
+      "name": "Marine 12",
+      "slug": "marine-12",
+      "visible": true,
+      "path": "/product-page/marine-12"
+    },
+    {
+      "id": "d9087637-3f1d-af22-7e49-bd7ca41328e7",
+      "name": "Lotus 25 Pcs",
+      "slug": "lotus-25-pcs",
+      "visible": true,
+      "path": "/product-page/lotus-25-pcs"
+    },
+    {
+      "id": "fd15884e-8c71-3571-021d-239536ca1cb5",
+      "name": "Lotus 16 Pcs",
+      "slug": "lotus-16-pcs",
+      "visible": true,
+      "path": "/product-page/lotus-16-pcs"
+    },
+    {
+      "id": "07456207-7c04-eac7-67b6-39ee378c9cb1",
+      "name": "Lotus 12 Pcs",
+      "slug": "lotus-12-pcs",
+      "visible": true,
+      "path": "/product-page/lotus-12-pcs"
+    },
+    {
+      "id": "76193bd9-c9fc-38b0-00ee-b020694bab03",
+      "name": "Lotus 16+2",
+      "slug": "lotus-16-2",
+      "visible": true,
+      "path": "/product-page/lotus-16-2"
+    },
+    {
+      "id": "d7947696-40f0-cc12-e77e-cd56ceb118bd",
+      "name": "Celeste",
+      "slug": "celeste",
+      "visible": true,
+      "path": "/product-page/celeste"
+    },
+    {
+      "id": "34f2de40-229b-e746-7636-ddc7c87afd2f",
+      "name": "Mandala 16+2",
+      "slug": "mandala-16-2",
+      "visible": true,
+      "path": "/product-page/mandala-16-2"
+    },
+    {
+      "id": "8d4d3be2-78f7-2255-b0d0-f298d50d7786",
+      "name": "Mandala 16+4",
+      "slug": "mandala-16-4",
+      "visible": true,
+      "path": "/product-page/mandala-16-4"
+    },
+    {
+      "id": "33430d4e-baf4-dbac-822f-1af83fdf4625",
+      "name": "MANDALA T - 4",
+      "slug": "mandala-t-4",
+      "visible": true,
+      "path": "/product-page/mandala-t-4"
+    },
+    {
+      "id": "57199abf-1ac3-e3fd-5c37-1b83c6d6935c",
+      "name": "MANDALA T - 6",
+      "slug": "mandala-t-6",
+      "visible": true,
+      "path": "/product-page/mandala-t-6"
+    },
+    {
+      "id": "3087c998-4e06-ce00-171f-9803eed2311e",
+      "name": "Persian 2+2+16",
+      "slug": "persian-2-2-16",
+      "visible": true,
+      "path": "/product-page/persian-2-2-16"
+    },
+    {
+      "id": "e8120d88-008b-5129-924e-4934952d174a",
+      "name": "Persian 4+4+8",
+      "slug": "persian-4-4-8",
+      "visible": true,
+      "path": "/product-page/persian-4-4-8"
+    },
+    {
+      "id": "aee5e34a-9932-2f00-8519-3c8c202c508d",
+      "name": "Ambassador",
+      "slug": "ambassador",
+      "visible": true,
+      "path": "/product-page/ambassador"
+    },
+    {
+      "id": "2efe8f93-399d-8de0-d7f4-9f6cb01ac4d1",
+      "name": "ROYAL TREAT 3",
+      "slug": "royal-treat-3",
+      "visible": true,
+      "path": "/product-page/royal-treat-3"
+    },
+    {
+      "id": "b255fce2-6b93-4229-8ae1-0c107d80e6f5",
+      "name": "ROYAL TREAT 4",
+      "slug": "royal-treat-4",
+      "visible": true,
+      "path": "/product-page/royal-treat-4"
+    },
+    {
+      "id": "dc63d8a7-da9c-ce73-1cf2-808c7b98fce4",
+      "name": "ROYAL TREAT 6",
+      "slug": "royal-treat-6",
+      "visible": true,
+      "path": "/product-page/royal-treat-6"
+    },
+    {
+      "id": "99ef4818-6405-5cb4-3ba2-8c0b36c084d4",
+      "name": "COSMOS - IV",
+      "slug": "cosmos-iv",
+      "visible": true,
+      "path": "/product-page/cosmos-iv"
+    },
+    {
+      "id": "84548d47-116a-cf2c-0dd5-149e885cdf5f",
+      "name": "COSMOS - VI",
+      "slug": "cosmos-vi",
+      "visible": true,
+      "path": "/product-page/cosmos-vi"
+    },
+    {
+      "id": "a179c2a3-0693-eeda-9480-66e1e20e159d",
+      "name": "ECONOMY - 2",
+      "slug": "economy-2",
+      "visible": true,
+      "path": "/product-page/economy-2"
+    },
+    {
+      "id": "32ed9d9f-d0fd-3e44-a19e-fca0659621ee",
+      "name": "ECONOMY - 3",
+      "slug": "economy-3",
+      "visible": true,
+      "path": "/product-page/economy-3"
+    },
+    {
+      "id": "b7b4a10b-ce5c-20bb-3534-55c3b5a2b339",
+      "name": "ONYX",
+      "slug": "onyx",
+      "visible": true,
+      "path": "/product-page/onyx"
+    },
+    {
+      "id": "f6a981d4-561d-4d5b-ca3b-f065006d1743",
+      "name": "Fox",
+      "slug": "fox",
+      "visible": true,
+      "path": "/product-page/fox"
+    },
+    {
+      "id": "d8b71b2a-56a6-102c-2647-5f440e90b2fe",
+      "name": "Dream",
+      "slug": "dream",
+      "visible": true,
+      "path": "/product-page/dream"
+    },
+    {
+      "id": "a743c2f9-311c-c815-886a-56a77710af85",
+      "name": "Flare",
+      "slug": "flare",
+      "visible": true,
+      "path": "/product-page/flare"
+    },
+    {
+      "id": "9377a46e-b028-8d94-d89d-5c60d3a7547f",
+      "name": "White Lotus",
+      "slug": "white-lotus",
+      "visible": true,
+      "path": "/product-page/white-lotus"
+    },
+    {
+      "id": "1189f6a6-2528-9869-1dec-7d2ee8ffbc37",
+      "name": "Splendor-IV",
+      "slug": "splendor-iv",
+      "visible": true,
+      "path": "/product-page/splendor-iv"
+    },
+    {
+      "id": "87efa0ae-a140-69b0-dc15-af9408b017af",
+      "name": "Noir Treat",
+      "slug": "noir-treat",
+      "visible": true,
+      "path": "/product-page/noir-treat"
+    },
+    {
+      "id": "98249891-c4bc-4444-e24c-5fa6ae0a6591",
+      "name": "Noir Grande",
+      "slug": "noir-grande",
+      "visible": true,
+      "path": "/product-page/noir-grande"
+    },
+    {
+      "id": "b88f9caf-bac9-6a76-fee0-6fe634a629ac",
+      "name": "Tote Allure’",
+      "slug": "tote-allure",
+      "visible": true,
+      "path": "/product-page/tote-allure"
+    },
+    {
+      "id": "0a0fde0b-c853-a78f-054c-20a12160aba2",
+      "name": "Craft",
+      "slug": "craft",
+      "visible": true,
+      "path": "/product-page/craft"
+    },
+    {
+      "id": "f6c2cc6b-ad62-8055-b193-edcd55df2ad7",
+      "name": "Crownmate",
+      "slug": "crownmate",
+      "visible": true,
+      "path": "/product-page/crownmate"
+    },
+    {
+      "id": "e1393da0-bcf8-25f3-4b69-2a392c085e2a",
+      "name": "Tote Mix",
+      "slug": "tote-mix",
+      "visible": true,
+      "path": "/product-page/tote-mix"
+    },
+    {
+      "id": "7ab69177-1545-4fc2-46ab-7689a32974b4",
+      "name": "Ocean",
+      "slug": "ocean",
+      "visible": true,
+      "path": "/product-page/ocean"
+    },
+    {
+      "id": "90ec5546-a491-d843-0870-a45a39d2a426",
+      "name": "Valencia",
+      "slug": "valencia",
+      "visible": true,
+      "path": "/product-page/valencia"
+    },
+    {
+      "id": "eddee184-c022-3069-a1c2-9309c32f77a7",
+      "name": "Epicure",
+      "slug": "epicure",
+      "visible": true,
+      "path": "/product-page/epicure"
+    },
+    {
+      "id": "46e69f82-10c5-1480-80f7-48c019f01722",
+      "name": "Lustre",
+      "slug": "lustre",
+      "visible": true,
+      "path": "/product-page/lustre"
+    },
+    {
+      "id": "6e345986-f3ff-a75d-f111-0e49c994a472",
+      "name": "Tote Feast",
+      "slug": "tote-feast",
+      "visible": true,
+      "path": "/product-page/tote-feast"
+    },
+    {
+      "id": "0d6ca989-f076-f7eb-3c78-8099d7672cb4",
+      "name": "Bounty",
+      "slug": "bounty",
+      "visible": true,
+      "path": "/product-page/bounty"
+    },
+    {
+      "id": "5984820c-9692-c6aa-d723-670fee5e4028",
+      "name": "Lustre Petite",
+      "slug": "lustre-petite",
+      "visible": true,
+      "path": "/product-page/lustre-petite"
+    },
+    {
+      "id": "7766f716-1013-3080-d3c7-16db7ce740cb",
+      "name": "Elanor Grande",
+      "slug": "elanor-grande",
+      "visible": true,
+      "path": "/product-page/elanor-grande"
+    },
+    {
+      "id": "03d7e146-15a0-048d-c8c0-90f2fe265455",
+      "name": "Pure Spark",
+      "slug": "pure-spark",
+      "visible": true,
+      "path": "/product-page/pure-spark"
+    },
+    {
+      "id": "c8d5e7b1-f21b-4a2d-84a0-efca9da1b700",
+      "name": "Pure Aura",
+      "slug": "pure-aura",
+      "visible": true,
+      "path": "/product-page/pure-aura"
+    },
+    {
+      "id": "33fdefec-d9d1-5b6d-72da-379d79948848",
+      "name": "Forester",
+      "slug": "forester",
+      "visible": true,
+      "path": "/product-page/forester"
+    },
+    {
+      "id": "1d721ea4-ee70-5ace-755b-abd98deb2477",
+      "name": "Woodland",
+      "slug": "woodland",
+      "visible": true,
+      "path": "/product-page/woodland"
+    },
+    {
+      "id": "fdc3cdb9-4293-2558-3211-ade876e264d5",
+      "name": "Timberland",
+      "slug": "timberland",
+      "visible": true,
+      "path": "/product-page/timberland"
+    },
+    {
+      "id": "179a52b2-37e5-b0da-4fa0-b51f354ae1c8",
+      "name": "Elanor Luxe",
+      "slug": "elanor-luxe",
+      "visible": true,
+      "path": "/product-page/elanor-luxe"
+    },
+    {
+      "id": "1220c490-c415-1e48-f1f7-ad1e79344e15",
+      "name": "Smoke",
+      "slug": "smoke",
+      "visible": true,
+      "path": "/product-page/smoke"
+    },
+    {
+      "id": "a8b67a7b-4c82-1142-9489-0863ca6ac5dc",
+      "name": "Verve",
+      "slug": "verve",
+      "visible": true,
+      "path": "/product-page/verve"
+    },
+    {
+      "id": "8f2ebba6-b32b-8cf6-840e-fa2e9630e7fc",
+      "name": "Majesty",
+      "slug": "majesty",
+      "visible": true,
+      "path": "/product-page/majesty"
+    },
+    {
+      "id": "ae6cc07e-d269-86d3-5579-ad598e2550fd",
+      "name": "Panache",
+      "slug": "panache",
+      "visible": true,
+      "path": "/product-page/panache"
+    },
+    {
+      "id": "46d91c81-1c73-33fd-5718-2d1976cfdae4",
+      "name": "Tangerine",
+      "slug": "tangerine",
+      "visible": true,
+      "path": "/product-page/tangerine"
+    },
+    {
+      "id": "bc49effa-f5f5-fdb3-e9bf-80ae3df1976b",
+      "name": "Pure Shine",
+      "slug": "pure-shine",
+      "visible": true,
+      "path": "/product-page/pure-shine"
+    },
+    {
+      "id": "18974d78-1ec7-9006-1db0-5b3d562ce150",
+      "name": "Sunkiss",
+      "slug": "sunkiss",
+      "visible": true,
+      "path": "/product-page/sunkiss"
+    },
+    {
+      "id": "35a313cf-1467-9946-f14a-3aa320135bcf",
+      "name": "Slate",
+      "slug": "slate",
+      "visible": true,
+      "path": "/product-page/slate"
+    },
+    {
+      "id": "b51d5cae-e797-d083-0c6e-a4278df460e5",
+      "name": "Elanor",
+      "slug": "elanor",
+      "visible": true,
+      "path": "/product-page/elanor"
+    },
+    {
+      "id": "6052930f-b679-d6e3-044f-69794857a38b",
+      "name": "Meadow",
+      "slug": "meadow",
+      "visible": true,
+      "path": "/product-page/meadow"
+    },
+    {
+      "id": "87937cb1-3b85-4bab-ce5f-608d740515a2",
+      "name": "Noir Petite",
+      "slug": "noir-petite",
+      "visible": true,
+      "path": "/product-page/noir-petite"
+    },
+    {
+      "id": "1ce51eb6-8021-ab85-50aa-ff1847ab2f66",
+      "name": "Pure Bliss",
+      "slug": "pure-bliss",
+      "visible": true,
+      "path": "/product-page/pure-bliss"
+    },
+    {
+      "id": "2f75018a-5be3-98ba-f976-79622366b686",
+      "name": "Indigo 16",
+      "slug": "indigo-16",
+      "visible": true,
+      "path": "/product-page/indigo-16"
+    },
+    {
+      "id": "2cecbe0e-45fa-1045-7504-0da82dcd38f6",
+      "name": "Splendor-VI",
+      "slug": "splendor-vi",
+      "visible": true,
+      "path": "/product-page/splendor-vi"
+    },
+    {
+      "id": "07b71078-bc9c-dac8-501b-4cd4f7698d16",
+      "name": "Europa Quattro",
+      "slug": "europa-quattro",
+      "visible": true,
+      "path": "/product-page/europa-quattro"
+    },
+    {
+      "id": "98e4f100-16fd-b391-b947-12f6edbf03f1",
+      "name": "Europa Trio",
+      "slug": "europa-trio",
+      "visible": true,
+      "path": "/product-page/europa-trio"
+    },
+    {
+      "id": "b51b5df3-fe89-2474-d77f-770cd93067e9",
+      "name": "Europa Duo",
+      "slug": "europa-duo",
+      "visible": true,
+      "path": "/product-page/europa-duo"
+    },
+    {
+      "id": "1e3a896b-e0d4-5a54-af51-6fbff90ea8a6",
+      "name": "Ferris Wheel",
+      "slug": "ferris-wheel",
+      "visible": true,
+      "path": "/product-page/ferris-wheel"
+    },
+    {
+      "id": "1280743f-c87e-e96b-6436-454358b2f9ea",
+      "name": "Goldberg Junior",
+      "slug": "goldberg-junior",
+      "visible": true,
+      "path": "/product-page/goldberg-junior"
+    },
+    {
+      "id": "1ae75b2b-0dfd-b448-cd67-2073187fae43",
+      "name": "Goldberg Senior",
+      "slug": "goldberg-senior",
+      "visible": true,
+      "path": "/product-page/goldberg-senior"
+    },
+    {
+      "id": "eb8b7202-18f7-dcc6-4dc1-c7520b9524c8",
+      "name": "Teekhi Chaat",
+      "slug": "teekhi-chaat-1",
+      "visible": true,
+      "path": "/product-page/teekhi-chaat-1"
+    },
+    {
+      "id": "a917bd41-3d88-eab7-040f-bf826aecdc6d",
+      "name": "Anardana Raisin",
+      "slug": "anardana-raisin",
+      "visible": true,
+      "path": "/product-page/anardana-raisin"
+    },
+    {
+      "id": "cb8f53e1-a05c-e685-d638-bfe9a248ee8c",
+      "name": "Paan Raisin",
+      "slug": "paan-raisin",
+      "visible": true,
+      "path": "/product-page/paan-raisin"
+    },
+    {
+      "id": "b551bf32-69b4-3ff9-0ff9-9b879bae8734",
+      "name": "Petit Gourmet 28",
+      "slug": "petit-gourmet28",
+      "visible": true,
+      "path": "/product-page/petit-gourmet28"
+    },
+    {
+      "id": "2bfff407-9f29-a151-bfc1-7333f6a179f7",
+      "name": "Malbaan 1",
+      "slug": "malbaan-1",
+      "visible": true,
+      "path": "/product-page/malbaan-1"
+    },
+    {
+      "id": "c1b9af9e-05bf-4c73-6077-32e8f8c34955",
+      "name": "Malbaan 2",
+      "slug": "malbaan-2",
+      "visible": true,
+      "path": "/product-page/malbaan-2"
+    },
+    {
+      "id": "84951463-a12b-9b29-6442-c032cd20746f",
+      "name": "Malbaan 5",
+      "slug": "malbaan-5",
+      "visible": true,
+      "path": "/product-page/malbaan-5"
+    },
+    {
+      "id": "33bb0d59-af59-1589-33ab-fd3483197a77",
+      "name": "Malbaan 6",
+      "slug": "malbaan-6",
+      "visible": true,
+      "path": "/product-page/malbaan-6"
+    },
+    {
+      "id": "38569bfc-7aca-7983-1ea9-1cfda762b0dc",
+      "name": "Malbaan 7",
+      "slug": "malbaan-7",
+      "visible": true,
+      "path": "/product-page/malbaan-7"
+    },
+    {
+      "id": "cdc893f3-9b77-33f1-c253-daaf05703f40",
+      "name": "Malbaan 9",
+      "slug": "malbaan-9",
+      "visible": true,
+      "path": "/product-page/malbaan-9"
+    },
+    {
+      "id": "f94d134d-87ab-d247-f759-1e257ec92043",
+      "name": "Pistachio Marzipan",
+      "slug": "pistachio-marzipan",
+      "visible": true,
+      "path": "/product-page/pistachio-marzipan"
+    },
+    {
+      "id": "da2604a5-dd36-27e4-07a7-9c30dab217f4",
+      "name": "Double Pistachio",
+      "slug": "double-pistachio",
+      "visible": true,
+      "path": "/product-page/double-pistachio"
+    },
+    {
+      "id": "b8e6df1d-a198-9a1d-1d44-6e89516bb152",
+      "name": "Double Almond",
+      "slug": "double-almond",
+      "visible": true,
+      "path": "/product-page/double-almond"
+    },
+    {
+      "id": "1449e165-34e8-46c5-3e4c-14dfbb7fa291",
+      "name": "Pistachio",
+      "slug": "pistachio",
+      "visible": true,
+      "path": "/product-page/pistachio"
+    },
+    {
+      "id": "ccaa6cb3-d10c-4e7d-ca78-47aa9b76bf87",
+      "name": "Hazelnut Dragees",
+      "slug": "hazelnut-dragees",
+      "visible": true,
+      "path": "/product-page/hazelnut-dragees"
+    },
+    {
+      "id": "11cabf36-6275-a49e-56f5-3f4f423ff78f",
+      "name": "Silver Almond Dragees",
+      "slug": "silver-almond-dragees",
+      "visible": true,
+      "path": "/product-page/silver-almond-dragees"
+    },
+    {
+      "id": "dddac652-038e-978e-642b-e969a22530ea",
+      "name": "Cocoa Almond Dragees",
+      "slug": "cocoa-almond-dragees",
+      "visible": true,
+      "path": "/product-page/cocoa-almond-dragees"
+    },
+    {
+      "id": "2cb2d2c2-fbfe-fee0-8e8e-70de5e608672",
+      "name": "Dark Almond Dragees",
+      "slug": "dark-almond-dragees",
+      "visible": true,
+      "path": "/product-page/dark-almond-dragees"
+    },
+    {
+      "id": "a447226c-761a-7a3b-afd4-fcb177280ee2",
+      "name": "Golden Almond Dragees",
+      "slug": "golden-almond-dragees",
+      "visible": true,
+      "path": "/product-page/golden-almond-dragees"
+    },
+    {
+      "id": "25c01227-0f22-ed64-2c6a-08921b812681",
+      "name": "Safflower Pistachio",
+      "slug": "safflower-pistachio",
+      "visible": true,
+      "path": "/product-page/safflower-pistachio"
+    },
+    {
+      "id": "51586da3-fadc-7918-be81-149f51791eae",
+      "name": "Safflower Hazelnut",
+      "slug": "safflower-hazelnut",
+      "visible": true,
+      "path": "/product-page/safflower-hazelnut"
+    },
+    {
+      "id": "50bc86a6-deae-99a7-0aab-fe885769eaa4",
+      "name": "Safflower Almond",
+      "slug": "safflower-almond",
+      "visible": true,
+      "path": "/product-page/safflower-almond"
+    },
+    {
+      "id": "07a3ecad-1840-a900-e0c8-d85f8f556def",
+      "name": "Pasha Pistachio Safflower",
+      "slug": "pasha-pistachio-safflower",
+      "visible": true,
+      "path": "/product-page/pasha-pistachio-safflower"
+    },
+    {
+      "id": "bfe7a656-733d-b3b0-eb0d-9837bc22d574",
+      "name": "Rose Pistachio Pomengranate",
+      "slug": "rose-pistachio-pomengranate",
+      "visible": true,
+      "path": "/product-page/rose-pistachio-pomengranate"
+    },
+    {
+      "id": "b416028a-99d8-0fea-f5cc-09fb6458920f",
+      "name": "Rose Almond Pomengranate",
+      "slug": "rose-almond-pomengranate",
+      "visible": true,
+      "path": "/product-page/rose-almond-pomengranate"
+    },
+    {
+      "id": "63f32071-d763-6103-eca3-f155b21244bb",
+      "name": "Grape Pistachio Pomengranate",
+      "slug": "grape-pistachio-pomengranate",
+      "visible": true,
+      "path": "/product-page/grape-pistachio-pomengranate"
+    },
+    {
+      "id": "847b7094-447b-6d52-aba7-cee196ae75a7",
+      "name": "Grape Honey Almond",
+      "slug": "grape-honey-almond",
+      "visible": true,
+      "path": "/product-page/grape-honey-almond"
+    },
+    {
+      "id": "61215dd0-ae5a-0a23-283d-8b7c5480c358",
+      "name": "Pasha Walnut",
+      "slug": "pasha-walnut",
+      "visible": true,
+      "path": "/product-page/pasha-walnut"
+    },
+    {
+      "id": "d9d51d87-7427-fcfe-0ff1-c4c8426361b2",
+      "name": "Pasha Pistachio",
+      "slug": "pasha-pistachio",
+      "visible": true,
+      "path": "/product-page/pasha-pistachio"
+    },
+    {
+      "id": "eb6c546b-1690-29fa-a0da-3fe8dfde4a4c",
+      "name": "Pasha Hazelnut",
+      "slug": "pasha-hazelnut",
+      "visible": true,
+      "path": "/product-page/pasha-hazelnut"
+    },
+    {
+      "id": "8c41d658-155e-13a2-a478-75108c20bad5",
+      "name": "Pasha Almond",
+      "slug": "pasha-almond",
+      "visible": true,
+      "path": "/product-page/pasha-almond"
+    },
+    {
+      "id": "a62c2358-5130-649c-2f1d-d05d5e0bf6c3",
+      "name": "Pomengranate Pistachio",
+      "slug": "pomengranate-pistachio",
+      "visible": true,
+      "path": "/product-page/pomengranate-pistachio"
+    },
+    {
+      "id": "0082ddec-743d-d95f-8629-070866289623",
+      "name": "Pomengranate Hazelnut",
+      "slug": "pomengranate-hazelnut",
+      "visible": true,
+      "path": "/product-page/pomengranate-hazelnut"
+    },
+    {
+      "id": "afb76f23-35dc-02bb-10dc-cbc927711942",
+      "name": "Honey Pistachio",
+      "slug": "honey-pistachio",
+      "visible": true,
+      "path": "/product-page/honey-pistachio"
+    },
+    {
+      "id": "f31ff63a-8b4e-38db-e705-1b502d221190",
+      "name": "Honey Hazelnut",
+      "slug": "honey-hazelnut",
+      "visible": true,
+      "path": "/product-page/honey-hazelnut"
+    },
+    {
+      "id": "812776fd-7ceb-394d-e794-36f73561d972",
+      "name": "Honey Almond",
+      "slug": "honey-almond",
+      "visible": true,
+      "path": "/product-page/honey-almond"
+    },
+    {
+      "id": "0192fafc-e308-072a-99d0-b23541ae7fb6",
+      "name": "Pomengranate Double Pistachio",
+      "slug": "pomengranate-double-pistachio",
+      "visible": true,
+      "path": "/product-page/pomengranate-double-pistachio"
+    },
+    {
+      "id": "644107c3-4d53-a4f0-e7d7-367543d62d59",
+      "name": "Pasha Double Pistachio",
+      "slug": "pasha-double-pistachio",
+      "visible": true,
+      "path": "/product-page/pasha-double-pistachio"
+    },
+    {
+      "id": "3e061a40-e30e-df81-fe5e-84f70818f821",
+      "name": "Hazelnut Pomengranate Pistachio",
+      "slug": "hazelnut-pomengranate-pistachio",
+      "visible": true,
+      "path": "/product-page/hazelnut-pomengranate-pistachio"
+    },
+    {
+      "id": "ccca56e2-da93-f80b-5524-2f3294213d9f",
+      "name": "Cola",
+      "slug": "cola",
+      "visible": true,
+      "path": "/product-page/cola"
+    },
+    {
+      "id": "4ede90fd-635f-46b2-54ce-757bf7fba9fc",
+      "name": "Rose",
+      "slug": "rose-1",
+      "visible": true,
+      "path": "/product-page/rose-1"
+    },
+    {
+      "id": "c73aa813-b5b1-61f7-610f-a84f833bc20c",
+      "name": "Cherry",
+      "slug": "cherry",
+      "visible": true,
+      "path": "/product-page/cherry"
+    },
+    {
+      "id": "5c9c67e8-b6bf-a395-ae74-c646b4b45b65",
+      "name": "Strawberry",
+      "slug": "strawberry",
+      "visible": true,
+      "path": "/product-page/strawberry"
+    },
+    {
+      "id": "8b2399ed-35ea-4a56-8a48-ea4d364c13b1",
+      "name": "Kiwi",
+      "slug": "kiwi",
+      "visible": true,
+      "path": "/product-page/kiwi"
+    },
+    {
+      "id": "e73e66f6-889b-7703-4ebb-6f8ce949dcc4",
+      "name": "Apple",
+      "slug": "apple",
+      "visible": true,
+      "path": "/product-page/apple"
+    },
+    {
+      "id": "d1bbcd38-1048-c8b7-3c20-d0477b0a9ed2",
+      "name": "Orange",
+      "slug": "orange-1",
+      "visible": true,
+      "path": "/product-page/orange-1"
+    },
+    {
+      "id": "3918b5ab-a017-7bdf-d51b-d78b560567f3",
+      "name": "Pineapple",
+      "slug": "pineapple-1",
+      "visible": true,
+      "path": "/product-page/pineapple-1"
+    },
+    {
+      "id": "b276b872-9ad5-01d5-d815-c9ab64a24c17",
+      "name": "Lemon",
+      "slug": "lemon",
+      "visible": true,
+      "path": "/product-page/lemon"
+    },
+    {
+      "id": "006341f7-2f6b-700a-9f1a-ab6b7f1c4921",
+      "name": "Mango",
+      "slug": "mango-1",
+      "visible": true,
+      "path": "/product-page/mango-1"
+    },
+    {
+      "id": "07036a2c-b26d-4f56-8813-992330c90984",
+      "name": "Sweet Symphony",
+      "slug": "gourmet-delight-assortment-1",
+      "visible": true,
+      "path": "/product-page/gourmet-delight-assortment-1"
+    },
+    {
+      "id": "104fea98-1b3c-a511-64d4-ed6d60c515be",
+      "name": "White Rose",
+      "slug": "white-rose-chocodate",
+      "visible": true,
+      "path": "/product-page/white-rose-chocodate"
+    },
+    {
+      "id": "9137c25b-3ab5-5fa2-b4ad-6ce7aa277ead",
+      "name": "Polaris Date hamper",
+      "slug": "dates-tree-5",
+      "visible": true,
+      "path": "/product-page/dates-tree-5"
+    },
+    {
+      "id": "b7ecb3fd-86dd-5ca3-d521-6f5e1b439e3d",
+      "name": "Canary Date Hamper ",
+      "slug": "dates-tree-4",
+      "visible": true,
+      "path": "/product-page/dates-tree-4"
+    },
+    {
+      "id": "30845471-4f98-54cb-ad09-515944b2208d",
+      "name": "Vega Date Hamper",
+      "slug": "dates-tree-3",
+      "visible": true,
+      "path": "/product-page/dates-tree-3"
+    },
+    {
+      "id": "1c7154d8-d6b8-9761-a37f-edbbf3563743",
+      "name": "Phoenix Date Hamper",
+      "slug": "dates-tree-2",
+      "visible": true,
+      "path": "/product-page/dates-tree-2"
+    },
+    {
+      "id": "f4b550a8-09d5-9308-43d5-2c3532be2a66",
+      "name": "Dates Tree 1",
+      "slug": "dates-tree-1",
+      "visible": true,
+      "path": "/product-page/dates-tree-1"
+    },
+    {
+      "id": "4dcf0eb1-fd4c-4cdb-d814-416066692a50",
+      "name": "Paan",
+      "slug": "paan-chocodate",
+      "visible": true,
+      "path": "/product-page/paan-chocodate"
+    },
+    {
+      "id": "9a1d0434-1c40-9de2-d795-da7566811c26",
+      "name": "Crunchy Almond",
+      "slug": "crunchy-almond",
+      "visible": true,
+      "path": "/product-page/crunchy-almond"
+    },
+    {
+      "id": "4805ca08-e1e2-b535-c465-34d56b23f7d9",
+      "name": "Hazelnut Milk Chocolate",
+      "slug": "hazelnut-milk-chocolate",
+      "visible": true,
+      "path": "/product-page/hazelnut-milk-chocolate"
+    },
+    {
+      "id": "1b7d70c2-42e2-4f05-3bcd-147468b849de",
+      "name": "Sea Salt Caramel",
+      "slug": "copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-4",
+      "visible": true,
+      "path": "/product-page/copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-4"
+    },
+    {
+      "id": "e7996771-4fa6-a0b6-755a-87f788c4e393",
+      "name": "Cookies & Cream",
+      "slug": "copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-3",
+      "visible": true,
+      "path": "/product-page/copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-3"
+    },
+    {
+      "id": "31d699f8-39a0-a461-24d1-fa0afcc63143",
+      "name": "Pistachio Dark Chocolate",
+      "slug": "copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-2",
+      "visible": true,
+      "path": "/product-page/copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-2"
+    },
+    {
+      "id": "3f6e3d55-1971-77bc-eb32-88bdeb951968",
+      "name": "Butterscotch Crisp",
+      "slug": "copy-of-copy-of-copy-of-copy-of-copy-of-butter-scotch-truffle",
+      "visible": true,
+      "path": "/product-page/copy-of-copy-of-copy-of-copy-of-copy-of-butter-scotch-truffle"
+    },
+    {
+      "id": "820047b7-01d3-6c5d-475c-38d4706af20d",
+      "name": "Tiramisu Crisp",
+      "slug": "copy-of-copy-of-copy-of-copy-of-butter-scotch-truffle",
+      "visible": true,
+      "path": "/product-page/copy-of-copy-of-copy-of-copy-of-butter-scotch-truffle"
+    },
+    {
+      "id": "36f54a8e-ed34-7bbc-00bb-10f24a78b185",
+      "name": "Cashew Caramel",
+      "slug": "copy-of-butter-scotch-truffle",
+      "visible": true,
+      "path": "/product-page/copy-of-butter-scotch-truffle"
+    },
+    {
+      "id": "1c4c872c-072b-e712-6afb-f678c5e39c7f",
+      "name": "Gourmet Delight Assortment",
+      "slug": "gourmet-delight-assortment",
+      "visible": true,
+      "path": "/product-page/gourmet-delight-assortment"
+    },
+    {
+      "id": "b3cf1d0a-b117-236d-2653-6e7085ed95da",
+      "name": "Grand Gourmet Assortment",
+      "slug": "grand-gourmet-assortment",
+      "visible": true,
+      "path": "/product-page/grand-gourmet-assortment"
+    },
+    {
+      "id": "ed964422-ada3-f1f5-586f-7e02c198abc5",
+      "name": "Premium Baklava Assortment",
+      "slug": "symphony-assortment",
+      "visible": true,
+      "path": "/product-page/symphony-assortment"
+    },
+    {
+      "id": "4b6a9684-fbe3-f283-7811-846306210de0",
+      "name": "Teekhi Chaat",
+      "slug": "teekhi-chaat",
+      "visible": true,
+      "path": "/product-page/teekhi-chaat"
+    },
+    {
+      "id": "af345086-5ed4-50c6-22d7-f2881d9272cf",
+      "name": "Salsa Almond",
+      "slug": "salsa-almond",
+      "visible": true,
+      "path": "/product-page/salsa-almond"
+    },
+    {
+      "id": "35640e68-ace4-922f-3a41-c485398402ef",
+      "name": "Rose Cashew",
+      "slug": "rose-cashew",
+      "visible": true,
+      "path": "/product-page/rose-cashew"
+    },
+    {
+      "id": "8c191ed0-640f-832c-d4d5-fbb53275e473",
+      "name": "Rose Almond",
+      "slug": "rose-almond",
+      "visible": true,
+      "path": "/product-page/rose-almond"
+    },
+    {
+      "id": "f98fe673-42fd-d375-471e-49a15b1414e1",
+      "name": "Peri Peri Cashew",
+      "slug": "peri-peri-cashew",
+      "visible": true,
+      "path": "/product-page/peri-peri-cashew"
+    },
+    {
+      "id": "ba56372a-755d-9e40-ff69-021bcd61f5bc",
+      "name": "Mint Cashew",
+      "slug": "mint-cashew",
+      "visible": true,
+      "path": "/product-page/mint-cashew"
+    },
+    {
+      "id": "e2fe439a-ea45-4a2e-9b26-1a9b34ca5638",
+      "name": "Maggie Masala Cashew",
+      "slug": "maggie-masala-cashew",
+      "visible": true,
+      "path": "/product-page/maggie-masala-cashew"
+    },
+    {
+      "id": "52d33f61-61b1-6cde-2315-80a50df22d17",
+      "name": "BBQ Cashew",
+      "slug": "bbq-cashew",
+      "visible": true,
+      "path": "/product-page/bbq-cashew"
+    },
+    {
+      "id": "c805ebe8-7738-c20a-16f3-904d131f6793",
+      "name": "Suji Rusk",
+      "slug": "suji-rusk",
+      "visible": true,
+      "path": "/product-page/suji-rusk"
+    },
+    {
+      "id": "e0c012f5-a0ca-c5ec-4a0e-32dcb838c785",
+      "name": "Fan Puff",
+      "slug": "fan-puff",
+      "visible": true,
+      "path": "/product-page/fan-puff"
+    },
+    {
+      "id": "ddf8ffd3-3106-7aaa-396a-8cdc1876fae9",
+      "name": "Butter Cashew",
+      "slug": "butter-cashew",
+      "visible": true,
+      "path": "/product-page/butter-cashew"
+    },
+    {
+      "id": "7f106690-7939-d744-f81f-150571746f9d",
+      "name": "Fruit Cake Rusk",
+      "slug": "fruit-cake-rusk",
+      "visible": true,
+      "path": "/product-page/fruit-cake-rusk"
+    },
+    {
+      "id": "2160a0bd-ec7a-aa4c-9000-f2a4834c250c",
+      "name": "Ajwain Sticks",
+      "slug": "ajwain-sticks",
+      "visible": true,
+      "path": "/product-page/ajwain-sticks"
+    },
+    {
+      "id": "2cb5040a-868c-49f8-6578-a0aa042b3eb6",
+      "name": "Ajwain Puff Twisties",
+      "slug": "ajwain-puff-twisties",
+      "visible": true,
+      "path": "/product-page/ajwain-puff-twisties"
+    },
+    {
+      "id": "e6cd82e4-d8b2-fec5-ad07-8ce5fac4e18b",
+      "name": "Ajwain Khari",
+      "slug": "ajwain-khari",
+      "visible": true,
+      "path": "/product-page/ajwain-khari"
+    },
+    {
+      "id": "1252bdb2-bdcb-853d-b5a7-199b75bc7dd2",
+      "name": "Methi Puff Twisties",
+      "slug": "methi-puff-twisties",
+      "visible": true,
+      "path": "/product-page/methi-puff-twisties"
+    },
+    {
+      "id": "ad14c027-14c3-d2dd-9361-b6024244906f",
+      "name": "Almond Flacks Cookies",
+      "slug": "almond-flacks-cookies",
+      "visible": true,
+      "path": "/product-page/almond-flacks-cookies"
+    },
+    {
+      "id": "4f70ab98-93be-dedd-89ed-e205c3634a7a",
+      "name": "Atta Patti Cookies",
+      "slug": "atta-patti-cookies",
+      "visible": true,
+      "path": "/product-page/atta-patti-cookies"
+    },
+    {
+      "id": "770e462c-fe90-e01c-8731-63f584095a80",
+      "name": "Coconut Macarons Cookies",
+      "slug": "coconut-macarons-cookies",
+      "visible": true,
+      "path": "/product-page/coconut-macarons-cookies"
+    },
+    {
+      "id": "642b8157-e697-7004-d97e-e5d30bb257d9",
+      "name": "Jeera Indulge Cookies",
+      "slug": "jeera-indulge-cookies",
+      "visible": true,
+      "path": "/product-page/jeera-indulge-cookies"
+    },
+    {
+      "id": "5ca37097-3891-7b9d-912b-34bc35ab98fc",
+      "name": "Chocolate Drops Cookies",
+      "slug": "chocolate-drops-cookies",
+      "visible": true,
+      "path": "/product-page/chocolate-drops-cookies"
+    },
+    {
+      "id": "39f09e66-8e8a-2c9e-9607-72e5abe17964",
+      "name": "Milk Coconut Cookies",
+      "slug": "milk-coconut-cookies",
+      "visible": true,
+      "path": "/product-page/milk-coconut-cookies"
+    },
+    {
+      "id": "8752ea91-ab40-405b-00b2-6b914f2ff214",
+      "name": "Almond Crunch Cookies",
+      "slug": "almond-crunch-cookies",
+      "visible": true,
+      "path": "/product-page/almond-crunch-cookies"
+    },
+    {
+      "id": "56eb0126-0bc8-ced0-83ed-25e9f13a4d92",
+      "name": "French Heart Cookies",
+      "slug": "french-heart-cookies",
+      "visible": true,
+      "path": "/product-page/french-heart-cookies"
+    },
+    {
+      "id": "16ce2ded-6c03-6d28-1d1f-70d349c176d4",
+      "name": "Butter Crunch Cookies",
+      "slug": "butter-crunch-cookies",
+      "visible": true,
+      "path": "/product-page/butter-crunch-cookies"
+    },
+    {
+      "id": "a458f7dd-9f3a-7b25-36a7-12027b43635b",
+      "name": "Butter Almond Cookies",
+      "slug": "butter-almond-cookies",
+      "visible": true,
+      "path": "/product-page/butter-almond-cookies"
+    },
+    {
+      "id": "d5c4e4b5-a000-7e3a-5be2-431f4d13984d",
+      "name": "4 in 1 Box",
+      "slug": "tea-box",
+      "visible": true,
+      "path": "/product-page/tea-box"
+    },
+    {
+      "id": "397f1820-82fe-9d29-248d-5f6461db473c",
+      "name": "English Breakfast Tea Assam",
+      "slug": "englis-breakfast-assam-ceylon-kenya",
+      "visible": true,
+      "path": "/product-page/englis-breakfast-assam-ceylon-kenya"
+    },
+    {
+      "id": "bb63e337-b786-eba2-6890-7fabe3612e9f",
+      "name": "4 in 1 Honey Box",
+      "slug": "honey-box",
+      "visible": true,
+      "path": "/product-page/honey-box"
+    },
+    {
+      "id": "4e2ac90a-a3c8-6815-7154-d9c07b4deff5",
+      "name": "Black Forest Honey 200gms",
+      "slug": "h3",
+      "visible": true,
+      "path": "/product-page/h3"
+    },
+    {
+      "id": "0967195c-0a21-d15b-1037-5ce3df9d8a93",
+      "name": "Australian Mustard Honey 200gms",
+      "slug": "h1",
+      "visible": true,
+      "path": "/product-page/h1"
+    },
+    {
+      "id": "45b1ae2b-d24a-d079-44ff-bfe220f81475",
+      "name": "Rosello Collection 2+16",
+      "slug": "new-hamper-5",
+      "visible": true,
+      "path": "/product-page/new-hamper-5"
+    },
+    {
+      "id": "91ebdd98-8281-db0a-45e4-48dad1017e0d",
+      "name": "New Hamper 3",
+      "slug": "new-hamper-3",
+      "visible": true,
+      "path": "/product-page/new-hamper-3"
+    },
+    {
+      "id": "b0c900d7-e6b0-b548-e57a-d9b3771a702e",
+      "name": "Chocolate 4 Piece Tube",
+      "slug": "chocolate-box-8",
+      "visible": true,
+      "path": "/product-page/chocolate-box-8"
+    },
+    {
+      "id": "f1328aba-c295-6466-dce5-7b5829ecb891",
+      "name": "Crystal 25 - Chocolate",
+      "slug": "chocolate-box-7",
+      "visible": true,
+      "path": "/product-page/chocolate-box-7"
+    },
+    {
+      "id": "e75bf465-9272-a189-446c-5b23278e4c3f",
+      "name": "Crystal 16 - Chocolate",
+      "slug": "chocolate-box-6",
+      "visible": true,
+      "path": "/product-page/chocolate-box-6"
+    },
+    {
+      "id": "67cdc1a5-b0ad-6775-1527-4b01309574ad",
+      "name": "Crystal 15 - Chocolate",
+      "slug": "chocolate-box-5",
+      "visible": true,
+      "path": "/product-page/chocolate-box-5"
+    },
+    {
+      "id": "ad5b1ed0-dafb-80af-4585-9a9d175abf48",
+      "name": "Crystal 9 - Chocolate",
+      "slug": "chocolate-box-4",
+      "visible": true,
+      "path": "/product-page/chocolate-box-4"
+    },
+    {
+      "id": "b4945c43-c9a9-1105-5c23-ca1e11fcd815",
+      "name": "Crystal 12 - Chocolate",
+      "slug": "chocolate-box-3",
+      "visible": true,
+      "path": "/product-page/chocolate-box-3"
+    },
+    {
+      "id": "585ee8b5-e6a4-9186-ed52-9117c0234570",
+      "name": "Crystal 6 - Chocolate",
+      "slug": "chocolate-box-2",
+      "visible": true,
+      "path": "/product-page/chocolate-box-2"
+    },
+    {
+      "id": "ae7af55a-c577-8222-bbd6-479b726fcab8",
+      "name": "Crystal 4 - Chocolate",
+      "slug": "chocolate-box-1",
+      "visible": true,
+      "path": "/product-page/chocolate-box-1"
+    },
+    {
+      "id": "1958fe8d-63e1-d500-1db5-846ac3cc9046",
+      "name": "Crystal 15 - Fusion Sweets",
+      "slug": "fs-box-7",
+      "visible": true,
+      "path": "/product-page/fs-box-7"
+    },
+    {
+      "id": "46b8be14-7029-0a38-508a-888f49e40c69",
+      "name": "Crystal 16 - Fusion Sweets",
+      "slug": "fs-box-6",
+      "visible": true,
+      "path": "/product-page/fs-box-6"
+    },
+    {
+      "id": "92608075-222d-7e67-f063-8c8bccbd7069",
+      "name": "Crystal 25 - Fusion Sweets",
+      "slug": "fs-box-5",
+      "visible": true,
+      "path": "/product-page/fs-box-5"
+    },
+    {
+      "id": "94ed0e53-d1ab-a584-f06f-8a698fc8af50",
+      "name": "Crystal 12 - Fusion Sweets",
+      "slug": "fs-box-4",
+      "visible": true,
+      "path": "/product-page/fs-box-4"
+    },
+    {
+      "id": "435d51d3-b333-4028-1bd1-6b8a50e99648",
+      "name": "Crystal 6 - Fusion Sweets",
+      "slug": "fs-box-3",
+      "visible": true,
+      "path": "/product-page/fs-box-3"
+    },
+    {
+      "id": "772869a0-ddf9-9625-8128-a65e3f77e6b6",
+      "name": "Crystal 9 - Fusion Sweets",
+      "slug": "fs-box-2",
+      "visible": true,
+      "path": "/product-page/fs-box-2"
+    },
+    {
+      "id": "f17b31ec-55a0-d0c9-f704-88716a8d8ab7",
+      "name": "Crystal 4 - Fusion Sweets",
+      "slug": "fs-box-1",
+      "visible": true,
+      "path": "/product-page/fs-box-1"
+    },
+    {
+      "id": "43dad8c2-b93b-f7a1-82c3-99ae2df80ea9",
+      "name": "Crystal 16 - Chocodates",
+      "slug": "chocodate-box-7",
+      "visible": true,
+      "path": "/product-page/chocodate-box-7"
+    },
+    {
+      "id": "127cd3eb-2376-e7da-78a3-8cc4d44380c9",
+      "name": "Crystal 16 - Chocodates",
+      "slug": "chocodate-box-5",
+      "visible": true,
+      "path": "/product-page/chocodate-box-5"
+    },
+    {
+      "id": "7b0883ff-4616-20c5-857d-01daa7225c93",
+      "name": "Crystal 25 - Chocodates",
+      "slug": "chocodate-box-4",
+      "visible": true,
+      "path": "/product-page/chocodate-box-4"
+    },
+    {
+      "id": "857bcd8e-4726-3e4a-0e4e-d942cafb8a22",
+      "name": "Crystal 15 - Chocodates",
+      "slug": "chocodate-box-3",
+      "visible": true,
+      "path": "/product-page/chocodate-box-3"
+    },
+    {
+      "id": "5d48a2a4-2087-6f72-f400-122ff74e6c22",
+      "name": "Crystal 12 - Chocodates",
+      "slug": "chocodate-box-2",
+      "visible": true,
+      "path": "/product-page/chocodate-box-2"
+    },
+    {
+      "id": "f196f735-7d2a-f097-254e-c985a8d58080",
+      "name": "Crystal 6 - Chocodates",
+      "slug": "chocodate-box-1",
+      "visible": true,
+      "path": "/product-page/chocodate-box-1"
+    },
+    {
+      "id": "5309713e-431d-c92e-1157-0c9a9130dcb5",
+      "name": "Pistachio Basma",
+      "slug": "basma-pistachio-1",
+      "visible": true,
+      "path": "/product-page/basma-pistachio-1"
+    },
+    {
+      "id": "548d9a97-8254-c492-45f1-1f23e39f2cce",
+      "name": "Special Baklawa",
+      "slug": "special-baklawa",
+      "visible": true,
+      "path": "/product-page/special-baklawa"
+    },
+    {
+      "id": "e45a8727-52fb-e7a6-c7ed-cd31c6e6757f",
+      "name": "Mor Pistachio Asiyah",
+      "slug": "mor-asiyah-pistachio",
+      "visible": true,
+      "path": "/product-page/mor-asiyah-pistachio"
+    },
+    {
+      "id": "227f585f-0469-3d17-b238-a660f4e36f33",
+      "name": "Date Baklawa",
+      "slug": "date-baklawa",
+      "visible": true,
+      "path": "/product-page/date-baklawa"
+    },
+    {
+      "id": "8638584f-32fd-4f13-ae2c-d91423b9062d",
+      "name": "Chocolate Pistachio Asiyah",
+      "slug": "asiyah-chocolate-pistachio",
+      "visible": true,
+      "path": "/product-page/asiyah-chocolate-pistachio"
+    },
+    {
+      "id": "21520a70-4cdf-d59f-623f-5973a6ecc872",
+      "name": "Mor Cashew Asiyah",
+      "slug": "mor-asiyah-cashew",
+      "visible": true,
+      "path": "/product-page/mor-asiyah-cashew"
+    },
+    {
+      "id": "cbc8a6b4-4fe7-4172-a1ae-8e8c17648c69",
+      "name": "Chocolate Cashew Asiyah",
+      "slug": "asiyah-chocolate-cashew",
+      "visible": true,
+      "path": "/product-page/asiyah-chocolate-cashew"
+    },
+    {
+      "id": "706873b5-a082-9e38-e5fe-056ab1571317",
+      "name": "Almond Crosole",
+      "slug": "crosole-almond",
+      "visible": true,
+      "path": "/product-page/crosole-almond"
+    },
+    {
+      "id": "8e8300af-bae9-2c97-c042-64eed4adc92b",
+      "name": "Cashew Baklawa",
+      "slug": "baklawa-cashew",
+      "visible": true,
+      "path": "/product-page/baklawa-cashew"
+    },
+    {
+      "id": "7b0ba2e3-9bb2-302e-c412-689ae686c40e",
+      "name": "Pista kulfi Ganache",
+      "slug": "g5",
+      "visible": true,
+      "path": "/product-page/g5"
+    },
+    {
+      "id": "5ca12744-b9fc-6d29-68d0-3ddee3d68634",
+      "name": "Caramel Marble Ganache",
+      "slug": "g4",
+      "visible": true,
+      "path": "/product-page/g4"
+    },
+    {
+      "id": "1c05bdf7-c293-238a-7637-32bafd02be1d",
+      "name": "Butter Scotch Ganache",
+      "slug": "g3",
+      "visible": true,
+      "path": "/product-page/g3"
+    },
+    {
+      "id": "fcad28f8-e613-e427-2827-e908ec68ebcd",
+      "name": "Almond Rag Ganache",
+      "slug": "g2",
+      "visible": true,
+      "path": "/product-page/g2"
+    },
+    {
+      "id": "ab2a3455-becd-3c53-82dd-89418fdbd6c6",
+      "name": "Coconut Ganache",
+      "slug": "g1",
+      "visible": true,
+      "path": "/product-page/g1"
+    },
+    {
+      "id": "5e822b10-5318-7c1d-4148-0685ef3ef32a",
+      "name": "Hazelnut Ganache",
+      "slug": "hazelnut-ganache",
+      "visible": true,
+      "path": "/product-page/hazelnut-ganache"
+    },
+    {
+      "id": "72ba1f98-dea3-7933-133d-d0d94605a40b",
+      "name": "Strawberry Ganache",
+      "slug": "strawberry-ganache",
+      "visible": true,
+      "path": "/product-page/strawberry-ganache"
+    },
+    {
+      "id": "fc64408c-4c0a-fe1b-6569-9b28766b96d8",
+      "name": "Strawberry Truffle",
+      "slug": "strawberry-truffle",
+      "visible": true,
+      "path": "/product-page/strawberry-truffle"
+    },
+    {
+      "id": "641d1cae-ecea-b192-0d31-16f32d4a0fe6",
+      "name": "Almond Pineapple Dragees",
+      "slug": "dragees-12",
+      "visible": true,
+      "path": "/product-page/dragees-12"
+    },
+    {
+      "id": "a81a80ad-d576-97d2-d950-65d180baf1f3",
+      "name": "Kulfi Almond Dragees",
+      "slug": "dragees-11",
+      "visible": true,
+      "path": "/product-page/dragees-11"
+    },
+    {
+      "id": "12a65d81-1b18-0a22-232a-c16199ff7e69",
+      "name": "White Almond Dragees",
+      "slug": "dragees-10",
+      "visible": true,
+      "path": "/product-page/dragees-10"
+    },
+    {
+      "id": "2d948523-a6e3-5c82-0784-3daffe05891b",
+      "name": "Mango Dragees",
+      "slug": "dragees-7",
+      "visible": true,
+      "path": "/product-page/dragees-7"
+    },
+    {
+      "id": "854bf0c4-90d6-2c2e-dda5-c9291608ebff",
+      "name": "Strawberry Dragees",
+      "slug": "dragees-6",
+      "visible": true,
+      "path": "/product-page/dragees-6"
+    },
+    {
+      "id": "0f96007a-129d-038f-bc65-6a7e2e0be918",
+      "name": "Coconut Dragees",
+      "slug": "dragees-4",
+      "visible": true,
+      "path": "/product-page/dragees-4"
+    },
+    {
+      "id": "0bdb03ae-67dc-68b0-86b0-60b338a132af",
+      "name": "Butterscotch Dragees",
+      "slug": "dragees-3",
+      "visible": true,
+      "path": "/product-page/dragees-3"
+    },
+    {
+      "id": "9b93452c-6902-5073-2793-8bc5e82ab22e",
+      "name": "Cherry Dragees",
+      "slug": "dragees-2",
+      "visible": true,
+      "path": "/product-page/dragees-2"
+    },
+    {
+      "id": "4621d063-6d27-da24-d362-c209ca1a0a89",
+      "name": "Blueberry Dragees",
+      "slug": "dragees-1",
+      "visible": true,
+      "path": "/product-page/dragees-1"
+    },
+    {
+      "id": "d40cf172-43d8-8eb9-4cef-d425fb8b1846",
+      "name": "Milch Ganache",
+      "slug": "mango-ganache",
+      "visible": true,
+      "path": "/product-page/mango-ganache"
+    },
+    {
+      "id": "75d21596-dd30-fbb8-237e-0095c565eea4",
+      "name": "Pineapple Ball",
+      "slug": "fs-ball-32",
+      "visible": true,
+      "path": "/product-page/fs-ball-32"
+    },
+    {
+      "id": "e510b3ba-d2bd-fb0a-358e-ad4f3fc93613",
+      "name": "Mango Modak",
+      "slug": "fs-ball-25",
+      "visible": true,
+      "path": "/product-page/fs-ball-25"
+    },
+    {
+      "id": "556b385d-54ff-2ddb-dcae-654a846af912",
+      "name": "Butter Scotch Truffle",
+      "slug": "fs-ball-22",
+      "visible": true,
+      "path": "/product-page/fs-ball-22"
+    },
+    {
+      "id": "999f51a6-80a4-01bd-5b59-623b54b11bdc",
+      "name": "Coconut Mango Ball",
+      "slug": "fs-ball-21",
+      "visible": true,
+      "path": "/product-page/fs-ball-21"
+    },
+    {
+      "id": "64b405f3-0c21-8b2a-cffe-b4b2f6ea0246",
+      "name": "Strawberry Cream Ball",
+      "slug": "fs-ball-20",
+      "visible": true,
+      "path": "/product-page/fs-ball-20"
+    },
+    {
+      "id": "cb885cc0-bc0f-ea85-b413-88c0894fae2a",
+      "name": "Seed Mix Ball",
+      "slug": "fs-ball-17",
+      "visible": true,
+      "path": "/product-page/fs-ball-17"
+    },
+    {
+      "id": "2c09df56-ae69-21df-96b0-90aee10ffc44",
+      "name": "Roasted Cashew Ball",
+      "slug": "fs-ball-15",
+      "visible": true,
+      "path": "/product-page/fs-ball-15"
+    },
+    {
+      "id": "a63dee8b-12c0-79a5-245e-8e8428a43d79",
+      "name": "Fruit Shot Bite",
+      "slug": "fs-bite-11",
+      "visible": true,
+      "path": "/product-page/fs-bite-11"
+    },
+    {
+      "id": "fd5506c6-225d-2411-1fb1-5d0a3f8b6386",
+      "name": "Anjeer Bite",
+      "slug": "fs-bite-9",
+      "visible": true,
+      "path": "/product-page/fs-bite-9"
+    },
+    {
+      "id": "5e4e3721-fa7b-bbb8-aa74-ed7068e2e46f",
+      "name": "Mix Dry Fruit Bite",
+      "slug": "fs-bite-8",
+      "visible": true,
+      "path": "/product-page/fs-bite-8"
+    },
+    {
+      "id": "fe550748-cc1b-e178-85e3-3c57adc853ae",
+      "name": "Oreo Bite",
+      "slug": "fs-bite-7",
+      "visible": true,
+      "path": "/product-page/fs-bite-7"
+    },
+    {
+      "id": "a3ca66d9-24d0-b3ed-b640-5fd236e1e991",
+      "name": "Date Nut Bite",
+      "slug": "fs-bite-6",
+      "visible": true,
+      "path": "/product-page/fs-bite-6"
+    },
+    {
+      "id": "4037d215-83de-2d1d-d2c8-c72a0884ca41",
+      "name": "Hazelnut Bite",
+      "slug": "fs-bite-5",
+      "visible": true,
+      "path": "/product-page/fs-bite-5"
+    },
+    {
+      "id": "f1ac1554-98b5-15d2-8da4-9d00aa6be31f",
+      "name": "Mango Bite",
+      "slug": "fs-bite-4",
+      "visible": true,
+      "path": "/product-page/fs-bite-4"
+    },
+    {
+      "id": "9b794856-35ed-1ee2-4307-1be9eac4dd57",
+      "name": "Rose Bite",
+      "slug": "fs-bite-2",
+      "visible": true,
+      "path": "/product-page/fs-bite-2"
+    },
+    {
+      "id": "e75a9f4e-5f66-204f-9695-8f4e7770149c",
+      "name": "Baklawa Bite",
+      "slug": "fs-bites",
+      "visible": true,
+      "path": "/product-page/fs-bites"
+    },
+    {
+      "id": "db40aad3-3987-f0dd-819c-e3ccb6c4fb21",
+      "name": "Strawberry Heart",
+      "slug": "chocolate-58",
+      "visible": true,
+      "path": "/product-page/chocolate-58"
+    },
+    {
+      "id": "4ddcf5ec-378e-69b1-d566-649ed7fd4f4a",
+      "name": "Cappuccino Chocolate",
+      "slug": "chocolate-54",
+      "visible": true,
+      "path": "/product-page/chocolate-54"
+    },
+    {
+      "id": "cdfa6921-f8f4-5421-0905-3fd8682b0412",
+      "name": "Almond Rock",
+      "slug": "chocolate-47",
+      "visible": true,
+      "path": "/product-page/chocolate-47"
+    },
+    {
+      "id": "dd0daf59-9497-4c48-a6d1-9692ebe15e02",
+      "name": "Brownie Truffle",
+      "slug": "chocolate-41",
+      "visible": true,
+      "path": "/product-page/chocolate-41"
+    },
+    {
+      "id": "34031a2e-fd36-79d3-eef2-8cb6d36f3edd",
+      "name": "Cappuccino Truffle",
+      "slug": "chocolate-40",
+      "visible": true,
+      "path": "/product-page/chocolate-40"
+    },
+    {
+      "id": "4e50454c-bf2f-5d23-9e9d-ae2e5760874d",
+      "name": "Rocher Truffle",
+      "slug": "chocolate-28",
+      "visible": true,
+      "path": "/product-page/chocolate-28"
+    },
+    {
+      "id": "0409527a-4612-0b69-f4ad-157252a6236a",
+      "name": "Orange Ganache",
+      "slug": "orange-ganache",
+      "visible": true,
+      "path": "/product-page/orange-ganache"
+    },
+    {
+      "id": "a0ad480d-889d-59a2-45ae-20ca96cdbe06",
+      "name": "Lotus Biscoff Truffle",
+      "slug": "truffle-11",
+      "visible": true,
+      "path": "/product-page/truffle-11"
+    },
+    {
+      "id": "1f54a62e-c911-ce89-492f-7c5cfb14032b",
+      "name": "Coffee Truffle",
+      "slug": "truffle-10",
+      "visible": true,
+      "path": "/product-page/truffle-10"
+    },
+    {
+      "id": "c9db7482-3929-3048-4e65-7f61a5bfe132",
+      "name": "Tiramisu Truffle",
+      "slug": "truffle-9",
+      "visible": true,
+      "path": "/product-page/truffle-9"
+    },
+    {
+      "id": "39b3dd75-3a4d-66cc-38ad-a053852443a0",
+      "name": "English Truffle",
+      "slug": "truffle-8",
+      "visible": true,
+      "path": "/product-page/truffle-8"
+    },
+    {
+      "id": "e51266f1-9a7f-d649-3a3f-2a82358d8f57",
+      "name": "Custard Truffle",
+      "slug": "truffle-7",
+      "visible": true,
+      "path": "/product-page/truffle-7"
+    },
+    {
+      "id": "ba285983-a016-90ae-56f5-7b1665715436",
+      "name": "Milky Mava Truffle",
+      "slug": "truffle-5",
+      "visible": true,
+      "path": "/product-page/truffle-5"
+    },
+    {
+      "id": "be642b0c-592a-34d2-7750-b7517e054a42",
+      "name": "Caramel Truffle",
+      "slug": "truffle-3",
+      "visible": true,
+      "path": "/product-page/truffle-3"
+    },
+    {
+      "id": "c6b7c74d-a578-c286-75a5-ce42acce74fa",
+      "name": "Orange Truffle",
+      "slug": "copy-of-truffle-1",
+      "visible": true,
+      "path": "/product-page/copy-of-truffle-1"
+    },
+    {
+      "id": "25784d86-0eb7-510e-4d5e-a9446d497f30",
+      "name": "Black Forest Truffle",
+      "slug": "truffle-1",
+      "visible": true,
+      "path": "/product-page/truffle-1"
+    },
+    {
+      "id": "d7367d30-4988-a8e6-394f-18df18c0ce02",
+      "name": "Healthy Fruit Chaat",
+      "slug": "healthy-fruit-chaat",
+      "visible": true,
+      "path": "/product-page/healthy-fruit-chaat"
+    },
+    {
+      "id": "f8b2a157-bde1-05df-70bf-2e0f8560f475",
+      "name": "Healthy Panchrattan",
+      "slug": "healthy-panchrattan",
+      "visible": true,
+      "path": "/product-page/healthy-panchrattan"
+    },
+    {
+      "id": "b604d4fd-3421-3597-92eb-e512a7075b41",
+      "name": "Healthy Nut 'n' Fruit Mix",
+      "slug": "healthy-nut-n-fruit-mix",
+      "visible": true,
+      "path": "/product-page/healthy-nut-n-fruit-mix"
+    },
+    {
+      "id": "cc47cc7e-6638-a328-b4cb-8fd571e9cafa",
+      "name": "Healthy Premium Nut Mix",
+      "slug": "healthy-premium-nut-mix",
+      "visible": true,
+      "path": "/product-page/healthy-premium-nut-mix"
+    },
+    {
+      "id": "49a359b6-d2ef-8eaf-6d17-c79362b79466",
+      "name": "Chocolate Butter Scotch",
+      "slug": "chocolate-butterscotch-granola",
+      "visible": true,
+      "path": "/product-page/chocolate-butterscotch-granola"
+    },
+    {
+      "id": "eb16fd76-780f-ab0e-1d70-e9cf8476284f",
+      "name": "Butterscotch Berry Granola",
+      "slug": "butterscotch-berry-granola",
+      "visible": true,
+      "path": "/product-page/butterscotch-berry-granola"
+    },
+    {
+      "id": "a05ad122-1027-0fec-51e1-47fc5532cd1b",
+      "name": "Seed Mix Granola",
+      "slug": "seed-mix-granola",
+      "visible": true,
+      "path": "/product-page/seed-mix-granola"
+    },
+    {
+      "id": "fee087ae-bcfa-60f4-88c1-563d723ca4cf",
+      "name": "Multi Grain Granola",
+      "slug": "multi-grain-granola",
+      "visible": true,
+      "path": "/product-page/multi-grain-granola"
+    },
+    {
+      "id": "f97366a7-67dd-c67d-1d10-01c38eda59c7",
+      "name": "Diet Lite Granola",
+      "slug": "diet-lite-granola",
+      "visible": true,
+      "path": "/product-page/diet-lite-granola"
+    },
+    {
+      "id": "33554218-2a0d-e352-0ba5-3262c9c6aa07",
+      "name": "Blueberry Cranberry Granola",
+      "slug": "blueberry-cranberry-granola",
+      "visible": true,
+      "path": "/product-page/blueberry-cranberry-granola"
+    },
+    {
+      "id": "e9b21396-95a3-79bd-d65f-f301e495f73e",
+      "name": "Premium Nuts & Berry",
+      "slug": "premium-nuts-berry-granola",
+      "visible": true,
+      "path": "/product-page/premium-nuts-berry-granola"
+    },
+    {
+      "id": "c2bb4228-5e83-4795-a35d-71880ce50210",
+      "name": "Chatpati Chaat Granola",
+      "slug": "chatpati-chaat-granola",
+      "visible": true,
+      "path": "/product-page/chatpati-chaat-granola"
+    },
+    {
+      "id": "c7985c4f-e65b-b4c1-9c6a-618576fcdba2",
+      "name": "Orange Peel",
+      "slug": "dried-fruit-17",
+      "visible": true,
+      "path": "/product-page/dried-fruit-17"
+    },
+    {
+      "id": "5832673f-3b4c-32ce-fcf1-459c9ceeb8ba",
+      "name": "Apricot",
+      "slug": "dried-fruit-16",
+      "visible": true,
+      "path": "/product-page/dried-fruit-16"
+    },
+    {
+      "id": "daf57ed1-f4a8-668b-9939-f191f0f85105",
+      "name": "Strawberry",
+      "slug": "dried-fruit-15",
+      "visible": true,
+      "path": "/product-page/dried-fruit-15"
+    },
+    {
+      "id": "1ac81953-6e57-558f-45a6-3114cb813733",
+      "name": "Blueberry Plum",
+      "slug": "dried-fruit-14",
+      "visible": true,
+      "path": "/product-page/dried-fruit-14"
+    },
+    {
+      "id": "a39fc202-3c68-f356-62c8-4f21d1e7a37d",
+      "name": "Pineapple",
+      "slug": "dried-fruit-13",
+      "visible": true,
+      "path": "/product-page/dried-fruit-13"
+    },
+    {
+      "id": "c77dd153-6446-7a1d-6bf3-3f67bf1c8170",
+      "name": "Mulberry",
+      "slug": "dried-fruit-12",
+      "visible": true,
+      "path": "/product-page/dried-fruit-12"
+    },
+    {
+      "id": "42d4fd96-163b-d114-89cd-28c3cdb4b760",
+      "name": "Mango",
+      "slug": "dried-fruit-11",
+      "visible": true,
+      "path": "/product-page/dried-fruit-11"
+    },
+    {
+      "id": "af20f447-f5fd-d9ba-a59f-b1c2a34690cd",
+      "name": "Orange Sliced",
+      "slug": "dried-fruit-10",
+      "visible": true,
+      "path": "/product-page/dried-fruit-10"
+    },
+    {
+      "id": "bb57844a-b7f0-93b5-a5fd-8b8d1c783b26",
+      "name": "Cherry Tomato",
+      "slug": "dried-fruit-9",
+      "visible": true,
+      "path": "/product-page/dried-fruit-9"
+    },
+    {
+      "id": "c76e976f-b04a-6778-d132-a02762a16390",
+      "name": "Kiwi",
+      "slug": "dried-fruit-8",
+      "visible": true,
+      "path": "/product-page/dried-fruit-8"
+    },
+    {
+      "id": "45d49ca9-465d-128e-4a8d-420801987614",
+      "name": "Guvava",
+      "slug": "dried-fruit-7",
+      "visible": true,
+      "path": "/product-page/dried-fruit-7"
+    },
+    {
+      "id": "5d1cd9b3-3eb4-8e4d-46a3-e16d46b4ab25",
+      "name": "Ginger Slice",
+      "slug": "dried-fruit-5",
+      "visible": true,
+      "path": "/product-page/dried-fruit-5"
+    },
+    {
+      "id": "a9a4eecf-5abd-e984-e179-4c1cb90bf022",
+      "name": "Baby Fig",
+      "slug": "dried-fruit-4",
+      "visible": true,
+      "path": "/product-page/dried-fruit-4"
+    },
+    {
+      "id": "3cfddfcd-684f-b6bf-f736-2d6faf1cec28",
+      "name": "Blueberry",
+      "slug": "dried-fruit-3",
+      "visible": true,
+      "path": "/product-page/dried-fruit-3"
+    },
+    {
+      "id": "c943ea11-98f1-2f02-8086-39d3b06c7340",
+      "name": "Cranberry Whole",
+      "slug": "dried-fruit-1",
+      "visible": true,
+      "path": "/product-page/dried-fruit-1"
+    },
+    {
+      "id": "9513282e-6128-d699-5cb5-2e55d5ce17ed",
+      "name": "Roasted & Salted Almond",
+      "slug": "dry-fruit-3",
+      "visible": true,
+      "path": "/product-page/dry-fruit-3"
+    },
+    {
+      "id": "da29c6be-a80e-37f5-24c9-50997d613a91",
+      "name": "Roasted & Salted Cashew",
+      "slug": "dry-fruit-2",
+      "visible": true,
+      "path": "/product-page/dry-fruit-2"
+    },
+    {
+      "id": "d34f1293-f401-f544-bdf2-e151cb2c347a",
+      "name": "Pasha Apricot Pistachio",
+      "slug": "td-44",
+      "visible": true,
+      "path": "/product-page/td-44"
+    },
+    {
+      "id": "2e5db5a4-8c56-d351-82a3-13b25c002fb3",
+      "name": "Double Pistachio Roll",
+      "slug": "td-40",
+      "visible": true,
+      "path": "/product-page/td-40"
+    },
+    {
+      "id": "0f97dc51-beb7-d0e4-1a92-1162503e2f2e",
+      "name": "Pasha Pistachio",
+      "slug": "td-31",
+      "visible": true,
+      "path": "/product-page/td-31"
+    },
+    {
+      "id": "5d06cce7-6332-57c8-e559-c47cfdc9aaf6",
+      "name": "Rose Pistachio",
+      "slug": "td-12",
+      "visible": true,
+      "path": "/product-page/td-12"
+    },
+    {
+      "id": "14dadb3c-a989-2070-01eb-ce508a29ffa5",
+      "name": "Paan Ball",
+      "slug": "product-11",
+      "visible": true,
+      "path": "/product-page/product-11"
+    },
+    {
+      "id": "16ab405a-1931-ea34-79cf-1446b1950eec",
+      "name": "Mix Dry Fruit Ball",
+      "slug": "product-10",
+      "visible": true,
+      "path": "/product-page/product-10"
+    },
+    {
+      "id": "0ad0ff7e-c8f8-0db9-aacb-b8d0543d794f",
+      "name": "Kiwi Almond Ball",
+      "slug": "product-9",
+      "visible": true,
+      "path": "/product-page/product-9"
+    },
+    {
+      "id": "61dc6150-18bf-72be-07f8-e427c4b7bca8",
+      "name": "Mango Pistachio Ball",
+      "slug": "product-8",
+      "visible": true,
+      "path": "/product-page/product-8"
+    },
+    {
+      "id": "1c6f65ac-7423-fd19-e143-0a726e75534e",
+      "name": "Date Almond Ball",
+      "slug": "product-7",
+      "visible": true,
+      "path": "/product-page/product-7"
+    },
+    {
+      "id": "7e0d9458-ee3a-f983-dc0b-c0697cb242ec",
+      "name": "Rainbow Ball",
+      "slug": "product-6",
+      "visible": true,
+      "path": "/product-page/product-6"
+    },
+    {
+      "id": "17bd8476-393a-052c-b192-337299e38510",
+      "name": "Pistachio Dry Fruit Ball",
+      "slug": "product-5",
+      "visible": true,
+      "path": "/product-page/product-5"
+    },
+    {
+      "id": "44d0f764-5659-1f65-fa77-e80e5b49e84e",
+      "name": "Rose Dryfruit Ball",
+      "slug": "product-4",
+      "visible": true,
+      "path": "/product-page/product-4"
+    },
+    {
+      "id": "f236e320-eba1-d563-4a86-aacdeac2e85d",
+      "name": "Date Rose Ball",
+      "slug": "product-3",
+      "visible": true,
+      "path": "/product-page/product-3"
+    },
+    {
+      "id": "4ca6f72c-2538-6f52-5965-39db41f2f5fb",
+      "name": "Honey Almond Ball",
+      "slug": "product-2",
+      "visible": true,
+      "path": "/product-page/product-2"
+    },
+    {
+      "id": "0d99f860-7f4b-4e6b-953e-6c1498152cf7",
+      "name": "Diamond 8",
+      "slug": "acrylic-2",
+      "visible": true,
+      "path": "/product-page/acrylic-2"
+    },
+    {
+      "id": "c7a57406-dbf7-4d0a-8af6-a03b42cdc077",
+      "name": "Crystal 12 - Baklawa",
+      "slug": "acrylic-5",
+      "visible": true,
+      "path": "/product-page/acrylic-5"
+    },
+    {
+      "id": "36cda8ba-a0cd-4adc-8015-2b7df5d1f9b5",
+      "name": "Diamond 15",
+      "slug": "acrylic-6",
+      "visible": true,
+      "path": "/product-page/acrylic-6"
+    },
+    {
+      "id": "d872d150-b015-48db-9251-5cfa1f1cfbc3",
+      "name": "Diamond 25",
+      "slug": "acrylic-3",
+      "visible": true,
+      "path": "/product-page/acrylic-3"
+    },
+    {
+      "id": "4d696333-fe58-448e-a29d-fc4639c325f8",
+      "name": "Diamond 12",
+      "slug": "acrylic-4",
+      "visible": true,
+      "path": "/product-page/acrylic-4"
+    },
+    {
+      "id": "53a84d84-32d6-45ec-8663-6dcc6e650b7a",
+      "name": "Slim Box of Baklawa",
+      "slug": "acrylic-7",
+      "visible": true,
+      "path": "/product-page/acrylic-7"
+    },
+    {
+      "id": "8b6e279a-b7c6-4907-9424-e7187f73e8bc",
+      "name": "Chocolate Pistachio Midye",
+      "slug": "chocolate-pistachio-midye-1",
+      "visible": true,
+      "path": "/product-page/chocolate-pistachio-midye-1"
+    },
+    {
+      "id": "daad7801-600f-4cbb-93f6-7aea241014a0",
+      "name": "Mor Pistachio Midye",
+      "slug": "mor-pistachio-midye-1",
+      "visible": true,
+      "path": "/product-page/mor-pistachio-midye-1"
+    },
+    {
+      "id": "08d12f4f-43f8-4110-b83e-c6b05e3a23e7",
+      "name": "Mor Pistachio Durum",
+      "slug": "mor-pistachio-durum-1",
+      "visible": true,
+      "path": "/product-page/mor-pistachio-durum-1"
+    },
+    {
+      "id": "88c4cbef-ddbc-4e84-94ad-e292b00941f6",
+      "name": "Double Pistachio Saray",
+      "slug": "double-pistachio-saray-sarmasi-1",
+      "visible": true,
+      "path": "/product-page/double-pistachio-saray-sarmasi-1"
+    },
+    {
+      "id": "7ed7f7f5-6406-4371-85cc-a610f62d5c9a",
+      "name": "Chocolate Pistachio Bakalva",
+      "slug": "chocolate-pistachio-bakalwa-1",
+      "visible": true,
+      "path": "/product-page/chocolate-pistachio-bakalwa-1"
+    },
+    {
+      "id": "8fd0d33d-f342-4a54-a925-e981b96ed7b3",
+      "name": "Chocolate Pistachio Durum",
+      "slug": "chocolate-pistachio-durum-1",
+      "visible": true,
+      "path": "/product-page/chocolate-pistachio-durum-1"
+    },
+    {
+      "id": "4fb6a499-d4df-4edc-b1b2-3821f7bd5240",
+      "name": "Walnut Saray",
+      "slug": "walnut-saray-1",
+      "visible": true,
+      "path": "/product-page/walnut-saray-1"
+    },
+    {
+      "id": "6a0bb4e6-6e53-4719-9a79-ababc3104ffe",
+      "name": "Pistachio Dilber Dudagi",
+      "slug": "pistachio-dilber-dudagi-1",
+      "visible": true,
+      "path": "/product-page/pistachio-dilber-dudagi-1"
+    },
+    {
+      "id": "bae62d7f-91e6-41b8-bcf6-86d84c360b7d",
+      "name": "Pistachio CimCik",
+      "slug": "pistachio-cimcik-1",
+      "visible": true,
+      "path": "/product-page/pistachio-cimcik-1"
+    },
+    {
+      "id": "c7b90c75-ac05-497a-82ef-20bef699fe94",
+      "name": "Coconut Durum",
+      "slug": "coconut-durum-1",
+      "visible": true,
+      "path": "/product-page/coconut-durum-1"
+    },
+    {
+      "id": "bc6f1d1e-2b12-6df2-3385-d8bd9a08b6a2",
+      "name": "Crystal 12",
+      "slug": "date-pack-5",
+      "visible": true,
+      "path": "/product-page/date-pack-5"
+    },
+    {
+      "id": "65d39c6a-74a4-f72c-570c-0aeeb0c77854",
+      "name": "Crystal Stick 4",
+      "slug": "date-pack-4",
+      "visible": true,
+      "path": "/product-page/date-pack-4"
+    },
+    {
+      "id": "ca134686-c69c-08b9-8c1a-1969654c3fea",
+      "name": "Crystal 6",
+      "slug": "date-pack-3",
+      "visible": true,
+      "path": "/product-page/date-pack-3"
+    },
+    {
+      "id": "c6dfb961-d334-6ed3-633e-31188bd271b2",
+      "name": "Crystal 15",
+      "slug": "date-pack-2",
+      "visible": true,
+      "path": "/product-page/date-pack-2"
+    },
+    {
+      "id": "46eaf10e-d7c9-9162-82ba-1f55c9cdbfb1",
+      "name": "Crystal 9",
+      "slug": "date-pack-1",
+      "visible": true,
+      "path": "/product-page/date-pack-1"
+    },
+    {
+      "id": "0c679276-29c8-6cad-a03f-af65cf9f279b",
+      "name": "Rose Strawberry",
+      "slug": "rose-strawberry",
+      "visible": true,
+      "path": "/product-page/rose-strawberry"
+    },
+    {
+      "id": "b896fedf-c123-dfe8-c2c2-00bbfb8186e6",
+      "name": "Apricot",
+      "slug": "apricot",
+      "visible": true,
+      "path": "/product-page/apricot"
+    },
+    {
+      "id": "12531406-a9ea-e735-847a-e5e4650feb63",
+      "name": "Salted Butter Caramel",
+      "slug": "salted-butter-caramel",
+      "visible": true,
+      "path": "/product-page/salted-butter-caramel"
+    },
+    {
+      "id": "c4ff87cc-79b8-da38-8579-8d8aaccfa61f",
+      "name": "Coconut",
+      "slug": "coconut-1",
+      "visible": true,
+      "path": "/product-page/coconut-1"
+    },
+    {
+      "id": "85167144-3a0b-e3d7-c4d9-983e9f120ba2",
+      "name": "Chocolate Cranberry",
+      "slug": "chocolate-cranberry",
+      "visible": true,
+      "path": "/product-page/chocolate-cranberry"
+    },
+    {
+      "id": "47c634ee-8b59-6d85-cd28-d63526c32076",
+      "name": "Orange",
+      "slug": "orange",
+      "visible": true,
+      "path": "/product-page/orange"
+    },
+    {
+      "id": "bf020715-12d4-4756-4c12-1cc42acff2fb",
+      "name": "Blueberry",
+      "slug": "blueberry",
+      "visible": true,
+      "path": "/product-page/blueberry"
+    },
+    {
+      "id": "43c1c588-3ff9-69ea-06ae-c58aa9821b5c",
+      "name": "Mango",
+      "slug": "mango",
+      "visible": true,
+      "path": "/product-page/mango"
+    },
+    {
+      "id": "c4346e7f-7303-ace0-dc7d-0e49df4879f5",
+      "name": "Crispy",
+      "slug": "florentine",
+      "visible": true,
+      "path": "/product-page/florentine"
+    },
+    {
+      "id": "a8c98fe8-b790-ff1f-1438-735c11ae197f",
+      "name": "Orange Zest",
+      "slug": "orange-zest",
+      "visible": true,
+      "path": "/product-page/orange-zest"
+    },
+    {
+      "id": "06e0bbe2-6b28-d0ba-11b3-b55535a8487f",
+      "name": "Rose",
+      "slug": "rose",
+      "visible": true,
+      "path": "/product-page/rose"
+    },
+    {
+      "id": "c1a590fd-c2c2-2abd-b2cd-18d0f2cd5881",
+      "name": "Cocoa",
+      "slug": "cocoa",
+      "visible": true,
+      "path": "/product-page/cocoa"
+    },
+    {
+      "id": "d645c3d6-26b2-f2be-8601-108426ec5ce4",
+      "name": "Hazelnut",
+      "slug": "hazelnut",
+      "visible": true,
+      "path": "/product-page/hazelnut"
+    },
+    {
+      "id": "38561e9b-25af-51f6-60ad-5769508982e4",
+      "name": "Coconut",
+      "slug": "coconut",
+      "visible": true,
+      "path": "/product-page/coconut"
+    },
+    {
+      "id": "5a309416-4229-1a89-5a9f-e88532525e48",
+      "name": "Butter Scotch",
+      "slug": "butter-scotch",
+      "visible": true,
+      "path": "/product-page/butter-scotch"
+    },
+    {
+      "id": "ae43709d-d138-af03-4be9-f7cd82f4e8de",
+      "name": "Coffee",
+      "slug": "coffee",
+      "visible": true,
+      "path": "/product-page/coffee"
+    },
+    {
+      "id": "e692adb4-1020-4f9b-8738-7a6b98b5a280",
+      "name": "Brownie",
+      "slug": "malt-chocolate",
+      "visible": true,
+      "path": "/product-page/malt-chocolate"
+    },
+    {
+      "id": "6e02cb2e-c5e8-d15c-3c1a-01f472d4d0c8",
+      "name": "Caramel",
+      "slug": "medjool-stuffed-with-caramel",
+      "visible": true,
+      "path": "/product-page/medjool-stuffed-with-caramel"
+    },
+    {
+      "id": "29c827e7-3551-cfc5-c04a-b0b87ecf44f4",
+      "name": "Nut Florentine",
+      "slug": "medjool-stuffed-with-crispy-nut-florentine",
+      "visible": true,
+      "path": "/product-page/medjool-stuffed-with-crispy-nut-florentine"
+    },
+    {
+      "id": "228f729a-8b9c-73ac-ee5d-98237aba4bbe",
+      "name": "Roasted Almond",
+      "slug": "medjool-stuffed-with-roasted-almonds",
+      "visible": true,
+      "path": "/product-page/medjool-stuffed-with-roasted-almonds"
+    },
+    {
+      "id": "d61fb73b-0649-0c2d-7dae-57cf5e443fde",
+      "name": "Mango",
+      "slug": "medjool-stuffed-with-mango-slice",
+      "visible": true,
+      "path": "/product-page/medjool-stuffed-with-mango-slice"
+    },
+    {
+      "id": "d98907c1-27d9-cf40-45dc-80916cb89937",
+      "name": "Fig",
+      "slug": "medjool-stuffed-with-fig-slice",
+      "visible": true,
+      "path": "/product-page/medjool-stuffed-with-fig-slice"
+    },
+    {
+      "id": "963c5a50-a98d-bbf7-a90a-f741ce0012b7",
+      "name": "Walnut",
+      "slug": "medjool-stuffed-with-walnuts",
+      "visible": true,
+      "path": "/product-page/medjool-stuffed-with-walnuts"
+    },
+    {
+      "id": "99816d16-a906-1058-25a7-b5959b21005d",
+      "name": "Cashew",
+      "slug": "medjool-stuffed-with-jumbo-cashew",
+      "visible": true,
+      "path": "/product-page/medjool-stuffed-with-jumbo-cashew"
+    },
+    {
+      "id": "2fd5fa09-104b-500f-32f6-20750f9870ec",
+      "name": "Hazelnut",
+      "slug": "medjool-stuffed-with-roasted-hazelnut",
+      "visible": true,
+      "path": "/product-page/medjool-stuffed-with-roasted-hazelnut"
+    },
+    {
+      "id": "4baf99b0-7992-f353-5339-44e425e3a57c",
+      "name": "Pistachio",
+      "slug": "medjool-with-slivered-pistachios",
+      "visible": true,
+      "path": "/product-page/medjool-with-slivered-pistachios"
+    },
+    {
+      "id": "badadf24-8898-6e79-b23a-49b6effbcdd6",
+      "name": "Jordan",
+      "slug": "wanan",
+      "visible": true,
+      "path": "/product-page/wanan"
+    },
+    {
+      "id": "266edd4a-92f6-bfae-c89f-882ef91b0eea",
+      "name": "Medjool",
+      "slug": "medjool",
+      "visible": true,
+      "path": "/product-page/medjool"
+    },
+    {
+      "id": "96a87573-f48e-2622-6ef9-b6c7cdb70066",
+      "name": "Mabroom",
+      "slug": "mabroom",
+      "visible": true,
+      "path": "/product-page/mabroom"
+    },
+    {
+      "id": "97adcbe8-5c17-5267-a747-0263360fd4a7",
+      "name": "Khudri",
+      "slug": "khudri",
+      "visible": true,
+      "path": "/product-page/khudri"
+    },
+    {
+      "id": "7e794417-0758-e5de-9b07-6849355e999e",
+      "name": "Safawi",
+      "slug": "safawi",
+      "visible": true,
+      "path": "/product-page/safawi"
+    },
+    {
+      "id": "5ce20f73-467e-686d-18be-9017565e40b1",
+      "name": "Ajwa",
+      "slug": "fard",
+      "visible": true,
+      "path": "/product-page/fard"
+    },
+    {
+      "id": "89bfdd19-42ea-d06c-7644-8eada76aa52c",
+      "name": "Basbousa",
+      "slug": "basbousa",
+      "visible": true,
+      "path": "/product-page/basbousa"
+    },
+    {
+      "id": "c301affb-0ecf-f64b-3c2c-ad8e7e8438a8",
+      "name": "Mix Nuts Linza",
+      "slug": "mix-nuts-linza",
+      "visible": true,
+      "path": "/product-page/mix-nuts-linza"
+    },
+    {
+      "id": "616bc932-d58e-f8dc-01e0-58d9f6e4cf1f",
+      "name": "Walnut",
+      "slug": "walnut-mamoul",
+      "visible": true,
+      "path": "/product-page/walnut-mamoul"
+    },
+    {
+      "id": "15b7d37c-2623-b314-97b6-f68052804ba6",
+      "name": "Pistachio",
+      "slug": "pistachio-mamoul",
+      "visible": true,
+      "path": "/product-page/pistachio-mamoul"
+    },
+    {
+      "id": "19f3641e-f06f-4e51-aa97-9035ee385c34",
+      "name": "Date",
+      "slug": "date-mamoul",
+      "visible": true,
+      "path": "/product-page/date-mamoul"
+    },
+    {
+      "id": "6b3fc5c7-3058-a1c8-a14e-a3ac7e5c3887",
+      "name": "Chocolate Cashew  Kadayif",
+      "slug": "chocolate-kadayif-cashew",
+      "visible": true,
+      "path": "/product-page/chocolate-kadayif-cashew"
+    },
+    {
+      "id": "4a8f62dc-a542-3770-680b-88a4a61edcde",
+      "name": "Chocolate Cashew Ballouria",
+      "slug": "ballouria-chocolate-cashew",
+      "visible": true,
+      "path": "/product-page/ballouria-chocolate-cashew"
+    },
+    {
+      "id": "58a16fb8-441e-bf43-2fb4-19b2592674d7",
+      "name": "Chocolate Pistachio Ballouria",
+      "slug": "chocolate-ballouria-pistachio",
+      "visible": true,
+      "path": "/product-page/chocolate-ballouria-pistachio"
+    },
+    {
+      "id": "ee8672cd-59d5-bd23-440a-65988b8571ff",
+      "name": "Innosence Dew",
+      "slug": "innosence-pink",
+      "visible": true,
+      "path": "/product-page/innosence-pink"
+    },
+    {
+      "id": "359097e3-b147-e392-dd42-9fc82b537a65",
+      "name": "Pistachio Ballouria",
+      "slug": "ballouria-pistachio-1",
+      "visible": true,
+      "path": "/product-page/ballouria-pistachio-1"
+    },
+    {
+      "id": "6ad882cf-e39c-1e5c-9a1e-f316940863e4",
+      "name": "Cashew Ballouria",
+      "slug": "ballouria-cashew",
+      "visible": true,
+      "path": "/product-page/ballouria-cashew"
+    },
+    {
+      "id": "b2a67281-fe03-e238-2cd1-63c9f3bab7c8",
+      "name": "Cashew Bourma",
+      "slug": "bourma-cashew-1",
+      "visible": true,
+      "path": "/product-page/bourma-cashew-1"
+    },
+    {
+      "id": "c245324a-bcc3-ad09-0f22-5584838702db",
+      "name": "Sade Kadayif Asabeh",
+      "slug": "kadayif-asabeh-sade",
+      "visible": true,
+      "path": "/product-page/kadayif-asabeh-sade"
+    },
+    {
+      "id": "d8825d74-ecce-0697-edfe-beb57e613d9d",
+      "name": "Osh-el-BulBul Almond",
+      "slug": "osh-el-bulbul-almond",
+      "visible": true,
+      "path": "/product-page/osh-el-bulbul-almond"
+    },
+    {
+      "id": "9e6286ce-02af-7a2e-da0b-4b82e8e16f3f",
+      "name": "Pistachio Bourma",
+      "slug": "bourma-pistachio-1",
+      "visible": true,
+      "path": "/product-page/bourma-pistachio-1"
+    },
+    {
+      "id": "8d844e43-c30c-c8cd-e05f-91d99774d35c",
+      "name": "Osh-el-BulBul  Pistachio",
+      "slug": "osh-el-bulbul-pistachio",
+      "visible": true,
+      "path": "/product-page/osh-el-bulbul-pistachio"
+    },
+    {
+      "id": "4524b137-725f-a607-4961-f59635f6b4a0",
+      "name": "Osh-el-BulBul  Cashew",
+      "slug": "osh-el-bulbul-cashew",
+      "visible": true,
+      "path": "/product-page/osh-el-bulbul-cashew"
+    },
+    {
+      "id": "d3adaff1-159d-fa9c-2eec-24dd74847fff",
+      "name": "Pistachio Asiyah",
+      "slug": "asiyah-pistachio-baklava",
+      "visible": true,
+      "path": "/product-page/asiyah-pistachio-baklava"
+    },
+    {
+      "id": "d576aa18-35cc-e07b-bb25-1be249513de6",
+      "name": "Diamond Pistachio Baklava",
+      "slug": "diamond-pistachio-baklava",
+      "visible": true,
+      "path": "/product-page/diamond-pistachio-baklava"
+    },
+    {
+      "id": "04061fd6-76b0-307c-a41a-b994122f1722",
+      "name": "Cashew Kitaa",
+      "slug": "kitaa-cashew-baklava",
+      "visible": true,
+      "path": "/product-page/kitaa-cashew-baklava"
+    },
+    {
+      "id": "9b0df8a2-1e34-7163-3fc8-3d7ff138b4ed",
+      "name": "Cashew Rosebud",
+      "slug": "rosebud-almond-baklava-kol-w-shkor",
+      "visible": true,
+      "path": "/product-page/rosebud-almond-baklava-kol-w-shkor"
+    },
+    {
+      "id": "0c3dff55-096f-8600-cc04-893a96136e6c",
+      "name": "Mix Nuts Tart",
+      "slug": "mix-tart-baklava",
+      "visible": true,
+      "path": "/product-page/mix-tart-baklava"
+    },
+    {
+      "id": "19cd2ae9-2dda-f2f4-4d0c-43647aed5921",
+      "name": "Almond Tart",
+      "slug": "tart-almond-baklava",
+      "visible": true,
+      "path": "/product-page/tart-almond-baklava"
+    },
+    {
+      "id": "bdac4084-9683-1866-29fe-032cfc44e9c6",
+      "name": "Pistachio Ring",
+      "slug": "ring-pista-baklava-asawer-pistachio",
+      "visible": true,
+      "path": "/product-page/ring-pista-baklava-asawer-pistachio"
+    },
+    {
+      "id": "50fd568b-3bca-d3c0-47fe-1e243b364c0f",
+      "name": "Cashew Ring",
+      "slug": "ring-cashew-baklava-asawer-cashew",
+      "visible": true,
+      "path": "/product-page/ring-cashew-baklava-asawer-cashew"
+    },
+    {
+      "id": "8dc62e83-4edf-f83b-2d53-b7d46a72792f",
+      "name": "Cashew Pyramid",
+      "slug": "special-pyramid-baklava-boukaj",
+      "visible": true,
+      "path": "/product-page/special-pyramid-baklava-boukaj"
+    },
+    {
+      "id": "6ec380bd-2023-a81e-bed4-b53cf3145649",
+      "name": "Pistachio Pyramid",
+      "slug": "pyramid-pista-boukaj",
+      "visible": true,
+      "path": "/product-page/pyramid-pista-boukaj"
+    },
+    {
+      "id": "8d23ee1e-3124-6385-d32e-1fb7324f2204",
+      "name": "Cashew Asiyah",
+      "slug": "asiyah-cashew",
+      "visible": true,
+      "path": "/product-page/asiyah-cashew"
+    },
+    {
+      "id": "047505d7-2aa3-3053-b71c-e1fafeddc5de",
+      "name": "The Bloom",
+      "slug": "the-bloom",
+      "visible": true,
+      "path": "/product-page/the-bloom"
+    },
+    {
+      "id": "c9704640-7f32-5e29-3b29-a485f367ee60",
+      "name": "The Twinkle",
+      "slug": "the-twinkle",
+      "visible": true,
+      "path": "/product-page/the-twinkle"
+    },
+    {
+      "id": "95f996ac-7d77-3a32-cb71-dd47ecbda749",
+      "name": "Tart Cashew",
+      "slug": "cashew-tart-baklava",
+      "visible": true,
+      "path": "/product-page/cashew-tart-baklava"
+    },
+    {
+      "id": "e705bbe7-9be4-acc3-0c10-d80310118c72",
+      "name": "Tart Pistachio",
+      "slug": "pista-tart-baklava",
+      "visible": true,
+      "path": "/product-page/pista-tart-baklava"
+    },
+    {
+      "id": "5c5c9c59-20d8-e69c-01b3-38ca29ab09f6",
+      "name": "Cashew Finger (Pair)",
+      "slug": "asabeh-finger-cashew-baklawa",
+      "visible": true,
+      "path": "/product-page/asabeh-finger-cashew-baklawa"
+    },
+    {
+      "id": "2bfc0c0c-4174-f5ff-42b2-e9b903c1b2b4",
+      "name": "The Lifestyle",
+      "slug": "the-lifestyle",
+      "visible": true,
+      "path": "/product-page/the-lifestyle"
+    },
+    {
+      "id": "0c7513c6-3f06-929a-b92c-52017cc96f03",
+      "name": "Truffle 16 Pcs",
+      "slug": "truffle-chocolates",
+      "visible": true,
+      "path": "/product-page/truffle-chocolates"
+    },
+    {
+      "id": "725f0297-1837-93e4-d0e7-2aa9dee214e7",
+      "name": "Fern 16",
+      "slug": "assorted-baklawa-with-fern-collection",
+      "visible": true,
+      "path": "/product-page/assorted-baklawa-with-fern-collection"
+    },
+    {
+      "id": "e3070633-31cd-2fe4-4114-e6132bab8529",
+      "name": "Marine 16",
+      "slug": "assorted-baklawa-with-marine-collection-box",
+      "visible": true,
+      "path": "/product-page/assorted-baklawa-with-marine-collection-box"
+    },
+    {
+      "id": "8bf953ea-e0d3-e006-8393-235502a47918",
+      "name": "Rosello 25",
+      "slug": "rosello-25",
+      "visible": true,
+      "path": "/product-page/rosello-25"
+    },
+    {
+      "id": "f8dc3e47-00db-6678-6088-227524a660d8",
+      "name": "Truffle Collection",
+      "slug": "truffle-collection",
+      "visible": true,
+      "path": "/product-page/truffle-collection"
+    },
+    {
+      "id": "30a74234-d57d-270a-8cfe-80bfb031f4a9",
+      "name": "Crystal Collection 4",
+      "slug": "crystal-4",
+      "visible": true,
+      "path": "/product-page/crystal-4"
+    },
+    {
+      "id": "1bafeefa-bc20-1535-bf6f-87a9bb67877b",
+      "name": "Innosence Frost",
+      "slug": "junosence",
+      "visible": true,
+      "path": "/product-page/junosence"
+    },
+    {
+      "id": "ec6367e4-7343-79af-0a79-460658753956",
+      "name": "Rosello 16",
+      "slug": "rosello-16",
+      "visible": true,
+      "path": "/product-page/rosello-16"
+    },
+    {
+      "id": "1bdb04fe-96b0-335a-0288-9bf821134bd1",
+      "name": "Classic Walnut Baklava",
+      "slug": "Classic-Turkish-Walnut-Baklava",
+      "visible": true,
+      "path": "/product-page/Classic-Turkish-Walnut-Baklava"
+    },
+    {
+      "id": "130474dc-a81a-5305-59f5-3c28d606e658",
+      "name": "Classic Pistachio Baklava",
+      "slug": "Turkish-Pistachio-Baklava",
+      "visible": true,
+      "path": "/product-page/Turkish-Pistachio-Baklava"
+    },
+    {
+      "id": "b6696098-068d-95eb-2110-bd8e10a14345",
+      "name": "Turkish Pistachio Carrot Baklava",
+      "slug": "Turkish-Pistachio-Carrot-Baklava",
+      "visible": true,
+      "path": "/product-page/Turkish-Pistachio-Carrot-Baklava"
+    },
+    {
+      "id": "7b7dd314-bd85-9ecb-e328-2917ac9886a4",
+      "name": "Turkish Pistachio Midye",
+      "slug": "Turkish-Pistachio-Midye-Baklava",
+      "visible": true,
+      "path": "/product-page/Turkish-Pistachio-Midye-Baklava"
+    },
+    {
+      "id": "0fcdac11-a945-6acd-2a2e-fa5136fe7001",
+      "name": "Double Pistachio Durum",
+      "slug": "Ozel-Durum-Pistachio-Turk-Baklava",
+      "visible": true,
+      "path": "/product-page/Ozel-Durum-Pistachio-Turk-Baklava"
+    },
+    {
+      "id": "1ebf75ee-1b3f-6051-4ad8-4c75d8e2eada",
+      "name": "Regal Rukhwat Delights",
+      "slug": "Regal-Rukhwat-Delights",
+      "visible": true,
+      "path": "/product-page/Regal-Rukhwat-Delights"
+    },
+    {
+      "id": "18b9eb0a-7bf1-f36e-45aa-1dd8b6461423",
+      "name": "Everlasting Embrace Hampers",
+      "slug": "Everlasting-Embrace-Hampers",
+      "visible": true,
+      "path": "/product-page/Everlasting-Embrace-Hampers"
+    },
+    {
+      "id": "a498815c-8851-09b0-db7d-b48f1073634f",
+      "name": "Sacred Matrimony Treasures",
+      "slug": "Sacred-Matrimony-Treasures",
+      "visible": true,
+      "path": "/product-page/Sacred-Matrimony-Treasures"
+    },
+    {
+      "id": "72877c31-e37c-e523-8e69-922211a863d9",
+      "name": "Ornate Shagun Sweets",
+      "slug": "Ornate-Shagun-Sweets",
+      "visible": true,
+      "path": "/product-page/Ornate-Shagun-Sweets"
+    },
+    {
+      "id": "679f12e1-dabf-e30a-fcc8-b67923007157",
+      "name": "Engraved Amore Gift Set",
+      "slug": "Engraved-Amore-Gift-Set",
+      "visible": true,
+      "path": "/product-page/Engraved-Amore-Gift-Set"
+    },
+    {
+      "id": "55637763-d406-8ebb-d814-3eddfcf9a3c6",
+      "name": "Blissful Union Trinkets",
+      "slug": "Blissful-Union-Trinkets",
+      "visible": true,
+      "path": "/product-page/Blissful-Union-Trinkets"
+    },
+    {
+      "id": "8935b7df-f78a-fedd-0522-b47da4b0b3ed",
+      "name": "Imperial Sangeet Sweets",
+      "slug": "Imperial-Sangeet-Sweets",
+      "visible": true,
+      "path": "/product-page/Imperial-Sangeet-Sweets"
+    },
+    {
+      "id": "d399f6eb-915c-3f14-6ec3-a051f6f7e538",
+      "name": "Enigmatic Mehndi Memorabilia",
+      "slug": "Enigmatic-Mehndi-Memorabilia",
+      "visible": true,
+      "path": "/product-page/Enigmatic-Mehndi-Memorabilia"
+    },
+    {
+      "id": "58eaf2ab-fa38-11c6-b036-c2db7980184d",
+      "name": "Shubh Vivaah Surprise Box",
+      "slug": "Shubh-Vivaah-Surprise-Box",
+      "visible": true,
+      "path": "/product-page/Shubh-Vivaah-Surprise-Box"
+    },
+    {
+      "id": "ed3a42c9-c943-63da-e157-af3c00048d5d",
+      "name": "Radiant Nikah Keepsakes",
+      "slug": "Radiant-Nikah-Keepsakes",
+      "visible": true,
+      "path": "/product-page/Radiant-Nikah-Keepsakes"
+    },
+    {
+      "id": "854ec3e7-c754-83df-786a-f97a33049ac0",
+      "name": "Gleaming Saat Phera Mementos",
+      "slug": "Gleaming-Saat-Phera-Mementos",
+      "visible": true,
+      "path": "/product-page/Gleaming-Saat-Phera-Mementos"
+    },
+    {
+      "id": "15f8ffc8-c856-77d7-4cd5-14ff5b550b16",
+      "name": "Celestial Dulha-Dulhan Hamper",
+      "slug": "Celestial-Dulha-Dulhan-Hamper",
+      "visible": true,
+      "path": "/product-page/Celestial-Dulha-Dulhan-Hamper"
+    },
+    {
+      "id": "c75ec5a6-cb2a-ba02-3bbe-6e18a257b503",
+      "name": "Luxe Baraat Barfi Box",
+      "slug": "Luxe-Baraat-Barfi-Box",
+      "visible": true,
+      "path": "/product-page/Luxe-Baraat-Barfi-Box"
+    },
+    {
+      "id": "ff2cb411-8858-4df7-4f13-de8fca6be0bb",
+      "name": "Eternal Bonding Keepsakes",
+      "slug": "Eternal-Bonding-Keepsakes",
+      "visible": true,
+      "path": "/product-page/Eternal-Bonding-Keepsakes"
+    },
+    {
+      "id": "90ffab88-7e9f-e718-0f26-389e46f2063d",
+      "name": "Vivid Vivah Memories",
+      "slug": "Vivid-Vivah-Memories",
+      "visible": true,
+      "path": "/product-page/Vivid-Vivah-Memories"
+    },
+    {
+      "id": "fe52fffc-6a46-971c-ab62-d01c20ec9f59",
+      "name": "Charming Haldi Mithai Box",
+      "slug": "Charming-Haldi-Mithai-Box",
+      "visible": true,
+      "path": "/product-page/Charming-Haldi-Mithai-Box"
+    },
+    {
+      "id": "f1e3b767-274e-e895-261b-1c624194d832",
+      "name": "Joyful Saptapadi Collection",
+      "slug": "Joyful-Saptapadi-Collection",
+      "visible": true,
+      "path": "/product-page/Joyful-Saptapadi-Collection"
+    },
+    {
+      "id": "effac059-5de2-184d-3d88-b7086713bc74",
+      "name": "Traditional Shubharambh Gifts",
+      "slug": "Traditional-Shubharambh-Gifts",
+      "visible": true,
+      "path": "/product-page/Traditional-Shubharambh-Gifts"
+    },
+    {
+      "id": "801d285e-1804-c6ed-da89-60a1885736bc",
+      "name": "Exquisite Jaimala Trunk",
+      "slug": "Exquisite-Jaimala-Trunk",
+      "visible": true,
+      "path": "/product-page/Exquisite-Jaimala-Trunk"
+    },
+    {
+      "id": "b81a0a90-af4e-8a47-91fd-081c4cf83468",
+      "name": "Grand Shaadi Sweets Galore",
+      "slug": "Grand-Shaadi-Sweets-Galore",
+      "visible": true,
+      "path": "/product-page/Grand-Shaadi-Sweets-Galore"
+    },
+    {
+      "id": "ed6d6380-6627-692d-e6f8-ade25b98efd7",
+      "name": "Soulful Milan Mithai Basket",
+      "slug": "Soulful-Milan-Mithai-Basket",
+      "visible": true,
+      "path": "/product-page/Soulful-Milan-Mithai-Basket"
+    },
+    {
+      "id": "624e51c3-439b-25f7-0045-d8d0b906815b",
+      "name": "Splendid Shagun Memorabilia",
+      "slug": "Splendid-Shagun-Memorabilia",
+      "visible": true,
+      "path": "/product-page/Splendid-Shagun-Memorabilia"
+    },
+    {
+      "id": "868d5af7-2725-3f49-44cd-fff4b7f65881",
+      "name": "Blissful Roka Surprises",
+      "slug": "Blissful-Roka-Surprises",
+      "visible": true,
+      "path": "/product-page/Blissful-Roka-Surprises"
+    },
+    {
+      "id": "234d391a-1c6b-6042-8082-4197833178b7",
+      "name": "Radiant Mehfil Sweets",
+      "slug": "Radiant-Mehfi-lSweets",
+      "visible": true,
+      "path": "/product-page/Radiant-Mehfi-lSweets"
+    },
+    {
+      "id": "788e16c5-cacf-c412-4ff9-eb2e61f49f30",
+      "name": "Eternal Bliss Trousseau",
+      "slug": "Eternal-Bliss-Trousseau",
+      "visible": true,
+      "path": "/product-page/Eternal-Bliss-Trousseau"
+    },
+    {
+      "id": "8e333b1f-327a-88ef-1970-092f6b77059e",
+      "name": "Auspicious Varmala Hampers",
+      "slug": "Auspicious-Varmala-Hampers",
+      "visible": true,
+      "path": "/product-page/Auspicious-Varmala-Hampers"
+    },
+    {
+      "id": "b048f635-82b0-4397-2056-40bbb3fd781b",
+      "name": "Vibrant Haldi-Shagun Box",
+      "slug": "Vibrant-Haldi-Shagun-Box",
+      "visible": true,
+      "path": "/product-page/Vibrant-Haldi-Shagun-Box"
+    },
+    {
+      "id": "c58246b2-4394-d332-2dda-8e786a8ba463",
+      "name": "Wholesome Nikah Delights",
+      "slug": "Wholesome-Nikah-Delights",
+      "visible": true,
+      "path": "/product-page/Wholesome-Nikah-Delights"
+    },
+    {
+      "id": "8b4e826c-1545-916f-86de-d33f6170833e",
+      "name": "Regal Sangeet Memories",
+      "slug": "Regal-Sangeet-Memories",
+      "visible": true,
+      "path": "/product-page/Regal-Sangeet-Memories"
+    },
+    {
+      "id": "a8a26237-5712-f8bc-8979-3ff667217b2e",
+      "name": "Gleaming Bridal Baraat Hamper",
+      "slug": "Gleaming-Bridal-Baraat-Hamper",
+      "visible": true,
+      "path": "/product-page/Gleaming-Bridal-Baraat-Hamper"
+    },
+    {
+      "id": "765691c9-bb93-b532-40f3-c8c24ac0b172",
+      "name": "Charming Saat Phera Sweets",
+      "slug": "Charming-Saat-Phera-Sweets",
+      "visible": true,
+      "path": "/product-page/Charming-Saat-Phera-Sweets"
+    },
+    {
+      "id": "cbc20019-1f90-4b15-5683-d0aeea2da70f",
+      "name": "Serene Milni Mithai Box",
+      "slug": "Serene-Milni-Mithai-Box",
+      "visible": true,
+      "path": "/product-page/Serene-Milni-Mithai-Box"
+    },
+    {
+      "id": "007d52c0-e564-f9ca-7daf-78bb976efffe",
+      "name": "Opulent Dulha-Dulhan Keepsakes",
+      "slug": "OpulentDulha-DulhanKeepsakes",
+      "visible": true,
+      "path": "/product-page/OpulentDulha-DulhanKeepsakes"
+    },
+    {
+      "id": "f17355bf-12a5-4e6e-dccb-fc273ca6f2f0",
+      "name": "Traditional Vivaah Sweets",
+      "slug": "Traditional-Vivaah-Sweets",
+      "visible": true,
+      "path": "/product-page/Traditional-Vivaah-Sweets"
+    },
+    {
+      "id": "b902967b-88d9-5c0e-b15d-06d830f5e11d",
+      "name": "Enchanting Bidaai Hamper",
+      "slug": "EnchantingBidaaiHamper",
+      "visible": true,
+      "path": "/product-page/EnchantingBidaaiHamper"
+    },
+    {
+      "id": "adc3091f-d162-9c17-e131-eceb7f359b62",
+      "name": "Radiant Mehndi Memories",
+      "slug": "Radiant-Mehndi-Memories",
+      "visible": true,
+      "path": "/product-page/Radiant-Mehndi-Memories"
+    },
+    {
+      "id": "5384f0b7-8fde-1064-fca9-80a131166f5d",
+      "name": "Joyous Nikah Sweets",
+      "slug": "Joyous-Nikah-Sweets",
+      "visible": true,
+      "path": "/product-page/Joyous-Nikah-Sweets"
+    },
+    {
+      "id": "ad912450-2e27-58a8-ef0d-4882e119d344",
+      "name": "Exquisite Shagun Treasure Box",
+      "slug": "Exquisite-Shagun-Treasure-Box",
+      "visible": true,
+      "path": "/product-page/Exquisite-Shagun-Treasure-Box"
+    },
+    {
+      "id": "1c2a9f06-f071-8c56-62a0-73048ea05843",
+      "name": "Divine Vivah Mithai Collection",
+      "slug": "Divine-Vivah-Mithai-Collection",
+      "visible": true,
+      "path": "/product-page/Divine-Vivah-Mithai-Collection"
+    },
+    {
+      "id": "290240ca-328c-63cc-db2e-5a1370f91cca",
+      "name": "Sultan Collection 12",
+      "slug": "Sultan-Collection",
+      "visible": true,
+      "path": "/product-page/Sultan-Collection"
+    }
+  ]
+}
