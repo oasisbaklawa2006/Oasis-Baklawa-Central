@@ -77,3 +77,14 @@ Captured read-only from the live Wix SEO Redirects API on 2026-10-13.
 - replacement 301 manifest
 - canonical/sitemap/robots/llms verification on the production hostname
 - Search Console ownership and post-cutover crawl validation
+
+
+## Dynamic route inventory captured
+
+- **439 / 439** visible Wix Store products have been captured with their Wix product ID, name, slug and live `/product-page/...` path in `docs/website/wix-product-routes-20261013.json`.
+- **35 / 35** published Wix Blog posts have been captured with their ID, title, slug, URL and publish timestamps in `docs/website/wix-blog-routes-20261013.json`.
+- Wix's Google Search Console `List Sitemaps` endpoint currently returned **no submitted sitemap records** for this site. This does not prove that Google has never crawled the site; it means there is no sitemap submission record available through that connected Wix GSC endpoint at capture time.
+
+## Static-page inventory limitation
+
+Wix's documented sitemap-page API explicitly excludes classic Wix Editor static/main pages. The live site is a classic Wix Editor site, so the static-page route inventory cannot be certified from that API alone. Historical static routes are nevertheless preserved through the 41 non-product redirects above. Final static-page mapping still requires either the published site's generated sitemap/crawl output or an equivalent authoritative Wix page export before production DNS cutover.
