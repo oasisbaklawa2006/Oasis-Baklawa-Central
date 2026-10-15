@@ -25,7 +25,8 @@ export interface DraftOrderLineItem {
   productId: string | null;
   productName: string;
   sku: string | null;
-  rawQuantity: number;
+  /** Null when WA-06A did not extract an explicit quantity (never display as 1). */
+  rawQuantity: number | null;
   rawUnit: string | null;
   normalizedQuantity: number | null;
   normalizedUnit: string | null;

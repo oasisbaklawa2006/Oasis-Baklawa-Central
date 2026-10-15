@@ -67,6 +67,10 @@ describe("draftOrderExtraction", () => {
     if (draft.lineItems.length === 1) {
       expect(draft.lineItems[0].quantityBand).toBe("needs_clarification");
       expect(draft.lineItems[0].normalizedQuantity).toBeNull();
+      expect(draft.lineItems[0].rawQuantity).toBeNull();
+      expect(
+        draft.conversionSummary.some((line) => line.includes("quantity pending clarification")),
+      ).toBe(true);
     }
   });
 
