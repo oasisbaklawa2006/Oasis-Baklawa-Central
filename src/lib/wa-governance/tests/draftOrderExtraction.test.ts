@@ -51,6 +51,25 @@ const quantityReady: QuantityResolutionResult = {
 };
 
 describe("draftOrderExtraction", () => {
+  it("keeps quantity readiness missing when WA-06A has no explicit quantity (no executable default)", () => {
+    const draft = extractDraftOrderFromResolution({
+      packetId: "pkt-missing-qty",
+      extractionRequestKey: "key-missing-qty",
+      sourceText: "Need baklawa for Bikaner Traders",
+      client: clientReady,
+      product: productReady,
+      quantity: { band: "needs_clarification", quantities: [] },
+      senderIdentity: null,
+    });
+    const quantityDim = draft.readiness.dimensions.find((d) => d.dimension === "quantity");
+    expect(quantityDim?.status).toBe("missing");
+    expect(quantityDim?.score).toBe(0);
+    if (draft.lineItems.length === 1) {
+      expect(draft.lineItems[0].quantityBand).toBe("needs_clarification");
+      expect(draft.lineItems[0].normalizedQuantity).toBeNull();
+    }
+  });
+
   it("combines WA-04A/05A/06A into structured draft lines without order ids", () => {
     const draft = extractDraftOrderFromResolution({
       packetId: "pkt-1",
