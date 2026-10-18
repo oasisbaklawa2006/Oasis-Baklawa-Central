@@ -257,6 +257,71 @@ describe("approve extraction version and readiness validation", () => {
     );
   });
 
+  it("requests early SO recording only when downstream details are pending", async () => {
+    rpcMock.mockResolvedValue({
+      data: [{ draft_id: "draft-1", promoted_order_id: "order-1", order_number: "SO-1", already_promoted: false }],
+      error: null,
+    });
+    const { approveSalesOrderDraft } = await import(
+      "@/lib/wa-sales-order-draft/salesOrderDraftRepository"
+    );
+    const { extractedFixture } = await import("./fixtures/extractedDraftFixture");
+    const dim = (dimension: string, status: string, score: number) => ({
+      dimension,
+      status,
+      score,
+      explanation: "",
+    });
+    const earlyDimensions = [
+      dim("client", "ready", 100),
+      dim("product", "ready", 100),
+      dim("quantity", "ready", 100),
+      dim("address", "pending", 0),
+      dim("payment_terms", "pending", 0),
+    ];
+    const fullDimensions = earlyDimensions.map((d) => ({ ...d, status: "ready", score: 100 }));
+
+    await approveSalesOrderDraft({
+      draftId: "draft-1",
+      extracted: {
+        ...extractedFixture,
+        readiness: { overallScore: 80, dimensions: earlyDimensions as never },
+      },
+      actor: { id: "user-1", name: "Approver" },
+    }).catch(() => undefined);
+    expect(rpcMock).toHaveBeenLastCalledWith(
+      "approve_sales_order_draft_for_so_atomic",
+      expect.objectContaining({
+        p_metadata: expect.objectContaining({ readiness_gate: "SO_RECORDABLE" }),
+      }),
+    );
+
+    await approveSalesOrderDraft({
+      draftId: "draft-1",
+      extracted: {
+        ...extractedFixture,
+        readiness: { overallScore: 100, dimensions: fullDimensions as never },
+      },
+      actor: { id: "user-1", name: "Approver" },
+    }).catch(() => undefined);
+    const lastMetadata = (rpcMock.mock.lastCall?.[1] as { p_metadata: Record<string, unknown> }).p_metadata;
+    expect(lastMetadata.readiness_gate).toBeUndefined();
+
+    await approveSalesOrderDraft({
+      draftId: "draft-1",
+      extracted: {
+        ...extractedFixture,
+        readiness: {
+          overallScore: 20,
+          dimensions: [dim("client", "missing", 0), ...earlyDimensions.slice(1)] as never,
+        },
+      },
+      actor: { id: "user-1", name: "Approver" },
+    }).catch(() => undefined);
+    const blockedMetadata = (rpcMock.mock.lastCall?.[1] as { p_metadata: Record<string, unknown> }).p_metadata;
+    expect(blockedMetadata.readiness_gate).toBeUndefined();
+  });
+
   it("invalid persisted readiness cannot approve", async () => {
     rpcMock.mockResolvedValue({ data: null, error: { message: "client is not ready (20 — missing)" } });
 
