@@ -31,6 +31,7 @@ const BuyerApp = lazy(() => import("./pages/customer/BuyerApp.tsx"));
 const BuyerAccessRequest = lazy(() => import("./pages/customer/BuyerApp.tsx").then((module) => ({ default: module.BuyerAccessRequest })));
 const BuyerLogin = lazy(() => import("./pages/BuyerLogin.tsx"));
 const StaffLogin = lazy(() => import("./pages/StaffLogin.tsx"));
+const SecurityMfa = lazy(() => import("./pages/SecurityMfa.tsx"));
 
 const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard.tsx"));
 const AdminClients = lazy(() => import("./pages/admin/AdminClients.tsx"));
@@ -237,6 +238,7 @@ const App = () => (
                 <Routes>
                   <Route path="/splash" element={<Splash />} />
                   <Route path="/operations-controller" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={[...OPERATIONS_CONTROLLER_ROLES]}><OperationsController /></RoleProtectedRoute></ProtectedRoute>} />
+                  <Route path="/security/mfa" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SecurityMfa /></RoleProtectedRoute></ProtectedRoute>} />
                   <Route path="/security-gate" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={[...SECURITY_GATE_ALLOWED_ROLES]}><AdminSecurityGate /></RoleProtectedRoute></ProtectedRoute>} />
                   <Route path="/" element={<RootGate />} />
                   <Route path="/customer-app-redirect" element={<CustomerAppRedirect />} />
