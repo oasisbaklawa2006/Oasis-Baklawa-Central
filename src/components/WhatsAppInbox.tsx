@@ -1753,13 +1753,14 @@ export function WhatsAppInbox() {
                     />
                   </div>
                 </div>
-                <p className="text-sm text-gray-700">WhatsApp: {selectedPacket.phone_number}</p>
-                {selectedPacket.wa_contact_id ? (
-                  <p className="text-xs text-gray-500">WA id: {selectedPacket.wa_contact_id}</p>
-                ) : null}
-                <p className="mt-2 text-xs text-gray-600">
-                  Company or profile name above comes from <code className="rounded bg-white/80 px-1">whatsapp_contacts</code>{" "}
-                  only (no order join in this view).
+                <p
+                  className="text-sm text-gray-700"
+                  title="Company or profile name comes from whatsapp_contacts only (no order join in this view)."
+                >
+                  WhatsApp: {selectedPacket.phone_number}
+                  {selectedPacket.wa_contact_id ? (
+                    <span className="text-xs text-gray-500"> · WA id: {selectedPacket.wa_contact_id}</span>
+                  ) : null}
                 </p>
                 <div className="mt-3">
                   <OperatorInboxPacketBadges
@@ -1773,8 +1774,15 @@ export function WhatsAppInbox() {
 
             <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
               <div className="flex min-h-0 min-w-0 flex-1 flex-col border-gray-200 lg:border-r">
-                <div className="shrink-0 border-b border-gray-200 bg-white px-4 py-3">
-                  <p className="mb-2 text-xs font-medium text-gray-500">
+                <details
+                  data-operator-inbox-edge-suggestions
+                  className="shrink-0 border-b border-gray-200 bg-white px-4 py-2"
+                  open={Boolean(intentResult || routeResult || suggestionsError)}
+                >
+                  <summary className="cursor-pointer text-xs font-semibold text-gray-700 outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2">
+                    AI suggestions (on demand)
+                  </summary>
+                  <p className="mb-2 mt-2 text-xs font-medium text-gray-500">
                     Edge suggestions (on demand — not saved until governance allows persistence)
                   </p>
                   <div className="flex flex-wrap gap-2">
@@ -1818,10 +1826,11 @@ export function WhatsAppInbox() {
                           <span className="text-gray-500">Keywords:</span> {intentResult.keywords.join(", ")}
                         </p>
                       ) : null}
-                      <p className="mt-1 text-xs text-gray-600">
+                      <details className="mt-1 text-xs text-gray-600">
+                        <summary className="cursor-pointer text-gray-500">Technical details</summary>
                         <span className="text-gray-500">Metadata:</span>{" "}
                         {JSON.stringify(intentResult.metadata ?? {})}
-                      </p>
+                      </details>
                     </div>
                   ) : null}
                   {routeResult ? (
@@ -1839,13 +1848,14 @@ export function WhatsAppInbox() {
                       <p>
                         <span className="text-gray-500">Reason:</span> {routeResult.reason}
                       </p>
-                      <p className="mt-1 text-xs text-gray-600">
+                      <details className="mt-1 text-xs text-gray-600">
+                        <summary className="cursor-pointer text-gray-500">Technical details</summary>
                         <span className="text-gray-500">Metadata:</span>{" "}
                         {JSON.stringify(routeResult.metadata ?? {})}
-                      </p>
+                      </details>
                     </div>
                   ) : null}
-                </div>
+                </details>
 
                 <div
                   className="min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-y-contain scroll-pt-2 scroll-pb-3 p-4"
@@ -1880,14 +1890,8 @@ export function WhatsAppInbox() {
                                   )}
                                 >
                                   <div className="mb-1 flex flex-wrap gap-1">
-                                    <Badge
-                                      variant="secondary"
-                                      className={`h-5 px-1.5 text-[10px] font-normal ${
-                                        msg.direction === "inbound" ? "" : "bg-white/20 text-white"
-                                      }`}
-                                    >
-                                      {msg.direction}
-                                    </Badge>
+                                    {/* Direction is conveyed by bubble side/colour; keep it for assistive tech. */}
+                                    <span className="sr-only">{msg.direction}</span>
                                     {msg.status ? (
                                       <Badge
                                         variant="outline"
@@ -1896,26 +1900,6 @@ export function WhatsAppInbox() {
                                         }`}
                                       >
                                         {msg.status}
-                                      </Badge>
-                                    ) : null}
-                                    {msg.provider ? (
-                                      <Badge
-                                        variant="outline"
-                                        className={`h-5 px-1.5 text-[10px] font-normal ${
-                                          msg.direction === "outbound" ? "border-white/40 text-white" : ""
-                                        }`}
-                                      >
-                                        {msg.provider}
-                                      </Badge>
-                                    ) : null}
-                                    {msg.packet_sequence != null ? (
-                                      <Badge
-                                        variant="outline"
-                                        className={`h-5 px-1.5 text-[10px] font-normal ${
-                                          msg.direction === "outbound" ? "border-white/40 text-white" : ""
-                                        }`}
-                                      >
-                                        #{msg.packet_sequence}
                                       </Badge>
                                     ) : null}
                                     {(() => {
@@ -1963,6 +1947,8 @@ export function WhatsAppInbox() {
                                   <p className="whitespace-pre-wrap text-sm">{msg.content ?? ""}</p>
                                   <p className="mt-1 text-xs opacity-70">
                                     {msg.created_at ? new Date(msg.created_at).toLocaleString() : ""}
+                                    {msg.provider ? ` · ${msg.provider}` : ""}
+                                    {msg.packet_sequence != null ? ` · #${msg.packet_sequence}` : ""}
                                   </p>
                                 </div>
                               </div>
