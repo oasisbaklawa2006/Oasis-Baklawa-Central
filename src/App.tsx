@@ -32,6 +32,7 @@ const BuyerAccessRequest = lazy(() => import("./pages/customer/BuyerApp.tsx").th
 const BuyerLogin = lazy(() => import("./pages/BuyerLogin.tsx"));
 const StaffLogin = lazy(() => import("./pages/StaffLogin.tsx"));
 const SecurityMfa = lazy(() => import("./pages/SecurityMfa.tsx"));
+const SecurityWaExceptions = lazy(() => import("./pages/SecurityWaExceptions.tsx"));
 
 const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard.tsx"));
 const AdminClients = lazy(() => import("./pages/admin/AdminClients.tsx"));
@@ -239,6 +240,7 @@ const App = () => (
                   <Route path="/splash" element={<Splash />} />
                   <Route path="/operations-controller" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={[...OPERATIONS_CONTROLLER_ROLES]}><OperationsController /></RoleProtectedRoute></ProtectedRoute>} />
                   <Route path="/security/mfa" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SecurityMfa /></RoleProtectedRoute></ProtectedRoute>} />
+                  <Route path="/security/wa-exceptions" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SecurityWaExceptions /></RoleProtectedRoute></ProtectedRoute>} />
                   <Route path="/security-gate" element={<ProtectedRoute><RoleProtectedRoute allowedRoles={[...SECURITY_GATE_ALLOWED_ROLES]}><AdminSecurityGate /></RoleProtectedRoute></ProtectedRoute>} />
                   <Route path="/" element={<RootGate />} />
                   <Route path="/customer-app-redirect" element={<CustomerAppRedirect />} />
