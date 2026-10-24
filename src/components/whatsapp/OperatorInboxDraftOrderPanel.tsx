@@ -254,11 +254,13 @@ function DraftOrderBody({
           <p className="mb-1 text-xs font-medium uppercase tracking-wide text-teal-800/80">Product lines</p>
           <ul className="space-y-2">
             {draft.lineItems.map((line) => {
-              const displayQty =
+              const resolvedQty =
                 lineQuantities[line.lineIndex] ??
                 localEdits.lineQuantities[line.lineIndex] ??
                 line.normalizedQuantity ??
                 line.rawQuantity;
+              const quantityPending = resolvedQty == null;
+              const displayQty = quantityPending ? "" : String(resolvedQty);
               return (
                 <li key={line.lineIndex} className="rounded border border-teal-100 bg-white/80 p-2 text-xs">
                   <p className="font-medium">
@@ -285,6 +287,8 @@ function DraftOrderBody({
                         />
                         <span>{line.normalizedUnit ?? line.rawUnit ?? "unit"}</span>
                       </label>
+                    ) : quantityPending ? (
+                      <span className="text-amber-800">Qty pending clarification (not confirmed)</span>
                     ) : (
                       <span>
                         Qty {displayQty} {line.normalizedUnit ?? line.rawUnit ?? "unit"}
