@@ -250,7 +250,16 @@ export function availableActions(
   return actions;
 }
 
+/** Taking a task from, or returning a task held by, somebody else is an override that needs a reason. */
+export function needsOverrideReason(item: Pick<WorkQueueItem, "ownerUserId">, meUserId: string | null): boolean {
+  return item.ownerUserId !== null && item.ownerUserId !== meUserId;
+}
+
 export function ownershipErrorMessage(raw: string): string {
+  if (raw.includes("CASE_TASK_OVERRIDE_REASON_REQUIRED")) return "A reason is required to take a task from its current owner.";
+  if (/could not find the function|PGRST202|function .+ does not exist/i.test(raw) && /whatsapp_(claim|assign|release)_case_task/i.test(raw)) {
+    return "Task ownership is not available yet. Nothing was changed.";
+  }
   if (raw.includes("CASE_TASK_ALREADY_CLAIMED")) return "A colleague claimed this task first. The list has been refreshed.";
   if (raw.includes("CASE_TASK_NOT_CLAIMABLE") || raw.includes("CASE_TASK_NOT_ASSIGNABLE") || raw.includes("CASE_TASK_NOT_RELEASABLE")) {
     return "This task is already finished or cancelled. The list has been refreshed.";

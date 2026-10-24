@@ -224,6 +224,33 @@ describe("WhatsAppWorkQueue", () => {
     await waitFor(() => expect(release).toHaveBeenCalledTimes(1));
   });
 
+  it("makes an assigner give a reason before returning someone else's task", async () => {
+    permissions = new Set(["wa.intake.read", "wa.intake.triage", "wa.intake.assign"]);
+    renderQueue();
+    await screen.findByText("Bharat Stores");
+    const card = screen.getByText("Bharat Stores").closest("li") as HTMLElement; // owned by a colleague
+    fireEvent.click(within(card).getByRole("button", { name: /Return to queue/ }));
+    const dialog = await screen.findByRole("dialog");
+    expect(release).not.toHaveBeenCalled();
+    const submit = within(dialog).getByRole("button", { name: "Return to queue" });
+    expect(submit).toBeDisabled();
+    fireEvent.change(within(dialog).getByLabelText("Release reason"), { target: { value: "owner on leave" } });
+    expect(submit).toBeEnabled();
+    fireEvent.click(submit);
+    await waitFor(() => expect(release).toHaveBeenCalledTimes(1));
+    expect(release.mock.calls[0]).toEqual([{}, { taskId: "open2", idempotencyKey: "queue-release:open2:key", reason: "owner on leave" }]);
+  });
+
+  it("says plainly when the ownership backend is not released yet", async () => {
+    claim.mockRejectedValueOnce(new Error("Could not find the function public.whatsapp_claim_case_task(p_idempotency_key, p_task_id) in the schema cache"));
+    renderQueue();
+    await screen.findByText("Asha Traders");
+    const card = screen.getByText("Asha Traders").closest("li") as HTMLElement;
+    fireEvent.click(within(card).getByRole("button", { name: "Claim" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Task ownership is not available yet. Nothing was changed.");
+    expect(screen.getByText("Asha Traders")).toBeInTheDocument();
+  });
+
   it("searches across customer, phone and owner", async () => {
     renderQueue();
     await screen.findByText("Asha Traders");

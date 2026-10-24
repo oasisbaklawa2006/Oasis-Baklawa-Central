@@ -51,6 +51,7 @@ import {
   countByView,
   departmentsIn,
   humanize,
+  needsOverrideReason,
   ownershipErrorMessage,
   type WorkQueueFilters,
   type WorkQueueItem,
@@ -98,6 +99,7 @@ export function WhatsAppWorkQueue({ onOpenConversation, onOpenAllConversations, 
   const [notice, setNotice] = useState<{ tone: "success" | "error"; message: string } | null>(null);
   const [assignFor, setAssignFor] = useState<WorkQueueItem | null>(null);
   const [completeFor, setCompleteFor] = useState<WorkQueueItem | null>(null);
+  const [releaseFor, setReleaseFor] = useState<WorkQueueItem | null>(null);
   const [assigneeId, setAssigneeId] = useState("");
   const [reason, setReason] = useState("");
   const [outcome, setOutcome] = useState("");
@@ -155,12 +157,34 @@ export function WhatsAppWorkQueue({ onOpenConversation, onOpenAllConversations, 
       () => claimWhatsAppCaseTask(supabase, { taskId: item.taskId, idempotencyKey: newCaseActionIdempotencyKey("queue-claim", item.taskId) }),
       "Task claimed. It is now in My Tasks.",
     );
-  const onRelease = (item: WorkQueueItem) =>
+  const releaseNow = (item: WorkQueueItem, why?: string) =>
     run(
       item,
-      () => releaseWhatsAppCaseTask(supabase, { taskId: item.taskId, idempotencyKey: newCaseActionIdempotencyKey("queue-release", item.taskId) }),
+      () =>
+        releaseWhatsAppCaseTask(supabase, {
+          taskId: item.taskId,
+          idempotencyKey: newCaseActionIdempotencyKey("queue-release", item.taskId),
+          reason: why,
+        }),
       "Task returned to the shared queue.",
     );
+  const onRelease = (item: WorkQueueItem) => {
+    if (needsOverrideReason(item, meUserId)) {
+      setReason("");
+      setReleaseFor(item);
+      return;
+    }
+    void releaseNow(item);
+  };
+
+  const submitRelease = async () => {
+    if (!releaseFor || !reason.trim()) return;
+    const target = releaseFor;
+    const why = reason;
+    setReleaseFor(null);
+    await releaseNow(target, why);
+    setReason("");
+  };
 
   const submitAssign = async () => {
     if (!assignFor || !assigneeId) return;
@@ -358,7 +382,7 @@ export function WhatsAppWorkQueue({ onOpenConversation, onOpenAllConversations, 
                 actions={availableActions(item, meUserId, can)}
                 onOpen={() => onOpenConversation(item.packetId)}
                 onClaim={() => void onClaim(item)}
-                onRelease={() => void onRelease(item)}
+                onRelease={() => onRelease(item)}
                 onAssign={() => {
                   setAssigneeId("");
                   setReason("");
@@ -398,13 +422,47 @@ export function WhatsAppWorkQueue({ onOpenConversation, onOpenAllConversations, 
           {snapshot && snapshot.staff.length === 0 ? (
             <p className="text-xs text-amber-800">No eligible colleagues were returned, so assignment is unavailable.</p>
           ) : null}
-          <Textarea value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Reason (optional, recorded in the audit trail)" maxLength={500} aria-label="Assignment reason" />
+          <Textarea
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+            placeholder={
+              assignFor !== null && needsOverrideReason(assignFor, meUserId)
+                ? "Reason (required: this task belongs to someone else)"
+                : "Reason (optional, recorded in the audit trail)"
+            }
+            maxLength={500}
+            aria-label="Assignment reason"
+          />
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setAssignFor(null)}>
               Cancel
             </Button>
-            <Button type="button" onClick={() => void submitAssign()} disabled={!assigneeId}>
+            <Button
+              type="button"
+              onClick={() => void submitAssign()}
+              disabled={!assigneeId || (assignFor !== null && needsOverrideReason(assignFor, meUserId) && !reason.trim())}
+            >
               Assign
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={releaseFor !== null} onOpenChange={(open) => (open ? undefined : setReleaseFor(null))}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Return task to the shared queue</DialogTitle>
+            <DialogDescription>
+              {releaseFor ? `${releaseFor.customerLabel} is currently with ${releaseFor.ownerLabel}. A reason is required and is recorded in the audit trail.` : null}
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Reason (required)" maxLength={500} aria-label="Release reason" />
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setReleaseFor(null)}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={() => void submitRelease()} disabled={!reason.trim()}>
+              Return to queue
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -3,6 +3,7 @@ import {
   DEFAULT_WORK_QUEUE_FILTERS,
   applyWorkQueueFilters,
   availableActions,
+  needsOverrideReason,
   buildQueueItems,
   classifyView,
   countByView,
@@ -205,5 +206,26 @@ describe("ownershipErrorMessage", () => {
     expect(ownershipErrorMessage("WhatsApp assignment permission required")).toMatch(/permission/);
     expect(ownershipErrorMessage("assignee is not an active user with WhatsApp triage permission")).toMatch(/cannot take/);
     expect(ownershipErrorMessage("relation \"x\" does not exist")).toBe("The action could not be completed. Nothing was changed. Please try again.");
+  });
+});
+
+describe("override reasons and release-state handling", () => {
+  it("requires a reason only when the task belongs to someone else", () => {
+    expect(needsOverrideReason({ ownerUserId: null }, ME)).toBe(false);
+    expect(needsOverrideReason({ ownerUserId: ME }, ME)).toBe(false);
+    expect(needsOverrideReason({ ownerUserId: OTHER }, ME)).toBe(true);
+  });
+
+  it("explains a missing reason and a not-yet-released backend in plain language", () => {
+    expect(ownershipErrorMessage("CASE_TASK_OVERRIDE_REASON_REQUIRED: a reason is required")).toMatch(/reason is required/);
+    expect(ownershipErrorMessage("Could not find the function public.whatsapp_claim_case_task(p_idempotency_key, p_task_id) in the schema cache")).toBe(
+      "Task ownership is not available yet. Nothing was changed.",
+    );
+    expect(ownershipErrorMessage("function public.whatsapp_release_case_task(uuid, text, text) does not exist")).toBe(
+      "Task ownership is not available yet. Nothing was changed.",
+    );
+    expect(ownershipErrorMessage("relation public.something_else does not exist")).toBe(
+      "The action could not be completed. Nothing was changed. Please try again.",
+    );
   });
 });
