@@ -128,7 +128,7 @@ describe("SecurityWaExceptions page", () => {
   });
 
   it("shows a complete audit ledger with the read-back verification and lets the operator copy it", async () => {
-    const write = vi.fn(async () => {});
+    const write = vi.fn(async (_text: string) => {});
     Object.defineProperty(navigator, "clipboard", { value: { writeText: write }, configurable: true });
     renderPage();
     await screen.findByTestId("wa-aal2-ok");
