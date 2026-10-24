@@ -9,7 +9,9 @@ import { normalizeRole } from "@/lib/roleNormalization";
 import {
   MfaError,
   beginEnrolment,
+  discardUnfinishedEnrolments,
   formatSetupKey,
+  qrImageSrc,
   proveSession,
   readMfaState,
   removeFactor,
@@ -33,6 +35,9 @@ const MESSAGES: Record<MfaFailure, string> = {
   session_expired: "Your session has expired. Sign in again, then return to this page.",
   rate_limited: "Too many attempts. Wait a minute, then try again.",
   mfa_disabled: "Authenticator sign-in is switched off for this project. Ask the owner to enable it in Supabase Auth settings.",
+  challenge_expired: "That code took too long. Wait for the next 6-digit code and enter it straight away.",
+  factor_missing: "This setup no longer exists, so its key will not work. Start a new setup and replace the old entry in your authenticator.",
+  unfinished_setup: "An earlier setup was never finished.",
   unknown: "Something went wrong. Nothing was changed. Try again.",
 };
 
@@ -41,6 +46,7 @@ type View =
   | { kind: "session-expired" }
   | { kind: "error"; failure: MfaFailure; activated: boolean }
   | { kind: "enrol"; pending: PendingEnrolment | null }
+  | { kind: "unfinished"; count: number }
   | { kind: "verify"; state: MfaState }
   | { kind: "done"; state: MfaState; proof: Aal2Proof };
 
@@ -55,13 +61,24 @@ export default function SecurityMfa() {
   const [error, setError] = useState<MfaFailure | null>(null);
   const [showKey, setShowKey] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [qrFailed, setQrFailed] = useState(false);
 
   const load = useCallback(async () => {
     setError(null);
     try {
       const state = await readMfaState(supabase);
       if (!state.hasSession) return setView({ kind: "session-expired" });
-      if (state.verified.length === 0) return setView({ kind: "enrol", pending: null });
+      // An enrolment in progress always wins: returning from the Passwords app must show the same key again.
+      // Exception: a signed-in-at-aal1 account that already has a verified factor must be able to unlock with it
+      // first; the held key stays in memory and is offered again from "Add another authenticator".
+      if (state.pending && (state.verified.length === 0 || state.currentLevel === "aal2")) {
+        return setView({ kind: "enrol", pending: state.pending });
+      }
+      if (state.verified.length === 0) {
+        return setView(
+          state.unverified.length > 0 ? { kind: "unfinished", count: state.unverified.length } : { kind: "enrol", pending: null },
+        );
+      }
       if (state.currentLevel === "aal2") {
         return setView({ kind: "done", state, proof: await proveSession(supabase) });
       }
@@ -95,9 +112,11 @@ export default function SecurityMfa() {
       await work();
     } catch (e) {
       const failure = failureOf(e);
-      setError(failure);
       setCode("");
       if (failure === "session_expired") setView({ kind: "session-expired" });
+      // Re-read the server truth: shows the "unfinished setup" screen, or a fresh start if the factor is gone.
+      if (failure === "unfinished_setup" || failure === "factor_missing") await load();
+      setError(failure);
     } finally {
       setBusy(false);
     }
@@ -108,6 +127,17 @@ export default function SecurityMfa() {
       const pending = await beginEnrolment(supabase);
       setShowKey(false);
       setCopied(false);
+      setQrFailed(false);
+      setView({ kind: "enrol", pending });
+    });
+
+  const discardAndRestart = () =>
+    run(async () => {
+      await discardUnfinishedEnrolments(supabase);
+      const pending = await beginEnrolment(supabase);
+      setShowKey(false);
+      setCopied(false);
+      setQrFailed(false);
       setView({ kind: "enrol", pending });
     });
 
@@ -219,8 +249,31 @@ export default function SecurityMfa() {
         </section>
       ) : null}
 
+      {view.kind === "unfinished" ? (
+        <section className="flex flex-col gap-3" data-testid="mfa-unfinished">
+          <Alert>
+            <AlertTitle>An earlier setup was never finished</AlertTitle>
+            <AlertDescription>
+              Its key can only be shown once and can no longer be displayed, so it cannot be completed. First delete the
+              earlier entry in your authenticator (iPhone: Settings → Passwords → the Oasis or Central entry → Delete).
+              Then tap the button below to make one new key.
+            </AlertDescription>
+          </Alert>
+          <Button size="lg" className="h-12 w-full text-base" onClick={() => void discardAndRestart()} disabled={busy}>
+            {busy ? "Preparing…" : "Discard earlier setup and start again"}
+          </Button>
+        </section>
+      ) : null}
+
       {view.kind === "enrol" && view.pending ? (
-        <section className="flex flex-col gap-4">
+        <section className="flex flex-col gap-4" data-testid="mfa-pending">
+          <Alert>
+            <AlertDescription>
+              This key was made at {new Date(view.pending.createdAt).toLocaleTimeString()} and is the only one that will
+              work. You can switch to Passwords and back; this page keeps the same key. Do not tap Set up again. If you
+              added more than one entry, delete every older one and keep only the newest.
+            </AlertDescription>
+          </Alert>
           <p className="text-sm">
             On this phone, tap <strong>Open authenticator</strong>, or copy the setup key and paste it into your
             authenticator app. If you are setting up from another screen, scan the QR code instead.
@@ -246,11 +299,18 @@ export default function SecurityMfa() {
               </>
             ) : null}
           </div>
-          <img
-            alt="Authenticator QR code"
-            className="mx-auto h-48 w-48 rounded-md border bg-white p-2"
-            src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(view.pending.qrSvg)}`}
-          />
+          {qrFailed ? (
+            <p className="text-sm text-muted-foreground" data-testid="mfa-qr-failed">
+              The QR code could not be displayed. Use Open authenticator or the setup key instead.
+            </p>
+          ) : (
+            <img
+              alt="Authenticator QR code"
+              className="mx-auto h-48 w-48 rounded-md border bg-white p-2"
+              src={qrImageSrc(view.pending.qrSvg)}
+              onError={() => setQrFailed(true)}
+            />
+          )}
           {codeField(view.pending.factorId, "Then enter the 6-digit code it shows")}
         </section>
       ) : null}
@@ -300,6 +360,18 @@ export default function SecurityMfa() {
               <Button variant="outline" className="h-11 w-full" onClick={() => void startEnrolment()} disabled={busy}>
                 Add another authenticator
               </Button>
+              {view.state.unverified.length > 0 ? (
+                <div className="flex flex-col gap-2" data-testid="mfa-done-unfinished">
+                  <p className="text-xs text-muted-foreground">
+                    An earlier setup was never finished and its key can no longer be shown. Delete that entry in your
+                    authenticator (iPhone: Settings → Passwords → the Oasis or Central entry → Delete), then discard it
+                    here to make a new key.
+                  </p>
+                  <Button variant="outline" className="h-11 w-full" disabled={busy} onClick={() => void discardAndRestart()}>
+                    Discard earlier unfinished setup and start again
+                  </Button>
+                </div>
+              ) : null}
               {view.state.verified.length > 1
                 ? view.state.verified.map((factor) => (
                     <Button
