@@ -62,7 +62,7 @@ assigner (assign/reassign/release others), All Conversations visibility, frontli
 - **No live authenticated session.** The visual check used fixture data in a harness outside the repo, not
   production data and not a signed-in AAL2 session. Real-data layout, RLS read results and live RPC calls
   were not exercised.
-- Core RPCs are not applied to production. Core PR #451 CI replayed all migrations from zero and ran the pgTAP file ("Clean database replay and pgTAP contracts" passed). Its **Supabase Preview check failed** with `duplicate key ... schema_migrations_pkey (20260512160000)`, a version that predates this change by months and is inserted by the preview branch machinery, not by this migration. Every other preview branch (main, #417, buyer release) is already `MIGRATIONS_FAILED`. Preview branches were not reset or recreated (not permitted); this stays an open infrastructure issue, not a verified pass.
+- Core RPCs are not applied to production. Core PR #451 CI replayed all migrations from zero and ran the pgTAP file ("Clean database replay and pgTAP contracts" passed). **Supabase Preview status is contradictory, not a pass:** the first attempt failed on a duplicate ledger key for the old version `20260512160000`; the Supabase bot's later comment shows migrations, seeding and edge functions green after a retry, yet the GitHub check run and branch status still read failed. Preview branches were not reset or recreated.
 - **No department scoping.** The schema has no user-to-department rule, so "within permitted scope" is the
   permission itself: any `wa.intake.assign` holder can assign any task to any eligible triage user.
 - The All Conversations gate is a UI default, not a security boundary: RLS still lets any `wa.intake.read`
