@@ -187,8 +187,9 @@ export default function SecurityMfa() {
         <div className="flex flex-col gap-3" data-testid="mfa-load-error">
           <Alert variant="destructive">
             <AlertDescription>
-              {view.activated ? "Your authenticator was activated, but the status check could not finish. " : ""}
-              {MESSAGES[view.failure]}
+              {view.activated
+                ? "Your authenticator was activated, but the status check could not finish. Tap Refresh status. Do not enter another code."
+                : MESSAGES[view.failure]}
             </AlertDescription>
           </Alert>
           <Button size="lg" className="h-12 w-full text-base" onClick={() => void load()}>
@@ -273,9 +274,9 @@ export default function SecurityMfa() {
             <AlertDescription>
               <ul className="mt-2 space-y-1 text-sm">
                 <li>Session level (token): {view.proof.jwtAal === "aal2" ? "PASS (aal2)" : `FAIL (${view.proof.jwtAal ?? "unknown"})`}</li>
-                <li>Session level (Auth): {view.proof.currentLevel === "aal2" ? "PASS (aal2)" : `FAIL (${view.proof.currentLevel ?? "unknown"})`}</li>
-                <li>Database step-up check: {view.proof.stepUpAccepted ? "PASS" : "FAIL"}</li>
-                <li>WhatsApp close permission (wa.intake.close): {view.proof.canCloseWhatsapp ? "PASS" : "FAIL"}</li>
+                <li>Session level (Auth): {view.proof.currentLevel === "aal2" ? "PASS (aal2)" : view.proof.readFailed && view.proof.currentLevel === null ? "UNKNOWN (could not read)" : `FAIL (${view.proof.currentLevel ?? "unknown"})`}</li>
+                <li>Database step-up check: {view.proof.stepUpAccepted ? "PASS" : view.proof.readFailed ? "UNKNOWN (could not read)" : "FAIL"}</li>
+                <li>WhatsApp close permission (wa.intake.close): {view.proof.canCloseWhatsapp ? "PASS" : view.proof.readFailed ? "UNKNOWN (could not read)" : "FAIL"}</li>
               </ul>
               {!view.proof.readFailed && !view.proof.canCloseWhatsapp && view.proof.stepUpAccepted ? (
                 <p className="mt-2 text-sm">This account is verified but does not hold the close permission. Nothing was changed.</p>

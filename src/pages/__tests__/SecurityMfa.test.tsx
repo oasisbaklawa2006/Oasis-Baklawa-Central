@@ -17,6 +17,7 @@ const h = vi.hoisted(() => ({
   canClose: true,
   failAal: false,
   failAalAfterVerify: false,
+  failRpc: false,
   verifyCalls: 0,
   enrollCalls: 0,
 }));
@@ -52,7 +53,7 @@ vi.mock("@/integrations/supabase/client", () => ({
         },
       },
     },
-    rpc: async (name: string) => (name === "has_step_up_auth" ? { data: h.level === "aal2" } : { data: h.level === "aal2" && h.canClose }),
+    rpc: async (name: string) => h.failRpc ? { data: null, error: { message: "network" } } : (name === "has_step_up_auth" ? { data: h.level === "aal2" } : { data: h.level === "aal2" && h.canClose }),
   },
 }));
 
@@ -68,7 +69,7 @@ const typeCode = (value: string) => fireEvent.change(screen.getByLabelText(/code
 
 let spies: Array<ReturnType<typeof vi.spyOn>>;
 beforeEach(() => {
-  Object.assign(h, { role: "SUPER_ADMIN", session: true, level: "aal1", verified: [], verifyError: null, canClose: true, failAal: false, failAalAfterVerify: false, verifyCalls: 0, enrollCalls: 0 });
+  Object.assign(h, { role: "SUPER_ADMIN", session: true, level: "aal1", verified: [], verifyError: null, canClose: true, failAal: false, failAalAfterVerify: false, failRpc: false, verifyCalls: 0, enrollCalls: 0 });
   spies = (["log", "info", "warn", "error", "debug"] as const).map((m) => vi.spyOn(console, m).mockImplementation(() => {}));
   localStorage.clear();
   sessionStorage.clear();
@@ -205,6 +206,7 @@ describe("SecurityMfa page", () => {
     fireEvent.click(screen.getByRole("button", { name: /^verify$/i }));
     const panel = await screen.findByTestId("mfa-load-error");
     expect(panel.textContent).toMatch(/activated, but the status check could not finish/i);
+    expect(panel.textContent).not.toMatch(/nothing was changed/i);
     expect(screen.queryByLabelText(/code/i)).not.toBeInTheDocument();
     expect(h.verifyCalls).toBe(1);
     h.failAal = false;
@@ -212,5 +214,16 @@ describe("SecurityMfa page", () => {
     expect((await screen.findByTestId("mfa-proof")).textContent).toMatch(/Verified: protected actions unlocked/);
     expect(h.verifyCalls).toBe(1);
     expect(consoleText()).not.toContain(SECRET);
+  });
+
+  it("shows UNKNOWN, not FAIL, for database verdicts whose read failed", async () => {
+    h.level = "aal2";
+    h.verified = [{ id: "f1", status: "verified", friendly_name: "phone" }];
+    h.failRpc = true;
+    renderPage();
+    const panel = await screen.findByTestId("mfa-proof");
+    expect(panel.textContent).toMatch(/Database step-up check: UNKNOWN/);
+    expect(panel.textContent).toMatch(/wa\.intake\.close\): UNKNOWN/);
+    expect(panel.textContent).not.toMatch(/step-up check: FAIL/);
   });
 });
