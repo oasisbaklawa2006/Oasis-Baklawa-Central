@@ -398,6 +398,24 @@ describe("SecurityMfa page", () => {
       expect(storageText()).not.toContain(SECRET);
       expect(storageText()).not.toContain("svg");
     });
+  
+    it("verified factor + leftover unverified factor: Add another explains and offers an explicit discard (no dead end)", async () => {
+      h.level = "aal2";
+      h.verified = [{ id: "v1", status: "verified", friendly_name: "phone" }];
+      h.unverified = [{ id: "stale", status: "unverified", friendly_name: "oasis-central-old" }];
+      renderPage();
+      await screen.findByTestId("mfa-proof");
+      fireEvent.click(screen.getByText(/backup, replacement and recovery/i));
+      fireEvent.click(screen.getByRole("button", { name: /add another authenticator/i }));
+      expect((await screen.findByTestId("mfa-error")).textContent).toMatch(/never finished/i);
+      expect(h.unenrollCalls).toBe(0);
+      expect(h.enrollCalls).toBe(0);
+
+      fireEvent.click(screen.getByRole("button", { name: /discard earlier unfinished setup and start again/i }));
+      await screen.findByTestId("mfa-pending");
+      expect(h.unenrollCalls).toBe(1);
+      expect(h.enrollCalls).toBe(1);
+      expect(h.verified).toHaveLength(1);
+    });
   });
 });
-

@@ -137,6 +137,17 @@ describe("beginEnrolment", () => {
     expect(raw.auth.mfa.enroll).toHaveBeenCalledTimes(1);
   });
 
+  it("does not hand one account's in-flight enrolment (secret) to a different account", async () => {
+    discardHeldEnrolment();
+    const a = fakeClient({ session: { access_token: jwt({ aal: "aal1" }), user: { id: "user-a" } } });
+    const b = fakeClient({ session: { access_token: jwt({ aal: "aal1" }), user: { id: "user-b" } } });
+    const [pa, pb] = await Promise.all([beginEnrolment(a.client), beginEnrolment(b.client)]);
+    expect(pa).toBeDefined();
+    expect(pb).toBeDefined();
+    expect(a.raw.auth.mfa.enroll).toHaveBeenCalledTimes(1);
+    expect(b.raw.auth.mfa.enroll).toHaveBeenCalledTimes(1);
+  });
+
   it("refuses to silently delete leftover unverified factors whose key is gone", async () => {
     discardHeldEnrolment();
     const { client, calls } = fakeClient(stale);

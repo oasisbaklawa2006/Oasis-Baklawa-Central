@@ -356,6 +356,18 @@ export default function SecurityMfa() {
               <Button variant="outline" className="h-11 w-full" onClick={() => void startEnrolment()} disabled={busy}>
                 Add another authenticator
               </Button>
+              {view.state.unverified.length > 0 ? (
+                <div className="flex flex-col gap-2" data-testid="mfa-done-unfinished">
+                  <p className="text-xs text-muted-foreground">
+                    An earlier setup was never finished and its key can no longer be shown. Delete that entry in your
+                    authenticator (iPhone: Settings → Passwords → the Oasis or Central entry → Delete), then discard it
+                    here to make a new key.
+                  </p>
+                  <Button variant="outline" className="h-11 w-full" disabled={busy} onClick={() => void discardAndRestart()}>
+                    Discard earlier unfinished setup and start again
+                  </Button>
+                </div>
+              ) : null}
               {view.state.verified.length > 1
                 ? view.state.verified.map((factor) => (
                     <Button

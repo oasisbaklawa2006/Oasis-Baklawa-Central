@@ -123,7 +123,7 @@ export interface PendingEnrolment {
  * and is only ever used while that factor still exists unverified on the server.
  */
 let held: PendingEnrolment | null = null;
-let inflight: Promise<PendingEnrolment> | null = null;
+let inflight: { ownerP: Promise<string | null>; promise: Promise<PendingEnrolment> } | null = null;
 
 export function discardHeldEnrolment(): void {
   held = null;
@@ -134,9 +134,15 @@ export function discardHeldEnrolment(): void {
  * enrolment and never silently deletes another unverified factor: leftovers whose key is no longer
  * available must be discarded explicitly (discardUnfinishedEnrolments) before a new key is made.
  */
-export function beginEnrolment(client: SupabaseClient, now: Date = new Date()): Promise<PendingEnrolment> {
-  if (inflight) return inflight;
-  inflight = (async () => {
+export async function beginEnrolment(client: SupabaseClient, now: Date = new Date()): Promise<PendingEnrolment> {
+  // The in-flight enrolment is only shared between callers signed in as the same account.
+  const ownerP = client.auth.getSession().then((r) => r.data?.session?.user?.id ?? null, () => null);
+  if (inflight) {
+    const current = inflight;
+    const [theirs, mine] = await Promise.all([current.ownerP, ownerP]);
+    if (theirs === mine) return current.promise;
+  }
+  const promise = (async () => {
     const existing = await client.auth.mfa.listFactors();
     if (existing.error) fail(existing.error);
     const leftovers = unverifiedTotp(existing.data?.all);
@@ -159,9 +165,10 @@ export function beginEnrolment(client: SupabaseClient, now: Date = new Date()): 
     };
     return held;
   })().finally(() => {
-    inflight = null;
+    if (inflight?.promise === promise) inflight = null;
   });
-  return inflight;
+  inflight = { ownerP, promise };
+  return promise;
 }
 
 /** Explicit, user-confirmed removal of this user's own never-verified TOTP factors. */
