@@ -9,6 +9,7 @@ const HOUR = 3_600_000;
 
 let permissions = new Set<string>(["wa.intake.read", "wa.intake.triage"]);
 let snapshot: WorkQueueSnapshot;
+let supervisor = false;
 const fetchSnapshot = vi.fn(async () => snapshot);
 const claim = vi.fn(async () => ({ status: "IN_PROGRESS" }));
 const assign = vi.fn(async () => ({ status: "OPEN" }));
@@ -61,6 +62,7 @@ function row(id: string, over: Partial<WorkQueueTaskRow> = {}, caseOver: Record<
 function setSnapshot() {
   snapshot = {
     truncated: false,
+    isSupervisor: supervisor,
     staff: [
       { userId: ME, displayName: "Me Myself", department: null },
       { userId: COLLEAGUE, displayName: "Ravi Kumar", department: "Customer Service" },
@@ -98,6 +100,7 @@ function renderQueue(props: Partial<React.ComponentProps<typeof WhatsAppWorkQueu
 
 beforeEach(() => {
   permissions = new Set(["wa.intake.read", "wa.intake.triage"]);
+  supervisor = false;
   setSnapshot();
   fetchSnapshot.mockClear();
   claim.mockReset().mockResolvedValue({ status: "IN_PROGRESS" });
@@ -168,12 +171,14 @@ describe("WhatsAppWorkQueue", () => {
     expect(screen.queryByRole("button", { name: /Assign|Reassign/ })).not.toBeInTheDocument();
   });
 
-  it("offers Assign and Reassign to managers, not to frontline staff", async () => {
+  it("offers Assign and Reassign only to ownership supervisors", async () => {
     renderQueue();
     await screen.findByText("Asha Traders");
     expect(screen.queryByRole("button", { name: /Assign|Reassign/ })).not.toBeInTheDocument();
     cleanup();
     permissions = new Set(["wa.intake.read", "wa.intake.triage", "wa.intake.assign"]);
+    supervisor = true;
+    setSnapshot();
     renderQueue();
     await screen.findByText("Asha Traders");
     expect(screen.getAllByRole("button", { name: "Assign" }).length).toBeGreaterThan(0);
@@ -224,8 +229,27 @@ describe("WhatsAppWorkQueue", () => {
     await waitFor(() => expect(release).toHaveBeenCalledTimes(1));
   });
 
-  it("makes an assigner give a reason before returning someone else's task", async () => {
+  it("keeps a support executive who holds wa.intake.assign to claim, complete and return their own work", async () => {
     permissions = new Set(["wa.intake.read", "wa.intake.triage", "wa.intake.assign"]);
+    supervisor = false;
+    setSnapshot();
+    renderQueue();
+    await screen.findByText("Asha Traders");
+    const own = (await (async () => { fireEvent.click(screen.getByRole("button", { name: /My Tasks/ })); return screen.getByText("Mine Co").closest("li") as HTMLElement; })());
+    expect(within(own).getByRole("button", { name: "Complete" })).toBeInTheDocument();
+    expect(within(own).getByRole("button", { name: /Return to queue/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Needs Action/ }));
+    const claimable = screen.getByText("Asha Traders").closest("li") as HTMLElement;
+    expect(within(claimable).getByRole("button", { name: "Claim" })).toBeInTheDocument();
+    expect(within(claimable).queryByRole("button", { name: /Assign|Reassign/ })).not.toBeInTheDocument();
+    const colleagues = screen.getByText("Bharat Stores").closest("li") as HTMLElement;
+    expect(within(colleagues).queryByRole("button", { name: /Assign|Reassign|Return to queue/ })).not.toBeInTheDocument();
+  });
+
+  it("makes a supervisor give a reason before returning someone else's task", async () => {
+    permissions = new Set(["wa.intake.read", "wa.intake.triage", "wa.intake.assign"]);
+    supervisor = true;
+    setSnapshot();
     renderQueue();
     await screen.findByText("Bharat Stores");
     const card = screen.getByText("Bharat Stores").closest("li") as HTMLElement; // owned by a colleague

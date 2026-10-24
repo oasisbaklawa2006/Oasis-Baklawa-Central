@@ -1,7 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import {
-  fetchWhatsAppStaffDirectory,
-} from "@/lib/wa-governance/caseDecisionDesk";
+import { fetchWhatsAppOwnershipSupervisor, fetchWhatsAppStaffDirectory } from "@/lib/wa-governance/caseDecisionDesk";
 import type { WorkQueueContact, WorkQueueStaff, WorkQueueTaskRow } from "./workQueueModel";
 
 /**
@@ -118,12 +116,14 @@ export type WorkQueueSnapshot = {
   tasks: WorkQueueTaskRow[];
   contacts: WorkQueueContact[];
   staff: WorkQueueStaff[];
+  /** Ownership supervisor (assign / reassign / take over). False when the backend is not released yet. */
+  isSupervisor: boolean;
   truncated: boolean;
 };
 
 export async function fetchWorkQueueSnapshot(client: SupabaseClient): Promise<WorkQueueSnapshot> {
   const db = untyped(client);
-  const [active, completed, staff] = await Promise.all([
+  const [active, completed, staff, isSupervisor] = await Promise.all([
     db
       .from("whatsapp_case_department_tasks")
       .select(TASK_COLUMNS)
@@ -138,6 +138,7 @@ export async function fetchWorkQueueSnapshot(client: SupabaseClient): Promise<Wo
       .limit(COMPLETED_LIMIT) as unknown as QueryResult,
     // The directory only names owners and feeds the assign picker; the queue still works without it.
     fetchWhatsAppStaffDirectory(client).catch((): WorkQueueStaff[] => []),
+    fetchWhatsAppOwnershipSupervisor(client).catch(() => false),
   ]);
   if (active.error) throw new Error(active.error.message || "WORK_QUEUE_TASKS_FAILED");
   if (completed.error) throw new Error(completed.error.message || "WORK_QUEUE_COMPLETED_FAILED");
@@ -148,5 +149,5 @@ export async function fetchWorkQueueSnapshot(client: SupabaseClient): Promise<Wo
     .filter((task): task is WorkQueueTaskRow => task !== null);
   const packetIds = [...new Set(tasks.map((task) => task.whatsapp_communication_cases?.packet_id).filter((id): id is string => Boolean(id)))];
   const contacts = await fetchContacts(client, packetIds);
-  return { tasks, contacts, staff, truncated: activeRows.length >= ACTIVE_LIMIT };
+  return { tasks, contacts, staff, isSupervisor, truncated: activeRows.length >= ACTIVE_LIMIT };
 }

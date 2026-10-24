@@ -238,14 +238,14 @@ export type WorkQueueActionKey = "claim" | "assign" | "release" | "complete" | "
 export function availableActions(
   item: Pick<WorkQueueItem, "view" | "ownerUserId">,
   meUserId: string | null,
-  can: { triage: boolean; assign: boolean },
+  can: { triage: boolean; supervise: boolean },
 ): WorkQueueActionKey[] {
   const actions: WorkQueueActionKey[] = ["open"];
   if (item.view === "completed" || item.view === null) return actions;
   const mine = Boolean(meUserId) && item.ownerUserId === meUserId;
   if (!item.ownerUserId && can.triage) actions.push("claim");
-  if (can.assign) actions.push("assign");
-  if (item.ownerUserId && (mine ? can.triage : can.assign)) actions.push("release");
+  if (can.supervise) actions.push("assign");
+  if (item.ownerUserId && (mine ? can.triage : can.supervise)) actions.push("release");
   if (mine && can.triage) actions.push("complete");
   return actions;
 }
@@ -256,6 +256,7 @@ export function needsOverrideReason(item: Pick<WorkQueueItem, "ownerUserId">, me
 }
 
 export function ownershipErrorMessage(raw: string): string {
+  if (/ownership supervisor/i.test(raw)) return "Only supervisors can assign tasks or take them over from a colleague.";
   if (raw.includes("CASE_TASK_OVERRIDE_REASON_REQUIRED")) return "A reason is required to take a task from its current owner.";
   if (/could not find the function|PGRST202|function .+ does not exist/i.test(raw) && /whatsapp_(claim|assign|release)_case_task/i.test(raw)) {
     return "Task ownership is not available yet. Nothing was changed.";

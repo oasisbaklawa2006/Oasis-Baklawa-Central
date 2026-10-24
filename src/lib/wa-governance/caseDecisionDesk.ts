@@ -398,3 +398,11 @@ export async function fetchWhatsAppStaffDirectory(supabase: SupabaseClient): Pro
     }))
     .filter((member) => member.userId);
 }
+
+
+/** True only for the calling user when they hold wa.intake.assign AND an allowlisted supervisory role. UI hint; Core re-checks every call. */
+export async function fetchWhatsAppOwnershipSupervisor(supabase: SupabaseClient): Promise<boolean> {
+  const { data, error } = await rpcInvoker(supabase)("whatsapp_is_ownership_supervisor", {});
+  if (error) return false;
+  return data === true;
+}

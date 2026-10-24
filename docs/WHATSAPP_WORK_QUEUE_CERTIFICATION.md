@@ -21,7 +21,7 @@ Each card: customer (or phone), identity status, one-line summary, urgency, depa
 action, due time. Search covers customer, phone, summary, department, owner and case type; filters cover
 department, urgency and unverified-only. No UUIDs, packet ids, rule versions or JSON are shown.
 
-Actions: **Claim**, **Assign/Reassign** (anyone holding `wa.intake.assign`), **Return to queue**, **Complete** (owner, outcome
+Actions: **Claim**, **Return to queue** (own tasks), **Assign/Reassign** and **take over / return someone else's task** (ownership supervisors only), **Complete** (owner, outcome
 required), **Reply / Follow up / Verify customer / Ask for help** (open the existing conversation console for
 that packet, where the governed identity, clarification, reply and escalation controls already live).
 
@@ -52,21 +52,36 @@ still works for tasks that already have an owner.
 | `wa.intake.assign` (assign, reassign, return others') | sensitive | no | admin 4, super_admin 5, support_executive 12 |
 | `wa.intake.close` | high | **yes (AAL2)** | admin 4, super_admin 5 |
 
-Findings and what was done:
-- **No unauthorised role** holds assign: it matches the existing WA RBAC (support executives were granted
-  read/triage/assign/draft.manage by design). But frontline support executives are therefore *assigners*; there is
-  no manager-only tier, and assign carries no step-up. Not changed (role grants are an owner decision).
-- **Silent override (defect, fixed in Core `20261024136000`):** an assigner could take a colleague's claimed task by
-  assigning it to themselves, or release it, with no trace of intent. Overriding another owner now requires a
-  recorded reason (also enforced in the UI) and the audit event is flagged `override: true`.
-- **Staff directory disclosure (hardened):** readers now see only operators who currently own a task, with no
-  department; assigners see all eligible operators with department. No email, phone or role list is returned. In
-  production every `wa.intake.read` holder already holds triage, so today it discloses no one outside the 21 operators.
-- **No department scoping:** `users.department` is blank for 19 of the 21 operators, so claim/assign cannot be limited
-  by department from data. Any operator can claim any department's task (134 active tasks: Customer Service 62,
-  Sales 60, Finance 6, Operations 4, Logistics 2; none owned). Owner decision.
-- **AAL2:** none of claim/assign/release/complete requires step-up in the existing permission model; nothing was
-  weakened or added. Whether assignment should require AAL2 is an owner decision.
+Owner policy (applied) and how it is enforced:
+1. **Support executives keep claiming, completing and returning their own tasks.** Unchanged and tested with the real
+   `support_executive` role.
+2. **Assign, reassign and take-over/release of someone else's task are limited to ownership supervisors**: a caller
+   must hold `wa.intake.assign` AND a role in the explicit allowlist `whatsapp_ownership_supervisor_role_keys()` =
+   `admin`, `super_admin` (9 active users). Core migration `20261024137000`; the UI hides the buttons unless
+   `whatsapp_is_ownership_supervisor()` is true, and Core re-checks on every call. **Production permission grants
+   are not changed.**
+3. **Every override needs a recorded reason** (`20261024136000`) and is flagged `override: true` in the audit event.
+4. **Department membership is not inferred** (`users.department` is blank for 19 of 21 operators). Any operator can
+   still claim any department's unowned task; that is an owner decision.
+5. **AAL2 and existing permission controls are untouched.** Claim, assign, release and complete do not require
+   step-up in the current permission model. *Proposal (not enabled):* require step-up for supervisory overrides by
+   adding `and public.has_step_up_auth()` to `whatsapp_is_ownership_supervisor()` (or registering a `high_risk`
+   `requires_step_up` permission). That blocks admins without MFA, so it needs an owner decision.
+
+Role-impact audit (read-only production data, 2026-10-24): `wa.intake.assign` is granted to `support_executive`,
+`admin` and `super_admin` only, via global roles (no scoped-role holders, no deny rules, no user holds two of these
+roles). The ownership functions are not yet in production, so **no existing capability is removed**. The 12 support
+executives lose only the *new* assign/override abilities that were never released. The roles `assembly_manager`,
+`packing_supervisor` and `production_manager` hold no `wa.*` grants and are therefore not in the allowlist; adding
+a WhatsApp-specific supervisor role later means a grant change plus a new migration that edits the allowlist.
+
+Other findings:
+- **Staff directory:** non-supervisors see only operators who own a task and themselves, without department;
+  supervisors see all eligible operators with department. No email or phone. Every `wa.intake.read` holder already
+  holds triage today, so no one outside the 21 operators is disclosed.
+- **All Conversations** is shown to users with `wa.intake.assign` or `wa.intake.close`. Because support executives
+  hold assign, this currently includes them, as the previous inbox did for everyone. It is a UI default, not a
+  security boundary (RLS lets any `wa.intake.read` holder query the tables).
 
 ## Verification
 | Check | Result |
@@ -75,7 +90,7 @@ Findings and what was done:
 | eslint on changed files | 0 errors |
 | Central `vitest run` | 443 files / 3,226 tests pass (34 added in this step: model 16, component 13, routing 5; 5 contract tests were added in the first commit) |
 | `vite build` | succeeds |
-| Core pgTAP (local disposable DB, 448-migration replay + both ownership migrations) | 28/28 + 23/23 |
+| Core pgTAP (local disposable DB, 448-migration replay + three ownership migrations) | 28/28 + 23/23 + 24/24 |
 | Core two-session claim race | A won; B blocked on the row lock then rejected; exactly one claim event |
 | Core migration governance, monotonicity, history sequence | pass |
 | Visual (desktop 1280x800, phone 390x844) | rendered the real component with fixture data: no horizontal overflow, no runtime errors; first card visible on a phone after filters collapse |
@@ -98,7 +113,7 @@ assigner (assign/reassign/release others), All Conversations visibility, frontli
   business decision and is not done here.
 - "Ask for help" and "Follow up" open the existing console; there is no new one-click escalation.
 - Release order: Core #451 (protected migration release) before relying on ownership actions in Central.
-- **Core #451 must be squash-merged.** `check-migration-history-sequence.sh` (run on push to main and in the production release preflight, not in PR CI) fails if a branch's history modifies a migration file added by an earlier commit; Core commit `0f08a21` did that to `20261024135000`. A squash merge, as used for #448 and #449, leaves one clean commit.
+- **Core #451 must be squash-merged (proven).** A simulated squash onto `origin/main` passes `check-migration-history-sequence.sh` (150 commits checked, ceiling `20261024137000`), monotonicity, governance and ledger-freeze; the un-squashed branch fails with `M of canonical migration history` for `0f08a21`. `check-migration-history-sequence.sh` (run on push to main and in the production release preflight, not in PR CI) fails if a branch's history modifies a migration file added by an earlier commit; Core commit `0f08a21` did that to `20261024135000`. A squash merge, as used for #448 and #449, leaves one clean commit.
 
 ## Rollback
 - Central: revert PR #640 (two commits), or restore `src/pages/OperatorInbox.tsx` and

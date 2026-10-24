@@ -86,12 +86,12 @@ export function WhatsAppWorkQueue({ onOpenConversation, onOpenAllConversations, 
   const { user } = useAuth();
   const wa = useWhatsAppPermissions();
   const meUserId = user?.id ?? null;
+  const [snapshot, setSnapshot] = useState<WorkQueueSnapshot | null>(null);
   const can = useMemo(
-    () => ({ triage: wa.has("wa.intake.triage"), assign: wa.has("wa.intake.assign") }),
-    [wa],
+    () => ({ triage: wa.has("wa.intake.triage"), supervise: snapshot?.isSupervisor === true }),
+    [wa, snapshot],
   );
 
-  const [snapshot, setSnapshot] = useState<WorkQueueSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [filters, setFilters] = useState<WorkQueueFilters>(DEFAULT_WORK_QUEUE_FILTERS);

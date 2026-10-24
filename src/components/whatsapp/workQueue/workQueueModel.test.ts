@@ -180,22 +180,22 @@ describe("applyWorkQueueFilters", () => {
   });
 });
 
-describe("availableActions (UI hint; Core re-checks every permission)", () => {
-  const noPerms = { triage: false, assign: false };
+describe("availableActions (UI hint; Core re-checks every call)", () => {
+  const noPerms = { triage: false, supervise: false };
   it("offers Claim only on unassigned active tasks and only to triage staff", () => {
-    expect(availableActions({ view: "needs_action", ownerUserId: null }, ME, { triage: true, assign: false })).toEqual(["open", "claim"]);
+    expect(availableActions({ view: "needs_action", ownerUserId: null }, ME, { triage: true, supervise: false })).toEqual(["open", "claim"]);
     expect(availableActions({ view: "needs_action", ownerUserId: null }, ME, noPerms)).toEqual(["open"]);
-    expect(availableActions({ view: "needs_action", ownerUserId: OTHER }, ME, { triage: true, assign: false })).toEqual(["open"]);
+    expect(availableActions({ view: "needs_action", ownerUserId: OTHER }, ME, { triage: true, supervise: false })).toEqual(["open"]);
   });
 
   it("lets owners complete and return, and managers assign or release others' tasks", () => {
-    expect(availableActions({ view: "my_tasks", ownerUserId: ME }, ME, { triage: true, assign: false })).toEqual(["open", "release", "complete"]);
-    expect(availableActions({ view: "needs_action", ownerUserId: OTHER }, ME, { triage: true, assign: true })).toEqual(["open", "assign", "release"]);
-    expect(availableActions({ view: "needs_action", ownerUserId: null }, ME, { triage: false, assign: true })).toEqual(["open", "assign"]);
+    expect(availableActions({ view: "my_tasks", ownerUserId: ME }, ME, { triage: true, supervise: false })).toEqual(["open", "release", "complete"]);
+    expect(availableActions({ view: "needs_action", ownerUserId: OTHER }, ME, { triage: true, supervise: true })).toEqual(["open", "assign", "release"]);
+    expect(availableActions({ view: "needs_action", ownerUserId: null }, ME, { triage: false, supervise: true })).toEqual(["open", "assign"]);
   });
 
   it("offers only Review on completed work", () => {
-    expect(availableActions({ view: "completed", ownerUserId: ME }, ME, { triage: true, assign: true })).toEqual(["open"]);
+    expect(availableActions({ view: "completed", ownerUserId: ME }, ME, { triage: true, supervise: true })).toEqual(["open"]);
   });
 });
 
@@ -204,6 +204,7 @@ describe("ownershipErrorMessage", () => {
     expect(ownershipErrorMessage("CASE_TASK_ALREADY_CLAIMED")).toMatch(/colleague claimed/);
     expect(ownershipErrorMessage("CASE_TASK_NOT_CLAIMABLE: task is completed")).toMatch(/finished or cancelled/);
     expect(ownershipErrorMessage("WhatsApp assignment permission required")).toMatch(/permission/);
+    expect(ownershipErrorMessage("ownership supervisor role required to assign tasks")).toMatch(/Only supervisors/);
     expect(ownershipErrorMessage("assignee is not an active user with WhatsApp triage permission")).toMatch(/cannot take/);
     expect(ownershipErrorMessage("relation \"x\" does not exist")).toBe("The action could not be completed. Nothing was changed. Please try again.");
   });
