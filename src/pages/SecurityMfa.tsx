@@ -39,6 +39,7 @@ const MESSAGES: Record<MfaFailure, string> = {
 type View =
   | { kind: "loading" }
   | { kind: "session-expired" }
+  | { kind: "error"; failure: MfaFailure; activated: boolean }
   | { kind: "enrol"; pending: PendingEnrolment | null }
   | { kind: "verify"; state: MfaState }
   | { kind: "done"; state: MfaState; proof: Aal2Proof };
@@ -67,8 +68,8 @@ export default function SecurityMfa() {
       setView({ kind: "verify", state });
     } catch (e) {
       if (failureOf(e) === "session_expired") return setView({ kind: "session-expired" });
-      setError(failureOf(e));
-      setView({ kind: "enrol", pending: null });
+      // A failed read says nothing about enrolment: never fall back to the "set up" screen.
+      setView({ kind: "error", failure: failureOf(e), activated: false });
     }
   }, []);
 
@@ -113,10 +114,20 @@ export default function SecurityMfa() {
   const submitCode = (factorId: string) =>
     run(async () => {
       await verifyTotpCode(supabase, factorId, code);
+      // The factor is active from here on. Leave the code-entry views before the read-backs so a
+      // failure can never ask the user to verify an already-active factor again.
       setCode("");
       setShowKey(false);
-      const state = await readMfaState(supabase);
-      setView({ kind: "done", state, proof: await proveSession(supabase) });
+      try {
+        const state = await readMfaState(supabase);
+        setView({ kind: "done", state, proof: await proveSession(supabase) });
+      } catch (e) {
+        setView(
+          failureOf(e) === "session_expired"
+            ? { kind: "session-expired" }
+            : { kind: "error", failure: failureOf(e), activated: true },
+        );
+      }
     });
 
   const copyKey = async (secret: string) => {
@@ -171,6 +182,20 @@ export default function SecurityMfa() {
       ) : null}
 
       {view.kind === "loading" ? <p role="status">Checking your session…</p> : null}
+
+      {view.kind === "error" ? (
+        <div className="flex flex-col gap-3" data-testid="mfa-load-error">
+          <Alert variant="destructive">
+            <AlertDescription>
+              {view.activated ? "Your authenticator was activated, but the status check could not finish. " : ""}
+              {MESSAGES[view.failure]}
+            </AlertDescription>
+          </Alert>
+          <Button size="lg" className="h-12 w-full text-base" onClick={() => void load()}>
+            {view.activated ? "Refresh status" : "Try again"}
+          </Button>
+        </div>
+      ) : null}
 
       {view.kind === "session-expired" ? (
         <div className="flex flex-col gap-3" data-testid="mfa-session-expired">
@@ -240,6 +265,11 @@ export default function SecurityMfa() {
         <section className="flex flex-col gap-4" data-testid="mfa-proof">
           <Alert variant={view.proof.ok ? "default" : "destructive"}>
             <AlertTitle>{view.proof.ok ? "Verified: protected actions unlocked" : "Check incomplete"}</AlertTitle>
+            {view.proof.readFailed ? (
+              <AlertDescription data-testid="mfa-proof-unknown">
+                Some checks could not be read, so their results are unknown, not failed. Tap Refresh to check again.
+              </AlertDescription>
+            ) : null}
             <AlertDescription>
               <ul className="mt-2 space-y-1 text-sm">
                 <li>Session level (token): {view.proof.jwtAal === "aal2" ? "PASS (aal2)" : `FAIL (${view.proof.jwtAal ?? "unknown"})`}</li>
@@ -247,11 +277,14 @@ export default function SecurityMfa() {
                 <li>Database step-up check: {view.proof.stepUpAccepted ? "PASS" : "FAIL"}</li>
                 <li>WhatsApp close permission (wa.intake.close): {view.proof.canCloseWhatsapp ? "PASS" : "FAIL"}</li>
               </ul>
-              {!view.proof.canCloseWhatsapp && view.proof.stepUpAccepted ? (
+              {!view.proof.readFailed && !view.proof.canCloseWhatsapp && view.proof.stepUpAccepted ? (
                 <p className="mt-2 text-sm">This account is verified but does not hold the close permission. Nothing was changed.</p>
               ) : null}
             </AlertDescription>
           </Alert>
+          {view.proof.readFailed ? (
+            <Button size="lg" className="h-12 w-full text-base" onClick={() => void load()}>Refresh</Button>
+          ) : null}
           <Button asChild variant="outline" size="lg" className="h-12 w-full text-base">
             <Link to="/admin">Back to Central</Link>
           </Button>

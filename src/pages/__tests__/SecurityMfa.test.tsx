@@ -15,6 +15,8 @@ const h = vi.hoisted(() => ({
   verified: [] as Array<{ id: string; status: string; friendly_name?: string }>,
   verifyError: null as null | Record<string, unknown>,
   canClose: true,
+  failAal: false,
+  failAalAfterVerify: false,
   verifyCalls: 0,
   enrollCalls: 0,
 }));
@@ -26,10 +28,13 @@ vi.mock("@/integrations/supabase/client", () => ({
     auth: {
       getSession: async () => ({ data: { session: h.session ? { access_token: jwt(h.level) } : null }, error: null }),
       mfa: {
-        getAuthenticatorAssuranceLevel: async () => ({
-          data: { currentLevel: h.level, nextLevel: h.verified.some((f) => f.status === "verified") ? "aal2" : "aal1" },
-          error: null,
-        }),
+        getAuthenticatorAssuranceLevel: async () =>
+          h.failAal
+            ? { data: null, error: { name: "AuthRetryableFetchError", status: 500, message: "network" } }
+            : {
+                data: { currentLevel: h.level, nextLevel: h.verified.some((f) => f.status === "verified") ? "aal2" : "aal1" },
+                error: null,
+              },
         listFactors: async () => ({ data: { all: h.verified.map((f) => ({ ...f, factor_type: "totp" })), totp: h.verified }, error: null }),
         unenroll: async () => ({ error: null }),
         enroll: async () => {
@@ -42,6 +47,7 @@ vi.mock("@/integrations/supabase/client", () => ({
           if (h.verifyError) return { data: null, error: h.verifyError };
           h.level = "aal2";
           h.verified = [{ id: "f-new", status: "verified", friendly_name: "oasis-central" }];
+          if (h.failAalAfterVerify) h.failAal = true;
           return { data: {}, error: null };
         },
       },
@@ -62,7 +68,7 @@ const typeCode = (value: string) => fireEvent.change(screen.getByLabelText(/code
 
 let spies: Array<ReturnType<typeof vi.spyOn>>;
 beforeEach(() => {
-  Object.assign(h, { role: "SUPER_ADMIN", session: true, level: "aal1", verified: [], verifyError: null, canClose: true, verifyCalls: 0, enrollCalls: 0 });
+  Object.assign(h, { role: "SUPER_ADMIN", session: true, level: "aal1", verified: [], verifyError: null, canClose: true, failAal: false, failAalAfterVerify: false, verifyCalls: 0, enrollCalls: 0 });
   spies = (["log", "info", "warn", "error", "debug"] as const).map((m) => vi.spyOn(console, m).mockImplementation(() => {}));
   localStorage.clear();
   sessionStorage.clear();
@@ -176,5 +182,35 @@ describe("SecurityMfa page", () => {
     expect(proof.textContent).toMatch(/does not issue recovery codes/i);
     expect(proof.textContent).toMatch(/only authenticator cannot be removed/i);
     await waitFor(() => expect(screen.queryByRole("button", { name: /^Remove/ })).not.toBeInTheDocument());
+  });
+
+  it("a failed status read at load shows Try again, never the 'set up authenticator' screen", async () => {
+    h.failAal = true;
+    renderPage();
+    expect(await screen.findByTestId("mfa-load-error")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /set up authenticator/i })).not.toBeInTheDocument();
+    h.failAal = false;
+    h.level = "aal2";
+    h.verified = [{ id: "f1", status: "verified", friendly_name: "phone" }];
+    fireEvent.click(screen.getByRole("button", { name: /try again/i }));
+    expect((await screen.findByTestId("mfa-proof")).textContent).toMatch(/Verified: protected actions unlocked/);
+  });
+
+  it("after a successful verify, a failed read-back never returns to code entry and offers Refresh status", async () => {
+    h.failAalAfterVerify = true;
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: /set up authenticator/i }));
+    await screen.findByRole("link", { name: /open authenticator/i });
+    typeCode("123456");
+    fireEvent.click(screen.getByRole("button", { name: /^verify$/i }));
+    const panel = await screen.findByTestId("mfa-load-error");
+    expect(panel.textContent).toMatch(/activated, but the status check could not finish/i);
+    expect(screen.queryByLabelText(/code/i)).not.toBeInTheDocument();
+    expect(h.verifyCalls).toBe(1);
+    h.failAal = false;
+    fireEvent.click(screen.getByRole("button", { name: /refresh status/i }));
+    expect((await screen.findByTestId("mfa-proof")).textContent).toMatch(/Verified: protected actions unlocked/);
+    expect(h.verifyCalls).toBe(1);
+    expect(consoleText()).not.toContain(SECRET);
   });
 });

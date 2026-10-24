@@ -43,16 +43,22 @@ function fakeClient(o: Overrides = {}) {
 }
 
 describe("classifyMfaError", () => {
-  it("maps Supabase errors to user-safe categories", () => {
+  it("maps structured Supabase status/code values to user-safe categories", () => {
     expect(classifyMfaError({ code: "mfa_verification_failed", status: 422 })).toBe("invalid_code");
-    expect(classifyMfaError({ message: "Invalid TOTP code entered" })).toBe("invalid_code");
     expect(classifyMfaError({ name: "AuthSessionMissingError" })).toBe("session_expired");
     expect(classifyMfaError({ status: 401 })).toBe("session_expired");
-    expect(classifyMfaError({ message: "JWT expired" })).toBe("session_expired");
+    expect(classifyMfaError({ code: "bad_jwt" })).toBe("session_expired");
     expect(classifyMfaError({ status: 429 })).toBe("rate_limited");
+    expect(classifyMfaError({ code: "over_request_rate_limit" })).toBe("rate_limited");
     expect(classifyMfaError({ code: "mfa_totp_enroll_not_enabled" })).toBe("mfa_disabled");
-    expect(classifyMfaError({ message: "boom" })).toBe("unknown");
+    expect(classifyMfaError({ code: "mfa_totp_verify_not_enabled" })).toBe("mfa_disabled");
     expect(classifyMfaError(null)).toBe("unknown");
+  });
+  it("never classifies from free-text messages", () => {
+    expect(classifyMfaError({ message: "Invalid TOTP code entered" })).toBe("unknown");
+    expect(classifyMfaError({ message: "JWT expired" })).toBe("unknown");
+    expect(classifyMfaError({ message: "rate limit exceeded" })).toBe("unknown");
+    expect(classifyMfaError({ message: "MFA is disabled" })).toBe("unknown");
   });
 });
 
@@ -107,7 +113,7 @@ describe("beginEnrolment", () => {
 describe("proveSession", () => {
   it("is ok only when the token, Auth and the database all agree", async () => {
     const { client } = fakeClient();
-    expect(await proveSession(client)).toEqual({ jwtAal: "aal2", currentLevel: "aal2", stepUpAccepted: true, canCloseWhatsapp: true, ok: true });
+    expect(await proveSession(client)).toEqual({ jwtAal: "aal2", currentLevel: "aal2", stepUpAccepted: true, canCloseWhatsapp: true, readFailed: false, ok: true });
   });
   it("does not trust the token alone: database step-up false means not ok", async () => {
     const { client } = fakeClient({ stepUp: false });
@@ -121,6 +127,13 @@ describe("proveSession", () => {
   it("an aal1 session is never ok", async () => {
     const { client } = fakeClient({ session: { access_token: jwt({ aal: "aal1" }) }, aal: { currentLevel: "aal1", nextLevel: "aal2" }, stepUp: false, canClose: false });
     expect((await proveSession(client)).ok).toBe(false);
+  });
+  it("reports a failed read-back as unknown (readFailed), never as ok and never as a negative verdict", async () => {
+    const { client, raw } = fakeClient();
+    raw.rpc.mockImplementation(async (name: string) => (name === "has_step_up_auth" ? { data: null, error: { message: "network" } } : { data: true }));
+    const proof = await proveSession(client);
+    expect(proof.readFailed).toBe(true);
+    expect(proof.ok).toBe(false);
   });
   it("fails closed on an expired session", async () => {
     const { client } = fakeClient({ session: null });

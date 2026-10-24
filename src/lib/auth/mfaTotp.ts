@@ -33,18 +33,14 @@ type AuthLikeError = { name?: string; message?: string; status?: number; code?: 
 
 const SESSION_CODES = new Set(["session_expired", "session_not_found", "bad_jwt", "no_authorization", "refresh_token_not_found"]);
 
+/** Classifies only on structured Auth status/code values; free-text messages are never matched. */
 export function classifyMfaError(error: AuthLikeError): MfaFailure {
   if (!error) return "unknown";
   const code = String(error.code ?? "").toLowerCase();
-  const message = String(error.message ?? "").toLowerCase();
-  if (error.name === "AuthSessionMissingError" || error.status === 401 || SESSION_CODES.has(code) || message.includes("jwt expired")) {
-    return "session_expired";
-  }
-  if (error.status === 429 || code === "over_request_rate_limit" || message.includes("rate limit")) return "rate_limited";
-  if (code === "mfa_totp_enroll_not_enabled" || code === "mfa_totp_verify_not_enabled" || message.includes("is disabled")) {
-    return "mfa_disabled";
-  }
-  if (code === "mfa_verification_failed" || message.includes("invalid totp")) return "invalid_code";
+  if (error.name === "AuthSessionMissingError" || error.status === 401 || SESSION_CODES.has(code)) return "session_expired";
+  if (error.status === 429 || code === "over_request_rate_limit") return "rate_limited";
+  if (code === "mfa_totp_enroll_not_enabled" || code === "mfa_totp_verify_not_enabled") return "mfa_disabled";
+  if (code === "mfa_verification_failed") return "invalid_code";
   return "unknown";
 }
 
@@ -134,7 +130,9 @@ export interface Aal2Proof {
   currentLevel: string | null;
   stepUpAccepted: boolean;
   canCloseWhatsapp: boolean;
-  /** true only when every independent check agrees. */
+  /** true when any read-back errored: the verdicts above are then unknown, not negative. */
+  readFailed: boolean;
+  /** true only when every independent check agrees and every read succeeded. */
   ok: boolean;
 }
 
@@ -160,6 +158,7 @@ export async function proveSession(client: SupabaseClient): Promise<Aal2Proof> {
     client.rpc("has_step_up_auth"),
     client.rpc("has_whatsapp_permission", { p_permission_key: "wa.intake.close" }),
   ]);
+  const readFailed = Boolean(aal.error || stepUp.error || close.error);
   const currentLevel = aal.data?.currentLevel ?? null;
   const stepUpAccepted = stepUp.data === true;
   const canCloseWhatsapp = close.data === true;
@@ -168,7 +167,8 @@ export async function proveSession(client: SupabaseClient): Promise<Aal2Proof> {
     currentLevel,
     stepUpAccepted,
     canCloseWhatsapp,
-    ok: jwtAal === "aal2" && currentLevel === "aal2" && stepUpAccepted && canCloseWhatsapp,
+    readFailed,
+    ok: !readFailed && jwtAal === "aal2" && currentLevel === "aal2" && stepUpAccepted && canCloseWhatsapp,
   };
 }
 
