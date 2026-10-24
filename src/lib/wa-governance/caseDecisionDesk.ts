@@ -349,3 +349,52 @@ export function newCaseActionIdempotencyKey(scope:string,entityId:string):string
 }
 
 export function newCaseRoutingIdempotencyKey(caseId:string):string { return newCaseActionIdempotencyKey("operator-ai-routing",caseId); }
+
+// --- Shared-queue task ownership (Core: whatsapp_{claim,assign,release}_case_task) ---------------
+
+export type WhatsAppStaffMember = { userId: string; displayName: string; department: string | null };
+
+export async function claimWhatsAppCaseTask(supabase: SupabaseClient, input: { taskId: string; idempotencyKey: string }): Promise<Record<string, unknown>> {
+  if (!input.taskId) throw new Error("CASE_TASK_REQUIRED");
+  return rpcRecord(supabase, "whatsapp_claim_case_task", {
+    p_task_id: input.taskId,
+    p_idempotency_key: required(input.idempotencyKey, "CASE_TASK_CLAIM_KEY_REQUIRED", 160),
+  });
+}
+
+export async function assignWhatsAppCaseTask(
+  supabase: SupabaseClient,
+  input: { taskId: string; assigneeUserId: string; idempotencyKey: string; reason?: string },
+): Promise<Record<string, unknown>> {
+  if (!input.taskId) throw new Error("CASE_TASK_REQUIRED");
+  if (!input.assigneeUserId) throw new Error("CASE_TASK_ASSIGNEE_REQUIRED");
+  return rpcRecord(supabase, "whatsapp_assign_case_task", {
+    p_task_id: input.taskId,
+    p_assignee_user_id: input.assigneeUserId,
+    p_idempotency_key: required(input.idempotencyKey, "CASE_TASK_ASSIGN_KEY_REQUIRED", 160),
+    p_reason: input.reason?.trim() ? required(input.reason, "CASE_TASK_REASON_INVALID", 500) : null,
+  });
+}
+
+export async function releaseWhatsAppCaseTask(
+  supabase: SupabaseClient,
+  input: { taskId: string; idempotencyKey: string; reason?: string },
+): Promise<Record<string, unknown>> {
+  if (!input.taskId) throw new Error("CASE_TASK_REQUIRED");
+  return rpcRecord(supabase, "whatsapp_release_case_task", {
+    p_task_id: input.taskId,
+    p_idempotency_key: required(input.idempotencyKey, "CASE_TASK_RELEASE_KEY_REQUIRED", 160),
+    p_reason: input.reason?.trim() ? required(input.reason, "CASE_TASK_REASON_INVALID", 500) : null,
+  });
+}
+
+export async function fetchWhatsAppStaffDirectory(supabase: SupabaseClient): Promise<WhatsAppStaffMember[]> {
+  const rows = await rpcRecords(supabase, "whatsapp_case_staff_directory", {});
+  return rows
+    .map((row) => ({
+      userId: text(row.user_id, 80) ?? "",
+      displayName: text(row.display_name, 200) ?? "Staff",
+      department: text(row.department, 120),
+    }))
+    .filter((member) => member.userId);
+}
