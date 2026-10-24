@@ -69,7 +69,11 @@ export default function SecurityMfa() {
       const state = await readMfaState(supabase);
       if (!state.hasSession) return setView({ kind: "session-expired" });
       // An enrolment in progress always wins: returning from the Passwords app must show the same key again.
-      if (state.pending) return setView({ kind: "enrol", pending: state.pending });
+      // Exception: a signed-in-at-aal1 account that already has a verified factor must be able to unlock with it
+      // first; the held key stays in memory and is offered again from "Add another authenticator".
+      if (state.pending && (state.verified.length === 0 || state.currentLevel === "aal2")) {
+        return setView({ kind: "enrol", pending: state.pending });
+      }
       if (state.verified.length === 0) {
         return setView(
           state.unverified.length > 0 ? { kind: "unfinished", count: state.unverified.length } : { kind: "enrol", pending: null },

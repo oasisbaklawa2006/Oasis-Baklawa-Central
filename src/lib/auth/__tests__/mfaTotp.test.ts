@@ -24,6 +24,8 @@ type Overrides = {
   verifyError?: unknown;
   stepUp?: boolean;
   canClose?: boolean;
+  enrollId?: string;
+  enrollSecret?: string;
 };
 
 function fakeClient(o: Overrides = {}) {
@@ -35,7 +37,7 @@ function fakeClient(o: Overrides = {}) {
         getAuthenticatorAssuranceLevel: vi.fn(async () => ({ data: o.aal ?? { currentLevel: "aal2", nextLevel: "aal2" }, error: null })),
         listFactors: vi.fn(async () => ({ data: o.factors ?? { all: [], totp: [] }, error: null })),
         unenroll: vi.fn(async ({ factorId }: { factorId: string }) => { calls.push(`unenroll:${factorId}`); return { error: null }; }),
-        enroll: vi.fn(async () => { calls.push("enroll"); return { data: { id: "f-new", totp: { qr_code: "<svg/>", secret: "JBSWY3DPEHPK3PXP", uri: "otpauth://totp/x?secret=JBSWY3DPEHPK3PXP" } }, error: null }; }),
+        enroll: vi.fn(async () => { calls.push("enroll"); return { data: { id: o.enrollId ?? "f-new", totp: { qr_code: "<svg/>", secret: o.enrollSecret ?? "JBSWY3DPEHPK3PXP", uri: "otpauth://totp/x?secret=JBSWY3DPEHPK3PXP" } }, error: null }; }),
         challenge: vi.fn(async () => { calls.push("challenge"); return { data: { id: "c1" }, error: null }; }),
         verify: vi.fn(async () => { calls.push("verify"); return { data: {}, error: (o.verifyError as never) ?? null }; }),
       },
@@ -139,11 +141,11 @@ describe("beginEnrolment", () => {
 
   it("does not hand one account's in-flight enrolment (secret) to a different account", async () => {
     discardHeldEnrolment();
-    const a = fakeClient({ session: { access_token: jwt({ aal: "aal1" }), user: { id: "user-a" } } });
-    const b = fakeClient({ session: { access_token: jwt({ aal: "aal1" }), user: { id: "user-b" } } });
+    const a = fakeClient({ session: { access_token: jwt({ aal: "aal1" }), user: { id: "user-a" } }, enrollId: "f-a", enrollSecret: "AAAAAAAAAAAAAAAA" });
+    const b = fakeClient({ session: { access_token: jwt({ aal: "aal1" }), user: { id: "user-b" } }, enrollId: "f-b", enrollSecret: "BBBBBBBBBBBBBBBB" });
     const [pa, pb] = await Promise.all([beginEnrolment(a.client), beginEnrolment(b.client)]);
-    expect(pa).toBeDefined();
-    expect(pb).toBeDefined();
+    expect(pa).toMatchObject({ factorId: "f-a", secret: "AAAAAAAAAAAAAAAA" });
+    expect(pb).toMatchObject({ factorId: "f-b", secret: "BBBBBBBBBBBBBBBB" });
     expect(a.raw.auth.mfa.enroll).toHaveBeenCalledTimes(1);
     expect(b.raw.auth.mfa.enroll).toHaveBeenCalledTimes(1);
   });

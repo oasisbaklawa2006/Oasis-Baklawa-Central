@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import SecurityMfa from "@/pages/SecurityMfa";
 import { discardHeldEnrolment } from "@/lib/auth/mfaTotp";
@@ -417,5 +417,35 @@ describe("SecurityMfa page", () => {
       expect(h.enrollCalls).toBe(1);
       expect(h.verified).toHaveLength(1);
     });
+  
+    it("aal1 account with a verified factor AND a held pending key can still unlock with the verified factor", async () => {
+      renderPage();
+      // enrol a first factor to aal2, then start a second setup and hold its key
+      await openPending();
+      typeCode("123456");
+      fireEvent.click(screen.getByRole("button", { name: /^verify$/i }));
+      await screen.findByTestId("mfa-proof");
+      fireEvent.click(screen.getByText(/backup, replacement and recovery/i));
+      fireEvent.click(screen.getByRole("button", { name: /add another authenticator/i }));
+      await screen.findByTestId("mfa-pending");
+      expect(h.enrollCalls).toBe(2);
+
+      // a fresh sign-in drops the session to aal1 while the page remounts
+      h.level = "aal1";
+      cleanup();
+      renderPage();
+      expect(await screen.findByText(/enter the current code from your authenticator app/i)).toBeInTheDocument();
+      expect(screen.queryByTestId("mfa-pending")).not.toBeInTheDocument();
+      typeCode("123456");
+      fireEvent.click(screen.getByRole("button", { name: /^verify$/i }));
+      await screen.findByTestId("mfa-proof");
+
+      // the held key is offered again, unchanged and without a third enrol
+      fireEvent.click(screen.getByText(/backup, replacement and recovery/i));
+      fireEvent.click(screen.getByRole("button", { name: /add another authenticator/i }));
+      await screen.findByTestId("mfa-pending");
+      expect(h.enrollCalls).toBe(2);
+    });
   });
 });
+
