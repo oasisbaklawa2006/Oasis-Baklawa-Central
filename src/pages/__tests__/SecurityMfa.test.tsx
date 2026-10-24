@@ -2,9 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import SecurityMfa from "@/pages/SecurityMfa";
+import { discardHeldEnrolment } from "@/lib/auth/mfaTotp";
 
 const SECRET = "JBSWY3DPEHPK3PXP";
 const URI = `otpauth://totp/Oasis:admin?secret=${SECRET}&issuer=Oasis`;
+const SECRET_2 = "KRSXG5CTMVRXEZLU";
+const SVG = "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 4 4'><path d='M0 0h4v4H0z' fill='#000'/></svg>";
 
 const jwt = (aal: string) => `h.${btoa(JSON.stringify({ aal })).replace(/=+$/, "")}.s`;
 
@@ -20,6 +23,9 @@ const h = vi.hoisted(() => ({
   failRpc: false,
   verifyCalls: 0,
   enrollCalls: 0,
+  unenrollCalls: 0,
+  unverified: [] as Array<{ id: string; status: string; friendly_name?: string }>,
+  verifyErrorOnce: null as null | Record<string, unknown>,
 }));
 
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ role: h.role, user: { id: "u1" } }) }));
@@ -36,18 +42,46 @@ vi.mock("@/integrations/supabase/client", () => ({
                 data: { currentLevel: h.level, nextLevel: h.verified.some((f) => f.status === "verified") ? "aal2" : "aal1" },
                 error: null,
               },
-        listFactors: async () => ({ data: { all: h.verified.map((f) => ({ ...f, factor_type: "totp" })), totp: h.verified }, error: null }),
-        unenroll: async () => ({ error: null }),
+        listFactors: async () => ({
+          data: { all: [...h.verified, ...h.unverified].map((f) => ({ ...f, factor_type: "totp" })), totp: h.verified },
+          error: null,
+        }),
+        unenroll: async ({ factorId }: { factorId: string }) => {
+          h.unenrollCalls += 1;
+          h.unverified = h.unverified.filter((f) => f.id !== factorId);
+          h.verified = h.verified.filter((f) => f.id !== factorId);
+          return { error: null };
+        },
         enroll: async () => {
           h.enrollCalls += 1;
-          return { data: { id: "f-new", totp: { qr_code: "<svg xmlns='http://www.w3.org/2000/svg'/>", secret: SECRET, uri: URI } }, error: null };
+          const id = `f-${h.enrollCalls}`;
+          h.unverified.push({ id, status: "unverified", friendly_name: `oasis-central-${h.enrollCalls}` });
+          // supabase-js 2.x already returns the QR as a data URI whose payload is the raw SVG.
+          return {
+            data: {
+              id,
+              totp: {
+                qr_code: `data:image/svg+xml;utf-8,${SVG}`,
+                secret: h.enrollCalls === 1 ? SECRET : SECRET_2,
+                uri: URI,
+              },
+            },
+            error: null,
+          };
         },
-        challenge: async () => ({ data: { id: "c1" }, error: null }),
-        verify: async () => {
+        challenge: async ({ factorId }: { factorId: string }) => ({ data: { id: `c-${factorId}` }, error: null }),
+        verify: async ({ factorId }: { factorId: string }) => {
           h.verifyCalls += 1;
+          if (h.verifyErrorOnce) {
+            const err = h.verifyErrorOnce;
+            h.verifyErrorOnce = null;
+            return { data: null, error: err };
+          }
           if (h.verifyError) return { data: null, error: h.verifyError };
           h.level = "aal2";
-          h.verified = [{ id: "f-new", status: "verified", friendly_name: "oasis-central" }];
+          const done = h.unverified.find((f) => f.id === factorId);
+          h.unverified = h.unverified.filter((f) => f.id !== factorId);
+          h.verified = [...h.verified, { id: factorId, status: "verified", friendly_name: done?.friendly_name ?? "oasis-central" }];
           if (h.failAalAfterVerify) h.failAal = true;
           return { data: {}, error: null };
         },
@@ -69,7 +103,8 @@ const typeCode = (value: string) => fireEvent.change(screen.getByLabelText(/code
 
 let spies: Array<ReturnType<typeof vi.spyOn>>;
 beforeEach(() => {
-  Object.assign(h, { role: "SUPER_ADMIN", session: true, level: "aal1", verified: [], verifyError: null, canClose: true, failAal: false, failAalAfterVerify: false, failRpc: false, verifyCalls: 0, enrollCalls: 0 });
+  Object.assign(h, { role: "SUPER_ADMIN", session: true, level: "aal1", verified: [], verifyError: null, canClose: true, failAal: false, failAalAfterVerify: false, failRpc: false, verifyCalls: 0, enrollCalls: 0, unenrollCalls: 0, unverified: [], verifyErrorOnce: null });
+  discardHeldEnrolment();
   spies = (["log", "info", "warn", "error", "debug"] as const).map((m) => vi.spyOn(console, m).mockImplementation(() => {}));
   localStorage.clear();
   sessionStorage.clear();
@@ -226,4 +261,143 @@ describe("SecurityMfa page", () => {
     expect(panel.textContent).toMatch(/wa\.intake\.close\): UNKNOWN/);
     expect(panel.textContent).not.toMatch(/step-up check: FAIL/);
   });
+
+  describe("recorded iPhone sequence (owner screen recording)", () => {
+    const openPending = async () => {
+      fireEvent.click(await screen.findByRole("button", { name: /set up authenticator/i }));
+      await screen.findByRole("link", { name: /open authenticator/i });
+    };
+    const showKey = () => {
+      fireEvent.click(screen.getByRole("button", { name: /show setup key/i }));
+      return screen.getByTestId("mfa-setup-key").textContent;
+    };
+
+    it("app switch that unmounts the page (auth refresh) resumes the SAME factor and key, with no new enrolment", async () => {
+      // ProtectedRoute shows a spinner (unmounting the page) while the profile re-bootstraps on return from Passwords.
+      const { rerender } = render(
+        <MemoryRouter>
+          <SecurityMfa />
+        </MemoryRouter>,
+      );
+      await openPending();
+      expect(showKey()).toBe("JBSW Y3DP EHPK 3PXP");
+      expect(h.enrollCalls).toBe(1);
+
+      rerender(<MemoryRouter><div role="status">Verifying session profile</div></MemoryRouter>);
+      rerender(<MemoryRouter><SecurityMfa /></MemoryRouter>);
+
+      expect(await screen.findByTestId("mfa-pending")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /set up authenticator/i })).not.toBeInTheDocument();
+      expect(showKey()).toBe("JBSW Y3DP EHPK 3PXP");
+      expect(h.enrollCalls).toBe(1);
+      expect(h.unenrollCalls).toBe(0);
+
+      // the code generated from the original authenticator entry now verifies against the same factor
+      typeCode("123456");
+      fireEvent.click(screen.getByRole("button", { name: /^verify$/i }));
+      expect((await screen.findByTestId("mfa-proof")).textContent).toMatch(/Verified: protected actions unlocked/);
+      expect(h.enrollCalls).toBe(1);
+      expect(h.verifyCalls).toBe(1);
+    });
+
+    it("a rejected code keeps the same factor and key (no silent replacement) and explains the entry rule", async () => {
+      renderPage();
+      await openPending();
+      h.verifyErrorOnce = { name: "AuthApiError", status: 422, code: "mfa_verification_failed", message: "x" };
+      typeCode("000000");
+      fireEvent.click(screen.getByRole("button", { name: /^verify$/i }));
+      expect((await screen.findByTestId("mfa-error")).textContent).toMatch(/not accepted/i);
+      expect(screen.getByTestId("mfa-pending").textContent).toMatch(/only one that will work/i);
+      expect(h.enrollCalls).toBe(1);
+      expect(h.unenrollCalls).toBe(0);
+      typeCode("123456");
+      fireEvent.click(screen.getByRole("button", { name: /^verify$/i }));
+      expect(await screen.findByTestId("mfa-proof")).toBeInTheDocument();
+      expect(h.enrollCalls).toBe(1);
+    });
+
+    it("double-tapping Set up creates one factor only", async () => {
+      renderPage();
+      const button = await screen.findByRole("button", { name: /set up authenticator/i });
+      fireEvent.click(button);
+      fireEvent.click(button);
+      await screen.findByRole("link", { name: /open authenticator/i });
+      expect(h.enrollCalls).toBe(1);
+    });
+
+    it("after a full reload the old key is gone: nothing is deleted silently, the owner is told to replace the entry, and discarding is explicit", async () => {
+      const first = renderPage();
+      await openPending();
+      first.unmount();
+      discardHeldEnrolment(); // full page reload: in-memory secret is lost, the unverified factor remains on the server
+
+      renderPage();
+      const panel = await screen.findByTestId("mfa-unfinished");
+      expect(panel.textContent).toMatch(/delete the\s+earlier entry in your authenticator/i);
+      expect(screen.queryByRole("button", { name: /^set up authenticator$/i })).not.toBeInTheDocument();
+      expect(h.unenrollCalls).toBe(0);
+      expect(h.enrollCalls).toBe(1);
+
+      fireEvent.click(screen.getByRole("button", { name: /discard earlier setup and start again/i }));
+      await screen.findByTestId("mfa-pending");
+      expect(h.unenrollCalls).toBe(1);
+      expect(h.enrollCalls).toBe(2);
+      expect(showKey()).toBe("KRSX G5CT MVRX EZLU");
+      expect(h.unverified).toHaveLength(1);
+
+      typeCode("123456");
+      fireEvent.click(screen.getByRole("button", { name: /^verify$/i }));
+      expect(await screen.findByTestId("mfa-proof")).toBeInTheDocument();
+    });
+
+    it("a factor that no longer exists is reported as needing a replacement entry, and is never retried silently", async () => {
+      renderPage();
+      await openPending();
+      h.unverified = [];
+      h.verifyErrorOnce = { name: "AuthApiError", status: 404, code: "mfa_factor_not_found", message: "x" };
+      typeCode("123456");
+      fireEvent.click(screen.getByRole("button", { name: /^verify$/i }));
+      expect((await screen.findByTestId("mfa-error")).textContent).toMatch(/no longer exists/i);
+      expect(await screen.findByRole("button", { name: /set up authenticator/i })).toBeInTheDocument();
+      expect(h.enrollCalls).toBe(1);
+    });
+
+    it("an expired challenge is explained and the same factor stays usable", async () => {
+      renderPage();
+      await openPending();
+      h.verifyErrorOnce = { name: "AuthApiError", status: 422, code: "mfa_challenge_expired", message: "x" };
+      typeCode("123456");
+      fireEvent.click(screen.getByRole("button", { name: /^verify$/i }));
+      expect((await screen.findByTestId("mfa-error")).textContent).toMatch(/took too long/i);
+      expect(h.enrollCalls).toBe(1);
+      expect(screen.getByTestId("mfa-pending")).toBeInTheDocument();
+    });
+
+    it("renders the Supabase QR (data URI payload) as a single well-formed image, and falls back if it cannot load", async () => {
+      renderPage();
+      await openPending();
+      const img = screen.getByAltText(/authenticator qr code/i) as HTMLImageElement;
+      const src = img.getAttribute("src") ?? "";
+      expect(src.startsWith("data:image/svg+xml;charset=utf-8,%3Csvg")).toBe(true);
+      expect(src).not.toMatch(/data%3A/i);
+      expect(decodeURIComponent(src.split(",")[1])).toBe(SVG);
+
+      fireEvent.error(img);
+      expect(await screen.findByTestId("mfa-qr-failed")).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: /open authenticator/i })).toBeInTheDocument();
+    });
+
+    it("never writes the secret or the QR to console or browser storage across the whole recorded sequence", async () => {
+      const { rerender } = render(<MemoryRouter><SecurityMfa /></MemoryRouter>);
+      await openPending();
+      showKey();
+      rerender(<MemoryRouter><div /></MemoryRouter>);
+      rerender(<MemoryRouter><SecurityMfa /></MemoryRouter>);
+      await screen.findByTestId("mfa-pending");
+      expect(consoleText()).not.toContain(SECRET);
+      expect(storageText()).not.toContain(SECRET);
+      expect(storageText()).not.toContain("svg");
+    });
+  });
 });
+

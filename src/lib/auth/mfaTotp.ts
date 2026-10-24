@@ -18,6 +18,9 @@ export type MfaFailure =
   | "session_expired"
   | "rate_limited"
   | "mfa_disabled"
+  | "challenge_expired"
+  | "factor_missing"
+  | "unfinished_setup"
   | "unknown";
 
 export class MfaError extends Error {
@@ -41,6 +44,8 @@ export function classifyMfaError(error: AuthLikeError): MfaFailure {
   if (error.status === 429 || code === "over_request_rate_limit") return "rate_limited";
   if (code === "mfa_totp_enroll_not_enabled" || code === "mfa_totp_verify_not_enabled") return "mfa_disabled";
   if (code === "mfa_verification_failed") return "invalid_code";
+  if (code === "mfa_challenge_expired") return "challenge_expired";
+  if (code === "mfa_factor_not_found") return "factor_missing";
   return "unknown";
 }
 
@@ -58,12 +63,19 @@ export interface MfaState {
   currentLevel: "aal1" | "aal2" | null;
   nextLevel: "aal1" | "aal2" | null;
   verified: MfaFactorSummary[];
+  /** Own TOTP factors that were enrolled but never verified (abandoned or still pending). */
+  unverified: MfaFactorSummary[];
+  /** The in-progress enrolment still held in this page's memory, if its factor still exists server-side. */
+  pending: PendingEnrolment | null;
 }
 
 export async function readMfaState(client: SupabaseClient): Promise<MfaState> {
   const { data: sessionData, error: sessionError } = await client.auth.getSession();
   if (sessionError) fail(sessionError);
-  if (!sessionData?.session) return { hasSession: false, currentLevel: null, nextLevel: null, verified: [] };
+  if (!sessionData?.session) {
+    held = null;
+    return { hasSession: false, currentLevel: null, nextLevel: null, verified: [], unverified: [], pending: null };
+  }
 
   const [aal, factors] = await Promise.all([
     client.auth.mfa.getAuthenticatorAssuranceLevel(),
@@ -72,6 +84,9 @@ export async function readMfaState(client: SupabaseClient): Promise<MfaState> {
   if (aal.error) fail(aal.error);
   if (factors.error) fail(factors.error);
 
+  const unverified = unverifiedTotp(factors.data?.all);
+  // Only a factor that still exists unverified can be resumed; anything else is stale memory.
+  if (held && !unverified.some((factor) => factor.id === held?.factorId)) held = null;
   return {
     hasSession: true,
     currentLevel: aal.data?.currentLevel ?? null,
@@ -79,35 +94,103 @@ export async function readMfaState(client: SupabaseClient): Promise<MfaState> {
     verified: (factors.data?.totp ?? [])
       .filter((factor) => factor.status === "verified")
       .map((factor) => ({ id: factor.id, friendlyName: factor.friendly_name ?? null })),
+    unverified: unverified.map((factor) => ({ id: factor.id, friendlyName: factor.friendly_name ?? null })),
+    pending: held,
   };
+}
+
+function unverifiedTotp<T extends { factor_type?: string; status?: string }>(all: T[] | null | undefined): T[] {
+  return (all ?? []).filter((factor) => factor.factor_type === "totp" && factor.status !== "verified");
 }
 
 export interface PendingEnrolment {
   factorId: string;
-  /** Raw SVG markup returned by Auth. Render only as an <img> data URL. */
+  /** QR image exactly as returned by Auth (a data URI in current supabase-js). Render via qrImageSrc only. */
   qrSvg: string;
   /** Manual-entry key. Show on demand only; never log. */
   secret: string;
   /** otpauth:// URI, usable as an "open in authenticator" link on a phone. */
   uri: string;
+  /** Epoch ms when this key was created, so the owner can tell which authenticator entry is current. */
+  createdAt: number;
 }
 
-export async function beginEnrolment(client: SupabaseClient, now: Date = new Date()): Promise<PendingEnrolment> {
-  // Remove this user's own abandoned, never-verified factors so retries start clean
-  // (an unverified factor holds a friendly name and counts toward the factor limit).
+/**
+ * Auth returns the TOTP secret exactly once, at enrol time. iOS Safari fires auth events on return from
+ * another app, which remounts this page; if the secret lived only in component state, the owner would be
+ * forced to enrol again and the authenticator would keep the old, now-dead key. The in-progress enrolment is
+ * therefore held in this module's memory (never in browser storage, never logged), keyed by its factor id,
+ * and is only ever used while that factor still exists unverified on the server.
+ */
+let held: PendingEnrolment | null = null;
+let inflight: Promise<PendingEnrolment> | null = null;
+
+export function discardHeldEnrolment(): void {
+  held = null;
+}
+
+/**
+ * Starts an enrolment, or returns the one already in progress. It never replaces an active pending
+ * enrolment and never silently deletes another unverified factor: leftovers whose key is no longer
+ * available must be discarded explicitly (discardUnfinishedEnrolments) before a new key is made.
+ */
+export function beginEnrolment(client: SupabaseClient, now: Date = new Date()): Promise<PendingEnrolment> {
+  if (inflight) return inflight;
+  inflight = (async () => {
+    const existing = await client.auth.mfa.listFactors();
+    if (existing.error) fail(existing.error);
+    const leftovers = unverifiedTotp(existing.data?.all);
+    if (held && leftovers.some((factor) => factor.id === held?.factorId)) return held;
+    held = null;
+    if (leftovers.length > 0) throw new MfaError("unfinished_setup");
+
+    const stamp = now.toISOString().replace(/[-:T]/g, "").slice(0, 14);
+    const { data, error } = await client.auth.mfa.enroll({
+      factorType: "totp",
+      friendlyName: `oasis-central-${stamp}`,
+    });
+    if (error || !data) fail(error);
+    held = {
+      factorId: data.id,
+      qrSvg: data.totp.qr_code,
+      secret: data.totp.secret,
+      uri: data.totp.uri,
+      createdAt: now.getTime(),
+    };
+    return held;
+  })().finally(() => {
+    inflight = null;
+  });
+  return inflight;
+}
+
+/** Explicit, user-confirmed removal of this user's own never-verified TOTP factors. */
+export async function discardUnfinishedEnrolments(client: SupabaseClient): Promise<void> {
   const existing = await client.auth.mfa.listFactors();
   if (existing.error) fail(existing.error);
-  for (const stale of (existing.data?.all ?? []).filter((f) => f.factor_type === "totp" && f.status !== "verified")) {
-    await client.auth.mfa.unenroll({ factorId: stale.id });
+  for (const stale of unverifiedTotp(existing.data?.all)) {
+    const { error } = await client.auth.mfa.unenroll({ factorId: stale.id });
+    if (error) fail(error);
   }
+  held = null;
+}
 
-  const stamp = now.toISOString().replace(/[-:T]/g, "").slice(0, 14);
-  const { data, error } = await client.auth.mfa.enroll({
-    factorType: "totp",
-    friendlyName: `oasis-central-${stamp}`,
-  });
-  if (error || !data) fail(error);
-  return { factorId: data.id, qrSvg: data.totp.qr_code, secret: data.totp.secret, uri: data.totp.uri };
+/**
+ * Auth's enroll() already returns the QR as `data:image/svg+xml;utf-8,<raw svg>`. Percent-encoding that whole
+ * string again produced a broken image. Accept either a data URI or bare SVG and emit one well-formed data URI.
+ */
+export function qrImageSrc(qr: string): string {
+  const raw = String(qr ?? "").trim();
+  const comma = raw.startsWith("data:") ? raw.indexOf(",") : -1;
+  let svg = comma >= 0 ? raw.slice(comma + 1) : raw;
+  if (/^%3C/i.test(svg)) {
+    try {
+      svg = decodeURIComponent(svg);
+    } catch {
+      /* keep as-is */
+    }
+  }
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 
 /** Challenge + verify. Used both to activate a new factor and to step an aal1 session up to aal2. */
@@ -115,9 +198,16 @@ export async function verifyTotpCode(client: SupabaseClient, factorId: string, c
   const cleaned = code.replace(/\s+/g, "");
   if (!/^\d{6}$/.test(cleaned)) throw new MfaError("malformed_code");
   const challenge = await client.auth.mfa.challenge({ factorId });
-  if (challenge.error || !challenge.data) fail(challenge.error);
+  if (challenge.error || !challenge.data) {
+    if (classifyMfaError(challenge.error) === "factor_missing" && held?.factorId === factorId) held = null;
+    fail(challenge.error);
+  }
   const verified = await client.auth.mfa.verify({ factorId, challengeId: challenge.data.id, code: cleaned });
-  if (verified.error) fail(verified.error);
+  if (verified.error) {
+    if (classifyMfaError(verified.error) === "factor_missing" && held?.factorId === factorId) held = null;
+    fail(verified.error);
+  }
+  if (held?.factorId === factorId) held = null;
 }
 
 export async function removeFactor(client: SupabaseClient, factorId: string): Promise<void> {
