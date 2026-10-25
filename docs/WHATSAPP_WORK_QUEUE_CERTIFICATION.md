@@ -45,6 +45,7 @@ available yet. Nothing was changed.") and change nothing; the queue still reads 
 still works for tasks that already have an owner.
 
 ### Permission audit (read-only production data, 2026-10-24)
+
 | Permission | Risk | Step-up | Roles holding it (active users) |
 | --- | --- | --- | --- |
 | `wa.intake.read` | standard | no | admin 4, super_admin 5, support_executive 12 |
@@ -84,13 +85,14 @@ Other findings:
   security boundary (RLS lets any `wa.intake.read` holder query the tables).
 
 ## Verification
+
 | Check | Result |
 | --- | --- |
 | `tsc` | clean |
 | eslint on changed files | 0 errors |
-| Central `vitest run` | 443 files / 3,226 tests pass (34 added in this step: model 16, component 13, routing 5; 5 contract tests were added in the first commit) |
+| Central `vitest run` | 443 files / 3,232 tests pass at the head that includes the `?view=all` loading-gate fix (routing tests: 6) |
 | `vite build` | succeeds |
-| Core pgTAP (local disposable DB, 448-migration replay + three ownership migrations) | 28/28 + 23/23 + 24/24 |
+| Core pgTAP (local disposable DB, 448-migration replay + four ownership migrations) | 28/28 + 23/23 + 24/24 + 11/11 (migrations 135000-138000) |
 | Core two-session claim race | A won; B blocked on the row lock then rejected; exactly one claim event |
 | Core migration governance, monotonicity, history sequence | pass |
 | Visual (desktop 1280x800, phone 390x844) | rendered the real component with fixture data: no horizontal overflow, no runtime errors; first card visible on a phone after filters collapse |

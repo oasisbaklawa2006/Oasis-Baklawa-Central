@@ -22,8 +22,16 @@ export default function OperatorInbox() {
   const wantsAll = searchParams.get("view") === "all";
   const canViewAll = wa.has("wa.intake.assign") || wa.has("wa.intake.close");
 
-  if (wantsAll && !packetParam && !wa.loading && !canViewAll) {
-    return <Navigate to="/admin/operator-inbox" replace />;
+  if (wantsAll && !packetParam) {
+    // Do not mount the full console (and its queries) until the viewer's permissions are known.
+    if (wa.loading) {
+      return (
+        <div className="flex h-screen items-center justify-center text-sm text-gray-600" role="status">
+          Checking your WhatsApp access…
+        </div>
+      );
+    }
+    if (!canViewAll) return <Navigate to="/admin/operator-inbox" replace />;
   }
 
   if (packetParam || wantsAll) {

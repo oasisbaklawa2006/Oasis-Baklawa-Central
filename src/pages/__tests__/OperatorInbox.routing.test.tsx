@@ -63,6 +63,14 @@ describe("OperatorInbox routing", () => {
     expect(screen.queryByTestId("full-console")).not.toBeInTheDocument();
   });
 
+  it("does not mount the full console for ?view=all while permissions are still loading", () => {
+    permissionsLoading = true;
+    permissions = new Set();
+    renderAt("/admin/operator-inbox?view=all");
+    expect(screen.queryByTestId("full-console")).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Checking your WhatsApp access");
+  });
+
   it("tells the queue whether the viewer may open All Conversations", () => {
     permissions = new Set(["wa.intake.read", "wa.intake.close"]);
     renderAt("/admin/operator-inbox");
