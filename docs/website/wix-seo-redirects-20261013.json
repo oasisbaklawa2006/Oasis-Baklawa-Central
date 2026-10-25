@@ -1,0 +1,1191 @@
+{
+  "captured_on": "2026-10-13",
+  "source": "Wix live SEO Redirects API",
+  "site_id": "880c7f4f-83ac-46aa-ac0c-5814cb68a3c8",
+  "primary_published_url": "https://www.oasisbaklawa.com/",
+  "counts": {
+    "total_redirects": 147,
+    "product_page_redirects": 106,
+    "non_product_redirects": 41,
+    "page_slug_rename_redirects": 2,
+    "redirector_redirects": 145
+  },
+  "redirects": [
+    {
+      "from": "/product-page/copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-1",
+      "to": "/product-page/OxfordMega",
+      "source": "REDIRECTOR",
+      "id": "eadb180b-265f-4a03-bbb8-98367b8058e6",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-4",
+      "to": "/product-page/Aura-Senior",
+      "source": "REDIRECTOR",
+      "id": "b2aa64f1-1889-438b-a570-c2b5a0e9816f",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/questions",
+      "to": "/faqs",
+      "source": "REDIRECTOR",
+      "id": "08f5675d-66a7-4875-9447-f360554ba896",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/copy-of-new-landing",
+      "to": "/landingpage",
+      "source": "PAGE_SLUG_RENAME",
+      "id": "ac82f7a7-1b81-4b45-95a3-1cd625714c27",
+      "createdDate": "2025-04-04T13:37:46.031Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/a-34",
+      "to": "/product-page/Blissful-Union-Trinkets",
+      "source": "REDIRECTOR",
+      "id": "57ec67cd-1879-443a-b0b0-f5ea07258881",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/you-are-invited-you-for-aahar-by-oasis-baklawa",
+      "to": "/you-are-invited-to-join-aahar-by-oasis-baklawa",
+      "source": "REDIRECTOR",
+      "id": "a952cdd3-ace3-4fed-b169-54d89341b3aa",
+      "createdDate": "2024-02-17T15:06:35.466Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-21",
+      "to": "/product-page/Turkish-Pistachio-Midye-Baklava",
+      "source": "REDIRECTOR",
+      "id": "12b596de-6537-46e1-a6d4-185660a1d973",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/5",
+      "to": "/product-page/Stallion-gifts-hampers",
+      "source": "REDIRECTOR",
+      "id": "09802640-d453-42dc-b0dd-54bc2f6b51dd",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-1",
+      "to": "/product-page/Chester",
+      "source": "REDIRECTOR",
+      "id": "e6795f7a-39e2-4b13-993f-dc359bc870de",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/a-2",
+      "to": "/product-page/Exquisite-Shagun-Treasure-Box",
+      "source": "REDIRECTOR",
+      "id": "768f74f4-b4ff-40ff-876f-ef7dbc43412c",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/new-corporate",
+      "to": "/corporate",
+      "source": "REDIRECTOR",
+      "id": "8be79567-8307-466d-8525-0a7bd1a52d7a",
+      "createdDate": "2024-08-25T03:48:22.205Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-46",
+      "to": "/product-page/Bourmasi-Kadayif-Fistikti",
+      "source": "REDIRECTOR",
+      "id": "64098ae6-26cd-40bf-86c7-661504977752",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/a-11",
+      "to": "/product-page/Regal-Sangeet-Memories",
+      "source": "REDIRECTOR",
+      "id": "744bcc42-7214-4723-8ab3-d0117a1c7b94",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/copy-of-splendor-vi",
+      "to": "/product-page/splendor-vi",
+      "source": "REDIRECTOR",
+      "id": "66845597-7990-47dd-970e-95ca5de69fdd",
+      "createdDate": "2024-09-23T07:03:35.790Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/blank-7",
+      "to": "/the-team",
+      "source": "REDIRECTOR",
+      "id": "1136603e-9ddd-4e4e-9e67-f9beb83b2554",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/a-21",
+      "to": "/product-page/Exquisite-Jaimala-Trunk",
+      "source": "REDIRECTOR",
+      "id": "306040fa-9fbd-4cde-b4e3-c238e7428ffe",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/copy-of-aboutus",
+      "to": "/aboutoasis",
+      "source": "REDIRECTOR",
+      "id": "d5bfcaf6-f633-429f-9d80-c9e529d2c830",
+      "createdDate": "2024-09-25T12:41:51.028Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/copy-of-copy-of-bpp",
+      "to": "/product-page/Durum-Pistachio-Turkish-Baklava",
+      "source": "REDIRECTOR",
+      "id": "6fc2d8de-7aca-41d8-91d3-2819345c1098",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/a-27",
+      "to": "/product-page/Luxe-Baraat-Barfi-Box",
+      "source": "REDIRECTOR",
+      "id": "a12c9a43-07de-4f81-bcf4-506776f0589d",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/a-13",
+      "to": "/product-page/Vibrant-Haldi-Shagun-Box",
+      "source": "REDIRECTOR",
+      "id": "d3530288-3913-4237-949a-499cde40fef2",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-24",
+      "to": "/product-page/Special-Turkish-Pistachio-Baklava",
+      "source": "REDIRECTOR",
+      "id": "cba58369-de5d-4fa4-a1e2-54e80b124b76",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/loyalty",
+      "to": "/loyalty-bonus",
+      "source": "REDIRECTOR",
+      "id": "00dbccb2-417d-4c93-9db8-65dbd4ef8fbe",
+      "createdDate": "2024-07-26T06:27:03.105Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/a-23",
+      "to": "/product-page/Joyful-Saptapadi-Collection",
+      "source": "REDIRECTOR",
+      "id": "686a88c7-d9e4-4517-a09e-49d9c7fd0a9b",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/a-14",
+      "to": "/product-page/Auspicious-Varmala-Hampers",
+      "source": "REDIRECTOR",
+      "id": "3ae6a468-e220-44eb-8cdd-5de6395d2c98",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/offers-scheme",
+      "to": "/swiggy-zomato-online",
+      "source": "REDIRECTOR",
+      "id": "0a93aac1-0afa-468b-acbd-9dac2c5dea6e",
+      "createdDate": "2024-03-04T06:41:59.634Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-2",
+      "to": "/product-page/Oxford-Jumbo",
+      "source": "REDIRECTOR",
+      "id": "af6ee189-925c-446f-b591-b1eff5268f24",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/1",
+      "to": "/product-page/Benaras",
+      "source": "REDIRECTOR",
+      "id": "7acb3b0c-c447-4201-974d-b5ee890f54c9",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/a-43",
+      "to": "/product-page/Enchanting-Shaadi-Souvenirs",
+      "source": "REDIRECTOR",
+      "id": "fa29427f-4ebe-42a1-954a-7c70b29ca604",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-48",
+      "to": "/product-page/Shobiyet-Fistikli-Turk-Baklawa",
+      "source": "REDIRECTOR",
+      "id": "8498963b-c325-4fb9-a5ea-0fc9f22886aa",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/a-47",
+      "to": "/product-page/Royal-Indian-Trousseau",
+      "source": "REDIRECTOR",
+      "id": "09d1d3dd-e750-4d59-878d-71c04242d960",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/bpp",
+      "to": "/product-page/Shobiyet-Walnut-Turk-Baklava",
+      "source": "REDIRECTOR",
+      "id": "d8d9e453-e712-47f5-b7a9-fdb438d8a576",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/copy-of-corporate-gifting",
+      "to": "/new-corporate",
+      "source": "REDIRECTOR",
+      "id": "904d14dc-a9cc-4551-b31e-dd9c1adeb66e",
+      "createdDate": "2024-08-20T12:48:33.702Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/a-24",
+      "to": "/product-page/Charming-Haldi-Mithai-Box",
+      "source": "REDIRECTOR",
+      "id": "7c73a03c-f7e7-406a-bb44-1a2e2542ec84",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/3",
+      "to": "/product-page/HummingBird",
+      "source": "REDIRECTOR",
+      "id": "942319d1-b0e4-4061-bc6b-b67157fd21fb",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-26",
+      "to": "/product-page/Assorted-Turkish-Pistachio-Baklava",
+      "source": "REDIRECTOR",
+      "id": "6b0de818-df6a-4ed6-ba07-3786a0efe0c2",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/blank",
+      "to": "/home",
+      "source": "REDIRECTOR",
+      "id": "acc4bda3-2618-48a3-a2b7-5998429ffed2",
+      "createdDate": "2024-07-24T09:30:40.448Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/a-17",
+      "to": "/product-page/Blissful-Roka-Surprises",
+      "source": "REDIRECTOR",
+      "id": "4eb44fa4-3e55-4388-841f-2a159a86f1ff",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/bk12",
+      "to": "/product-page/Assorted-Baklawa-12Pcs",
+      "source": "REDIRECTOR",
+      "id": "fdafc4f8-e685-4c1c-8750-1eb13c24b1f4",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-29",
+      "to": "/product-page/Classic-Turkish-Walnut-Baklava",
+      "source": "REDIRECTOR",
+      "id": "1835c066-b012-4c3d-93f8-b79025f43ba0",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/13",
+      "to": "/product-page/Shahjehan-gifts-hampers",
+      "source": "REDIRECTOR",
+      "id": "483f5774-047e-4c35-af13-f8662beac31c",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-12",
+      "to": "/product-page/Morocco-Spice",
+      "source": "REDIRECTOR",
+      "id": "097cafa6-930d-4f25-9f50-301c72026e73",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of",
+      "to": "/product-page/Boxy",
+      "source": "REDIRECTOR",
+      "id": "2e9957a9-3d64-4678-8333-8cdd00ce69e0",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-20",
+      "to": "/product-page/Turkish-Pistachio-Nutella-Midye-Baklava",
+      "source": "REDIRECTOR",
+      "id": "173e060c-4947-4a11-8dee-c3327fc217fe",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-11",
+      "to": "/product-page/Florence-Clap",
+      "source": "REDIRECTOR",
+      "id": "1ee8190f-1c24-4b05-a59e-77f504d2c4c3",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/a-42",
+      "to": "/product-page/Divine-Bliss-Keepsakes",
+      "source": "REDIRECTOR",
+      "id": "8b6cfe87-570e-4d6f-885a-0e88fc48cde9",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/weddings",
+      "to": "/wedding-favours",
+      "source": "REDIRECTOR",
+      "id": "a15f89f7-59de-4fe8-9b3f-8a72ecbc3845",
+      "createdDate": "2024-07-25T13:26:01.854Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/a-10",
+      "to": "/product-page/Gleaming-Bridal-Baraat-Hamper",
+      "source": "REDIRECTOR",
+      "id": "a4c4ae6e-e1ab-4282-bf65-b4634017ce15",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/a-7",
+      "to": "/product-page/OpulentDulha-DulhanKeepsakes",
+      "source": "REDIRECTOR",
+      "id": "a0862148-15f3-4e83-980c-3455b5c237d2",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-47",
+      "to": "/product-page/Bulbul-Yuvasi-Fistikli",
+      "source": "REDIRECTOR",
+      "id": "2896e071-8541-473f-b5b5-ee6b86ea6d9d",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-5",
+      "to": "/product-page/Citrus-Collection",
+      "source": "REDIRECTOR",
+      "id": "d66cf63c-a18c-4131-b723-2ca32742031d",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/copy-of-fusion-sweets",
+      "to": "/turkish-delight",
+      "source": "REDIRECTOR",
+      "id": "52777873-8fe5-4f82-9ff2-93fbdcaa1e7b",
+      "createdDate": "2024-07-25T12:57:50.625Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/a-16",
+      "to": "/product-page/Radiant-Mehfi-lSweets",
+      "source": "REDIRECTOR",
+      "id": "1651e914-2123-4486-b0ed-01d2434f489f",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-1",
+      "to": "/product-page/Oxfordclap",
+      "source": "REDIRECTOR",
+      "id": "0797ce9a-bc27-4f61-9ea3-6820cd67c8a0",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-3",
+      "to": "/product-page/Diva-collection",
+      "source": "REDIRECTOR",
+      "id": "1fb683dc-5c57-4b3a-b1b1-3b54248fdd75",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/copy-of-copy-of-copy-of-copy-of-copy-of-1",
+      "to": "/product-page/OxfordSupreme",
+      "source": "REDIRECTOR",
+      "id": "622f0e7c-de58-4520-af64-70308f7237f6",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-9",
+      "to": "/product-page/Kites-Ciocollatte",
+      "source": "REDIRECTOR",
+      "id": "fc801556-aa18-4e36-9daf-827710a96fb0",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/a-39",
+      "to": "/product-page/Regal-Rukhwat-Delights",
+      "source": "REDIRECTOR",
+      "id": "5e5c7070-433f-485e-b977-b4738bd3c35a",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-bpp",
+      "to": "/product-page/Coconut-Nightingale-Turk-Baklava",
+      "source": "REDIRECTOR",
+      "id": "7b6985d9-8009-4858-84ef-3569e416223c",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/a-3",
+      "to": "/product-page/Joyous-Nikah-Sweets",
+      "source": "REDIRECTOR",
+      "id": "33ae97f9-8586-466e-a211-be397cda6635",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/recipes",
+      "to": "/weddinggifting",
+      "source": "REDIRECTOR",
+      "id": "490a63c4-8d19-42a4-829f-2fd918c8dccc",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/a-6",
+      "to": "/product-page/Traditional-Vivaah-Sweets",
+      "source": "REDIRECTOR",
+      "id": "c173a121-31af-478c-8dce-adb1e06227d9",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-32",
+      "to": "/product-page/Bilbol-Yuvasi-Kuru-Turk-Baklawa",
+      "source": "REDIRECTOR",
+      "id": "e3f74b1d-fd71-4b87-a1f6-61444b93855d",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/home",
+      "to": "/",
+      "source": "REDIRECTOR",
+      "id": "481b78da-a026-4cbb-ad66-68ecbee8ddc8",
+      "createdDate": "2024-10-12T06:44:54.130Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/blank-6",
+      "to": "/review",
+      "source": "REDIRECTOR",
+      "id": "6ef6b2ea-5435-450f-a457-7c86c14ccca0",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/crystal-16",
+      "to": "/product-page/crystal-4",
+      "source": "REDIRECTOR",
+      "id": "8eb8dd5b-3def-470c-b293-e45fe2256a5a",
+      "createdDate": "2024-09-23T09:20:41.093Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/a-29",
+      "to": "/product-page/Gleaming-Saat-Phera-Mementos",
+      "source": "REDIRECTOR",
+      "id": "beede73c-5dbe-471b-b3c2-8e3022a20bbe",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/items",
+      "to": "/everyday",
+      "source": "REDIRECTOR",
+      "id": "78830453-bf4e-41f7-b7be-ed3006dc5d3a",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/quick-shop/{title}",
+      "to": "/quick-shop",
+      "source": "REDIRECTOR",
+      "id": "f9f586f6-e263-4ae8-840c-3d5b666aefef",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/a-15",
+      "to": "/product-page/Eternal-Bliss-Trousseau",
+      "source": "REDIRECTOR",
+      "id": "535f3f3d-5461-4e8c-aa2d-039c806807fc",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/a-41",
+      "to": "/product-page/Golden-Moments-Gift-Trunk",
+      "source": "REDIRECTOR",
+      "id": "a1a7d3f9-0f55-4cf5-ba38-92995545c9cf",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/a-20",
+      "to": "/product-page/Grand-Shaadi-Sweets-Galore",
+      "source": "REDIRECTOR",
+      "id": "43b90ff8-4012-4727-b5ce-cfe746a144e5",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/online-ordering",
+      "to": "/online-order",
+      "source": "REDIRECTOR",
+      "id": "f4e118db-892d-4597-89fb-deffbf9e8fc7",
+      "createdDate": "2024-03-03T12:11:36.997Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/a-9",
+      "to": "/product-page/Charming-Saat-Phera-Sweets",
+      "source": "REDIRECTOR",
+      "id": "378e0e08-cb13-4cfc-b098-434e8accab7c",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/blank-3",
+      "to": "/customer-care",
+      "source": "REDIRECTOR",
+      "id": "fc929d48-bb8c-4840-a5ba-48240e1761b0",
+      "createdDate": "2024-07-25T13:26:01.835Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-33",
+      "to": "/product-page/Midye-Fistikli-Turk-Baklawa",
+      "source": "REDIRECTOR",
+      "id": "0c5f6219-682a-4b70-af6a-cba5c5cc51bc",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/all-products",
+      "to": "/day-to-day-gifting",
+      "source": "REDIRECTOR",
+      "id": "ac072390-9b2b-43e5-a6f7-1f2d42d7e2d8",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-6",
+      "to": "/product-page/Florence-Prive",
+      "source": "REDIRECTOR",
+      "id": "c4fd7516-4cb5-462f-90c3-1f4054cada8f",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/1-2",
+      "to": "/product-page/PadmaSri",
+      "source": "REDIRECTOR",
+      "id": "841bebae-2cb5-478c-84a7-177a455414e8",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/gifting",
+      "to": "/luxurygifting",
+      "source": "REDIRECTOR",
+      "id": "1b69c629-bcc7-4648-8d80-bf852e4df282",
+      "createdDate": "2024-07-27T06:35:39.682Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/a-1",
+      "to": "/product-page/Divine-Vivah-Mithai-Collection",
+      "source": "REDIRECTOR",
+      "id": "4be50b63-d9a0-4aba-8c73-23002f0efe3b",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/a-40",
+      "to": "/product-page/Opulent-Nuptial-Surprises",
+      "source": "REDIRECTOR",
+      "id": "06abbb77-ccb2-483f-9d99-54b26f2a2611",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/a-33",
+      "to": "/product-page/Imperial-Sangeet-Sweets",
+      "source": "REDIRECTOR",
+      "id": "47620c96-5a5d-4d5f-8169-542edc8408c7",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/a-35",
+      "to": "/product-page/Engraved-Amore-Gift-Set",
+      "source": "REDIRECTOR",
+      "id": "04898004-ce83-4d6b-8ed4-065504c17308",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/about-3",
+      "to": "/festival-gifting",
+      "source": "REDIRECTOR",
+      "id": "ac098b9d-b0bd-40cd-8d9d-ee6f48c6c6f5",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/refer-friends",
+      "to": "/refer-friend",
+      "source": "REDIRECTOR",
+      "id": "7e7aba46-7d0f-4f27-a531-ed5ba00be55e",
+      "createdDate": "2024-07-26T06:27:03.130Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/copy-of-bpp",
+      "to": "/product-page/Nutella-Chocolate-Midye-Baklava",
+      "source": "REDIRECTOR",
+      "id": "b433f2e2-ae0d-472a-865d-985cda9da4a6",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/bk19",
+      "to": "/product-page/Assorted-Baklawa-RectoBox",
+      "source": "REDIRECTOR",
+      "id": "4a10b4de-eeec-493a-805d-1e2095d51dcb",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/a-28",
+      "to": "/product-page/Celestial-Dulha-Dulhan-Hamper",
+      "source": "REDIRECTOR",
+      "id": "2b7b3dc3-1837-4cea-83b2-3fdcde64adbb",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-16",
+      "to": "/product-page/Shobiyet-Pistachio-Turk-Baklava",
+      "source": "REDIRECTOR",
+      "id": "94284325-e2b0-4d8d-8598-cb3ad40b3e21",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/services-5",
+      "to": "/business-services",
+      "source": "REDIRECTOR",
+      "id": "e77559a0-7ea9-45b2-bd07-b06f6f4fc1b7",
+      "createdDate": "2024-03-06T13:07:47.188Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/weddinggifting",
+      "to": "/wedding-gifting",
+      "source": "REDIRECTOR",
+      "id": "12b49515-b5ed-4c9b-a274-c66614eb8d29",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-bpp",
+      "to": "/product-page/Ozel-Durum-Pistachio-Turk-Baklava",
+      "source": "REDIRECTOR",
+      "id": "8ff504e9-9c2f-4298-8157-9ed954901419",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/a-31",
+      "to": "/product-page/Shubh-Vivaah-Surprise-Box",
+      "source": "REDIRECTOR",
+      "id": "3a484d21-d3b2-49e2-845d-8b7fdb2aaabb",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/a-45",
+      "to": "/product-page/Majestic-Maharaja-Collection",
+      "source": "REDIRECTOR",
+      "id": "2e7d63a5-10d8-4829-ae99-9a194590cacd",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/a-38",
+      "to": "/product-page/Everlasting-Embrace-Hampers",
+      "source": "REDIRECTOR",
+      "id": "705ba4a1-268f-4548-a6e4-578427c761ba",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/a-25",
+      "to": "/product-page/Vivid-Vivah-Memories",
+      "source": "REDIRECTOR",
+      "id": "d2e620b8-ebf6-452f-8f69-b2e613e7f5b9",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/locateus",
+      "to": "/contactus",
+      "source": "REDIRECTOR",
+      "id": "2237fee1-0b63-4e00-90f2-d3ceeca8031b",
+      "createdDate": "2024-07-26T06:27:03.128Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/a-26",
+      "to": "/product-page/Eternal-Bonding-Keepsakes",
+      "source": "REDIRECTOR",
+      "id": "5ca30e24-c4e2-4af6-ab02-7318b88a8b17",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/blank-5",
+      "to": "/locateus",
+      "source": "REDIRECTOR",
+      "id": "df776c24-0493-4c5b-adab-44feae3d27bf",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/projects-7-1",
+      "to": "/shop",
+      "source": "REDIRECTOR",
+      "id": "c403a7cb-e2b2-497d-a1bd-36c51afdca2b",
+      "createdDate": "2024-07-25T13:26:01.896Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/a-32",
+      "to": "/product-page/Enigmatic-Mehndi-Memorabilia",
+      "source": "REDIRECTOR",
+      "id": "c45c2d8d-84aa-4974-b05b-4321fb203f5d",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/blank-1",
+      "to": "/questions",
+      "source": "REDIRECTOR",
+      "id": "a9c08012-cd5f-4500-aba8-a9e10fc718f4",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/copy-of-copy-of-copy-of-1",
+      "to": "/product-page/MoroccoKnight",
+      "source": "REDIRECTOR",
+      "id": "bd9bf64d-eee8-4e2e-a15e-d887774cebe8",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-43",
+      "to": "/product-page/Pistachio-Leaf-Shobiyat",
+      "source": "REDIRECTOR",
+      "id": "d9f2484f-aa47-4b8b-8039-f4e94dab8916",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/copy-of-copy-of-copy-of-bpp",
+      "to": "/product-page/Durum-Walnut-Turk-Baklava",
+      "source": "REDIRECTOR",
+      "id": "276ed21d-4f87-47ef-b7b3-71ce57d8dbd1",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/a-4",
+      "to": "/product-page/Radiant-Mehndi-Memories",
+      "source": "REDIRECTOR",
+      "id": "d3604f10-86c5-46dc-ac12-01dc69216c77",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/assorted-baklawa-with-rosello-collection-box",
+      "to": "/product-page/rosello-25",
+      "source": "REDIRECTOR",
+      "id": "195fc254-0067-4e0d-989d-99740c99e88e",
+      "createdDate": "2024-09-23T05:51:25.735Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/services",
+      "to": "/corporategifting",
+      "source": "REDIRECTOR",
+      "id": "c296ecc0-6bd6-462e-aac9-c067c5065842",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/2",
+      "to": "/product-page/Mirage",
+      "source": "REDIRECTOR",
+      "id": "7844c24e-2e0c-424f-a646-a420ce0b7376",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/recipes-1",
+      "to": "/festivalgifting",
+      "source": "REDIRECTOR",
+      "id": "adc53fa5-6661-42f0-b5cb-25ed7e479d3c",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/copy-of-1",
+      "to": "/product-page/MoroccoSolace",
+      "source": "REDIRECTOR",
+      "id": "ac9e748b-bbf8-4c02-a415-04af275b1be5",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-8",
+      "to": "/product-page/Tropic-collection",
+      "source": "REDIRECTOR",
+      "id": "268b6522-783f-422a-955f-0bbea2063272",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-18",
+      "to": "/product-page/Kadayif-Pistachio-Bourmasi",
+      "source": "REDIRECTOR",
+      "id": "1dc9073d-67d8-4d97-ad31-18c1b8669ac5",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/turkish-baklava",
+      "to": "/premium-baklawa",
+      "source": "REDIRECTOR",
+      "id": "1c36061c-a570-454f-840e-b6a846473b47",
+      "createdDate": "2024-07-25T12:57:50.625Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/a-12",
+      "to": "/product-page/Wholesome-Nikah-Delights",
+      "source": "REDIRECTOR",
+      "id": "4e3801f2-6887-4ff8-a68a-0dada3e2bd1e",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/portfolio",
+      "to": "/speciality-catering",
+      "source": "REDIRECTOR",
+      "id": "be0634a4-1562-4013-8456-c709a8bab88f",
+      "createdDate": "2024-07-25T13:26:01.846Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/a-19",
+      "to": "/product-page/Soulful-Milan-Mithai-Basket",
+      "source": "REDIRECTOR",
+      "id": "5a33bfb5-262c-4bac-a541-8263f589de5d",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/a-18",
+      "to": "/product-page/Splendid-Shagun-Memorabilia",
+      "source": "REDIRECTOR",
+      "id": "b605cdee-3c6d-4b28-bdc2-a7d8dcbe657e",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/4",
+      "to": "/product-page/Pluto-gifts-hamper",
+      "source": "REDIRECTOR",
+      "id": "2e952689-3cab-4ac9-9294-3c9d2b8edd96",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/a-36",
+      "to": "/product-page/Ornate-Shagun-Sweets",
+      "source": "REDIRECTOR",
+      "id": "01a3ce80-4812-4d26-9dc0-51dcb96e6498",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/12",
+      "to": "/product-page/Orient-Class-gifts-hampers",
+      "source": "REDIRECTOR",
+      "id": "f4d6a83f-a137-4e5b-b1a7-e0fddd66c700",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-35",
+      "to": "/product-page/Havuc-Dilmi-Fistikli-Turk-Baklawa",
+      "source": "REDIRECTOR",
+      "id": "b1b3c179-94d8-4fb7-b371-472f104fd99c",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/coming-soon-01",
+      "to": "/catelogs",
+      "source": "PAGE_SLUG_RENAME",
+      "id": "c883b0d7-5a7e-48c8-bf2e-76066e92e2c7",
+      "createdDate": "2026-03-07T05:50:24.790Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/7",
+      "to": "/product-page/Limestone-gifts-hamper",
+      "source": "REDIRECTOR",
+      "id": "fb5353b6-250c-41c8-8d7d-3a66ea6ad43a",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/a-8",
+      "to": "/product-page/Serene-Milni-Mithai-Box",
+      "source": "REDIRECTOR",
+      "id": "d89f0c43-87af-4201-879e-0b1979f0d235",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/copy-of-contact-us",
+      "to": "/locateus",
+      "source": "REDIRECTOR",
+      "id": "798fd035-7676-4a17-bbd5-77b8f00d5119",
+      "createdDate": "2024-07-26T06:27:03.112Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-25",
+      "to": "/product-page/Turkish-Pistachio-Nightingale-Baklava",
+      "source": "REDIRECTOR",
+      "id": "e690d1b6-c4ae-4f3d-8141-5cf7ff68da69",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-28",
+      "to": "/product-page/Turkish-Pistachio-Baklava",
+      "source": "REDIRECTOR",
+      "id": "fd2a6aa8-6b03-4803-ae72-dfd6a4fd5c90",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/corporates",
+      "to": "/corporategifting",
+      "source": "REDIRECTOR",
+      "id": "9de75598-eded-410a-9632-a561e029722f",
+      "createdDate": "2024-07-25T13:26:01.949Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-23",
+      "to": "/product-page/Turkish-Pistachio-Carrot-Baklava",
+      "source": "REDIRECTOR",
+      "id": "824746af-4c7f-46a0-aeb3-0c4dbec0fe99",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-44",
+      "to": "/product-page/Midye-Fistikli-Turk-Baklava",
+      "source": "REDIRECTOR",
+      "id": "f9db35ea-41d9-410a-a68c-d9475d3b324c",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/a-46",
+      "to": "/product-page/Eternal-Love-Treasures",
+      "source": "REDIRECTOR",
+      "id": "ba787e13-5cdc-4bf3-a040-d15bb1a29e9b",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/you-are-invited-to-join-aahar-by-oasis-baklawa",
+      "to": "/businessenquiry",
+      "source": "REDIRECTOR",
+      "id": "3b2d02fb-0b01-4605-8389-ea44b56191c5",
+      "createdDate": "2024-03-06T13:07:47.187Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/a-37",
+      "to": "/product-page/Sacred-Matrimony-Treasures",
+      "source": "REDIRECTOR",
+      "id": "11c2504e-b46b-4234-92e2-11ff20a1a9c6",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/everyday",
+      "to": "/all-products",
+      "source": "REDIRECTOR",
+      "id": "a85fa442-ad8c-43ea-901f-f7b789840628",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/refer-terms-conditions",
+      "to": "/refer-friend-conditions",
+      "source": "REDIRECTOR",
+      "id": "3c4894fe-5b33-469c-af9d-839c2a449238",
+      "createdDate": "2024-07-26T06:27:03.114Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-7",
+      "to": "/product-page/Sultan-Collection",
+      "source": "REDIRECTOR",
+      "id": "140a78d6-f89d-4c53-a093-6df574fe7e72",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-13",
+      "to": "/product-page/Ozel-Shobiyet-Pistachio-Baklava",
+      "source": "REDIRECTOR",
+      "id": "c0da8be6-f9d5-460d-8d64-0be204c9c4b2",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-45",
+      "to": "/product-page/Classic-fistikli-Turk-Baklawa",
+      "source": "REDIRECTOR",
+      "id": "fef4ede4-ba12-42f4-bd55-3cef83ecd1b5",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/a-30",
+      "to": "/product-page/Radiant-Nikah-Keepsakes",
+      "source": "REDIRECTOR",
+      "id": "05a9ae76-0f0c-4936-91e3-d4380182212c",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/copy-of-copy-of-1",
+      "to": "/product-page/Premia",
+      "source": "REDIRECTOR",
+      "id": "119387e5-bc4f-47ad-b00d-04593f7bc14d",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/a-5",
+      "to": "/product-page/EnchantingBidaaiHamper",
+      "source": "REDIRECTOR",
+      "id": "daecde7e-d575-47a0-858d-88e447c592b9",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/blank-4",
+      "to": "/aboutoasisbaklawa",
+      "source": "REDIRECTOR",
+      "id": "036d2f65-aac1-4fa5-8cef-422a17d6de2f",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/the-algerian-palm-gifts-hamper-box",
+      "to": "/product-page/algerian-palm",
+      "source": "REDIRECTOR",
+      "id": "d8bea2f8-b099-4f81-b4a3-f07873e1d44b",
+      "createdDate": "2024-09-23T07:51:21.631Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/aahar",
+      "to": "/projects-7-1",
+      "source": "REDIRECTOR",
+      "id": "e5be4273-ad92-4edc-9a80-0730c978d564",
+      "createdDate": "2024-02-17T15:01:31.997Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-copy-of-1",
+      "to": "/product-page/Olive-Neo",
+      "source": "REDIRECTOR",
+      "id": "49ee846c-2ca2-4aae-ad74-66d3db253b35",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    },
+    {
+      "from": "/product-page/a-22",
+      "to": "/product-page/Traditional-Shubharambh-Gifts",
+      "source": "REDIRECTOR",
+      "id": "5644568d-5bee-40f0-b9f9-4c79860f30d9",
+      "createdDate": "2024-01-14T13:58:45.193Z",
+      "groupRedirect": false
+    }
+  ]
+}
