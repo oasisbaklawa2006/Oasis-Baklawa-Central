@@ -9,13 +9,15 @@ export type DraftOrderReadinessDimensionKey =
   | "address"
   | "payment_terms";
 
-export type DraftOrderReadinessStatus = "ready" | "partial" | "missing";
+export type DraftOrderReadinessStatus = "ready" | "partial" | "missing" | "pending";
 
 export interface DraftOrderReadinessDimension {
   dimension: DraftOrderReadinessDimensionKey;
   score: number;
   status: DraftOrderReadinessStatus;
   explanation: string;
+  gate?: string;
+  hold_code?: string | null;
 }
 
 export interface DraftOrderLineItem {
@@ -23,7 +25,8 @@ export interface DraftOrderLineItem {
   productId: string | null;
   productName: string;
   sku: string | null;
-  rawQuantity: number;
+  /** Null when WA-06A did not extract an explicit quantity (never display as 1). */
+  rawQuantity: number | null;
   rawUnit: string | null;
   normalizedQuantity: number | null;
   normalizedUnit: string | null;
