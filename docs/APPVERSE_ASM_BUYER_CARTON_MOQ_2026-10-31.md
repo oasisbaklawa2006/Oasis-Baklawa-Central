@@ -35,7 +35,10 @@ Every order accepted through the customer checkout consists of complete, compati
 - Core `main` at or after `20708e7b4e6dedf5dcd187f6638909ac51951ea0` (order path: `submit_customer_order_v1`, `submit_customer_order_quoted_v1`, `customer_checkout_quote_v1`, `customer_validate_order_quantity_v1`).
 - Operations-approved packing master data (SKU → packing group, container quantity, carton configuration) with evidence; none is invented.
 - Core candidate `local/carton-packing-profile-v1` (projection v1 governed tables).
-- Buyer candidate lineage `local/carton-core-wiring` (requires its base commit `448bad9`).
+- Buyer candidate lineage `local/carton-core-wiring` (`0e90afce`, base `448bad93`), recovered and verified from supplied Git bundles; full-carton checkout UX candidate on top (`local/carton-full-checkout-ux-v1`).
+- Core enforcement candidate `local/carton-full-checkout-enforcement-v1` (`20261101100000`, default OFF), clean-replayed over 460 migrations.
+
+All candidates are local and unpublished. This record is a registration CANDIDATE: it is not canonical until merged into Mission Control by the governance owner.
 
 ## Stop condition
 

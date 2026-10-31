@@ -580,7 +580,7 @@
       "pr": null,
       "branch": "main",
       "base": "main",
-      "state": "CANDIDATE_BASE_COMMIT_MISSING",
+      "state": "CANDIDATE_LOCAL_UNPUBLISHED",
       "upstream": [
         "CORE-CARTON-MOQ"
       ],
