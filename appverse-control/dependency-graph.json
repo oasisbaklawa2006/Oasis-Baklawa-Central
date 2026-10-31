@@ -399,7 +399,9 @@
       "branch": "main",
       "base": "main",
       "state": "CURRENT_MAIN_RECERT_REQUIRED",
-      "upstream": [],
+      "upstream": [
+        "BUYER-CARTON-MOQ"
+      ],
       "downstream": [
         "POINT100",
         "PHYSICAL-UAT"
@@ -547,6 +549,54 @@
         "every mandatory upstream gate cleared",
         "no launch-blocking blocker"
       ]
+    },
+    {
+      "id": "CORE-CARTON-MOQ",
+      "repository": "core",
+      "pr": null,
+      "branch": "main",
+      "base": "main",
+      "state": "CANDIDATE_LOCAL_UNPUBLISHED",
+      "upstream": [],
+      "downstream": [
+        "BUYER-CARTON-MOQ"
+      ],
+      "merge_gate": [
+        "exact-head Core CI green",
+        "clean replay + rollback + real-PostgreSQL pgTAP",
+        "independent review",
+        "protected merge"
+      ],
+      "release_gate": [
+        "protected Production Migration Release (exact-SHA, approval-gated)",
+        "approved packing master data for every orderable SKU (readiness report clean)",
+        "explicit enforcement activation with evidence"
+      ],
+      "notes": "Server-side full-carton checkout enforcement on the canonical order writer; additive to existing MOQ/increment validation; default OFF until activation."
+    },
+    {
+      "id": "BUYER-CARTON-MOQ",
+      "repository": "buyer",
+      "pr": null,
+      "branch": "main",
+      "base": "main",
+      "state": "CANDIDATE_BASE_COMMIT_MISSING",
+      "upstream": [
+        "CORE-CARTON-MOQ"
+      ],
+      "downstream": [
+        "BUYER-APP-RECERT"
+      ],
+      "merge_gate": [
+        "Core CORE-CARTON-MOQ published and verified",
+        "exact-head Buyer build/lint/typecheck/regression",
+        "feature flag OFF until Core verified"
+      ],
+      "release_gate": [
+        "authenticated Buyer journey on an authorised environment",
+        "no change to price/GST/credit/MOQ authority"
+      ],
+      "notes": "Buyer presents server-computed carton validation; never computes authoritative counts."
     }
   ],
   "invariants": {
