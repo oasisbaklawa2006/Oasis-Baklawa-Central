@@ -551,13 +551,36 @@
       ]
     },
     {
+      "id": "CORE-BUYER-RUNTIME-TRAIN",
+      "repository": "core",
+      "pr": 399,
+      "branch": "release/buyer-fullfeel-runtime-train-20261006",
+      "base": "main",
+      "state": "OPEN_DRAFT_RELEASE_TRAIN",
+      "upstream": [],
+      "downstream": [
+        "CORE-CARTON-MOQ"
+      ],
+      "merge_gate": [
+        "owner decision on #399 (repair vs clean successor)",
+        "exact-head Core CI green"
+      ],
+      "release_gate": [
+        "protected Production Migration Release (exact-SHA, approval-gated)",
+        "migration 20261029030000 must be released BEFORE the carton migrations 20261101090000/20261101100000"
+      ],
+      "notes": "Existing protected Core release train, referenced for sequencing only; ASM-BUYER-CARTON-MOQ-01 does not modify it. Open migration PRs at or below a release ceiling block that release (scripts/check-no-open-migration-prs.sh)."
+    },
+    {
       "id": "CORE-CARTON-MOQ",
       "repository": "core",
       "pr": null,
       "branch": "main",
       "base": "main",
       "state": "CANDIDATE_LOCAL_UNPUBLISHED",
-      "upstream": [],
+      "upstream": [
+        "CORE-BUYER-RUNTIME-TRAIN"
+      ],
       "downstream": [
         "BUYER-CARTON-MOQ"
       ],
