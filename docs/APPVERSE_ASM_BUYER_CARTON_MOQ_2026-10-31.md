@@ -22,6 +22,9 @@ Every order accepted through the customer checkout consists of complete, compati
 - Different primary-container families are not combined unless a separately approved configuration expressly permits it.
 - Partially filled shipping cartons are prohibited for dispatch.
 - Additional shipping-carton types remain configuration-driven (governed `carton_configurations` / `product_packing_profiles`), never hard-coded.
+- Acceptance rule (single, authoritative, evaluated by Core): an order is accepted only if, for every carton class, the total slots used is an exact multiple of that class's carton capacity. An order that does not fill at least one whole shipping carton is **rejected** (it is never rounded up or shipped partially), and no "final partial carton" is allowed: every carton in an order is full. The buyer is told how many more containers complete the carton.
+- "Compatible" means: same governed packing group (or a group listed together in an approved `mixable_group_sets` entry) AND the same approved carton configuration, with `mix_allowed` true and `requires_separate_carton` false on the profile. SKUs that are not compatible never complete each other's cartons; a `requires_separate_carton` SKU forms its own class.
+- Quantity unit: for SKUs ordered in a container count the ordered unit is one container; for SKUs priced/ordered in kg Core converts with the approved ratio (kg per container) and requires a whole number of containers.
 - Existing SKU packing assignments and Sales Order commercial authority (price, GST, credit, MOQ, increment, advance) are reused and not replaced; carton validation is additive to, and never weakens, existing product-level MOQ/increment validation.
 
 ## Authority and routing
@@ -42,4 +45,4 @@ All candidates are local and unpublished. This record is a registration CANDIDAT
 
 ## Stop condition
 
-Core and Buyer implementations are exact-head certified within repository authority (clean replay, rollback, real-PostgreSQL pgTAP, Buyer regression/build, authenticated E2E where an authorised environment exists); the master-data readiness report shows no orderable SKU without an approved packing profile; activation is explicitly authorised with evidence. A merged PR alone does not clear this item (`PR MERGED != STAGE CLEARED`).
+Core and Buyer implementations are exact-head certified within repository authority (clean replay, rollback, real-PostgreSQL pgTAP, Buyer regression/build, authenticated E2E on an authorised non-production environment, required: missing E2E evidence keeps release blocked); the master-data readiness report shows no orderable SKU without an approved packing profile; activation is explicitly authorised with evidence. A merged PR alone does not clear this item (`PR MERGED != STAGE CLEARED`).
