@@ -556,20 +556,12 @@
       "pr": 399,
       "branch": "release/buyer-fullfeel-runtime-train-20261006",
       "base": "main",
-      "state": "OPEN_DRAFT_RELEASE_TRAIN",
+      "state": "CLOSED_UNMERGED_HISTORICAL",
       "upstream": [],
-      "downstream": [
-        "CORE-CARTON-MOQ"
-      ],
-      "merge_gate": [
-        "owner decision on #399 (repair vs clean successor)",
-        "exact-head Core CI green"
-      ],
-      "release_gate": [
-        "protected Production Migration Release (exact-SHA, approval-gated)",
-        "migration 20261029030000 must be released BEFORE the carton migrations 20261101090000/20261101100000"
-      ],
-      "notes": "Existing protected Core release train, referenced for sequencing only; ASM-BUYER-CARTON-MOQ-01 does not modify it. Open migration PRs at or below a release ceiling block that release (scripts/check-no-open-migration-prs.sh)."
+      "downstream": [],
+      "merge_gate": [],
+      "release_gate": [],
+      "notes": "Core PR #399 was closed without merge on 2026-11-01 and is NOT a dependency of ASM-BUYER-CARTON-MOQ-01. Retained as a historical node only. Functionality that only #399 contained (delivery-address and saved-transporter RPCs) is tracked separately and is not assumed by the carton work."
     },
     {
       "id": "CORE-CARTON-MOQ",
@@ -577,10 +569,8 @@
       "pr": null,
       "branch": "main",
       "base": "main",
-      "state": "CANDIDATE_LOCAL_UNPUBLISHED",
-      "upstream": [
-        "CORE-BUYER-RUNTIME-TRAIN"
-      ],
+      "state": "DRAFT_PRS_OPEN_471_472",
+      "upstream": [],
       "downstream": [
         "BUYER-CARTON-MOQ"
       ],
@@ -595,7 +585,7 @@
         "approved packing master data for every orderable SKU (readiness report clean)",
         "explicit enforcement activation with evidence"
       ],
-      "notes": "Server-side full-carton checkout enforcement on the canonical order writer; additive to existing MOQ/increment validation; default OFF until activation."
+      "notes": "Server-side full-carton checkout enforcement on the canonical order writer; additive to existing MOQ/increment validation; default OFF until activation. Candidate PRs (draft, no merge/deploy): Core #471 (projection 20261101090000) then #472 (enforcement 20261101100000). Independent of #399."
     },
     {
       "id": "BUYER-CARTON-MOQ",
@@ -603,7 +593,7 @@
       "pr": null,
       "branch": "main",
       "base": "main",
-      "state": "CANDIDATE_LOCAL_UNPUBLISHED",
+      "state": "DRAFT_PRS_OPEN_68_69",
       "upstream": [
         "CORE-CARTON-MOQ"
       ],
@@ -619,7 +609,7 @@
         "authenticated Buyer journey on an authorised environment",
         "no change to price/GST/credit/MOQ authority"
       ],
-      "notes": "Buyer presents server-computed carton validation; never computes authoritative counts."
+      "notes": "Buyer presents server-computed carton validation; never computes authoritative counts. Candidate PRs (draft): Buyer #68 (deep-link guard) and #69 (carton integration)."
     }
   ],
   "invariants": {
