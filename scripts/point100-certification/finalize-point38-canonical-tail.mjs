@@ -173,6 +173,43 @@ try {
     );
   }
 
+  // Finance stays independent too: neither Dispatch nor the Security Gate may issue Finance documents or decide
+  // Finance clearance. Core checks the Finance actor first, before any argument or state validation, so dummy
+  // identifiers are sufficient and nothing can be written when the call is correctly rejected.
+  const probeUuid = "00000000-0000-4000-8000-0000000000a1";
+  await expectRejected(
+    "DISPATCH_MANAGER must not issue a final invoice (Finance-owned)",
+    () =>
+      dispatchRole.client.rpc("issue_final_invoice_v1", {
+        p_order_id: point38OrderId,
+        p_pi_id: probeUuid,
+        p_commercial_version_id: probeUuid,
+        p_finance_dpl_receipt_id: probeUuid,
+        p_invoice_number: "NEG-AUTH-PROBE",
+        p_invoice_date: "2026-01-01",
+        p_document_reference: "point38:negative-authorization-probe",
+        p_reason: "negative authorization probe",
+        p_correlation_id: `${RUN_TOKEN}:negative-invoice-probe`,
+        p_idempotency_key: `${RUN_TOKEN}:negative-invoice-probe`,
+        p_actor_id: dispatchRole.actorId,
+      }),
+    "finance authority required",
+  );
+  await expectRejected(
+    "GATE_SECURITY must not decide Finance dispatch clearance (Finance-owned)",
+    () =>
+      gateRole.client.rpc("decide_finance_dispatch_clearance_v1", {
+        p_final_invoice_id: probeUuid,
+        p_decision: "GRANTED",
+        p_reason: "negative authorization probe",
+        p_evidence_reference: "point38:negative-authorization-probe",
+        p_correlation_id: `${RUN_TOKEN}:negative-clearance-probe`,
+        p_idempotency_key: `${RUN_TOKEN}:negative-clearance-probe`,
+        p_actor_id: gateRole.actorId,
+      }),
+    "finance authority required",
+  );
+
   await expectRejected(
     "DISPATCH_MANAGER must not perform the independent Security Gate release",
     () => dispatchRole.client.rpc("release_b2b_dispatch_carton_at_gate_v1", { p_carton_id: cartonId, p_scan_evidence_id: gateScanId }),
