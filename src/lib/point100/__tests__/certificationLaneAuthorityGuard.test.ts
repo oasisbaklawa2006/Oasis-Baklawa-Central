@@ -60,6 +60,17 @@ describe("certification lane dispatch-authority guard", () => {
     expect(tail.match(/await expectRejected\(/g)?.length).toBe(3);
   });
 
+  it("the governed chain dates the final invoice by Core's IST business date, at every hour", () => {
+    const exit = read("scripts/point100-certification/prepare-point38-canonical-exit.mjs");
+    expect(exit).toContain("kolkataBusinessDateNow");
+    // The stale UTC-session-date logic made the lane refuse to run between 18:30 and 24:00 UTC.
+    expect(exit).not.toContain("sessionCalendarDate");
+    expect(exit).not.toContain("isFinanceCalendarConflictImminent");
+    expect(exit).not.toContain("POINT100_POINT38_FINANCE_CALENDAR_CONFLICT");
+    // Core's own bounds stay enforced by the script: never earlier than the request's IST date.
+    expect(exit).toContain("POINT100_POINT38_FINAL_INVOICE_DATE_UNRESOLVABLE");
+  });
+
   it("authority mode comes from the Core checkout via one shared shell helper", () => {
     const helper = read("scripts/factory-certification/core-authority-mode.sh");
     expect(helper).toContain("20261001220000_gate_dispatch_role_separation.sql");
