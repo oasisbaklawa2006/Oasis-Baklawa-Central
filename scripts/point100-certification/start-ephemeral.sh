@@ -33,6 +33,12 @@ if [[ "${POINT100_ALLOW_DISPOSABLE_BOOTSTRAP:-false}" != "true" ]]; then
   : "${SERVICE_ROLE_KEY:?Supabase CLI status did not expose SERVICE_ROLE_KEY}"
   : "${DB_URL:?Supabase CLI status did not expose DB_URL}"
 
+  # shellcheck disable=SC1091
+  source "${SCRIPT_DIR}/../factory-certification/core-authority-mode.sh"
+  POINT38_CORE_AUTHORITY_MODE="$(core_authority_mode "${POINT100_CORE_REPO}")"
+  export POINT38_CORE_AUTHORITY_MODE
+  echo "Point100 Core dispatch authority mode: ${POINT38_CORE_AUTHORITY_MODE}"
+
   POINT100_LOCAL_DB_URL="${DB_URL}" \
     node "${SCRIPT_DIR}/restore-canonical-dispatch-authority.mjs"
 

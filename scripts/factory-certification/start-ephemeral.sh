@@ -116,6 +116,10 @@ node "$(dirname "$0")/seed-production-fixtures.mjs"
 # release_order_to_dispatched_v1. Set FACTORY_CERT_P38_GOVERNED_CHAIN=false to skip (the Point100 lane does).
 if [[ "${FACTORY_CERT_P38_GOVERNED_CHAIN:-true}" == "true" ]]; then
   P100_SCRIPTS="$(cd "$(dirname "$0")/../point100-certification" && pwd)"
+  # shellcheck disable=SC1091
+  source "$(dirname "$0")/core-authority-mode.sh"
+  POINT38_CORE_AUTHORITY_MODE="$(core_authority_mode "${CORE_REPO}")"
+  export POINT38_CORE_AUTHORITY_MODE
   node "${P100_SCRIPTS}/ensure-point38-admin-auth.mjs"
   node "${P100_SCRIPTS}/ensure-point38-pi-issued.mjs"
   node "${P100_SCRIPTS}/prepare-point38-canonical-exit.mjs"

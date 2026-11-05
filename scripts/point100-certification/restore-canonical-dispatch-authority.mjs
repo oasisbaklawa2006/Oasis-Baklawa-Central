@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { runLocalPostgresRoleStatement } from "../factory-certification/local-supabase-client.mjs";
@@ -46,13 +45,13 @@ if (checkedOutCoreSha !== requiredCoreSha.toLowerCase()) {
 // function (e.g. 20261001220000, Dispatch-owned finalization with the independent Security Gate), so this
 // script no longer writes anything. It asserts that the live definition is Core's governed authority, and
 // that it matches the Core checkout under test.
-const separatedMigration = path.join(
-  coreRepo,
-  "supabase",
-  "migrations",
-  "20261001220000_gate_dispatch_role_separation.sql",
-);
-const expectSeparated = existsSync(separatedMigration);
+const authorityMode = process.env.POINT38_CORE_AUTHORITY_MODE?.trim() ?? "";
+if (authorityMode !== "role-separated" && authorityMode !== "pre-separation") {
+  throw new Error(
+    "Point100 authority verification requires POINT38_CORE_AUTHORITY_MODE ('role-separated' or 'pre-separation'; see scripts/factory-certification/core-authority-mode.sh)",
+  );
+}
+const expectSeparated = authorityMode === "role-separated";
 
 const requiredMarkers = [
   "dispatch_proof_packets",

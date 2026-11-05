@@ -27,13 +27,14 @@ describe("certification lane dispatch-authority guard", () => {
     const script = read("scripts/point100-certification/restore-canonical-dispatch-authority.mjs");
     expect(script).not.toMatch(/execFileSync|migrationSql|readFile\([^)]*migrations/);
     expect(script).toContain("pg_get_functiondef");
-    expect(script).toContain("20261001220000_gate_dispatch_role_separation.sql");
+    expect(script).toContain("POINT38_CORE_AUTHORITY_MODE");
     expect(script).toContain("'dispatch_finalize'");
   });
 
   it("Point100 tail derives roles from the Core checkout and can stop before finalization", () => {
     const tail = read("scripts/point100-certification/finalize-point38-canonical-tail.mjs");
-    expect(tail).toContain("20261001220000_gate_dispatch_role_separation.sql");
+    expect(tail).toContain("POINT38_CORE_AUTHORITY_MODE");
+    expect(tail).not.toMatch(/existsSync/);
     expect(tail).toContain("const proofRole = roleSeparated ? dispatchRole : gateRole;");
     expect(tail).toContain("POINT38_TAIL_STOP_BEFORE_FINALIZE");
     // Gate release stays with the independent Security Gate role in every mode.
@@ -41,6 +42,15 @@ describe("certification lane dispatch-authority guard", () => {
     // Proof and finalization are never hard-wired to the Security Gate again.
     expect(tail).not.toMatch(/gateRole\.client\.rpc\("release_order_to_dispatched_v1"/);
     expect(tail).not.toMatch(/gateRole\.client\.rpc\("record_dispatch_proof_packet_v1"/);
+  });
+
+  it("authority mode comes from the Core checkout via one shared shell helper", () => {
+    const helper = read("scripts/factory-certification/core-authority-mode.sh");
+    expect(helper).toContain("20261001220000_gate_dispatch_role_separation.sql");
+    expect(helper).toContain("role-separated");
+    expect(helper).toContain("pre-separation");
+    expect(read("scripts/factory-certification/start-ephemeral.sh")).toContain("core_authority_mode");
+    expect(read("scripts/point100-certification/start-ephemeral.sh")).toContain("core_authority_mode");
   });
 
   it("Factory bootstrap builds the governed chain; Point100 opts out and builds its own", () => {

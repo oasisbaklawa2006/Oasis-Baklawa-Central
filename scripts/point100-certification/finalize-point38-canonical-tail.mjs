@@ -8,17 +8,15 @@
  * physical UAT evidence. All mutations go through canonical Core authority.
  *
  * Authority mode follows the Core checkout under test, never a guess:
- *  - Core containing 20261001220000_gate_dispatch_role_separation.sql: the independent
+ *  - role-separated (Core containing 20261001220000_gate_dispatch_role_separation.sql): the independent
  *    Security Gate releases the carton; the Dispatch Manager records the immutable
  *    dispatch proof and finalizes the order (Security does not mutate order status).
- *  - Older Core (pre-separation, e.g. the 30 Sep 2026 production pin): the Gate role
+ *  - pre-separation (older Core, e.g. the 30 Sep 2026 production pin): the Gate role
  *    performs all three steps, as that version's role matrix required.
  * POINT38_TAIL_STOP_BEFORE_FINALIZE=true stops after the immutable proof so a UI lane
  * can perform the Dispatch Manager finalization itself.
  */
 
-import { existsSync } from "node:fs";
-import path from "node:path";
 import { createClient } from "@supabase/supabase-js";
 import {
   RUN_TOKEN,
@@ -70,13 +68,13 @@ async function authenticatedRole(role) {
 const dispatchRole = await authenticatedRole("DISPATCH_MANAGER");
 const gateRole = await authenticatedRole("GATE_SECURITY");
 
-const coreRepo = (process.env.FACTORY_CERT_CORE_REPO ?? process.env.POINT100_CORE_REPO ?? "").trim();
-if (!coreRepo) {
-  throw new Error("POINT100_POINT38_TAIL_CORE_REPO_REQUIRED: FACTORY_CERT_CORE_REPO or POINT100_CORE_REPO must name the Core checkout under test");
+const authorityMode = process.env.POINT38_CORE_AUTHORITY_MODE?.trim() ?? "";
+if (authorityMode !== "role-separated" && authorityMode !== "pre-separation") {
+  throw new Error(
+    "POINT100_POINT38_TAIL_AUTHORITY_MODE_REQUIRED: POINT38_CORE_AUTHORITY_MODE must be 'role-separated' or 'pre-separation' (see scripts/factory-certification/core-authority-mode.sh)",
+  );
 }
-const roleSeparated = existsSync(
-  path.join(coreRepo, "supabase", "migrations", "20261001220000_gate_dispatch_role_separation.sql"),
-);
+const roleSeparated = authorityMode === "role-separated";
 // Proof recording and finalization belong to Dispatch once Core separates the Gate; before that, to the Gate role.
 const proofRole = roleSeparated ? dispatchRole : gateRole;
 const stopBeforeFinalize = process.env.POINT38_TAIL_STOP_BEFORE_FINALIZE === "true";
