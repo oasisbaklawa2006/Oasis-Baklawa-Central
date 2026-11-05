@@ -12,6 +12,7 @@ const buyerMock = vi.hoisted(() => ({
   company: vi.fn(),
   team: vi.fn(),
   prices: vi.fn(),
+  products: vi.fn(),
   draft: vi.fn(),
   addLine: vi.fn(),
   updateLine: vi.fn(),
@@ -98,6 +99,7 @@ vi.mock("@/lib/customerApp/customerAppClient", () => ({
     company: buyerMock.company,
     team: buyerMock.team,
     prices: buyerMock.prices,
+    products: buyerMock.products,
     draft: buyerMock.draft,
     addLine: buyerMock.addLine,
     updateLine: buyerMock.updateLine,
@@ -142,13 +144,10 @@ vi.mock("sonner", () => ({
 
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
+    // Core limits public.products to internal staff: the Buyer app must read the catalogue through
+    // customerAppClient.products() (published_products_v1), never from the table.
     from: vi.fn(() => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const builder: any = {};
-      builder.select = () => builder;
-      builder.eq = () => builder;
-      builder.then = (onFulfilled: (value: unknown) => unknown) => Promise.resolve({ data: [buyerMock.product], error: null }).then(onFulfilled);
-      return builder;
+      throw new Error("BUYER_DIRECT_TABLE_READ_FORBIDDEN");
     }),
   },
 }));
@@ -170,6 +169,7 @@ beforeEach(() => {
   }]);
   buyerMock.team.mockResolvedValue([]);
   buyerMock.prices.mockResolvedValue([buyerMock.price]);
+  buyerMock.products.mockResolvedValue([buyerMock.product]);
   buyerMock.draft.mockResolvedValue([buyerMock.draftLine]);
   buyerMock.orders.mockResolvedValue([buyerMock.order]);
   buyerMock.items.mockResolvedValue([{

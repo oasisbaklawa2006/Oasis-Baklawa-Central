@@ -23,10 +23,10 @@ import {
   assertNoError,
   firstRow,
   parseCredentialFile,
-  queryLocalPostgresScalar,
   readCredential,
   requireBootstrapEnv,
 } from "./point38-bootstrap-common.mjs";
+import { recordPhase } from "../integration-certification/journey-ledger.mjs";
 
 const LOCAL_LABEL = "POINT100_POINT38";
 const BATCH_LOT = "POINT100-P38-LOT-001";
@@ -50,24 +50,19 @@ function kolkataCalendarDate(isoTimestamp) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date(isoTimestamp));
 }
 
-function sessionCalendarDate(localDbUrl) {
-  return queryLocalPostgresScalar(
-    localDbUrl,
-    "SELECT to_char(current_date, 'YYYY-MM-DD');",
-    "Point38 session calendar date",
-    LOCAL_LABEL,
-  );
-}
-
-function isFinanceCalendarConflictImminent() {
-  const kolkataToday = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date());
-  const utcToday = new Intl.DateTimeFormat("en-CA", { timeZone: "UTC" }).format(new Date());
-  return kolkataToday > utcToday;
+/**
+ * Core's final-invoice calendar authority is the Asia/Kolkata BUSINESS date (migration 20260929213000 aligns the
+ * future-date guard to IST; 20260902083000 requires invoice_date >= the IST date of the final-payment request).
+ * The invoice date is therefore the IST date of "now", valid at every hour. The previous harness used the
+ * database session date (UTC) and refused to run between 18:30 and 24:00 UTC, which made certification fail for
+ * about 5.5 hours a day for no Core reason.
+ */
+function kolkataBusinessDateNow() {
+  return kolkataCalendarDate(new Date().toISOString());
 }
 
 const backendUrl = assertLoopbackHttpOrigin(requireBootstrapEnv("FACTORY_CERT_SUPABASE_URL", LOCAL_LABEL), LOCAL_LABEL);
 const anonKey = requireBootstrapEnv("FACTORY_CERT_SUPABASE_ANON_KEY", LOCAL_LABEL);
-const localDbUrl = requireBootstrapEnv("FACTORY_CERT_LOCAL_DB_URL", LOCAL_LABEL);
 const point38OrderId = credentialValue("FACTORY_CERT_POINT38_ORDER_ID");
 const point38OrderItemId = credentialValue("FACTORY_CERT_POINT38_ORDER_ITEM_ID");
 
@@ -249,11 +244,6 @@ async function issueFinalPaymentRequest(
   financeDplReceiptId,
 ) {
   const requestCorrelation = `${RUN_TOKEN}:final-payment-request`;
-  if (isFinanceCalendarConflictImminent()) {
-    throw new Error(
-      "POINT100_POINT38_FINANCE_CALENDAR_CONFLICT: Core final-payment/invoice calendar gate (Asia/Kolkata vs UTC) blocks canonical issuance in this window",
-    );
-  }
   const requestResult = await finance.rpc("issue_sales_order_pi_final_payment_request_v1", {
     p_order_id: point38OrderId,
     p_pi_id: piId,
@@ -304,10 +294,11 @@ function resolveFinalInvoiceDate(facts) {
   const issuedAt = facts.issued_at;
   if (!issuedAt) throw new Error("POINT100_POINT38_FINAL_PAYMENT_ISSUED_AT_MISSING");
   const requestCalendarDate = kolkataCalendarDate(issuedAt);
-  const invoiceDate = sessionCalendarDate(localDbUrl);
+  const invoiceDate = kolkataBusinessDateNow();
+  // Core requires invoice_date >= the IST date of the request and not later than the IST date of the call.
   if (invoiceDate < requestCalendarDate) {
     throw new Error(
-      `POINT100_POINT38_FINAL_INVOICE_DATE_UNRESOLVABLE: request=${requestCalendarDate} session=${invoiceDate}`,
+      `POINT100_POINT38_FINAL_INVOICE_DATE_UNRESOLVABLE: request=${requestCalendarDate} business_date=${invoiceDate}`,
     );
   }
   return invoiceDate;
@@ -516,6 +507,47 @@ async function submitPoint38DispatchCustodyToFinance(dispatchRole, adminRole, fi
   return financeDplReceiptId;
 }
 
+
+/**
+ * Buyer-to-Dispatch journey only (POINT38_JOURNEY_GOVERNED_STATUS_PATH=true). The historical Factory fixture forces
+ * orders.status to cleared_for_dispatch with SQL; the journey must instead reach it through Core's own status
+ * authorities: release_order_to_manufacturing_v1 -> release_order_to_in_production_v1 -> production completion ->
+ * release_order_to_packed_ready_v1 -> (dispatch custody, Finance clearance) -> clear_order_for_dispatch_v1.
+ */
+const JOURNEY_STATUS_PATH = process.env.POINT38_JOURNEY_GOVERNED_STATUS_PATH === "true";
+
+async function journeyTransition(role, roleLabel, rpcName, orderId) {
+  const result = await role.client.rpc(rpcName, { p_order_id: orderId });
+  assertNoError(result.error, `Journey ${rpcName}`);
+  const payload = firstRow(result.data);
+  if (!payload || payload.ok !== true) {
+    throw new Error(`JOURNEY_TRANSITION_BLOCKED: ${rpcName} -> ${JSON.stringify(payload)}`);
+  }
+  recordPhase(`Order transition ${rpcName}`, roleLabel, rpcName, { newStatus: payload.new_status ?? null, alreadyApplied: payload.already_applied ?? null });
+}
+
+async function journeyReleaseAndProduction(financeRole, adminRole, dispatchRole, orderId, orderItem) {
+  await journeyTransition(financeRole, "FINANCE_HEAD", "release_order_to_manufacturing_v1", orderId);
+  await journeyTransition(financeRole, "FINANCE_HEAD", "release_order_to_in_production_v1", orderId);
+  // Core exposes no governed RPC that completes a non-3PCS order item (complete_3pgs_order_item is 3PCS-only). Central
+  // admin screens update order_items directly under staff RLS; the journey performs exactly that staff write under RLS
+  // (authenticated ADMIN, never service role) and records it as a Core contract gap rather than a governed transition.
+  const completion = await adminRole.client
+    .from("order_items")
+    .update({ production_status: "completed", actual_packed_qty: Number(orderItem.quantity) })
+    .eq("id", orderItem.id)
+    .eq("order_id", orderId)
+    .select("id,production_status,actual_packed_qty");
+  assertNoError(completion.error, "Journey production completion (staff table write under RLS)");
+  if (completion.data?.length !== 1 || completion.data[0].production_status !== "completed") {
+    throw new Error(`JOURNEY_PRODUCTION_COMPLETION_BLOCKED: ${JSON.stringify(completion.data)}`);
+  }
+  recordPhase("Production/packing completion recorded for the order item", "ADMIN", "order_items staff table write under RLS (NOT a governed RPC)", {
+    contractGap: "No governed Core RPC completes non-3PCS order items; needs Mission Control reassignment to Core.",
+  });
+  await journeyTransition(dispatchRole, "DISPATCH_MANAGER", "release_order_to_packed_ready_v1", orderId);
+}
+
 const financeRole = await authenticatedRole("FINANCE_HEAD", { aal2: true });
 const adminRole = await authenticatedRole("ADMIN");
 const dispatchRole = await authenticatedRole("DISPATCH_MANAGER");
@@ -533,6 +565,9 @@ try {
   const commercialVersionId = String(bindings[0].commercial_version_id);
 
   await ensureOperationsClearance(financeRole.client, financeRole.actorId, piId, commercialVersionId);
+  if (JOURNEY_STATUS_PATH) {
+    recordPhase("Advance payment proof recorded and verified; operations clearance GRANTED", "FINANCE_HEAD", "record_order_payment_proof_v1 + verify_order_payment_v1 + decide_finance_operations_clearance_v1", { piId });
+  }
 
   const { data: orderItem, error: orderItemError } = await dispatchRole.client
     .from("order_items")
@@ -545,6 +580,9 @@ try {
     throw new Error(`POINT100_POINT38_ORDER_ITEM_INVALID: ${JSON.stringify(orderItem)}`);
   }
   const quantity = Number(orderItem.quantity);
+  if (JOURNEY_STATUS_PATH) {
+    await journeyReleaseAndProduction(financeRole, adminRole, dispatchRole, point38OrderId, orderItem);
+  }
   const financeDplReceiptId = await submitPoint38DispatchCustodyToFinance(
     dispatchRole,
     adminRole,
@@ -553,6 +591,12 @@ try {
     quantity,
   );
 
+  if (JOURNEY_STATUS_PATH) {
+    recordPhase("Dispatch custody: consignment, source handoff (synthetic PRODUCTION source), carton scan, lock, DPL, Finance DPL receipt", "DISPATCH_MANAGER+ADMIN+FINANCE_HEAD", "create_b2b_dispatch_consignment ... receive_submitted_b2b_dispatch_dpls_v1", {
+      financeDplReceiptId,
+      syntheticInput: "source handoff declared from POINT100_SYNTHETIC_READY; no real production/stock movement",
+    });
+  }
   const invoiceDate = await ensureFinalPaymentCoverage(
     financeRole.client,
     financeRole.actorId,
@@ -579,6 +623,9 @@ try {
   if (!finalInvoiceId) throw new Error("POINT100_POINT38_FINAL_INVOICE_ID_MISSING");
 
   await ensureFinalSettlement(financeRole.client, financeRole.actorId, piId, commercialVersionId, finalInvoiceId);
+  if (JOURNEY_STATUS_PATH) {
+    recordPhase("Final payment request, settlement and final invoice issued by Finance", "FINANCE_HEAD", "issue_sales_order_pi_final_payment_request_v1 + issue_final_invoice_v1 + get_final_settlement_facts_v1", { finalInvoiceId });
+  }
 
   const ewayResult = await financeRole.client.rpc("record_eway_bill_evidence_v1", {
     p_final_invoice_id: finalInvoiceId,
@@ -604,6 +651,10 @@ try {
     p_actor_id: financeRole.actorId,
   });
   assertNoError(clearanceResult.error, "Point38 Finance Dispatch Clearance");
+  if (JOURNEY_STATUS_PATH) {
+    recordPhase("Finance grants dispatch clearance", "FINANCE_HEAD", "decide_finance_dispatch_clearance_v1", { finalInvoiceId });
+    await journeyTransition(dispatchRole, "DISPATCH_MANAGER", "clear_order_for_dispatch_v1", point38OrderId);
+  }
 
   const exitFactsResult = await dispatchRole.client.rpc("get_finance_exit_facts_v1", { p_order_id: point38OrderId });
   assertNoError(exitFactsResult.error, "Point38 finance exit verification");
