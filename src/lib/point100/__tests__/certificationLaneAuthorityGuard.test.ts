@@ -105,4 +105,57 @@ describe("certification lane dispatch-authority guard", () => {
     const point100 = read("scripts/point100-certification/start-ephemeral.sh");
     expect(point100).toContain("FACTORY_CERT_P38_GOVERNED_CHAIN=false");
   });
+
+  describe("Buyer-to-Dispatch journey does not manufacture business evidence", () => {
+    const journeyFiles = [
+      "scripts/integration-certification/buyer-order-journey.mjs",
+      "scripts/integration-certification/verify-buyer-to-dispatch-journey.mjs",
+      "scripts/integration-certification/start-ephemeral.sh",
+    ];
+
+    it("creates the order only through Core's quoted checkout, never by insert/update/upsert", () => {
+      const buyer = read("scripts/integration-certification/buyer-order-journey.mjs");
+      expect(buyer).toContain("customer_checkout_quote_v1");
+      expect(buyer).toContain("submit_customer_order_quoted_v1");
+      expect(buyer).toContain("create_sales_order_proforma_invoice_v1");
+      expect(buyer).not.toMatch(/\.(insert|upsert|update)\(/);
+      expect(buyer).not.toContain("submit_customer_order_v1");
+      expect(buyer).not.toMatch(/cleared_for_dispatch|status:\s*"/);
+    });
+
+    it("verification is read-only (service role never writes business tables)", () => {
+      const verify = read("scripts/integration-certification/verify-buyer-to-dispatch-journey.mjs");
+      expect(verify).not.toMatch(/\.(insert|upsert|delete)\(/);
+      expect(verify.match(/\.update\(/g)).toBeNull();
+      expect(verify).toContain('"dispatched"');
+      expect(verify).toContain("JOURNEY_BUYER_DISPATCH_AUTHORITY_NOT_REJECTED");
+    });
+
+    it("no journey file forces an order status with SQL or reuses the Factory seeded order", () => {
+      for (const file of journeyFiles) {
+        const text = read(file);
+        expect(text, file).not.toMatch(/UPDATE\s+public\.orders/i);
+        expect(text, file).not.toMatch(/SET\s+status\s*=/i);
+        expect(text, file).not.toContain("seed-production-fixtures");
+      }
+      expect(read("scripts/integration-certification/start-ephemeral.sh")).toContain("FACTORY_CERT_P38_GOVERNED_CHAIN=false");
+    });
+
+    it("status transitions come from Core's own order authorities, gated to the journey lane only", () => {
+      const exit = read("scripts/point100-certification/prepare-point38-canonical-exit.mjs");
+      expect(exit).toContain('process.env.POINT38_JOURNEY_GOVERNED_STATUS_PATH === "true"');
+      for (const rpc of [
+        "release_order_to_manufacturing_v1",
+        "release_order_to_in_production_v1",
+        "release_order_to_packed_ready_v1",
+        "clear_order_for_dispatch_v1",
+      ]) {
+        expect(exit).toContain(rpc);
+      }
+      // The only table write is the explicitly-labelled staff production completion under an authenticated role.
+      expect(exit.match(/\.update\(/g)?.length).toBe(1);
+      expect(exit).toContain("NOT a governed RPC");
+      expect(read("scripts/integration-certification/start-ephemeral.sh")).toContain("POINT38_JOURNEY_GOVERNED_STATUS_PATH=true");
+    });
+  });
 });
