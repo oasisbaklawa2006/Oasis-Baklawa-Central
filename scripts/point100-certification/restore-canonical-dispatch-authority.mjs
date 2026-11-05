@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { execFileSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { runLocalPostgresRoleStatement } from "../factory-certification/local-supabase-client.mjs";
@@ -28,6 +28,10 @@ async function readCheckedOutCoreSha(repoRoot) {
   return head.toLowerCase();
 }
 
+function quoteLiteral(value) {
+  return `'${String(value).replaceAll("'", "''")}'`;
+}
+
 const checkedOutCoreSha = await readCheckedOutCoreSha(coreRepo);
 if (checkedOutCoreSha !== requiredCoreSha.toLowerCase()) {
   throw new Error(
@@ -35,33 +39,39 @@ if (checkedOutCoreSha !== requiredCoreSha.toLowerCase()) {
   );
 }
 
-const canonicalDispatchMigrationRelative =
-  "supabase/migrations/20260908020000_macro_dispatch_finalization_authority.sql";
-
-// Read the migration from the exact certified commit object rather than the
-// working tree. A dirty or locally edited checkout must never alter Point100
-// authority while still presenting the certified HEAD.
-const migrationSql = execFileSync(
-  "git",
-  ["-C", coreRepo, "show", `${requiredCoreSha}:${canonicalDispatchMigrationRelative}`],
-  { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 },
+// VERIFY ONLY. This script used to re-apply 20260908020000_macro_dispatch_finalization_authority.sql over
+// whatever the fixture seeder had installed. That was needed only because the Factory seeder overwrote Core's
+// release_order_to_dispatched_v1 with a legacy shim; the shim is gone, so Core's own migrations are the
+// authority. Re-applying an older migration would also silently DOWNGRADE any later Core version of the
+// function (e.g. 20261001220000, Dispatch-owned finalization with the independent Security Gate), so this
+// script no longer writes anything. It asserts that the live definition is Core's governed authority, and
+// that it matches the Core checkout under test.
+const separatedMigration = path.join(
+  coreRepo,
+  "supabase",
+  "migrations",
+  "20261001220000_gate_dispatch_role_separation.sql",
 );
+const expectSeparated = existsSync(separatedMigration);
 
-for (const marker of [
+const requiredMarkers = [
   "dispatch_proof_packets",
   "lock_finance_dispatch_eligibility_v1",
-  "finance_dispatch_clearance_required",
-]) {
-  if (!migrationSql.includes(marker)) {
-    throw new Error(`Refusing Point100 restore: canonical #260 migration missing marker ${marker}`);
-  }
-}
+  "assert_active_dispatch_clearance_v1",
+  ...(expectSeparated ? ["'dispatch_finalize'"] : []),
+];
+const forbiddenMarkers = expectSeparated ? ["'gate_release'"] : [];
 
-runLocalPostgresRoleStatement(
-  dbUrl,
-  migrationSql,
-  "Restore canonical Core #260 dispatch authority after legacy fixture bootstrap",
-);
+const markerChecks = [
+  ...requiredMarkers.map(
+    (marker) =>
+      `IF position(${quoteLiteral(marker)} in v_def) = 0 THEN RAISE EXCEPTION 'POINT100_DISPATCH_AUTHORITY_MARKER_MISSING: %', ${quoteLiteral(marker)}; END IF;`,
+  ),
+  ...forbiddenMarkers.map(
+    (marker) =>
+      `IF position(${quoteLiteral(marker)} in v_def) > 0 THEN RAISE EXCEPTION 'POINT100_DISPATCH_AUTHORITY_LEGACY_MARKER_PRESENT: %', ${quoteLiteral(marker)}; END IF;`,
+  ),
+].join("\n  ");
 
 runLocalPostgresRoleStatement(
   dbUrl,
@@ -72,13 +82,11 @@ BEGIN
   SELECT pg_get_functiondef(
     'public.release_order_to_dispatched_v1(uuid,text,text,text,text)'::regprocedure
   ) INTO v_def;
-  IF position('dispatch_proof_packets' in v_def) = 0
-     OR position('lock_finance_dispatch_eligibility_v1' in v_def) = 0
-     OR position('assert_active_dispatch_clearance_v1' in v_def) = 0 THEN
-    RAISE EXCEPTION 'POINT100_CANONICAL_DISPATCH_AUTHORITY_NOT_RESTORED';
-  END IF;
+  ${markerChecks}
 END $$;`,
-  "Verify canonical Core #260 dispatch authority",
+  "Verify Core dispatch finalization authority (read-only assertion)",
 );
 
-console.log("Point100 verified canonical Core #260 dispatch authority after fixture seeding.");
+console.log(
+  `Point100 verified Core dispatch finalization authority (${expectSeparated ? "gate/dispatch role-separated" : "pre-separation"}) is installed unmodified.`,
+);

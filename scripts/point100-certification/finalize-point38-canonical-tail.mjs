@@ -6,8 +6,19 @@
  * validation -> immutable dispatch proof -> canonical dispatch finalization.
  * Synthetic scan/transport values prove software contracts only; they are not
  * physical UAT evidence. All mutations go through canonical Core authority.
+ *
+ * Authority mode follows the Core checkout under test, never a guess:
+ *  - Core containing 20261001220000_gate_dispatch_role_separation.sql: the independent
+ *    Security Gate releases the carton; the Dispatch Manager records the immutable
+ *    dispatch proof and finalizes the order (Security does not mutate order status).
+ *  - Older Core (pre-separation, e.g. the 30 Sep 2026 production pin): the Gate role
+ *    performs all three steps, as that version's role matrix required.
+ * POINT38_TAIL_STOP_BEFORE_FINALIZE=true stops after the immutable proof so a UI lane
+ * can perform the Dispatch Manager finalization itself.
  */
 
+import { existsSync } from "node:fs";
+import path from "node:path";
 import { createClient } from "@supabase/supabase-js";
 import {
   RUN_TOKEN,
@@ -58,6 +69,20 @@ async function authenticatedRole(role) {
 
 const dispatchRole = await authenticatedRole("DISPATCH_MANAGER");
 const gateRole = await authenticatedRole("GATE_SECURITY");
+
+const coreRepo = (process.env.FACTORY_CERT_CORE_REPO ?? process.env.POINT100_CORE_REPO ?? "").trim();
+if (!coreRepo) {
+  throw new Error("POINT100_POINT38_TAIL_CORE_REPO_REQUIRED: FACTORY_CERT_CORE_REPO or POINT100_CORE_REPO must name the Core checkout under test");
+}
+const roleSeparated = existsSync(
+  path.join(coreRepo, "supabase", "migrations", "20261001220000_gate_dispatch_role_separation.sql"),
+);
+// Proof recording and finalization belong to Dispatch once Core separates the Gate; before that, to the Gate role.
+const proofRole = roleSeparated ? dispatchRole : gateRole;
+const stopBeforeFinalize = process.env.POINT38_TAIL_STOP_BEFORE_FINALIZE === "true";
+console.log(
+  `Point100 Point38 tail authority mode: ${roleSeparated ? "gate/dispatch role-separated (Core >= 20261001220000)" : "pre-separation (gate role finalizes)"}`,
+);
 
 try {
   const { data: consignments, error: consignmentError } = await dispatchRole.client
@@ -157,7 +182,7 @@ try {
   const dispatchedAt = new Date().toISOString();
   const trackingReference = "P100-TRK-POINT38-CANONICAL";
   const proofIdentity = `${RUN_TOKEN}:dispatch-proof`;
-  const { data: proofData, error: proofError } = await gateRole.client.rpc("record_dispatch_proof_packet_v1", {
+  const { data: proofData, error: proofError } = await proofRole.client.rpc("record_dispatch_proof_packet_v1", {
     p_order_id: point38OrderId,
     p_transport_snapshot: {
       transporter: "POINT100 SYNTHETIC CARRIER",
@@ -172,13 +197,21 @@ try {
     p_dispatched_at: dispatchedAt,
     p_correlation_id: proofIdentity,
     p_idempotency_key: proofIdentity,
-    p_actor_id: gateRole.actorId,
+    p_actor_id: proofRole.actorId,
   });
   assertNoError(proofError, "Point38 tail immutable dispatch proof");
   const dispatchProofId = String(firstRow(proofData)?.dispatch_proof_id ?? "");
   if (!dispatchProofId) throw new Error("POINT100_POINT38_TAIL_DISPATCH_PROOF_ID_MISSING");
 
-  const { data: finalizeData, error: finalizeError } = await gateRole.client.rpc("release_order_to_dispatched_v1", {
+  if (stopBeforeFinalize) {
+    console.log(
+      "Point38 tail stopped before finalization by request: Gate decision and immutable dispatch proof exist; the Dispatch Manager finalizes.",
+    );
+    await Promise.allSettled([dispatchRole.client.auth.signOut(), gateRole.client.auth.signOut()]);
+    process.exit(0);
+  }
+
+  const { data: finalizeData, error: finalizeError } = await proofRole.client.rpc("release_order_to_dispatched_v1", {
     p_order_id: point38OrderId,
     p_tracking_number: trackingReference,
     p_courier_name: "POINT100 SYNTHETIC CARRIER",
@@ -191,7 +224,7 @@ try {
     throw new Error(`POINT100_POINT38_TAIL_FINALIZE_BLOCKED: ${JSON.stringify(finalize)}`);
   }
 
-  const { data: exitFactsData, error: exitFactsError } = await gateRole.client.rpc("get_finance_exit_facts_v1", {
+  const { data: exitFactsData, error: exitFactsError } = await proofRole.client.rpc("get_finance_exit_facts_v1", {
     p_order_id: point38OrderId,
   });
   assertNoError(exitFactsError, "Point38 tail final finance-exit verification");

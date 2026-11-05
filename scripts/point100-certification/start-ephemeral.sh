@@ -11,15 +11,14 @@ export FACTORY_CERT_CORE_REPO="${POINT100_CORE_REPO}"
 export FACTORY_CERT_ALLOW_LOCAL_RESET="${POINT100_ALLOW_LOCAL_RESET:-true}"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-bash "${SCRIPT_DIR}/../factory-certification/start-ephemeral.sh"
+# Point100 builds the Point-38 governed chain itself (below), as its own rehearsal evidence, so the shared
+# Factory bootstrap must not pre-build it.
+FACTORY_CERT_P38_GOVERNED_CHAIN=false bash "${SCRIPT_DIR}/../factory-certification/start-ephemeral.sh"
 
-# The shared factory fixture seeder still contains a legacy Point-38 disposable
-# release_order_to_dispatched_v1 shim and status-shaped commercial/dispatch
-# fixture for older certification lanes. Final Point100 recertification must
-# never certify those substitutes. Reapply the exact production-certified #260
-# migration, verify its live function definition, repair/verify the disposable
-# ADMIN auth identity exposed by rehearsal #42, issue the original PI through
-# the current customer-visible Finance authority, then advance Point38 through
+# The shared factory fixture seeder no longer installs a Point-38 release_order_to_dispatched_v1 shim, so the
+# disposable database carries Core's own dispatch finalization authority exactly as the pinned Core checkout
+# defines it. Verify that (read-only: nothing is re-applied), repair/verify the disposable ADMIN auth identity,
+# issue the original PI through the current customer-visible Finance authority, then advance Point38 through
 # the real governed Core authority chain before any Point100 probe runs.
 if [[ "${POINT100_ALLOW_DISPOSABLE_BOOTSTRAP:-false}" != "true" ]]; then
   STATUS_FILE="$(mktemp)"
