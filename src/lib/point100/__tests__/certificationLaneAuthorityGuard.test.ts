@@ -56,8 +56,12 @@ describe("certification lane dispatch-authority guard", () => {
     expect(tail).toContain("dispatch finalization authority required");
     expect(tail).toContain("POINT38_NEGATIVE_AUTHORIZATION_FAILED");
     expect(tail).toContain("POINT38_NEGATIVE_AUTHORIZATION_MUTATED_STATE");
-    // Exactly three negative probes, unconditional (the tail already refuses a non-separated Core).
-    expect(tail.match(/await expectRejected\(/g)?.length).toBe(3);
+    // Exactly five negative probes, unconditional (the tail already refuses a non-separated Core):
+    // Dispatch->Gate release, Gate->proof, Gate->finalize, Dispatch->final invoice, Gate->Finance clearance.
+    expect(tail.match(/await expectRejected\(/g)?.length).toBe(5);
+    expect(tail).toContain("finance authority required");
+    expect(tail).toContain('dispatchRole.client.rpc("issue_final_invoice_v1"');
+    expect(tail).toContain('gateRole.client.rpc("decide_finance_dispatch_clearance_v1"');
   });
 
   it("the governed chain dates the final invoice by Core's IST business date, at every hour", () => {

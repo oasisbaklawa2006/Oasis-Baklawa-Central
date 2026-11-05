@@ -29,6 +29,8 @@ Only three Core migrations touch the dispatch/Gate authority surface; nothing is
 Each is a call that must be **rejected for the stated reason**; the lane fails otherwise (`POINT38_NEGATIVE_AUTHORIZATION_FAILED`):
 1. `DISPATCH_MANAGER` → `release_b2b_dispatch_carton_at_gate_v1`: `independent security gate authority required`.
 2. `GATE_SECURITY` → `record_dispatch_proof_packet_v1`: `dispatch proof authority required`.
+4. `DISPATCH_MANAGER` → `issue_final_invoice_v1`: `finance authority required` (Finance-owned; the Finance actor check is the first statement, so dummy identifiers suffice and nothing can be written).
+5. `GATE_SECURITY` → `decide_finance_dispatch_clearance_v1`: `finance authority required`.
 3. `GATE_SECURITY` → `release_order_to_dispatched_v1`: `dispatch finalization authority required`, and the order must remain `cleared_for_dispatch` (`POINT38_NEGATIVE_AUTHORIZATION_MUTATED_STATE`).
 
 ## Point100 pin
