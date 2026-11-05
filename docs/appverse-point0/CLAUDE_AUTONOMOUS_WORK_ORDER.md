@@ -27,3 +27,6 @@ Original master #437; activation #629; WhatsApp #631; financial #632; actual cur
 
 ## First deliverable
 Read-only `E0.1` report with actual website Git remote verification, per-repo SHA/PR/CI/deploy inventory, restored Mission-Control evidence-refresh diagnosis, accepted scope denominator and named readiness blockers. Only then ask for any genuine needed owner-only decision. Keep operating while the authorized Claude execution environment exists.
+
+## Dashboard v1.1 scoring directive (owner-approved, 5 Nov)
+See `docs/appverse-point0/PROGRESS_BAR_SPEC_v1_1.md`. Replace the three old user-facing labels (Build / Implemented / Certified) with **Build / Testing / Certification**, plus a derived **Combined** bar. Combined = arithmetic mean of the three **only** when verified and denominator-approved, otherwise null/N/V. Track metrics for every app, E0–E8 stage, original point 1–100, and weighted enterprise rollup; preserve separate GO/NO-GO authority. Do not fabricate rates or mistake merged PRs for user acceptance. For full independent testing include integration/runtime/negative scenarios. No new dashboard percentage until E0 audits finish.
