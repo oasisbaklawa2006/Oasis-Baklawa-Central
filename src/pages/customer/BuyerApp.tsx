@@ -226,14 +226,13 @@ function useBuyerData() {
     try {
       const [priceRows, productRows, draftRows, companyRows, orderRows, itemRows, ticketRows] = await Promise.all([
         customerAppClient.prices(),
-        supabase.from("products").select("id,name,sku,description,image_url,category,sub_category,is_active,visible_in_catalog").eq("is_active", true).eq("visible_in_catalog", true),
+        customerAppClient.products(),
         customerAppClient.draft(),
         customerAppClient.company(),
         customerAppClient.orders(),
         customerAppClient.items(),
         customerAppClient.tickets(),
       ]);
-      if (productRows.error) throw productRows.error;
       const [commercialResult, proformaResult, documentResult, statementResult, favouriteResult, queryResult] = await Promise.all([
         safeRead(() => customerAppClient.commercialFacts()),
         safeRead(() => customerAppClient.proformaInvoices()),
@@ -275,7 +274,7 @@ function useBuyerData() {
       ] as const));
       const teamPromise = safeRead(() => customerAppClient.team());
       setPrices(priceRows || []);
-      setProducts(productRows.data || []);
+      setProducts(productRows || []);
       setDraft(draftRows || []);
       setCompany(companyRows?.[0] || null);
       setOrders(orderRowsWithFacts || []);
