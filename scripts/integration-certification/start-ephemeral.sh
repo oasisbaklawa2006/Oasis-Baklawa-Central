@@ -9,7 +9,7 @@ export FACTORY_CERT_CORE_REPO="${POINT100_CORE_REPO}"
 export FACTORY_CERT_ALLOW_LOCAL_RESET="${POINT100_ALLOW_LOCAL_RESET:-true}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 P100_DIR="${SCRIPT_DIR}/../point100-certification"
-rm -f "${JOURNEY_LEDGER_FILE:-/tmp/buyer-to-dispatch-journey-ledger.json}"
+rm -f /tmp/buyer-to-dispatch-journey-ledger.json
 
 FACTORY_CERT_P38_GOVERNED_CHAIN=false bash "${SCRIPT_DIR}/../factory-certification/start-ephemeral.sh"
 

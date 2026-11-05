@@ -16,7 +16,6 @@
 import { appendFileSync } from "node:fs";
 import { createClient } from "@supabase/supabase-js";
 import {
-  CREDENTIAL_FILE,
   assertLoopbackHttpOrigin,
   assertNoError,
   firstRow,
@@ -159,7 +158,7 @@ recordPhase("Finance creates the Proforma Invoice through Core PI authority", "F
 
 // Hand the REAL Buyer-created order to the existing governed downstream scripts (last credential line wins).
 appendFileSync(
-  CREDENTIAL_FILE,
+  "/tmp/oasis-factory-certification.env",
   `export FACTORY_CERT_POINT38_ORDER_ID='${orderId}'\nexport FACTORY_CERT_POINT38_ORDER_ITEM_ID='${items[0].id}'\n`,
   { encoding: "utf8" },
 );
