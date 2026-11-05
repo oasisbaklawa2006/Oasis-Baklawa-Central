@@ -76,7 +76,8 @@ describe("certification lane dispatch-authority guard", () => {
     const step = negative.slice(negative.indexOf("dispatch manager cannot substitute the independent security gate"));
     expect(step).toContain("independent security gate authority required");
     expect(step).toContain(".not.toBeNull()");
-    expect(step.slice(0, step.indexOf("duplicate scan correlation"))).not.toContain("carton_not_found");
+    // The obsolete carton-level fail-closed assertion must not return for this actor.
+    expect(step.slice(0, step.indexOf("duplicate scan correlation"))).not.toMatch(/toContain\("carton_not_found"\)/);
     const tail = read("tests/point100/canonicalDispatchTail.ts");
     expect(tail).toContain('dispatch.rpc("record_dispatch_proof_packet_v1"');
     expect(tail).toContain('dispatch.rpc("release_order_to_dispatched_v1"');
