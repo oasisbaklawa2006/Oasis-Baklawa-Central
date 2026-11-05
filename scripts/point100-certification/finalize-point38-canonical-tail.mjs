@@ -82,6 +82,22 @@ console.log(
   `Point100 Point38 tail authority mode: ${roleSeparated ? "gate/dispatch role-separated (Core >= 20261001220000)" : "pre-separation (gate role finalizes)"}`,
 );
 
+/**
+ * Negative authorization assertion: the call must be REJECTED for the stated reason, so the lane fails if Core's
+ * separation of duties is ever loosened (or if a role were silently interchangeable). Only used in role-separated
+ * mode, where Core's role matrix (20261001220000) is the documented contract. A rejected call must not mutate state.
+ */
+async function expectRejected(label, call, expectedFragment) {
+  const { data, error } = await call();
+  const message = String(error?.message ?? "");
+  if (!error || !message.includes(expectedFragment)) {
+    throw new Error(
+      `POINT38_NEGATIVE_AUTHORIZATION_FAILED: ${label}: expected rejection containing "${expectedFragment}", got ${JSON.stringify({ error: error?.message ?? null, data })}`,
+    );
+  }
+  console.log(`Point38 negative authorization PASS: ${label} -> rejected ("${expectedFragment}")`);
+}
+
 try {
   const { data: consignments, error: consignmentError } = await dispatchRole.client
     .from("b2b_dispatch_consignments")
@@ -161,6 +177,14 @@ try {
     );
   }
 
+  if (roleSeparated) {
+    await expectRejected(
+      "DISPATCH_MANAGER must not perform the independent Security Gate release",
+      () => dispatchRole.client.rpc("release_b2b_dispatch_carton_at_gate_v1", { p_carton_id: cartonId, p_scan_evidence_id: gateScanId }),
+      "independent security gate authority required",
+    );
+  }
+
   const { data: gateDecisionData, error: gateDecisionError } = await gateRole.client.rpc("release_b2b_dispatch_carton_at_gate_v1", {
     p_carton_id: cartonId,
     p_scan_evidence_id: gateScanId,
@@ -176,6 +200,23 @@ try {
     .update({ verification_status: "verified" })
     .eq("id", gateScanId);
   assertNoError(verifyScanError, "Point38 tail gate evidence verification");
+
+  if (roleSeparated) {
+    await expectRejected(
+      "GATE_SECURITY must not record the dispatch proof (Dispatch-owned)",
+      () =>
+        gateRole.client.rpc("record_dispatch_proof_packet_v1", {
+          p_order_id: point38OrderId,
+          p_transport_snapshot: { transporter: "UNAUTHORIZED PROBE" },
+          p_evidence_references: ["point38:negative-authorization-probe"],
+          p_dispatched_at: new Date().toISOString(),
+          p_correlation_id: `${RUN_TOKEN}:negative-proof-probe`,
+          p_idempotency_key: `${RUN_TOKEN}:negative-proof-probe`,
+          p_actor_id: gateRole.actorId,
+        }),
+      "dispatch proof authority required",
+    );
+  }
 
   const dispatchedAt = new Date().toISOString();
   const trackingReference = "P100-TRK-POINT38-CANONICAL";
@@ -200,6 +241,31 @@ try {
   assertNoError(proofError, "Point38 tail immutable dispatch proof");
   const dispatchProofId = String(firstRow(proofData)?.dispatch_proof_id ?? "");
   if (!dispatchProofId) throw new Error("POINT100_POINT38_TAIL_DISPATCH_PROOF_ID_MISSING");
+
+  if (roleSeparated) {
+    await expectRejected(
+      "GATE_SECURITY must not finalize dispatch (Security does not mutate order status)",
+      () =>
+        gateRole.client.rpc("release_order_to_dispatched_v1", {
+          p_order_id: point38OrderId,
+          p_tracking_number: trackingReference,
+          p_courier_name: "POINT100 SYNTHETIC CARRIER",
+          p_finalize_reason: "negative authorization probe",
+          p_correlation_id: `${RUN_TOKEN}:negative-finalize-probe`,
+        }),
+      "dispatch finalization authority required",
+    );
+    // The rejected finalize must not have changed the order: it is still cleared_for_dispatch.
+    const { data: afterProbe, error: afterProbeError } = await dispatchRole.client
+      .from("orders")
+      .select("status")
+      .eq("id", point38OrderId)
+      .maybeSingle();
+    assertNoError(afterProbeError, "Point38 tail post-probe order status read");
+    if (String(afterProbe?.status ?? "").toLowerCase() !== "cleared_for_dispatch") {
+      throw new Error(`POINT38_NEGATIVE_AUTHORIZATION_MUTATED_STATE: order status is ${String(afterProbe?.status)}`);
+    }
+  }
 
   if (stopBeforeFinalize) {
     console.log(

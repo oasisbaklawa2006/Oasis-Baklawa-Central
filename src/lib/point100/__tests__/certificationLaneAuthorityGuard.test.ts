@@ -39,9 +39,23 @@ describe("certification lane dispatch-authority guard", () => {
     expect(tail).toContain("POINT38_TAIL_STOP_BEFORE_FINALIZE");
     // Gate release stays with the independent Security Gate role in every mode.
     expect(tail).toMatch(/gateRole\.client\.rpc\("release_b2b_dispatch_carton_at_gate_v1"/);
-    // Proof and finalization are never hard-wired to the Security Gate again.
-    expect(tail).not.toMatch(/gateRole\.client\.rpc\("release_order_to_dispatched_v1"/);
-    expect(tail).not.toMatch(/gateRole\.client\.rpc\("record_dispatch_proof_packet_v1"/);
+    // Real proof and finalization calls use proofRole (Dispatch when role-separated), never a hard-wired Gate.
+    expect(tail).toContain('proofRole.client.rpc("release_order_to_dispatched_v1"');
+    expect(tail).toContain('proofRole.client.rpc("record_dispatch_proof_packet_v1"');
+    // The only Gate-role calls to those two RPCs are the single negative probe each (expected to be rejected).
+    expect(tail.match(/gateRole\.client\.rpc\("release_order_to_dispatched_v1"/g)?.length).toBe(1);
+    expect(tail.match(/gateRole\.client\.rpc\("record_dispatch_proof_packet_v1"/g)?.length).toBe(1);
+  });
+
+  it("role-separated runs assert the Gate/Dispatch separation negatively", () => {
+    const tail = read("scripts/point100-certification/finalize-point38-canonical-tail.mjs");
+    expect(tail).toContain("independent security gate authority required");
+    expect(tail).toContain("dispatch proof authority required");
+    expect(tail).toContain("dispatch finalization authority required");
+    expect(tail).toContain("POINT38_NEGATIVE_AUTHORIZATION_FAILED");
+    expect(tail).toContain("POINT38_NEGATIVE_AUTHORIZATION_MUTATED_STATE");
+    // Negative probes only run where Core's role-separated matrix is the documented contract.
+    expect(tail.match(/if \(roleSeparated\) \{\s+await expectRejected/g)?.length).toBe(3);
   });
 
   it("authority mode comes from the Core checkout via one shared shell helper", () => {
