@@ -1,0 +1,130 @@
+{
+  "schema_version": "point0-1.0",
+  "as_of_ist": "2026-11-05",
+  "stage": "E0",
+  "agent_runner": "NOT_VERIFIED",
+  "source_of_truth": "APPVERSE_MISSION_CONTROL.md + appverse-control/state.json + issue #437",
+  "progress_scoring_rule": "Do not publish a percentage until scope denominator and exact-head evidence audits complete",
+  "percentages": {
+    "programme_build": null,
+    "programme_implementation": null,
+    "programme_certification": null
+  },
+  "apps": [
+    {
+      "id": "core",
+      "name": "Supabase Core",
+      "head": "645899439fe0a84806238b9114649eb2c3785a75",
+      "open_prs": 7,
+      "build_pct": null,
+      "implementation_pct": null,
+      "certification_pct": null
+    },
+    {
+      "id": "central",
+      "name": "Central",
+      "head": "4f80f1444b854e2ac2eb4dd9b7d00d7b21d5af13",
+      "open_prs": 5,
+      "build_pct": null,
+      "implementation_pct": null,
+      "certification_pct": null
+    },
+    {
+      "id": "studio",
+      "name": "AI Studio",
+      "head": "abeec87d9ca83ec91e78ba94ad554113d1d4c6e1",
+      "open_prs": 7,
+      "build_pct": null,
+      "implementation_pct": null,
+      "certification_pct": null
+    },
+    {
+      "id": "buyer",
+      "name": "Buyer Expo",
+      "head": "e5096cfa37049743a3c3d768948943c03b10612b",
+      "open_prs": 7,
+      "build_pct": null,
+      "implementation_pct": null,
+      "certification_pct": null
+    },
+    {
+      "id": "trace",
+      "name": "Trace",
+      "head": "e9d9647b7537e7a85591b93666e28a500a0c708c",
+      "open_prs": 0,
+      "build_pct": null,
+      "implementation_pct": null,
+      "certification_pct": null
+    },
+    {
+      "id": "website",
+      "name": "Website",
+      "head": "98a2750a42df57494b1cbf136b43d9f957617739",
+      "git_remote": "NOT_VERIFIED",
+      "build_pct": null,
+      "implementation_pct": null,
+      "certification_pct": null
+    },
+    {
+      "id": "whatsapp",
+      "name": "WhatsApp shared",
+      "head": null,
+      "build_pct": null,
+      "implementation_pct": null,
+      "certification_pct": null
+    }
+  ],
+  "stages": [
+    {
+      "id": "E0",
+      "status": "IN_PROGRESS",
+      "pct": null
+    },
+    {
+      "id": "E1",
+      "status": "LOCKED",
+      "pct": null
+    },
+    {
+      "id": "E2",
+      "status": "LOCKED",
+      "pct": null
+    },
+    {
+      "id": "E3",
+      "status": "LOCKED",
+      "pct": null
+    },
+    {
+      "id": "E4",
+      "status": "LOCKED",
+      "pct": null
+    },
+    {
+      "id": "E5",
+      "status": "LOCKED",
+      "pct": null
+    },
+    {
+      "id": "E6",
+      "status": "LOCKED",
+      "pct": null
+    },
+    {
+      "id": "E7",
+      "status": "LOCKED",
+      "pct": null
+    },
+    {
+      "id": "E8",
+      "status": "LOCKED",
+      "pct": null
+    }
+  ],
+  "blockers": [
+    "website_git_remote_unverified",
+    "mission_control_generated_evidence_missing",
+    "weighted_1_100_denominator_unverified",
+    "claude_code_runner_unverified"
+  ]
+}
