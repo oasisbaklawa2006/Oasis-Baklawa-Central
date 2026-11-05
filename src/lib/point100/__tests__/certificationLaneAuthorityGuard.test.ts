@@ -71,6 +71,18 @@ describe("certification lane dispatch-authority guard", () => {
     expect(exit).toContain("POINT100_POINT38_FINAL_INVOICE_DATE_UNRESOLVABLE");
   });
 
+  it("Point100 specs require the explicit Gate rejection for Dispatch and keep proof/finalize with Dispatch", () => {
+    const negative = read("tests/point100/negative-paths.cert.spec.ts");
+    const step = negative.slice(negative.indexOf("dispatch manager cannot substitute the independent security gate"));
+    expect(step).toContain("independent security gate authority required");
+    expect(step).toContain(".not.toBeNull()");
+    expect(step.slice(0, step.indexOf("duplicate scan correlation"))).not.toContain("carton_not_found");
+    const tail = read("tests/point100/canonicalDispatchTail.ts");
+    expect(tail).toContain('dispatch.rpc("record_dispatch_proof_packet_v1"');
+    expect(tail).toContain('dispatch.rpc("release_order_to_dispatched_v1"');
+    expect(tail).not.toMatch(/gate\.rpc\("(record_dispatch_proof_packet_v1|release_order_to_dispatched_v1)"/);
+  });
+
   it("authority mode comes from the Core checkout via one shared shell helper", () => {
     const helper = read("scripts/factory-certification/core-authority-mode.sh");
     expect(helper).toContain("20261001220000_gate_dispatch_role_separation.sql");
