@@ -43,7 +43,7 @@ concurrency:
 jobs:
   validate-target:
     name: Validate exact-head AI-UAT target before secrets
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 3
     outputs:
       url: ${{ steps.target.outputs.url }}
@@ -147,7 +147,7 @@ jobs:
 
   tranche-1:
     needs: validate-target
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
       TEST_PREVIEW_URL: ${{ needs.validate-target.outputs.url }}
