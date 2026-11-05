@@ -74,6 +74,19 @@ git status --short
 claude --name "OASIS-APPVERSE-MASTER-E0-TO-LAUNCH"
 ```
 
+**Important: Point-0 runbook files are presently in unmerged DRAFT PR #642, not Central `main`.** Before asking the agent to read them, fetch the draft ref without merging or changing the current working tree:
+
+```bash
+cd "$HOME/oasis-appverse/Oasis-Baklawa-Central"
+git fetch origin pull/642/head:refs/remotes/origin/point0-draft
+# Inspect the instructions directly from the fetched draft tree:
+git show origin/point0-draft:docs/appverse-point0/CLAUDE_AUTONOMOUS_EXECUTION_RUNBOOK_v1.md
+git show origin/point0-draft:docs/appverse-point0/CLAUDE_AUTONOMOUS_WORK_ORDER.md
+git show origin/point0-draft:docs/appverse-point0/progress.json
+```
+
+If Claude prefers a full read-only local file path, it may create a separate non-writing Git worktree checked out at this exact draft ref, with **no push or merge**. After PR #642 is reviewed and merged, read the then-current `main` version and reconcile any updated evidence; never rely on stale instructions.
+
 Inside Claude Code, add permitted *read-only context* directories if needed using `/add-dir` for each sibling checkout (or use `--add-dir` when launching, if supported by installed CLI version). Use `/rename OASIS-APPVERSE-MASTER-E0-TO-LAUNCH` if you started without a name. Check `/help` if a command is disabled by plan or policy. **Start E0 in planning/read-only mode**, then paste the single mission bootstrap prompt in §9.
 
 **Do not use** `--dangerously-skip-permissions` or permanently grant unrestricted shell and production privileges. Sandbox, permission allowlists and protected approvals stay enabled.
