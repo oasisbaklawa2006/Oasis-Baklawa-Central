@@ -21,19 +21,19 @@ Only three Core migrations touch the dispatch/Gate authority surface; nothing is
 ## Harness design (one chain, written once)
 - **Shared governed chain** (no seeded evidence): `ensure-point38-admin-auth` → `ensure-point38-pi-issued` → `prepare-point38-canonical-exit` (consignment, DPL, Finance receipt, final invoice, e-way, dispatch clearance, each by its own role) → `finalize-point38-canonical-tail` (Gate decision as `GATE_SECURITY`; proof and finalization by the Core-defined owner).
 - **Factory lane** runs the chain (`FACTORY_CERT_P38_GOVERNED_CHAIN`, default on) with `POINT38_TAIL_STOP_BEFORE_FINALIZE=true`; the **Dispatch Manager finalizes in the UI** through Core's real RPC.
-- **Point100 lane** opts out of the Factory chain and runs it itself, then finalizes in the tail; its authority script is **verify-only** (never re-applies a migration).
-- **Mode** (`role-separated` | `pre-separation`) comes from the Core checkout via `scripts/factory-certification/core-authority-mode.sh`; Node scripts fail closed on any other value.
+- **Point100 lane** opts out of the Factory chain and runs it itself, then finalizes in the tail (Dispatch Manager); its authority script is **verify-only** (never re-applies a migration).
+- **Mode** is derived from the Core checkout by `scripts/factory-certification/core-authority-mode.sh`; the Node scripts require `role-separated` and fail closed on anything else.
 - **No shim, no permissive RPC, no timeout change, no disabled job.**
 
-## Negative authorization assertions (role-separated mode)
+## Negative authorization assertions (every run)
 Each is a call that must be **rejected for the stated reason**; the lane fails otherwise (`POINT38_NEGATIVE_AUTHORIZATION_FAILED`):
 1. `DISPATCH_MANAGER` → `release_b2b_dispatch_carton_at_gate_v1`: `independent security gate authority required`.
 2. `GATE_SECURITY` → `record_dispatch_proof_packet_v1`: `dispatch proof authority required`.
 3. `GATE_SECURITY` → `release_order_to_dispatched_v1`: `dispatch finalization authority required`, and the order must remain `cleared_for_dispatch` (`POINT38_NEGATIVE_AUTHORIZATION_MUTATED_STATE`).
-Not asserted in pre-separation mode: that matrix is not the documented contract there, and asserting it would be a guess.
 
 ## Point100 pin
-Point100 is pinned to Core `5800f4b8` (30 Sep 2026), which predates the role separation, so until the pin moves its green result is **not** current-Core evidence. The pin must be a Core SHA with a successful protected Production Migration Release. The Point100 job now prints a read-only, non-gating table of such releases and whether each contains the separation migration; the pin is chosen from that evidence, not guessed.
+Moved from Core `5800f4b8` (30 Sep 2026, pre-separation) to **Core `645899439fe0a84806238b9114649eb2c3785a75`**, the SHA the owner recorded in #437 (comment 6668387688) as released by protected Production Migration Release run `41361801135` (`workflow_dispatch`, `main`, exact head SHA, deploy and ledger/dry-run jobs successful) and re-verified by the production drift watch. The pin is **not** accepted on that statement alone: the Point100 job re-derives it at run time (the release must exist for exactly this head SHA with both protected jobs successful) and the unit suite asserts the run id, so a mismatch fails with the exact value found.
+The pre-separation branch of the harness is removed: the tail and the authority verifier now **refuse** a Core checkout that lacks `20261001220000`, so a stale pin cannot silently certify obsolete authority again.
 
 ## Test surface
 Source guards: `src/lib/point100/__tests__/certificationLaneAuthorityGuard.test.ts`. Behavioural proof is the exact-head jobs: Factory certification, Point100 rehearsal, Buyer regression, smoke, Codacy/CodeQL. Results are recorded per head in #437 (passes, failures, skips and unavailable evidence separately).

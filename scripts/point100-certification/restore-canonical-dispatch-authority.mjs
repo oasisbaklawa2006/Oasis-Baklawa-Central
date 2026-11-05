@@ -46,20 +46,19 @@ if (checkedOutCoreSha !== requiredCoreSha.toLowerCase()) {
 // script no longer writes anything. It asserts that the live definition is Core's governed authority, and
 // that it matches the Core checkout under test.
 const authorityMode = process.env.POINT38_CORE_AUTHORITY_MODE?.trim() ?? "";
-if (authorityMode !== "role-separated" && authorityMode !== "pre-separation") {
+if (authorityMode !== "role-separated") {
   throw new Error(
-    "Point100 authority verification requires POINT38_CORE_AUTHORITY_MODE ('role-separated' or 'pre-separation'; see scripts/factory-certification/core-authority-mode.sh)",
+    `Point100 authority verification requires a role-separated Core checkout (POINT38_CORE_AUTHORITY_MODE='role-separated', got '${authorityMode || "unset"}'; see scripts/factory-certification/core-authority-mode.sh)`,
   );
 }
-const expectSeparated = authorityMode === "role-separated";
 
 const requiredMarkers = [
   "dispatch_proof_packets",
   "lock_finance_dispatch_eligibility_v1",
   "assert_active_dispatch_clearance_v1",
-  ...(expectSeparated ? ["'dispatch_finalize'"] : []),
+  "'dispatch_finalize'",
 ];
-const forbiddenMarkers = expectSeparated ? ["'gate_release'"] : [];
+const forbiddenMarkers = ["'gate_release'"];
 
 const markerChecks = [
   ...requiredMarkers.map(
@@ -86,6 +85,4 @@ END $$;`,
   "Verify Core dispatch finalization authority (read-only assertion)",
 );
 
-console.log(
-  `Point100 verified Core dispatch finalization authority (${expectSeparated ? "gate/dispatch role-separated" : "pre-separation"}) is installed unmodified.`,
-);
+console.log("Point100 verified Core dispatch finalization authority (gate/dispatch role-separated) is installed unmodified.");

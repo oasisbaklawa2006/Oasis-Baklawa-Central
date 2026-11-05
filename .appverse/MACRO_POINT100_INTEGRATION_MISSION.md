@@ -9,7 +9,7 @@ Objective: build and continuously repair the executable cross-repository journey
 | Authority | Evidence |
 |-----------|----------|
 | Central protected `main` | `f41b9cee85ac4e534de1b77f2abcead73795ef7e` (merged #618 UAT harness; Point100 branch reconciled here) |
-| Core production pin | `POINT100_CORE_PRODUCTION_VERIFIED_SHA` (display `5800f4b…`) — exact SHA is canonical in `src/lib/point100/upstreamDependencies.ts` and the Point100 workflow; protected Production Migration Release **#245** / run `36636198402` |
+| Core production pin | `POINT100_CORE_PRODUCTION_VERIFIED_SHA` (display `64589943…`) — exact SHA is canonical in `src/lib/point100/upstreamDependencies.ts` and the Point100 workflow; protected Production Migration Release run `41361801135` (previous pin `5800f4b8` predated the Gate/Dispatch role separation `20261001220000` and was retired on 6 Nov 2026) |
 | Merged Trace software (#37) | `894f27327381ce168d168530eba3c3722d71eaee` |
 | Programme dependency census | `appverse-control/dependency-graph.json` on current `main` (15 declared Point100 upstream edges) |
 | Software upstream census | All declared software lanes merged (Core #326/#300/#307/#321/#328/#309/#329, Central #588/#591, AI #217/#218/#220, Trace #38 on 2026-09-19, Buyer `4e5ec846`) — see `upstreamDependencyRegistry.ts` |
@@ -21,8 +21,8 @@ Rules:
 - This is not an audit-only PR. Build the executable integration harness, adapters, fixtures, route bindings and repair code needed on Central to consume canonical authorities.
 - Reuse and bind canonical macro tranches: Buyer revenue, Core Finance, Core Inventory/Factory, Central CRM, Central Order→Gate, Management #558, AI Catalogue, merged Trace #37, Core Dispatch Finalization #260, and production-certified Core Trace reprint authority #290. Do not create shadow truth.
 - Missing upstream authorities must be reported precisely and fail closed; where Central-side binding or orchestration is missing, implement it here.
-- Final software recertification is bound to the exact `POINT100_CORE_PRODUCTION_VERIFIED_SHA` canonical value (display `5800f4b…`) and protected Production Migration Release #245 run `36636198402`; executable workflow/script guards enforce the full SHA.
-- Core `release_order_to_dispatched_v1` is canonical on that certified pin. Disposable/shadow substitutes are forbidden and `POINT100_ALLOW_DISPOSABLE_BOOTSTRAP` must remain `false` for final recertification.
+- Final software recertification is bound to the exact `POINT100_CORE_PRODUCTION_VERIFIED_SHA` canonical value (display `64589943…`) and protected Production Migration Release run `41361801135`; executable workflow/script guards enforce the full SHA.
+- Core `release_order_to_dispatched_v1` is canonical on that certified pin (Dispatch-owned finalization; the independent Security Gate only releases cartons — the tail refuses a Core checkout without `20261001220000`). Disposable/shadow substitutes are forbidden and `POINT100_ALLOW_DISPOSABLE_BOOTSTRAP` must remain `false` for final recertification.
 - Trace #37 and merged Trace #38 software authority are consumed on the production pin; scanner/printer/TV/physical handover remains `physical_uat_only` and is not claimed by Point100 software tests.
 - Test whole journeys, not isolated programme points. Batch defects and repairs inside this tranche.
 - Maintain role/tenant isolation, idempotency, audit lineage, AAL2/maker-checker where required, Dispatch least privilege, independent Security Gate, and Core migration serialization.
