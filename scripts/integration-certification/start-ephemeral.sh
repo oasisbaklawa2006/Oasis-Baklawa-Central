@@ -32,5 +32,5 @@ node "${P100_DIR}/ensure-point38-admin-auth.mjs"
 node "${SCRIPT_DIR}/buyer-order-journey.mjs"          # Buyer -> catalogue -> cart -> quote -> checkout -> PI create
 node "${P100_DIR}/ensure-point38-pi-issued.mjs"       # Finance issues the PI (AAL2)
 POINT38_JOURNEY_GOVERNED_STATUS_PATH=true node "${P100_DIR}/prepare-point38-canonical-exit.mjs"
-node "${P100_DIR}/finalize-point38-canonical-tail.mjs" # 5 negative probes, Gate release, proof, finalization
+POINT38_JOURNEY_GOVERNED_STATUS_PATH=true node "${P100_DIR}/finalize-point38-canonical-tail.mjs" # 5 negative probes, Gate release, proof, finalization
 node "${SCRIPT_DIR}/verify-buyer-to-dispatch-journey.mjs"

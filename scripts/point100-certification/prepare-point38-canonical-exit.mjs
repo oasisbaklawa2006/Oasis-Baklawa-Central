@@ -565,6 +565,9 @@ try {
   const commercialVersionId = String(bindings[0].commercial_version_id);
 
   await ensureOperationsClearance(financeRole.client, financeRole.actorId, piId, commercialVersionId);
+  if (JOURNEY_STATUS_PATH) {
+    recordPhase("Advance payment proof recorded and verified; operations clearance GRANTED", "FINANCE_HEAD", "record_order_payment_proof_v1 + verify_order_payment_v1 + decide_finance_operations_clearance_v1", { piId });
+  }
 
   const { data: orderItem, error: orderItemError } = await dispatchRole.client
     .from("order_items")
@@ -588,6 +591,12 @@ try {
     quantity,
   );
 
+  if (JOURNEY_STATUS_PATH) {
+    recordPhase("Dispatch custody: consignment, source handoff (synthetic PRODUCTION source), carton scan, lock, DPL, Finance DPL receipt", "DISPATCH_MANAGER+ADMIN+FINANCE_HEAD", "create_b2b_dispatch_consignment ... receive_submitted_b2b_dispatch_dpls_v1", {
+      financeDplReceiptId,
+      syntheticInput: "source handoff declared from POINT100_SYNTHETIC_READY; no real production/stock movement",
+    });
+  }
   const invoiceDate = await ensureFinalPaymentCoverage(
     financeRole.client,
     financeRole.actorId,
@@ -614,6 +623,9 @@ try {
   if (!finalInvoiceId) throw new Error("POINT100_POINT38_FINAL_INVOICE_ID_MISSING");
 
   await ensureFinalSettlement(financeRole.client, financeRole.actorId, piId, commercialVersionId, finalInvoiceId);
+  if (JOURNEY_STATUS_PATH) {
+    recordPhase("Final payment request, settlement and final invoice issued by Finance", "FINANCE_HEAD", "issue_sales_order_pi_final_payment_request_v1 + issue_final_invoice_v1 + get_final_settlement_facts_v1", { finalInvoiceId });
+  }
 
   const ewayResult = await financeRole.client.rpc("record_eway_bill_evidence_v1", {
     p_final_invoice_id: finalInvoiceId,
