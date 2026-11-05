@@ -30,6 +30,19 @@
     "oasisbaklawa2006/oasis-trace",
     "oasisbaklawa2006/oasis-baklawa"
   ],
+  "registered_surfaces": [
+    {
+      "id": "public-website",
+      "repository": "oasisbaklawa2006/oasis-baklawa-gifting",
+      "kind": "public website",
+      "status": "CONFIRMED",
+      "separate_from": [
+        "oasisbaklawa2006/oasis-baklawa (Expo Buyer App)",
+        "oasisbaklawa2006/Oasis-Baklawa-Central legacy Buyer interface"
+      ],
+      "note": "Registered E0 CP16. Not part of the five-repository snapshot or the dependency graph; no website work is assigned to Central/Point100."
+    }
+  ],
   "dependency_graph": {
     "file": "appverse-control/dependency-graph.json",
     "validator": "scripts/appverse-control/check_dependency_graph.py",
