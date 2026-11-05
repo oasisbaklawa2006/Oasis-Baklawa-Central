@@ -23,14 +23,14 @@ concurrency:
 jobs:
   point100-dress-rehearsal:
     name: Point100 production-bound software rehearsal
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 120
     env:
       POINT100_CORE_REPO: ${{ github.workspace }}/oasis-supabase-core
       POINT100_ALLOW_LOCAL_RESET: "true"
       POINT100_ALLOW_DISPOSABLE_BOOTSTRAP: "false"
       POINT100_DISPATCH_PRODUCTION_VERIFIED: "true"
-      POINT100_CORE_VERIFIED_SHA: 5800f4b84ae72e7fef06d57c11fc22b3117f3c52
+      POINT100_CORE_VERIFIED_SHA: 645899439fe0a84806238b9114649eb2c3785a75
       FACTORY_CERT_CORE_REPO: ${{ github.workspace }}/oasis-supabase-core
       FACTORY_CERT_ALLOW_LOCAL_RESET: "true"
       FACTORY_CERT_CREDENTIAL_FILE: /tmp/oasis-factory-certification.env
@@ -41,6 +41,38 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
+
+      - name: Report protected Core release candidates (read-only, non-gating)
+        # Evidence for choosing POINT100_CORE_VERIFIED_SHA. Lists successful protected Production Migration
+        # Releases of Core with their head SHA and whether that commit already contains the Gate/Dispatch role
+        # separation migration. It only reads public Core metadata with the job token, changes nothing and cannot
+        # fail the job; the gating verification below is unchanged.
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CORE_RELEASE_REPO: oasisbaklawa2006/oasis-supabase-core
+        shell: bash
+        run: |
+          set -uo pipefail
+          separation="supabase/migrations/20261001220000_gate_dispatch_role_separation.sql"
+          {
+            echo "### Protected Core Production Migration Release candidates (read-only)"
+            echo ""
+            echo "| run id | head sha | created | deploy job | has role separation |"
+            echo "|---|---|---|---|---|"
+          } | tee -a "${GITHUB_STEP_SUMMARY}"
+          mapfile -t rows < <(
+            gh api "repos/${CORE_RELEASE_REPO}/actions/workflows/production-migration-release.yml/runs?event=workflow_dispatch&status=completed&branch=main&per_page=30" \
+              --jq '.workflow_runs[] | select(.conclusion == "success") | "\(.id) \(.head_sha) \(.created_at)"' 2>/dev/null | head -n 12
+          )
+          for row in "${rows[@]}"; do
+            read -r run_id sha created <<< "${row}"
+            deploy="$(gh api "repos/${CORE_RELEASE_REPO}/actions/runs/${run_id}/jobs?filter=latest&per_page=100" \
+              --jq '[.jobs[] | select(.name == "Approved production migration deployment")][0].conclusion // "none"' 2>/dev/null || echo unknown)"
+            if gh api "repos/${CORE_RELEASE_REPO}/contents/${separation}?ref=${sha}" --silent >/dev/null 2>&1; then has=yes; else has=no; fi
+            echo "| ${run_id} | ${sha} | ${created} | ${deploy} | ${has} |" | tee -a "${GITHUB_STEP_SUMMARY}"
+          done
+          echo "current pin: ${POINT100_CORE_VERIFIED_SHA}" | tee -a "${GITHUB_STEP_SUMMARY}"
 
       - name: Verify protected Core production deployment evidence
         env:
@@ -109,7 +141,7 @@ jobs:
           bash -n scripts/point100-certification/stop-ephemeral.sh
           bash -n scripts/point100-certification/run-dress-rehearsal.sh
           bash -n scripts/point100-certification/recert-after-core-260.sh
-          test "${POINT100_CORE_VERIFIED_SHA}" = "5800f4b84ae72e7fef06d57c11fc22b3117f3c52"
+          test "${POINT100_CORE_VERIFIED_SHA}" = "645899439fe0a84806238b9114649eb2c3785a75"
           [[ "${POINT100_PRODUCTION_MIGRATION_RUN_ID}" =~ ^[0-9]+$ ]]
           test "${POINT100_RECERT_AFTER_CORE_MIGRATION_RUN_ID}" = "${POINT100_PRODUCTION_MIGRATION_RUN_ID}"
           test "${POINT100_ALLOW_DISPOSABLE_BOOTSTRAP}" = "false"

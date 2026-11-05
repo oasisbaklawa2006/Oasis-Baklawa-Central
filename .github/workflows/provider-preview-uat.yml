@@ -23,7 +23,7 @@ concurrency:
 jobs:
   validate-dispatch:
     name: Validate trusted main dispatch
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 3
     steps:
       - name: Refuse non-main dispatch
@@ -45,7 +45,7 @@ jobs:
   contracts:
     name: Provider-preview contract tests
     needs: validate-dispatch
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -63,7 +63,7 @@ jobs:
   crawl:
     name: Provider-preview crawl (${{ inputs.run_tranche }})
     needs: [validate-dispatch, contracts]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
       PROVIDER_PREVIEW_RUN_TRANCHE: ${{ inputs.run_tranche }}
