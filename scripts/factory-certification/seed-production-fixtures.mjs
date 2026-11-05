@@ -436,72 +436,11 @@ await appendFile(
 );
 console.log(`Point-37 confirmed-order fixture ready: ${point37CheckoutRows[0].order_number} @ confirmed`);
 
-// Disposable cert bootstrap only: Core main has no release_order_to_dispatched_v1 yet.
-// Point-38 Golden Pipeline finalize must use a governed SECURITY DEFINER RPC because
-// trg_protect_order_authority_fields rejects authenticated orders.status PATCH.
-runLocalPostgresRoleStatement(localDbUrl,
-  `CREATE OR REPLACE FUNCTION public.release_order_to_dispatched_v1(
-  p_order_id uuid,
-  p_tracking_number text DEFAULT NULL,
-  p_courier_name text DEFAULT NULL,
-  p_finalize_reason text DEFAULT NULL,
-  p_correlation_id text DEFAULT NULL
-) RETURNS jsonb
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public, pg_temp
-AS $$
-DECLARE
-  v public.orders%ROWTYPE;
-BEGIN
-  PERFORM public.assert_order_transition_role('gate_release');
-  SELECT * INTO v FROM public.orders WHERE id = p_order_id FOR UPDATE;
-  IF NOT FOUND THEN
-    RETURN jsonb_build_object('ok', false, 'blockers', jsonb_build_array(jsonb_build_object('code', 'not_found')));
-  END IF;
-  IF v.status IN ('dispatched', 'in_transit', 'delivered') THEN
-    RETURN jsonb_build_object(
-      'ok', true,
-      'order_id', p_order_id,
-      'previous_status', v.status,
-      'new_status', v.status,
-      'already_applied', true
-    );
-  END IF;
-  IF v.status NOT IN ('cleared_for_dispatch', 'ready_for_dispatch') THEN
-    RETURN jsonb_build_object(
-      'ok', false,
-      'blockers', jsonb_build_array(jsonb_build_object('code', 'invalid_status', 'status', v.status))
-    );
-  END IF;
-  UPDATE public.orders
-     SET status = 'dispatched',
-         tracking_number = COALESCE(NULLIF(BTRIM(p_tracking_number), ''), tracking_number),
-         courier_name = COALESCE(NULLIF(BTRIM(p_courier_name), ''), courier_name)
-   WHERE id = p_order_id;
-  INSERT INTO public.order_status_history(order_id, old_status, new_status, changed_by)
-  VALUES (p_order_id, v.status, 'dispatched', auth.uid());
-  INSERT INTO public.audit_logs(action_type, module_name, entity_name, entity_id, actor_id, risk_level, new_value)
-  VALUES (
-    'ORDER_RELEASED_TO_DISPATCHED',
-    'Dispatch',
-    'orders',
-    p_order_id::text,
-    auth.uid(),
-    'high',
-    jsonb_build_object('finalize_reason', p_finalize_reason, 'correlation_id', p_correlation_id)
-  );
-  RETURN jsonb_build_object(
-    'ok', true,
-    'order_id', p_order_id,
-    'previous_status', v.status,
-    'new_status', 'dispatched',
-    'already_applied', false
-  );
-END $$;
-REVOKE ALL ON FUNCTION public.release_order_to_dispatched_v1(uuid, text, text, text, text) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.release_order_to_dispatched_v1(uuid, text, text, text, text) TO authenticated, service_role;`,
-  "Point-38 release_order_to_dispatched_v1 disposable cert RPC bootstrap");
+// NOTE: no release_order_to_dispatched_v1 stub is installed here any more. Core now ships the governed
+// RPC (20260908020000, hardened in 20261001220000: Dispatch-owned finalization that requires an immutable
+// dispatch proof packet and an active Finance dispatch clearance). A stub that re-created it with the old
+// 'gate_release' (Security Gate) role check overwrote Core's authority and made Dispatch finalization
+// unreachable, so the Point-38 certification now exercises Core's real RPC. See the proof-chain bootstrap below.
 
 // ---- Point-38 fixture: disposable cleared_for_dispatch order for Golden Pipeline / governance-board certification ----
 // Separate from FACT-E2E golden order and Point-37 production-release order.
@@ -633,6 +572,86 @@ runLocalPostgresRoleStatement(localDbUrl,
        final_invoice_url = 'https://example.invalid/factory-cert-point38-invoice'
    WHERE id = '${POINT38_ORDER_ID}'::uuid;`,
   "Point-38 cleared_for_dispatch fixture bootstrap");
+
+// Point-38 certifies DISPATCH FINALIZATION authority (Core's real release_order_to_dispatched_v1).
+// That RPC requires upstream immutable evidence that other lanes produce and certify: a Finance DPL receipt,
+// an issued Final Invoice, an active DISPATCH clearance (GRANTED) and a frozen dispatch proof packet.
+// These rows are SEEDED into the disposable database (replica role: seeding bypasses their triggers only);
+// they are NOT evidence that the Security Gate / Finance flows ran in this job. Core's role and status
+// checks inside the RPC itself are not bypassed.
+runLocalPostgresRoleStatement(localDbUrl,
+  `DO $$
+DECLARE
+  v_order uuid := '${POINT38_ORDER_ID}'::uuid;
+  v_company uuid;
+  v_total numeric;
+  v_version uuid;
+  v_pi uuid;
+  v_dm uuid;
+  v_fh uuid;
+  v_dpl uuid;
+  v_inv uuid;
+  v_clr uuid;
+BEGIN
+  SELECT o.company_id, coalesce(o.sales_order_value, 0) INTO v_company, v_total FROM public.orders o WHERE o.id = v_order;
+  SELECT v.id INTO v_version FROM public.sales_order_commercial_versions v WHERE v.order_id = v_order ORDER BY v.version_number DESC LIMIT 1;
+  SELECT p.id INTO v_pi FROM public.sales_order_proforma_invoices p WHERE p.order_id = v_order AND p.status IN ('READY_FOR_ISSUE', 'ISSUED') LIMIT 1;
+  SELECT u.id INTO v_dm FROM auth.users u WHERE u.email = 'factory-cert-dispatch-manager@example.invalid';
+  SELECT u.id INTO v_fh FROM auth.users u WHERE u.email = 'factory-cert-finance-head@example.invalid';
+  IF v_company IS NULL OR v_version IS NULL OR v_pi IS NULL OR v_dm IS NULL OR v_fh IS NULL THEN
+    RAISE EXCEPTION 'POINT38_PROOF_CHAIN_PREREQUISITES_MISSING company=% version=% pi=% dispatch_manager=% finance_head=%', v_company, v_version, v_pi, v_dm, v_fh;
+  END IF;
+
+  SET LOCAL session_replication_role = replica;
+
+  INSERT INTO public.finance_dpl_receipts (
+    order_id, company_id, commercial_version_id, external_dpl_id, dpl_version, dpl_fingerprint, dpl_snapshot,
+    finalized_at, received_by, received_role, source_channel, evidence_reference, correlation_id, idempotency_key
+  ) VALUES (
+    v_order, v_company, v_version, 'FACTORY-CERT-P38-DPL', 1, md5('factory-cert-p38-dpl-a') || md5('factory-cert-p38-dpl-b'),
+    jsonb_build_object('fixture', 'factory-cert-point38'), statement_timestamp(), v_dm, 'DISPATCH_MANAGER',
+    'FACTORY_CERT', 'factory-cert-point38-dpl', 'factory-cert-point38-dpl', 'factory-cert-point38-dpl-v1'
+  ) ON CONFLICT (idempotency_key) DO NOTHING;
+  SELECT id INTO v_dpl FROM public.finance_dpl_receipts WHERE idempotency_key = 'factory-cert-point38-dpl-v1';
+
+  INSERT INTO public.final_invoices (
+    order_id, company_id, proforma_invoice_id, commercial_version_id, finance_dpl_receipt_id, invoice_number, invoice_date,
+    taxable_total, tax_total, gross_total, status, document_reference, invoice_fingerprint, issued_by, issued_role,
+    reason, correlation_id, idempotency_key
+  ) VALUES (
+    v_order, v_company, v_pi, v_version, v_dpl, 'FC-P38-INV-001', current_date,
+    v_total, 0, v_total, 'ISSUED', 'factory-cert-point38-invoice', md5('factory-cert-p38-inv-a') || md5('factory-cert-p38-inv-b'),
+    v_fh, 'FINANCE_HEAD', 'Point-38 factory certification seeded invoice', 'factory-cert-point38-inv', 'factory-cert-point38-inv-v1'
+  ) ON CONFLICT (idempotency_key) DO NOTHING;
+  SELECT id INTO v_inv FROM public.final_invoices WHERE idempotency_key = 'factory-cert-point38-inv-v1';
+
+  INSERT INTO public.finance_clearance_events (
+    order_id, company_id, proforma_invoice_id, commercial_version_id, clearance_type, decision, commercial_value,
+    required_advance, verified_payment_amount, wallet_applied_amount, approved_credit_amount, covered_amount,
+    reason, evidence_reference, actor_id, actor_role, source_channel, correlation_id, idempotency_key, facts_snapshot
+  ) VALUES (
+    v_order, v_company, v_pi, v_version, 'DISPATCH', 'GRANTED', v_total,
+    v_total, v_total, 0, 0, v_total,
+    'Point-38 factory certification seeded dispatch clearance', 'factory-cert-point38-clearance', v_fh, 'FINANCE_HEAD',
+    'FACTORY_CERT', 'factory-cert-point38-clearance', 'factory-cert-point38-clearance-v1', jsonb_build_object('fixture', 'factory-cert-point38')
+  ) ON CONFLICT (idempotency_key) DO NOTHING;
+  SELECT id INTO v_clr FROM public.finance_clearance_events WHERE idempotency_key = 'factory-cert-point38-clearance-v1';
+
+  INSERT INTO public.dispatch_proof_packets (
+    order_id, final_invoice_id, finance_dpl_receipt_id, finance_dispatch_clearance_event_id, transport_snapshot,
+    gate_decision_ids, evidence_references, dispatched_at, proof_fingerprint, recorded_by, recorded_role,
+    correlation_id, idempotency_key
+  ) VALUES (
+    v_order, v_inv, v_dpl, v_clr,
+    jsonb_build_object('transporter', 'Factory Cert Courier', 'tracking_reference', 'FACTORY-CERT-P38', 'lr_awb_bilty', 'FACTORY-CERT-P38'),
+    '[]'::jsonb, jsonb_build_array('factory-cert-point38-proof'), statement_timestamp(),
+    md5('factory-cert-p38-proof-a') || md5('factory-cert-p38-proof-b'), v_dm, 'DISPATCH_MANAGER',
+    'factory-cert-point38-proof', 'factory-cert-point38-proof-v1'
+  ) ON CONFLICT (idempotency_key) DO NOTHING;
+
+  SET LOCAL session_replication_role = DEFAULT;
+END $$;`,
+  "Point-38 seeded upstream proof chain (DPL receipt, final invoice, DISPATCH clearance, proof packet)");
 
 const { error: point38StockError } = await supabase.from("inventory_stock_balances").upsert({
   product_id: GOLDEN_ORDER_FG_COMPONENT_PRODUCT_ID,
