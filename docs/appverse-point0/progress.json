@@ -26,7 +26,7 @@
       "id": "central",
       "name": "Central",
       "head": "4f80f1444b854e2ac2eb4dd9b7d00d7b21d5af13",
-      "open_prs": 5,
+      "open_prs": 7,
       "build_pct": null,
       "certification_pct": null,
       "testing_pct": null,
@@ -158,9 +158,9 @@
   ],
   "blockers": [
     "website_git_remote_unverified",
-    "mission_control_generated_evidence_missing",
     "weighted_1_100_denominator_unverified",
-    "claude_code_runner_unverified"
+    "claude_code_runner_unverified",
+    "mission_control_generated_evidence_missing__root_cause_confirmed__draft_fix_643_pending_review"
   ],
   "score_contract": {
     "build": "Weighted accepted features and source/tests proven at pinned SHA",
@@ -170,5 +170,11 @@
     "unknown": "Unverified score must remain null; a missing denominator is not 0%, nor 100%",
     "programme_aggregation": "Weighted unique 1–100 controls once across app ownership; no double-counting Core and WhatsApp",
     "go_gate": "GO/NO-GO remains separately governed and cannot be derived from combined percentage"
-  }
+  },
+  "open_prs_total": 28,
+  "last_e0_update_ist": "2026-11-05",
+  "point0_prs": [
+    "Central#642 docs/dashboard contract",
+    "Central#643 live evidence staged-diff repair (draft)"
+  ]
 }
