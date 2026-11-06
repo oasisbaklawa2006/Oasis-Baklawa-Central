@@ -43,14 +43,23 @@ jobs:
         with:
           ref: main
           persist-credentials: false
-      - name: Confirm trusted main and Python syntax
+      - name: Confirm trusted main and main-branch installation
+        id: bootstrap
         shell: bash
         run: |
           set -euo pipefail
           test "$(git rev-parse --abbrev-ref HEAD)" = main
+          if [[ ! -f scripts/appverse-control/appverse_merge_gate.py ]]; then
+            echo "installed=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Gate code has not yet merged to trusted main; bootstrap run is advisory only."
+            exit 0
+          fi
           python3 -m py_compile scripts/appverse-control/appverse_merge_gate.py
+          echo "installed=true" >> "$GITHUB_OUTPUT"
       - name: Publish exact-head fail-closed check run
+        if: steps.bootstrap.outputs.installed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
+          APPVERSE_PR_NUMBER: ${{ github.event.pull_request.number || '' }}
         run: python3 scripts/appverse-control/appverse_merge_gate.py
