@@ -67,7 +67,26 @@ recordPhase("Buyer reads the governed published catalogue", "BUYER", "published_
 const clear = await buyer.rpc("clear_customer_order_draft_v1");
 assertNoError(clear.error, "Journey clear draft");
 let chosen = null;
-const orderedRows = [...publishedRows].sort((a, b) => Number(b.sku === "CERT-ARABIC-001") - Number(a.sku === "CERT-ARABIC-001"));
+let orderedRows = [...publishedRows].sort((a, b) => Number(b.sku === "CERT-ARABIC-001") - Number(a.sku === "CERT-ARABIC-001"));
+if (process.env.JOURNEY_CORE_CONTRACTS === "combined") {
+  // Core #483 derives completion from production accepted by RGS; a line already covered by finished-goods stock cannot be
+  // completed from that evidence (reservation -> issue evidence is not recognised yet). Choose a producible, stock-free
+  // product and log every candidate so the choice is auditable; never alter stock to make one qualify.
+  const candidates = [];
+  for (const row of orderedRows) {
+    const productId = String(row.product_id ?? "");
+    const { data: stock } = await admin.from("inventory_stock_balances").select("available_qty,reserved_qty,picked_qty").eq("product_id", productId).eq("location_code", "FINISHED_GOODS");
+    const onHand = (stock ?? []).reduce((sum, r) => sum + Number(r.available_qty ?? 0) + Number(r.reserved_qty ?? 0) + Number(r.picked_qty ?? 0), 0);
+    const { data: prod } = await admin.from("products").select("sku,production_department").eq("id", productId).maybeSingle();
+    candidates.push({ productId, sku: prod?.sku ?? row.sku ?? null, department: prod?.production_department ?? null, finishedGoodsOnHand: onHand });
+  }
+  console.log(`JOURNEY product candidates: ${JSON.stringify(candidates)}`);
+  const eligible = new Set(candidates.filter((c) => String(c.department ?? "").toLowerCase() === "arabic_sweets" && c.finishedGoodsOnHand === 0).map((c) => c.productId));
+  orderedRows = orderedRows.filter((row) => eligible.has(String(row.product_id ?? "")));
+  if (orderedRows.length === 0) {
+    throw new Error(`JOURNEY_PRODUCTION_BLOCKED_NO_STOCKLESS_PRODUCT: no published, priced Arabic-sweets product with zero finished-goods stock exists in the fixture (candidates ${JSON.stringify(candidates)}); Core #483 cannot complete a stock-covered line`);
+  }
+}
 for (const row of orderedRows) {
   const productId = String(row.product_id ?? "");
   if (!productId || (pricedIds.size > 0 && !pricedIds.has(productId))) continue;
