@@ -215,12 +215,13 @@ def update_gate_check(number: int) -> None:
 def main() -> None:
     if os.environ.get("GITHUB_REPOSITORY") != REPO:
         raise SystemExit("Incorrect repository; fail closed")
-    event_path = os.environ.get("GITHUB_EVENT_PATH")
-    with open(event_path, encoding="utf-8") if event_path else open(os.devnull) as handle:
-        event = json.load(handle) if event_path else {}
-    pr = event.get("pull_request")
-    if pr:
-        update_gate_check(int(pr["number"]))
+    # GitHub Actions supplies the trusted numeric PR identifier directly;
+    # never read a filesystem path supplied through the environment.
+    pr_number = os.environ.get("APPVERSE_PR_NUMBER", "").strip()
+    if pr_number:
+        if not pr_number.isascii() or not pr_number.isdecimal():
+            raise SystemExit("Invalid PR number; fail closed")
+        update_gate_check(int(pr_number))
         return
     for pr in paginated(f"/repos/{REPO}/pulls?state=open"):
         if LABEL in {label.get("name") for label in pr.get("labels", [])}:
