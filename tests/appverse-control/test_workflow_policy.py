@@ -270,6 +270,16 @@ class CodeownersTests(unittest.TestCase):
                      if not any(covered(rule, path) for rule in rules)]
         self.assertEqual(uncovered[:10], [], "sensitive files without a CODEOWNERS rule (showing up to 10)")
 
+    def test_new_files_under_every_sensitive_prefix_are_code_owner_protected(self):
+        """Forward-looking: a file that does not exist yet must not slip between the gate's prefixes and CODEOWNERS."""
+        rules = [pattern for pattern, _ in codeowners_rules()]
+        for prefix in gate.SENSITIVE_PREFIXES:
+            future = prefix + "nested/FutureFile.ts" if prefix.endswith("/") else prefix + "FutureFile.ts"
+            self.assertEqual(gate.sensitive_paths({future}), [future], future)
+            self.assertTrue(any(covered(rule, future) for rule in rules), f"no CODEOWNERS rule covers {future}")
+        for name in sorted(gate.SENSITIVE_FILES):
+            self.assertTrue(any(covered(rule, name) for rule in rules), f"no CODEOWNERS rule covers {name}")
+
     def test_every_workflow_including_new_ones_is_code_owner_protected(self):
         self.assertTrue(any(covered(rule, ".github/workflows/some-future-evidence-job.yml") for rule, _ in codeowners_rules()))
         for path in WORKFLOWS.glob("*.yml"):

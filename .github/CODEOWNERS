@@ -20,8 +20,7 @@
 /src/lib/point100/ @oasisbaklawa2006 @dineshmutrejabackup-cmd
 
 # --- Finance, payments, authentication/roles, dispatch and Gate authority, stock authority ----------------------
-/src/lib/finance-authority/ @oasisbaklawa2006 @dineshmutrejabackup-cmd
-/src/lib/finance-governance/ @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/lib/finance* @oasisbaklawa2006 @dineshmutrejabackup-cmd
 /src/lib/order-authority/ @oasisbaklawa2006 @dineshmutrejabackup-cmd
 /src/lib/execution-authority/ @oasisbaklawa2006 @dineshmutrejabackup-cmd
 /src/lib/stock-authority/ @oasisbaklawa2006 @dineshmutrejabackup-cmd
@@ -30,8 +29,8 @@
 /src/lib/auth/ @oasisbaklawa2006 @dineshmutrejabackup-cmd
 /src/lib/auth-*.ts @oasisbaklawa2006 @dineshmutrejabackup-cmd
 /src/lib/dispatch* @oasisbaklawa2006 @dineshmutrejabackup-cmd
-/src/lib/roleNormalization.ts @oasisbaklawa2006 @dineshmutrejabackup-cmd
-/src/lib/point79WalletAuthority.ts @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/lib/roleNormalization* @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/lib/point79Wallet* @oasisbaklawa2006 @dineshmutrejabackup-cmd
 
 # --- Database/edge governance, deployment and supply chain ------------------------------------------------------
 /supabase/ @oasisbaklawa2006 @dineshmutrejabackup-cmd
