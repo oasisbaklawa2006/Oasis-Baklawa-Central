@@ -290,8 +290,6 @@ def validate(pr: dict) -> list[str]:
 
 def update_gate_check(number: int) -> None:
     pr = current_pr(number)
-    if LABEL not in {label.get("name") for label in pr.get("labels", [])}:
-        return
     head = pr["head"]["sha"]
     try:
         errors = validate(pr)
@@ -328,9 +326,18 @@ def main() -> None:
             raise SystemExit("Invalid PR number; fail closed")
         update_gate_check(int(pr_number))
         return
+    # A globally mandatory check must be published for every main-bound PR,
+    # not only PRs opted into optional native auto-merge.
+    failures = []
     for pr in paginated(f"/repos/{REPO}/pulls?state=open"):
-        if LABEL in {label.get("name") for label in pr.get("labels", [])}:
+        if pr.get("base", {}).get("ref") != "main":
+            continue
+        try:
             update_gate_check(int(pr["number"]))
+        except Exception as exc:
+            failures.append(f"#{pr['number']}: {type(exc).__name__}: {exc}")
+    if failures:
+        raise SystemExit("Gate publication failed: " + "; ".join(failures))
 
 
 if __name__ == "__main__":
