@@ -184,46 +184,106 @@ def review_approval(number: int, sha: str, author: str, require_human: bool = Fa
     )
 
 
+def relevant_checks(paths: set[str]) -> dict[str, str]:
+    """Run tests based on affected authority, not merely generic green CI."""
+    required = dict(REQUIRED_CHECKS)
+    action_change = any(path.startswith(".github/workflows/") for path in paths)
+    python_change = any(path.endswith(".py") for path in paths)
+    js_change = any(path.endswith((".js", ".mjs", ".jsx", ".ts", ".tsx")) for path in paths)
+    if action_change:
+        required["Analyze (actions)"] = "github-actions"
+    if python_change:
+        required["Analyze (python)"] = "github-actions"
+    if js_change:
+        required["Analyze (javascript-typescript)"] = "github-actions"
+
+    full_runtime = ".github/workflows/quality-gate.yml" in paths
+    buyer = full_runtime or any(
+        p.startswith(("scripts/buyer-certification/", "tests/buyer-certification/",
+                      "src/pages/customer/", "src/lib/customerApp/"))
+        or p == ".github/workflows/buyer-golden-path-certification.yml"
+        for p in paths
+    )
+    factory = full_runtime or any(
+        p.startswith(("scripts/factory-certification/", "tests/factory-certification/",
+                      "tests/factory-operations-", "src/lib/factory"))
+        or p == ".github/workflows/factory-certification-ephemeral.yml"
+        for p in paths
+    )
+    point100 = full_runtime or factory or any(
+        p.startswith(("scripts/point100-certification/", "tests/point100/",
+                      "src/lib/point100/", ".appverse/"))
+        or p == ".github/workflows/point100-certification-ephemeral.yml"
+        for p in paths
+    )
+    if buyer:
+        required["Disposable Buyer golden path certification"] = "github-actions"
+    if factory:
+        required["Disposable Factory certification"] = "github-actions"
+    if point100:
+        required["Point100 production-bound software rehearsal"] = "github-actions"
+    return required
+
+
+def coderabbit_review_clean(number: int, sha: str) -> bool:
+    """A passed CodeRabbit check alone does not settle substantive review notes."""
+    import re
+    reviews = paginated(f"/repos/{REPO}/pulls/{number}/reviews")
+    current = [r for r in reviews if (r.get("user") or {}).get("login") == "coderabbitai[bot]"
+               and r.get("commit_id") == sha]
+    if not current:
+        return False
+    newest = current[-1]
+    if newest.get("state") == "CHANGES_REQUESTED":
+        return False
+    marker = re.search(r"Actionable comments posted:\s*(\d+)", newest.get("body") or "")
+    return marker is not None and int(marker.group(1)) == 0
+
+
 def validate(pr: dict) -> list[str]:
     errors = []
     number, sha = pr["number"], pr["head"]["sha"]
     if not configured_ruleset():
-        errors.append("BLOCKED_MISSING_REQUIRED_CI_RULESET: Central #19200597 must strictly require Appverse Merge Gate")
+        errors.append("BLOCKED_RULESET: strict check, app source, code-owner review and no-bypass controls missing")
     if pr.get("state") != "open" or pr.get("draft"):
         errors.append("PR is closed or draft")
     if pr.get("base", {}).get("ref") != "main":
-        errors.append("Only direct-to-main PRs eligible; stacked PRs blocked")
+        errors.append("Only direct-to-main PRs are eligible; stacked PRs stay blocked")
     if number == 651 or "not for merge" in (pr.get("title") or "").lower():
-        errors.append("Evidence-only #651/candidate is excluded")
-    if LABEL not in {label.get("name") for label in pr.get("labels", [])}:
-        errors.append("PR is not opted in with appverse-gated label")
+        errors.append("Evidence-only candidate excluded")
     if pr.get("mergeable") is not True or pr.get("mergeable_state") in {"dirty", "unknown", "draft"}:
-        errors.append("Mergeability not established")
+        errors.append("PR mergeability is not proven clean")
 
     changed = paginated(f"/repos/{REPO}/pulls/{number}/files")
-    filenames = {item.get("filename") for item in changed}
-    if any(name in filenames for name in
-           (GATE_FILE, GATE_SCRIPT, ".github/workflows/appverse-merge-gate-ci.yml")):
-        errors.append("Changes to gate authority require separate manual review")
-    if any((name or "").startswith("supabase/migrations/") for name in filenames):
-        errors.append("Core-owned migrations cannot be introduced by Central")
+    filenames = {
+        name for item in changed
+        for name in (item.get("filename"), item.get("previous_filename")) if name
+    }
+    protected_change = bool(filenames.intersection(GOVERNANCE_FILES))
+    if any(name.startswith("supabase/migrations/") for name in filenames):
+        errors.append("Core-owned migration in Central is prohibited")
 
     checks = latest_checks(sha)
-    for name, app in REQUIRED_CHECKS.items():
-        check = checks.get((name, app))
-        if not check or check.get("status") != "completed" or check.get("conclusion") != "success":
-            state = "missing" if not check else f"{check.get('status')}/{check.get('conclusion')}"
-            errors.append(f"Required check {name} ({app}) not PASS: {state}")
+    for name, slug in relevant_checks(filenames).items():
+        item = checks.get((name, slug))
+        if not item or item.get("status") != "completed" or item.get("conclusion") != "success":
+            condition = "missing" if not item else f"{item.get('status')}/{item.get('conclusion')}"
+            errors.append(f"Required check {name} ({slug}) not PASS: {condition}")
     statuses = latest_statuses(sha)
-    for context, expected in REQUIRED_STATUSES.items():
-        if (statuses.get(context) or {}).get("state") != expected:
-            errors.append(f"Required external status {context} not PASS")
+    for context, (state, creator) in REQUIRED_STATUSES.items():
+        item = statuses.get(context) or {}
+        if item.get("state") != state or (item.get("creator") or {}).get("login") != creator:
+            errors.append(f"Required external status {context} is not authenticated PASS")
     if unresolved_threads(number):
-        errors.append("Unresolved review threads")
-    if not review_approval(number, sha, (pr.get("user") or {}).get("login", "")):
-        errors.append("No independent current-head APPROVED review, or changes requested")
-    latest = current_pr(number)
-    if latest["head"]["sha"] != sha or latest["base"]["sha"] != pr["base"]["sha"]:
+        errors.append("Unresolved independent review threads")
+    author = (pr.get("user") or {}).get("login", "")
+    if not review_approval(number, sha, author, require_human=protected_change):
+        errors.append("No valid current-head approval; governance changes require a human code owner")
+    if not coderabbit_review_clean(number, sha):
+        errors.append("CodeRabbit has not completed a clean zero-actionable review on this head")
+
+    now = current_pr(number)
+    if now["head"]["sha"] != sha or now["base"]["sha"] != pr["base"]["sha"]:
         errors.append("HEAD_OR_BASE_CHANGED_DURING_VERIFICATION")
     return errors
 
