@@ -187,6 +187,7 @@ describe("certification lane dispatch-authority guard", () => {
       const wf = read(".github/workflows/buyer-to-dispatch-journey-combined-core.yml");
       expect(wf).toContain("workflow_dispatch");
       expect(wf).not.toContain("pull_request");
+      expect(wf).not.toMatch(/branches: \[main\]/);
       expect(wf).toContain("NON-PRODUCTION");
       expect(wf).toContain("POINT38_GATE_SCAN_MODE: rpc");
       expect(wf).toContain("JOURNEY_CORE_CONTRACTS: combined");

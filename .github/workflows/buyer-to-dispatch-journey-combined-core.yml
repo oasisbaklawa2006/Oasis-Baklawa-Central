@@ -4,6 +4,10 @@ name: Buyer-to-Dispatch Journey (combined draft Core, NON-PRODUCTION)
 # checkout and carried through Finance, Operations, Dispatch, the independent Security Gate and canonical finalization.
 # No external provider (MSG91, payments, messaging) is contacted. Never a production-readiness claim.
 on:
+  push:
+    # Runs only when this lane itself changes, on its own review branch, so a draft-Core run exists as evidence.
+    branches: [test/buyer-to-dispatch-journey-lane-20261105]
+    paths: ['.github/workflows/buyer-to-dispatch-journey-combined-core.yml', 'scripts/integration-certification/**']
   workflow_dispatch:
     inputs:
       core_ref:
@@ -45,7 +49,7 @@ jobs:
         with:
           persist-credentials: false
           repository: oasisbaklawa2006/oasis-supabase-core
-          ref: ${{ inputs.core_ref }}
+          ref: ${{ inputs.core_ref || 'candidate/core-combined-481-482-483-20261106' }}
           path: oasis-supabase-core
 
       - name: Set up pinned Supabase CLI
