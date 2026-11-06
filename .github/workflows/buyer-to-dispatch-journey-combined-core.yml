@@ -69,7 +69,10 @@ jobs:
       - name: Validate journey scripts and exact production pin
         run: |
           bash -n scripts/integration-certification/start-ephemeral.sh
-          git -C oasis-supabase-core rev-parse HEAD | tee "${GITHUB_STEP_SUMMARY}"
+          core_sha="$(git -C oasis-supabase-core rev-parse HEAD)"
+          echo "Draft Core under test (NOT a production release): ${core_sha}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          # The shared authority verifier needs a full SHA; it is the draft Core checkout, never a production pin.
+          echo "POINT100_CORE_VERIFIED_SHA=${core_sha}" >> "${GITHUB_ENV}"
           test -f oasis-supabase-core/supabase/migrations/20261106010000_b2b_gate_scan_evidence_authority.sql
           test -f oasis-supabase-core/supabase/migrations/20261106020000_finance_two_step_reversal_authority.sql
           test -f oasis-supabase-core/supabase/migrations/20261106030000_order_item_production_completion_authority.sql
