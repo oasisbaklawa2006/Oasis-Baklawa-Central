@@ -76,20 +76,28 @@ recordPhase("Immutable dispatch proof packet exists for the order", "DISPATCH_MA
 
 // 5b. Combined-Core contracts (#481, #483): governed completion events and authoritative Gate evidence.
 if (process.env.JOURNEY_CORE_CONTRACTS === "combined") {
+  const productionBlocked = (ledger.phases ?? []).some((phase) => phase.status === "BLOCKED" && String(phase.rpc ?? "").includes("complete_order_item_from_production_v1"));
   const { data: items } = await admin.from("order_items").select("id,quantity,production_status,actual_packed_qty").eq("order_id", orderId);
   const item = items?.[0];
   if (!item || item.production_status !== "completed" || Number(item.actual_packed_qty) !== Number(item.quantity)) fail("JOURNEY_ITEM_NOT_GOVERNED_COMPLETE", items);
   const { data: completions, error: completionError } = await admin.from("order_item_production_completions").select("outcome,packed_qty,evidence").eq("order_item_id", item.id).order("created_at");
   assertNoError(completionError, "Journey completion events read");
-  const outcomes = (completions ?? []).map((row) => row.outcome);
-  if (outcomes.join(",") !== "PARTIAL,COMPLETE") fail("JOURNEY_COMPLETION_EVENTS_UNEXPECTED", completions);
-  if (Number(completions.at(-1).packed_qty) !== Number(item.quantity)) fail("JOURNEY_COMPLETION_QTY_MISMATCH", completions);
-  if (!Array.isArray(completions.at(-1).evidence?.transfer_ids) || completions.at(-1).evidence.transfer_ids.length < 2) fail("JOURNEY_COMPLETION_EVIDENCE_THIN", completions.at(-1).evidence);
   const { data: unsupported } = await admin.from("audit_logs").select("id").eq("entity_id", orderId).eq("action_type", "PACKED_READY_WITHOUT_GOVERNED_PRODUCTION_EVIDENCE");
-  if (unsupported?.length) fail("JOURNEY_PACKED_READY_WITHOUT_EVIDENCE_AUDITED", unsupported);
+  if (productionBlocked) {
+    // The governed leg was recorded BLOCKED (no accepted evidence obtainable). Nothing may claim governed completion, and
+    // the packed-ready transition lacking evidence must have been surfaced by the Core observe policy, not hidden.
+    if ((completions ?? []).length !== 0) fail("JOURNEY_BLOCKED_LEG_HAS_COMPLETION_EVENTS", completions);
+    if (!unsupported?.length) fail("JOURNEY_UNSUPPORTED_PACKED_READY_NOT_AUDITED", orderId);
+  } else {
+    const outcomes = (completions ?? []).map((row) => row.outcome);
+    if (outcomes.join(",") !== "PARTIAL,COMPLETE") fail("JOURNEY_COMPLETION_EVENTS_UNEXPECTED", completions);
+    if (Number(completions.at(-1).packed_qty) !== Number(item.quantity)) fail("JOURNEY_COMPLETION_QTY_MISMATCH", completions);
+    if (!Array.isArray(completions.at(-1).evidence?.transfer_ids) || completions.at(-1).evidence.transfer_ids.length < 2) fail("JOURNEY_COMPLETION_EVIDENCE_THIN", completions.at(-1).evidence);
+    if (unsupported?.length) fail("JOURNEY_PACKED_READY_WITHOUT_EVIDENCE_AUDITED", unsupported);
+  }
   const { data: scans } = await admin.from("operational_scan_records").select("id,scan_source,actor_role,metadata,verification_status").eq("order_id", orderId).eq("scan_type", "dispatch_gate");
   if (scans?.length !== 1 || scans[0].scan_source !== "B2B_GATE_SCAN_V1" || scans[0].metadata?.authority !== "B2B_GATE_SCAN_V1" || scans[0].actor_role !== "GATE_SECURITY") fail("JOURNEY_GATE_EVIDENCE_NOT_AUTHORITATIVE", scans);
-  recordPhase("Governed completion events (PARTIAL then COMPLETE) and authoritative Gate evidence are present; nothing was packed-ready without evidence", "CORE", "order_item_production_completions + operational_scan_records", { outcomes, gateScanSource: scans[0].scan_source });
+  recordPhase(productionBlocked ? "Production leg BLOCKED (no governed completion events; unsupported packed-ready audited by Core observe policy); authoritative Gate evidence present" : "Governed completion events (PARTIAL then COMPLETE) and authoritative Gate evidence are present; nothing was packed-ready without evidence", "CORE", "order_item_production_completions + operational_scan_records", { outcomes, gateScanSource: scans[0].scan_source });
 }
 
 // 6. Authorization boundary preserved: a Buyer cannot run dispatch finalization or Gate release, state unchanged.
