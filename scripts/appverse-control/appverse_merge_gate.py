@@ -150,18 +150,38 @@ def unresolved_threads(number: int) -> int:
     return sum(not thread["isResolved"] for thread in result["nodes"])
 
 
-def review_approval(number: int, sha: str, author: str) -> bool:
-    # Latest substantive decision per independent reviewer, exact current head.
-    reviews = paginated(f"/repos/{REPO}/pulls/{number}/reviews")
+def trusted_review_decisions(number: int, author: str) -> tuple[dict, set]:
+    """Only verified agent or actual repository code-owner actors count."""
+    if not author:
+        raise GateError("Cannot verify reviewer independence: PR author missing")
     latest = {}
-    for review in reviews:
-        user = (review.get("user") or {}).get("login")
-        if user and user != author and review.get("state") in {"APPROVED", "CHANGES_REQUESTED", "DISMISSED"}:
+    human = set()
+    for review in paginated(f"/repos/{REPO}/pulls/{number}/reviews"):
+        user = (review.get("user") or {}).get("login", "")
+        if not user or user == author:
+            continue
+        association = review.get("author_association", "")
+        trusted_human = (user in TRUSTED_HUMANS
+                         and association in {"OWNER", "MEMBER", "COLLABORATOR"})
+        trusted_bot = user in TRUSTED_BOT_APPROVERS
+        if not trusted_human and not trusted_bot:
+            continue
+        if trusted_human:
+            human.add(user)
+        if review.get("state") in {"APPROVED", "CHANGES_REQUESTED", "DISMISSED"}:
             latest[user] = review
+    return latest, human
+
+
+def review_approval(number: int, sha: str, author: str, require_human: bool = False) -> bool:
+    latest, humans = trusted_review_decisions(number, author)
     if any(review.get("state") == "CHANGES_REQUESTED" for review in latest.values()):
         return False
-    return any(review.get("state") == "APPROVED" and review.get("commit_id") == sha
-               for review in latest.values())
+    return any(
+        review.get("state") == "APPROVED" and review.get("commit_id") == sha
+        and (not require_human or username in humans)
+        for username, review in latest.items()
+    )
 
 
 def validate(pr: dict) -> list[str]:
