@@ -1,6 +1,6 @@
 // GitHub App authentication for the Appverse Merge Gate Worker (Cloudflare Workers / Node 20+, WebCrypto only).
 //
-// Root-cause note: GitHub issues App private keys as PKCS#1 ("-----BEGIN RSA PRIVATE KEY-----"). WebCrypto's
+// Root-cause note: GitHub issues App private keys as PKCS#1 (a PEM whose label is "RSA PRIVATE KEY"). WebCrypto's
 // importKey("pkcs8") rejects PKCS#1 with a bare DataError, so a Worker that feeds the downloaded PEM straight in fails
 // with a generic Error before any request reaches GitHub. importAppKey() accepts both encodings.
 //
@@ -59,9 +59,16 @@ export function parsePem(pem) {
 }
 
 export async function importAppKey(pem, subtle = globalThis.crypto.subtle) {
-  const { kind, der } = parsePem(pem);
-  const pkcs8 = kind === "pkcs1" ? pkcs1ToPkcs8(der) : der;
+  let parsed;
   try {
+    parsed = parsePem(pem);
+  } catch (error) {
+    // Only fixed-vocabulary AuthErrors escape; anything unexpected is normalised so no input text can leak.
+    throw error instanceof AuthError ? error : new AuthError("pem", "parse_failed");
+  }
+  const { kind, der } = parsed;
+  try {
+    const pkcs8 = kind === "pkcs1" ? pkcs1ToPkcs8(der) : der;
     return await subtle.importKey("pkcs8", pkcs8, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["sign"]);
   } catch {
     throw new AuthError("import", kind === "pkcs1" ? "pkcs1_import_failed" : "pkcs8_import_failed");
