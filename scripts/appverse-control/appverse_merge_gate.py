@@ -92,6 +92,11 @@ def configured_ruleset() -> bool:
     ruleset = api(f"/repos/{REPO}/rulesets/{RULESET_ID}")
     if ruleset.get("enforcement") != "active" or ruleset.get("bypass_actors"):
         return False
+    if ruleset.get("target") != "branch":
+        return False
+    targets = (ruleset.get("conditions") or {}).get("ref_name") or {}
+    if not {"refs/heads/main", "~DEFAULT_BRANCH"}.intersection(targets.get("include") or []):
+        return False
     required_status = next((x for x in ruleset.get("rules", [])
                             if x.get("type") == "required_status_checks"), None)
     if required_status is None:
@@ -107,6 +112,11 @@ def configured_ruleset() -> bool:
 
     governance = api(f"/repos/{REPO}/rulesets/19820724")
     if governance.get("enforcement") != "active" or governance.get("bypass_actors"):
+        return False
+    if governance.get("target") != "branch":
+        return False
+    governed = (governance.get("conditions") or {}).get("ref_name") or {}
+    if not {"refs/heads/main", "~DEFAULT_BRANCH"}.intersection(governed.get("include") or []):
         return False
     pr_rule = next((x for x in governance.get("rules", [])
                     if x.get("type") == "pull_request"), None)
