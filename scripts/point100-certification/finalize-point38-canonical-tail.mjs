@@ -6,6 +6,14 @@
  * validation -> immutable dispatch proof -> canonical dispatch finalization.
  * Synthetic scan/transport values prove software contracts only; they are not
  * physical UAT evidence. All mutations go through canonical Core authority.
+ *
+ * The tail certifies Core's CURRENT role-separated dispatch authority (20261001220000): the independent
+ * Security Gate releases the carton (GATE_SECURITY); the Dispatch Manager records the immutable dispatch proof
+ * and finalizes the order (Security does not mutate order status). It refuses to run against a Core checkout
+ * that predates the separation (see scripts/factory-certification/core-authority-mode.sh), so a stale pin can
+ * never silently certify obsolete authority again. Negative probes prove the separation is enforced.
+ * POINT38_TAIL_STOP_BEFORE_FINALIZE=true stops after the immutable proof so a UI lane can perform the
+ * Dispatch Manager finalization itself.
  */
 
 import { createClient } from "@supabase/supabase-js";
@@ -58,6 +66,33 @@ async function authenticatedRole(role) {
 
 const dispatchRole = await authenticatedRole("DISPATCH_MANAGER");
 const gateRole = await authenticatedRole("GATE_SECURITY");
+
+const authorityMode = process.env.POINT38_CORE_AUTHORITY_MODE?.trim() ?? "";
+if (authorityMode !== "role-separated") {
+  throw new Error(
+    `POINT100_POINT38_TAIL_REQUIRES_ROLE_SEPARATED_CORE: POINT38_CORE_AUTHORITY_MODE must be 'role-separated' (got '${authorityMode || "unset"}'); the Core checkout under test must contain 20261001220000_gate_dispatch_role_separation.sql (see scripts/factory-certification/core-authority-mode.sh)`,
+  );
+}
+// Proof recording and finalization belong to Dispatch; the Gate only releases the carton.
+const proofRole = dispatchRole;
+const stopBeforeFinalize = process.env.POINT38_TAIL_STOP_BEFORE_FINALIZE === "true";
+console.log("Point100 Point38 tail authority mode: gate/dispatch role-separated (Core >= 20261001220000)");
+
+/**
+ * Negative authorization assertion: the call must be REJECTED for the stated reason, so the lane fails if Core's
+ * separation of duties is ever loosened (or if a role were silently interchangeable). Core's role matrix
+ * (20261001220000) is the documented contract. A rejected call must not mutate state.
+ */
+async function expectRejected(label, call, expectedFragment) {
+  const { data, error } = await call();
+  const message = String(error?.message ?? "");
+  if (!error || !message.includes(expectedFragment)) {
+    throw new Error(
+      `POINT38_NEGATIVE_AUTHORIZATION_FAILED: ${label}: expected rejection containing "${expectedFragment}", got ${JSON.stringify({ error: error?.message ?? null, data })}`,
+    );
+  }
+  console.log(`Point38 negative authorization PASS: ${label} -> rejected ("${expectedFragment}")`);
+}
 
 try {
   const { data: consignments, error: consignmentError } = await dispatchRole.client
@@ -138,6 +173,49 @@ try {
     );
   }
 
+  // Finance stays independent too: neither Dispatch nor the Security Gate may issue Finance documents or decide
+  // Finance clearance. Core checks the Finance actor first, before any argument or state validation, so dummy
+  // identifiers are sufficient and nothing can be written when the call is correctly rejected.
+  const probeUuid = "00000000-0000-4000-8000-0000000000a1";
+  await expectRejected(
+    "DISPATCH_MANAGER must not issue a final invoice (Finance-owned)",
+    () =>
+      dispatchRole.client.rpc("issue_final_invoice_v1", {
+        p_order_id: point38OrderId,
+        p_pi_id: probeUuid,
+        p_commercial_version_id: probeUuid,
+        p_finance_dpl_receipt_id: probeUuid,
+        p_invoice_number: "NEG-AUTH-PROBE",
+        p_invoice_date: "2026-01-01",
+        p_document_reference: "point38:negative-authorization-probe",
+        p_reason: "negative authorization probe",
+        p_correlation_id: `${RUN_TOKEN}:negative-invoice-probe`,
+        p_idempotency_key: `${RUN_TOKEN}:negative-invoice-probe`,
+        p_actor_id: dispatchRole.actorId,
+      }),
+    "finance authority required",
+  );
+  await expectRejected(
+    "GATE_SECURITY must not decide Finance dispatch clearance (Finance-owned)",
+    () =>
+      gateRole.client.rpc("decide_finance_dispatch_clearance_v1", {
+        p_final_invoice_id: probeUuid,
+        p_decision: "GRANTED",
+        p_reason: "negative authorization probe",
+        p_evidence_reference: "point38:negative-authorization-probe",
+        p_correlation_id: `${RUN_TOKEN}:negative-clearance-probe`,
+        p_idempotency_key: `${RUN_TOKEN}:negative-clearance-probe`,
+        p_actor_id: gateRole.actorId,
+      }),
+    "finance authority required",
+  );
+
+  await expectRejected(
+    "DISPATCH_MANAGER must not perform the independent Security Gate release",
+    () => dispatchRole.client.rpc("release_b2b_dispatch_carton_at_gate_v1", { p_carton_id: cartonId, p_scan_evidence_id: gateScanId }),
+    "independent security gate authority required",
+  );
+
   const { data: gateDecisionData, error: gateDecisionError } = await gateRole.client.rpc("release_b2b_dispatch_carton_at_gate_v1", {
     p_carton_id: cartonId,
     p_scan_evidence_id: gateScanId,
@@ -154,10 +232,25 @@ try {
     .eq("id", gateScanId);
   assertNoError(verifyScanError, "Point38 tail gate evidence verification");
 
+  await expectRejected(
+    "GATE_SECURITY must not record the dispatch proof (Dispatch-owned)",
+    () =>
+      gateRole.client.rpc("record_dispatch_proof_packet_v1", {
+        p_order_id: point38OrderId,
+        p_transport_snapshot: { transporter: "UNAUTHORIZED PROBE" },
+        p_evidence_references: ["point38:negative-authorization-probe"],
+        p_dispatched_at: new Date().toISOString(),
+        p_correlation_id: `${RUN_TOKEN}:negative-proof-probe`,
+        p_idempotency_key: `${RUN_TOKEN}:negative-proof-probe`,
+        p_actor_id: gateRole.actorId,
+      }),
+    "dispatch proof authority required",
+  );
+
   const dispatchedAt = new Date().toISOString();
   const trackingReference = "P100-TRK-POINT38-CANONICAL";
   const proofIdentity = `${RUN_TOKEN}:dispatch-proof`;
-  const { data: proofData, error: proofError } = await gateRole.client.rpc("record_dispatch_proof_packet_v1", {
+  const { data: proofData, error: proofError } = await proofRole.client.rpc("record_dispatch_proof_packet_v1", {
     p_order_id: point38OrderId,
     p_transport_snapshot: {
       transporter: "POINT100 SYNTHETIC CARRIER",
@@ -172,13 +265,44 @@ try {
     p_dispatched_at: dispatchedAt,
     p_correlation_id: proofIdentity,
     p_idempotency_key: proofIdentity,
-    p_actor_id: gateRole.actorId,
+    p_actor_id: proofRole.actorId,
   });
   assertNoError(proofError, "Point38 tail immutable dispatch proof");
   const dispatchProofId = String(firstRow(proofData)?.dispatch_proof_id ?? "");
   if (!dispatchProofId) throw new Error("POINT100_POINT38_TAIL_DISPATCH_PROOF_ID_MISSING");
 
-  const { data: finalizeData, error: finalizeError } = await gateRole.client.rpc("release_order_to_dispatched_v1", {
+  await expectRejected(
+    "GATE_SECURITY must not finalize dispatch (Security does not mutate order status)",
+    () =>
+      gateRole.client.rpc("release_order_to_dispatched_v1", {
+        p_order_id: point38OrderId,
+        p_tracking_number: trackingReference,
+        p_courier_name: "POINT100 SYNTHETIC CARRIER",
+        p_finalize_reason: "negative authorization probe",
+        p_correlation_id: `${RUN_TOKEN}:negative-finalize-probe`,
+      }),
+    "dispatch finalization authority required",
+  );
+  // The rejected finalize must not have changed the order: it is still cleared_for_dispatch.
+  const { data: afterProbe, error: afterProbeError } = await dispatchRole.client
+    .from("orders")
+    .select("status")
+    .eq("id", point38OrderId)
+    .maybeSingle();
+  assertNoError(afterProbeError, "Point38 tail post-probe order status read");
+  if (String(afterProbe?.status ?? "").toLowerCase() !== "cleared_for_dispatch") {
+    throw new Error(`POINT38_NEGATIVE_AUTHORIZATION_MUTATED_STATE: order status is ${String(afterProbe?.status)}`);
+  }
+
+  if (stopBeforeFinalize) {
+    console.log(
+      "Point38 tail stopped before finalization by request: Gate decision and immutable dispatch proof exist; the Dispatch Manager finalizes.",
+    );
+    await Promise.allSettled([dispatchRole.client.auth.signOut(), gateRole.client.auth.signOut()]);
+    process.exit(0);
+  }
+
+  const { data: finalizeData, error: finalizeError } = await proofRole.client.rpc("release_order_to_dispatched_v1", {
     p_order_id: point38OrderId,
     p_tracking_number: trackingReference,
     p_courier_name: "POINT100 SYNTHETIC CARRIER",
@@ -191,7 +315,7 @@ try {
     throw new Error(`POINT100_POINT38_TAIL_FINALIZE_BLOCKED: ${JSON.stringify(finalize)}`);
   }
 
-  const { data: exitFactsData, error: exitFactsError } = await gateRole.client.rpc("get_finance_exit_facts_v1", {
+  const { data: exitFactsData, error: exitFactsError } = await proofRole.client.rpc("get_finance_exit_facts_v1", {
     p_order_id: point38OrderId,
   });
   assertNoError(exitFactsError, "Point38 tail final finance-exit verification");

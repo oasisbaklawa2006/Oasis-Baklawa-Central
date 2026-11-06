@@ -3,13 +3,18 @@ name: UI UX Audit (Playwright)
 on:
   workflow_dispatch:
 
+# Least privilege: this job only checks out code, runs the audit and uploads artifacts (artifact upload uses the
+# runtime token, not GITHUB_TOKEN). Secrets stay scoped to the single step that needs them.
+permissions:
+  contents: read
+
 concurrency:
   group: ui-ux-audit-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
 
     steps:

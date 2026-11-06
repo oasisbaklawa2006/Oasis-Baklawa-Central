@@ -23,7 +23,6 @@ import {
   assertNoError,
   firstRow,
   parseCredentialFile,
-  queryLocalPostgresScalar,
   readCredential,
   requireBootstrapEnv,
 } from "./point38-bootstrap-common.mjs";
@@ -50,24 +49,19 @@ function kolkataCalendarDate(isoTimestamp) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date(isoTimestamp));
 }
 
-function sessionCalendarDate(localDbUrl) {
-  return queryLocalPostgresScalar(
-    localDbUrl,
-    "SELECT to_char(current_date, 'YYYY-MM-DD');",
-    "Point38 session calendar date",
-    LOCAL_LABEL,
-  );
-}
-
-function isFinanceCalendarConflictImminent() {
-  const kolkataToday = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date());
-  const utcToday = new Intl.DateTimeFormat("en-CA", { timeZone: "UTC" }).format(new Date());
-  return kolkataToday > utcToday;
+/**
+ * Core's final-invoice calendar authority is the Asia/Kolkata BUSINESS date (migration 20260929213000 aligns the
+ * future-date guard to IST; 20260902083000 requires invoice_date >= the IST date of the final-payment request).
+ * The invoice date is therefore the IST date of "now", valid at every hour. The previous harness used the
+ * database session date (UTC) and refused to run between 18:30 and 24:00 UTC, which made certification fail for
+ * about 5.5 hours a day for no Core reason.
+ */
+function kolkataBusinessDateNow() {
+  return kolkataCalendarDate(new Date().toISOString());
 }
 
 const backendUrl = assertLoopbackHttpOrigin(requireBootstrapEnv("FACTORY_CERT_SUPABASE_URL", LOCAL_LABEL), LOCAL_LABEL);
 const anonKey = requireBootstrapEnv("FACTORY_CERT_SUPABASE_ANON_KEY", LOCAL_LABEL);
-const localDbUrl = requireBootstrapEnv("FACTORY_CERT_LOCAL_DB_URL", LOCAL_LABEL);
 const point38OrderId = credentialValue("FACTORY_CERT_POINT38_ORDER_ID");
 const point38OrderItemId = credentialValue("FACTORY_CERT_POINT38_ORDER_ITEM_ID");
 
@@ -249,11 +243,6 @@ async function issueFinalPaymentRequest(
   financeDplReceiptId,
 ) {
   const requestCorrelation = `${RUN_TOKEN}:final-payment-request`;
-  if (isFinanceCalendarConflictImminent()) {
-    throw new Error(
-      "POINT100_POINT38_FINANCE_CALENDAR_CONFLICT: Core final-payment/invoice calendar gate (Asia/Kolkata vs UTC) blocks canonical issuance in this window",
-    );
-  }
   const requestResult = await finance.rpc("issue_sales_order_pi_final_payment_request_v1", {
     p_order_id: point38OrderId,
     p_pi_id: piId,
@@ -304,10 +293,11 @@ function resolveFinalInvoiceDate(facts) {
   const issuedAt = facts.issued_at;
   if (!issuedAt) throw new Error("POINT100_POINT38_FINAL_PAYMENT_ISSUED_AT_MISSING");
   const requestCalendarDate = kolkataCalendarDate(issuedAt);
-  const invoiceDate = sessionCalendarDate(localDbUrl);
+  const invoiceDate = kolkataBusinessDateNow();
+  // Core requires invoice_date >= the IST date of the request and not later than the IST date of the call.
   if (invoiceDate < requestCalendarDate) {
     throw new Error(
-      `POINT100_POINT38_FINAL_INVOICE_DATE_UNRESOLVABLE: request=${requestCalendarDate} session=${invoiceDate}`,
+      `POINT100_POINT38_FINAL_INVOICE_DATE_UNRESOLVABLE: request=${requestCalendarDate} business_date=${invoiceDate}`,
     );
   }
   return invoiceDate;

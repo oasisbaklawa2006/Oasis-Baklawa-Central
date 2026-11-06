@@ -1,5 +1,6 @@
 import { expect, type Page } from "@playwright/test";
 import { mkdirSync, writeFileSync } from "node:fs";
+import { createClient } from "@supabase/supabase-js";
 
 export type BuyerCertificationViewport = {
   name: "mobile-375" | "mobile-390" | "mobile-430";
@@ -59,13 +60,50 @@ export function requireBuyerCredentials(): { email: string; password: string } {
   return { email, password };
 }
 
+/**
+ * Authenticate the synthetic Buyer against the DISPOSABLE local Supabase and hand the session to the browser.
+ *
+ * Why not the UI: `/login` is now the AuthEntry chooser and `/buyer/login` is MSG91 OTP only
+ * (auth repair #572). No Buyer email+password form exists, and the certification must never call a real
+ * OTP provider. The session below is issued by the disposable Core's own Auth for the seeded synthetic
+ * identity, so every Buyer RPC/RLS path after login is still exercised as that authenticated Buyer.
+ * NOT covered here: the OTP login UI itself (provider-gated, certified separately).
+ */
 export async function loginBuyer(page: Page, email: string, password: string, targetUrl: string) {
-  await page.goto(`${targetUrl}/login`, { waitUntil: "domcontentloaded", timeout: 60_000 });
-  await expect(page.getByRole("heading", { name: /Welcome Back/i })).toBeVisible({ timeout: 30_000 });
-  await page.getByRole("button", { name: /^Email$/i }).click();
-  await page.getByPlaceholder("you@business.com").fill(email);
-  await page.getByPlaceholder("••••••••").fill(password);
-  await page.getByRole("button", { name: /^Login$/i }).click();
+  const supabaseUrl = process.env.BUYER_CERT_SUPABASE_URL?.trim() || process.env.VITE_SUPABASE_URL?.trim();
+  const anonKey = process.env.BUYER_CERT_SUPABASE_ANON_KEY?.trim() || process.env.VITE_SUPABASE_PUBLISHABLE_KEY?.trim();
+  if (!supabaseUrl || !anonKey) {
+    throw new Error("CERTIFICATION_ENV_REQUIRED: BUYER_CERT_SUPABASE_URL and BUYER_CERT_SUPABASE_ANON_KEY are required");
+  }
+  const supabaseHost = new URL(supabaseUrl).hostname;
+  if (!LOOPBACK_HOSTS.has(supabaseHost)) {
+    throw new Error(`UNSAFE_CERTIFICATION_TARGET: Buyer session injection is allowed only for a loopback Supabase, got ${supabaseHost}`);
+  }
+  const auth = createClient(supabaseUrl, anonKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  const { data, error } = await auth.auth.signInWithPassword({ email, password });
+  if (error || !data.session) {
+    throw new Error(`BUYER_CERT_AUTH_FAILED: ${error?.message ?? "no session returned for the synthetic buyer"}`);
+  }
+  // Match the browser app's Supabase client, which derives its default storage key
+  // from VITE_SUPABASE_URL. The disposable Auth endpoint may use localhost while
+  // the app build uses 127.0.0.1 (or vice versa).
+  const appSupabaseUrl = process.env.VITE_SUPABASE_URL?.trim();
+  if (!appSupabaseUrl) {
+    throw new Error("CERTIFICATION_ENV_REQUIRED: VITE_SUPABASE_URL is required to inject the browser app session");
+  }
+  const appSupabaseHost = new URL(appSupabaseUrl).hostname;
+  if (!LOOPBACK_HOSTS.has(appSupabaseHost)) {
+    throw new Error(`UNSAFE_CERTIFICATION_TARGET: Buyer app session injection is allowed only for loopback Supabase, got ${appSupabaseHost}`);
+  }
+  const storageKey = `sb-${appSupabaseHost.split(".")[0]}-auth-token`;
+  const sessionJson = JSON.stringify(data.session);
+  await page.addInitScript(
+    ([key, value]) => {
+      window.localStorage.setItem(key, value);
+    },
+    [storageKey, sessionJson] as [string, string],
+  );
+  await page.goto(`${targetUrl}/buyer`, { waitUntil: "domcontentloaded", timeout: 60_000 });
   await page.waitForURL((url) => /\/buyer(\/|$)/i.test(url.pathname), { timeout: 120_000 });
 }
 
