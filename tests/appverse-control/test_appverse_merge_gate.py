@@ -25,13 +25,13 @@ class GatePolicyTests(unittest.TestCase):
             self.assertFalse(gate.configured_ruleset())
 
     def test_strict_required_rule_accepts(self):
-        status_rule = {"enforcement": "active", "bypass_actors": [], "rules": [{
+        status_rule = {"enforcement": "active", "target": "branch", "conditions": {"ref_name": {"include": ["refs/heads/main"]}}, "bypass_actors": [], "rules": [{
             "type": "required_status_checks", "parameters": {
                 "strict_required_status_checks_policy": True,
                 "required_status_checks": [{"context": gate.CHECK_NAME, "integration_id": 15368}],
             },
         }]}
-        governance = {"enforcement": "active", "bypass_actors": [], "rules": [{
+        governance = {"enforcement": "active", "target": "branch", "conditions": {"ref_name": {"include": ["~DEFAULT_BRANCH"]}}, "bypass_actors": [], "rules": [{
             "type": "pull_request", "parameters": {
                 "required_approving_review_count": 1,
                 "require_code_owner_review": True,
@@ -53,13 +53,13 @@ class GatePolicyTests(unittest.TestCase):
             self.assertFalse(gate.configured_ruleset())
 
     def test_code_owner_review_must_be_enforced(self):
-        status_rule = {"enforcement": "active", "bypass_actors": [], "rules": [{
+        status_rule = {"enforcement": "active", "target": "branch", "conditions": {"ref_name": {"include": ["refs/heads/main"]}}, "bypass_actors": [], "rules": [{
             "type": "required_status_checks", "parameters": {
                 "strict_required_status_checks_policy": True,
                 "required_status_checks": [{"context": gate.CHECK_NAME, "integration_id": 15368}],
             },
         }]}
-        governance = {"enforcement": "active", "bypass_actors": [], "rules": [{
+        governance = {"enforcement": "active", "target": "branch", "conditions": {"ref_name": {"include": ["~DEFAULT_BRANCH"]}}, "bypass_actors": [], "rules": [{
             "type": "pull_request", "parameters": {
                 "required_approving_review_count": 1, "require_code_owner_review": False,
                 "dismiss_stale_reviews_on_push": True, "required_review_thread_resolution": True,
