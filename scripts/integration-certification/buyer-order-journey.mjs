@@ -91,12 +91,22 @@ if (process.env.JOURNEY_CORE_CONTRACTS === "combined") {
 for (const row of orderedRows) {
   const productId = String(row.product_id ?? "");
   if (!productId || (pricedIds.size > 0 && !pricedIds.has(productId))) continue;
-  const added = await buyer.rpc("add_customer_order_draft_line_v1", { p_product_id: productId, p_quantity: 4 });
+  // Quantity: 4 on the production lane; on the combined lane the product's own MOQ/increment (leg needs >= 2).
+  const priceRow = (prices.data ?? []).find((p) => String(p.product_id ?? p.id ?? "") === productId) ?? {};
+  const minimum = Number(priceRow.minimum_order_quantity ?? 1) || 1;
+  const increment = Number(priceRow.order_increment ?? 1) || 1;
+  let quantity = 4;
+  if (process.env.JOURNEY_CORE_CONTRACTS === "combined") {
+    quantity = Math.max(minimum, 2);
+    if (quantity > minimum) quantity = minimum + Math.ceil((quantity - minimum) / increment) * increment;
+  }
+  const added = await buyer.rpc("add_customer_order_draft_line_v1", { p_product_id: productId, p_quantity: quantity });
   const rows = added.data;
   if (!added.error && Array.isArray(rows) && rows.length === 1 && rows[0]?.readiness_status === "ready") {
-    chosen = { productId, sku: row.sku ?? null };
+    chosen = { productId, sku: row.sku ?? null, quantity };
     break;
   }
+  console.log(`JOURNEY candidate ${productId} not orderable at ${quantity}: ${JSON.stringify({ error: added.error?.message ?? null, readiness: rows?.[0]?.readiness_status ?? null, issues: rows?.[0]?.readiness_issues ?? null, minimum, increment })}`);
   await buyer.rpc("clear_customer_order_draft_v1");
 }
 if (!chosen) throw new Error("JOURNEY_NO_ORDERABLE_PRODUCT: no published, priced product produced a ready draft at quantity 4");
