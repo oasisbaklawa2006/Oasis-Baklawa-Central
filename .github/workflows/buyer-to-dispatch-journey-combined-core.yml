@@ -1,0 +1,94 @@
+name: Buyer-to-Dispatch Journey (combined draft Core, NON-PRODUCTION)
+
+# Disposable, non-production integration lane. ONE order is created by a synthetic Buyer through Core's governed
+# checkout and carried through Finance, Operations, Dispatch, the independent Security Gate and canonical finalization.
+# No external provider (MSG91, payments, messaging) is contacted. Never a production-readiness claim.
+on:
+  workflow_dispatch:
+    inputs:
+      core_ref:
+        description: "Draft Core ref/SHA holding #481 + #482 + #483 (disposable, never a production claim)"
+        required: true
+        default: "candidate/core-combined-481-482-483-20261106"
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: buyer-to-dispatch-journey-combined-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  buyer-to-dispatch-journey:
+    name: Buyer-to-Dispatch journey against combined draft Core
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      POINT100_CORE_REPO: ${{ github.workspace }}/oasis-supabase-core
+      POINT100_ALLOW_LOCAL_RESET: "true"
+      JOURNEY_CORE_CONTRACTS: combined
+      POINT38_GATE_SCAN_MODE: rpc
+      FACTORY_CERT_CORE_REPO: ${{ github.workspace }}/oasis-supabase-core
+      FACTORY_CERT_ALLOW_LOCAL_RESET: "true"
+      FACTORY_CERT_CREDENTIAL_FILE: /tmp/oasis-factory-certification.env
+      JOURNEY_LEDGER_FILE: /tmp/buyer-to-dispatch-journey-ledger.json
+
+    steps:
+      - name: Checkout Central
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Checkout production-certified Core schema authority
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          repository: oasisbaklawa2006/oasis-supabase-core
+          ref: ${{ inputs.core_ref }}
+          path: oasis-supabase-core
+
+      - name: Set up pinned Supabase CLI
+        uses: supabase/setup-cli@ab058987d8d6c725971f6cf9d0b5c98467e30bd1 # v1.7.1
+        with:
+          version: 2.101.0
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate journey scripts and exact production pin
+        run: |
+          bash -n scripts/integration-certification/start-ephemeral.sh
+          git -C oasis-supabase-core rev-parse HEAD | tee "${GITHUB_STEP_SUMMARY}"
+          test -f oasis-supabase-core/supabase/migrations/20261106010000_b2b_gate_scan_evidence_authority.sql
+          test -f oasis-supabase-core/supabase/migrations/20261106020000_finance_two_step_reversal_authority.sql
+          test -f oasis-supabase-core/supabase/migrations/20261106030000_order_item_production_completion_authority.sql
+
+      - name: Unit tests (Point100 and journey source guards)
+        run: npm run test -- src/lib/point100
+
+      - name: Run the uninterrupted Buyer-to-Dispatch journey
+        run: bash scripts/integration-certification/start-ephemeral.sh
+
+      - name: Upload journey ledger
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: buyer-to-dispatch-journey-${{ github.run_id }}
+          path: /tmp/buyer-to-dispatch-journey-ledger.json
+          if-no-files-found: warn
+
+      - name: Stop disposable backend
+        if: always()
+        run: |
+          if [[ -d "${POINT100_CORE_REPO}" ]]; then
+            bash scripts/point100-certification/stop-ephemeral.sh
+          else
+            echo "Disposable Core was never started; cleanup not required."
+          fi

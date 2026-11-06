@@ -529,22 +529,28 @@ async function journeyTransition(role, roleLabel, rpcName, orderId) {
 async function journeyReleaseAndProduction(financeRole, adminRole, dispatchRole, orderId, orderItem) {
   await journeyTransition(financeRole, "FINANCE_HEAD", "release_order_to_manufacturing_v1", orderId);
   await journeyTransition(financeRole, "FINANCE_HEAD", "release_order_to_in_production_v1", orderId);
-  // Core exposes no governed RPC that completes a non-3PCS order item (complete_3pgs_order_item is 3PCS-only). Central
-  // admin screens update order_items directly under staff RLS; the journey performs exactly that staff write under RLS
-  // (authenticated ADMIN, never service role) and records it as a Core contract gap rather than a governed transition.
-  const completion = await adminRole.client
-    .from("order_items")
-    .update({ production_status: "completed", actual_packed_qty: Number(orderItem.quantity) })
-    .eq("id", orderItem.id)
-    .eq("order_id", orderId)
-    .select("id,production_status,actual_packed_qty");
-  assertNoError(completion.error, "Journey production completion (staff table write under RLS)");
-  if (completion.data?.length !== 1 || completion.data[0].production_status !== "completed") {
-    throw new Error(`JOURNEY_PRODUCTION_COMPLETION_BLOCKED: ${JSON.stringify(completion.data)}`);
+  if (process.env.JOURNEY_CORE_CONTRACTS === "combined") {
+    // Core #483: completion is derived from real production jobs accepted by RGS receiving; no table write.
+    const { runGovernedProductionLeg } = await import("../integration-certification/governed-production-leg.mjs");
+    await runGovernedProductionLeg({ orderId, orderItem, adminClient: adminRole.client, dispatchClient: dispatchRole.client });
+  } else {
+    // Core exposes no governed RPC that completes a non-3PCS order item (complete_3pgs_order_item is 3PCS-only). Central
+    // admin screens update order_items directly under staff RLS; the journey performs exactly that staff write under RLS
+    // (authenticated ADMIN, never service role) and records it as a Core contract gap rather than a governed transition.
+    const completion = await adminRole.client
+      .from("order_items")
+      .update({ production_status: "completed", actual_packed_qty: Number(orderItem.quantity) })
+      .eq("id", orderItem.id)
+      .eq("order_id", orderId)
+      .select("id,production_status,actual_packed_qty");
+    assertNoError(completion.error, "Journey production completion (staff table write under RLS)");
+    if (completion.data?.length !== 1 || completion.data[0].production_status !== "completed") {
+      throw new Error(`JOURNEY_PRODUCTION_COMPLETION_BLOCKED: ${JSON.stringify(completion.data)}`);
+    }
+    recordPhase("Production/packing completion recorded for the order item", "ADMIN", "order_items staff table write under RLS (NOT a governed RPC)", {
+      contractGap: "No governed Core RPC completes non-3PCS order items; needs Mission Control reassignment to Core.",
+    });
   }
-  recordPhase("Production/packing completion recorded for the order item", "ADMIN", "order_items staff table write under RLS (NOT a governed RPC)", {
-    contractGap: "No governed Core RPC completes non-3PCS order items; needs Mission Control reassignment to Core.",
-  });
   await journeyTransition(dispatchRole, "DISPATCH_MANAGER", "release_order_to_packed_ready_v1", orderId);
 }
 

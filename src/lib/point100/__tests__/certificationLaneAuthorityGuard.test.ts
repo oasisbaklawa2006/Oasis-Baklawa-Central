@@ -158,4 +158,39 @@ describe("certification lane dispatch-authority guard", () => {
       expect(read("scripts/integration-certification/start-ephemeral.sh")).toContain("POINT38_JOURNEY_GOVERNED_STATUS_PATH=true");
     });
   });
+
+  describe("CP18 consumer adoption of Core #481 and #483", () => {
+    it("the tail records Gate evidence through record_b2b_dispatch_gate_scan_v1 and only falls back when the RPC does not exist", () => {
+      const tail = read("scripts/point100-certification/finalize-point38-canonical-tail.mjs");
+      expect(tail).toContain("record_b2b_dispatch_gate_scan_v1");
+      expect(tail).toContain("POINT38_GATE_SCAN_MODE");
+      expect(tail).toMatch(/gateScanMode === "rpc" \|\| !missing/);
+      // the unauthorized/duplicate/wrong-carton/replay probes of the new contract
+      for (const code of ["B2B_GATE_SCAN_DIRECT_INSERT_FORBIDDEN", "B2B_GATE_SCAN_BARCODE_MISMATCH", "B2B_GATE_SCAN_CARTON_NOT_FOUND", "B2B_GATE_SCAN_DUPLICATE", "B2B_GATE_SCAN_IDEMPOTENCY_CONFLICT"]) {
+        expect(tail).toContain(code);
+      }
+      // Gate evidence is created after the carton is ready_to_load (the RPC enforces the physical-exit state)
+      expect(tail.indexOf("await ensureGateScan()")).toBeGreaterThan(tail.indexOf("mark_b2b_dispatch_carton_ready_to_load_v1"));
+    });
+
+    it("the governed production leg writes no business table and never fabricates accepted evidence", () => {
+      const leg = read("scripts/integration-certification/governed-production-leg.mjs");
+      expect(leg).not.toMatch(/\.(insert|upsert|update|delete)\(/);
+      for (const rpc of ["reserve_rgs_stock", "create_production_shortage_demand", "accept_production_job", "record_production_output",
+        "declare_production_ready", "dispatch_production_to_rgs", "record_rgs_receipt", "accept_rgs_production_receipt", "complete_order_item_from_production_v1"]) {
+        expect(leg).toContain(rpc);
+      }
+      expect(leg).toContain("JOURNEY_PRODUCTION_BLOCKED_STOCK_COVERED");
+    });
+
+    it("the combined-Core workflow is manual, non-production and independent of the protected-release pin", () => {
+      const wf = read(".github/workflows/buyer-to-dispatch-journey-combined-core.yml");
+      expect(wf).toContain("workflow_dispatch");
+      expect(wf).not.toContain("pull_request");
+      expect(wf).toContain("NON-PRODUCTION");
+      expect(wf).toContain("POINT38_GATE_SCAN_MODE: rpc");
+      expect(wf).toContain("JOURNEY_CORE_CONTRACTS: combined");
+      expect(wf).not.toContain("POINT100_PRODUCTION_MIGRATION_RUN_ID");
+    });
+  });
 });

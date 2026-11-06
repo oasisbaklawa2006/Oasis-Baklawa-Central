@@ -67,7 +67,8 @@ recordPhase("Buyer reads the governed published catalogue", "BUYER", "published_
 const clear = await buyer.rpc("clear_customer_order_draft_v1");
 assertNoError(clear.error, "Journey clear draft");
 let chosen = null;
-for (const row of publishedRows) {
+const orderedRows = [...publishedRows].sort((a, b) => Number(b.sku === "CERT-ARABIC-001") - Number(a.sku === "CERT-ARABIC-001"));
+for (const row of orderedRows) {
   const productId = String(row.product_id ?? "");
   if (!productId || (pricedIds.size > 0 && !pricedIds.has(productId))) continue;
   const added = await buyer.rpc("add_customer_order_draft_line_v1", { p_product_id: productId, p_quantity: 4 });
