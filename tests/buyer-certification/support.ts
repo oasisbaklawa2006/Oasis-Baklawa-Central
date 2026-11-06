@@ -84,8 +84,18 @@ export async function loginBuyer(page: Page, email: string, password: string, ta
   if (error || !data.session) {
     throw new Error(`BUYER_CERT_AUTH_FAILED: ${error?.message ?? "no session returned for the synthetic buyer"}`);
   }
-  // supabase-js default storage key: sb-<first label of the Supabase hostname>-auth-token
-  const storageKey = `sb-${supabaseHost.split(".")[0]}-auth-token`;
+  // Match the browser app's Supabase client, which derives its default storage key
+  // from VITE_SUPABASE_URL. The disposable Auth endpoint may use localhost while
+  // the app build uses 127.0.0.1 (or vice versa).
+  const appSupabaseUrl = process.env.VITE_SUPABASE_URL?.trim();
+  if (!appSupabaseUrl) {
+    throw new Error("CERTIFICATION_ENV_REQUIRED: VITE_SUPABASE_URL is required to inject the browser app session");
+  }
+  const appSupabaseHost = new URL(appSupabaseUrl).hostname;
+  if (!LOOPBACK_HOSTS.has(appSupabaseHost)) {
+    throw new Error(`UNSAFE_CERTIFICATION_TARGET: Buyer app session injection is allowed only for loopback Supabase, got ${appSupabaseHost}`);
+  }
+  const storageKey = `sb-${appSupabaseHost.split(".")[0]}-auth-token`;
   const sessionJson = JSON.stringify(data.session);
   await page.addInitScript(
     ([key, value]) => {
