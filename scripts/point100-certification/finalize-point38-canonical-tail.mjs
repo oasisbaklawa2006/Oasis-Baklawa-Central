@@ -131,16 +131,16 @@ try {
    * predates #481). The fallback is a compatibility bridge for that pin, never a substitute when the RPC exists.
    * Must run after the carton is ready_to_load: the RPC enforces the physical-exit state.
    */
-  async function expectGateProbeRejected(label, call, fragment) {
+  const expectGateProbeRejected = async (label, call, fragment) => {
     const { data, error } = await call();
     if (!error || !String(error.message ?? "").includes(fragment)) {
       throw new Error(`POINT38_GATE_SCAN_PROBE_FAILED: ${label}: expected "${fragment}", got ${JSON.stringify({ error: error?.message ?? null, data })}`);
     }
     console.log(`Point38 gate-scan authority PASS: ${label} -> rejected ("${fragment}")`);
-  }
+  };
 
   /** Exercises the #481 contract against the live evidence: replay, duplicate, wrong barcode/carton, unauthorized, direct write. */
-  async function assertGateScanAuthority() {
+  const assertGateScanAuthority = async () => {
     const replay = await gateRole.client.rpc("record_b2b_dispatch_gate_scan_v1", { p_carton_id: cartonId, p_scanned_barcode: cartonCode, p_idempotency_key: gateScanCorrelation });
     assertNoError(replay.error, "Point38 gate scan replay");
     if (replay.data?.already_recorded !== true || String(replay.data?.scan_id ?? "") !== gateScanId) throw new Error(`POINT38_GATE_SCAN_REPLAY_NOT_IDEMPOTENT: ${JSON.stringify(replay.data)}`);
@@ -154,9 +154,9 @@ try {
     await expectGateProbeRejected("unknown carton", () => gateRole.client.rpc("record_b2b_dispatch_gate_scan_v1", { p_carton_id: "00000000-0000-4000-8000-0000000000b1", p_scanned_barcode: cartonCode, p_idempotency_key: `${RUN_TOKEN}:wrong-carton-probe` }), "B2B_GATE_SCAN_CARTON_NOT_FOUND");
     await expectGateProbeRejected("duplicate scan under a new key", () => gateRole.client.rpc("record_b2b_dispatch_gate_scan_v1", { p_carton_id: cartonId, p_scanned_barcode: cartonCode, p_idempotency_key: `${RUN_TOKEN}:duplicate-probe` }), "B2B_GATE_SCAN_DUPLICATE");
     await expectGateProbeRejected("same key with a different payload", () => gateRole.client.rpc("record_b2b_dispatch_gate_scan_v1", { p_carton_id: cartonId, p_scanned_barcode: `${cartonCode}-X`, p_idempotency_key: gateScanCorrelation }), "B2B_GATE_SCAN_IDEMPOTENCY_CONFLICT");
-  }
+  };
 
-  async function ensureGateScan() {
+  const ensureGateScan = async () => {
     if (gateScanMode !== "direct") {
       const viaRpc = await gateRole.client.rpc("record_b2b_dispatch_gate_scan_v1", {
         p_carton_id: cartonId,
@@ -200,8 +200,7 @@ try {
     legacyId = String(gateScan?.id ?? "");
   }
   return { id: legacyId, via: "direct" };
-
-  }
+  };
 
   // #366 closed the historical locked -> ready_to_load authority gap.
   // Use the canonical authenticated Core RPC; Point100 must never manufacture
