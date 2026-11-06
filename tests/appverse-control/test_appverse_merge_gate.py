@@ -119,7 +119,7 @@ class GatePolicyTests(unittest.TestCase):
             gate, configured_ruleset=lambda: True,
             paginated=lambda _: [], latest_checks=lambda _: {},
             latest_statuses=lambda _: {}, unresolved_threads=lambda _: 0,
-            review_approval=lambda *args: True, current_pr=lambda _: pr,
+            review_approval=lambda *args, **kwargs: True, current_pr=lambda _: pr,
         ):
             self.assertTrue(any("Evidence-only" in error for error in gate.validate(pr)))
 
