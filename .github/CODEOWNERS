@@ -46,3 +46,61 @@
 /APPVERSE_MISSION_CONTROL.md @oasisbaklawa2006 @dineshmutrejabackup-cmd
 /APPVERSE_THREAD_GUARDRAIL.md @oasisbaklawa2006 @dineshmutrejabackup-cmd
 /BACKEND_OWNERSHIP.md @oasisbaklawa2006 @dineshmutrejabackup-cmd
+
+# --- Authority code classified by vocabulary (src/ and scripts/ only) ------------------------------------------
+# GitHub CODEOWNERS has no character classes or case-insensitivity, so each word appears in its capitalised
+# (camelCase/PascalCase) and lowercase (kebab/snake) form. Generated from CODEOWNERS_VOCABULARY in
+# tests/appverse-control/test_workflow_policy.py, which fails when this block drifts.
+/src/**/*Finance* @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/**/*finance* @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/**/*Payment* @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/**/*payment* @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/**/*Invoice* @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/**/*invoice* @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/**/*Settlement* @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/**/*settlement* @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/**/*Wallet* @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/**/*wallet* @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/**/*Refund* @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/**/*refund* @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/**/*Ledger* @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/**/*ledger* @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/**/*Reversal* @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/**/*reversal* @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/**/*Rbac* @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/**/*rbac* @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/**/*Permission* @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/**/*permission* @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/**/*Password* @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/**/*password* @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/**/*Credential* @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/**/*credential* @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/**/*Authority* @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/**/*authority* @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/**/*Dispatch* @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/**/*dispatch* @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/**/*Login* @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/**/*login* @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/**/*Mfa* @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/**/*mfa* @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/**/*Token* @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/**/*token* @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/**/*Session* @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/**/*session* @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/**/*Security* @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/**/*security* @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/**/*Auth* @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/**/auth* @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/**/*-auth* @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/**/*_auth* @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/**/*Gate* @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/**/gate* @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/**/*-gate* @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/**/*_gate* @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/**/*Role* @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/**/role* @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/**/*-role* @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/**/*_role* @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/scripts/**/*authority* @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/scripts/**/*secret* @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/scripts/**/*credential* @oasisbaklawa2006 @dineshmutrejabackup-cmd

@@ -3,6 +3,16 @@ name: Appverse Trusted Merge Controller
 # Trusted default-branch code only. Never execute PR-controlled code with write permissions.
 # workflow_run and schedule always execute the workflow version from default main.
 # Deliberately no pull_request_target: no candidate branch can supply privileged gate code.
+#
+# TWO IDENTITIES, NEVER MIXED
+#   advisory-evaluation          shared GitHub Actions identity -> publishes ONLY "Appverse Merge Gate (advisory)".
+#                                Every workflow in this repository shares that identity, so it can never be authoritative
+#                                and must never be a required status check.
+#   authoritative-publication    dedicated GitHub App (see scripts/appverse-control/appverse_merge_gate.py GATE_APP_ID)
+#                                -> publishes "Appverse Merge Gate". OFF unless the owner sets the repository variable
+#                                APPVERSE_GATE_PUBLISHER=actions-environment AND provisions the environment
+#                                "appverse-merge-gate" (deployment branches: main only). The script refuses to publish if
+#                                it cannot verify that restriction, because a branch workflow could otherwise read the key.
 on:
   workflow_run:
     workflows:
@@ -29,8 +39,8 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  trusted-evaluation:
-    name: Evaluate Appverse merge authority on exact PR head
+  advisory-evaluation:
+    name: Evaluate Appverse merge eligibility (advisory, shared identity)
     # Controller code runs only from trusted main: workflow_run/schedule always do; a manual dispatch must also be main.
     if: github.repository == 'oasisbaklawa2006/Oasis-Baklawa-Central' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
@@ -54,9 +64,62 @@ jobs:
           fi
           python3 -m py_compile scripts/appverse-control/appverse_merge_gate.py
           echo "installed=true" >> "$GITHUB_OUTPUT"
-      - name: Publish exact-head fail-closed check run
+      - name: Publish advisory check-run (never authoritative)
         if: steps.bootstrap.outputs.installed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
+          APPVERSE_PUBLISH_MODE: advisory
+        run: python3 scripts/appverse-control/appverse_merge_gate.py
+
+  authoritative-publication:
+    name: Publish authoritative Appverse Merge Gate (dedicated GitHub App)
+    if: >-
+      github.repository == 'oasisbaklawa2006/Oasis-Baklawa-Central' && github.ref == 'refs/heads/main'
+      && vars.APPVERSE_GATE_PUBLISHER == 'actions-environment'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    # Holds the App credentials. Must be restricted to deployments from main; the script verifies this before publishing.
+    environment: appverse-merge-gate
+    # Read-only workflow token: every write goes through the dedicated App's installation token.
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
+      checks: read
+      statuses: read
+    steps:
+      - name: Checkout trusted main, never untrusted PR code
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Confirm trusted main and main-branch installation
+        id: bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse --abbrev-ref HEAD)" = main
+          test -f scripts/appverse-control/appverse_merge_gate.py
+          python3 -m py_compile scripts/appverse-control/appverse_merge_gate.py
+      - name: Mint least-privilege installation token for the dedicated App
+        id: app-token
+        uses: actions/create-github-app-token@af35edadc00be37caa72ed9f3e6d5f7801bfdf09 # v1.11.7
+        with:
+          app-id: ${{ vars.APPVERSE_GATE_APP_ID }}
+          private-key: ${{ secrets.APPVERSE_GATE_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-checks: write
+          permission-administration: read
+          permission-pull-requests: read
+          permission-contents: read
+          permission-statuses: read
+          permission-actions: read
+      - name: Publish authoritative check-run as the dedicated App
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_APP_TOKEN: ${{ steps.app-token.outputs.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          APPVERSE_PUBLISH_MODE: authoritative
         run: python3 scripts/appverse-control/appverse_merge_gate.py

@@ -1,9 +1,19 @@
 #!/usr/bin/env python3
 """Trusted-main Appverse PR merge gate.
 
-Evaluates merge *eligibility* and publishes one fail-closed check-run on the exact PR head. It is NOT a merge
+Evaluates merge *eligibility* and publishes fail-closed check-runs on the exact PR head. It is NOT a merge
 actuator: it never executes PR branch code, never merges, never enables auto-merge and never changes rulesets.
 That is enforced structurally by the request allow-list in ``api`` (see ``ALLOWED_POST_PATHS``).
+
+Two publication identities, never mixed (``APPVERSE_PUBLISH_MODE``):
+
+* ``advisory``      - runs with the shared GitHub Actions token and publishes ONLY ``Appverse Merge Gate (advisory)``.
+                      Every workflow in the repository shares that identity, so it can never be authoritative.
+* ``authoritative`` - publishes ``Appverse Merge Gate`` ONLY with an installation token of the dedicated GitHub App
+                      (``GATE_APP_ID``) and ONLY when the secret-bearing environment is verifiably restricted to main.
+
+The ruleset must pin ``Appverse Merge Gate`` to ``GATE_APP_ID``; a same-named check from any other app is a
+spoof attempt and is reported as one.
 """
 from __future__ import annotations
 
@@ -18,7 +28,13 @@ RULESET_ID = 19200597
 GOVERNANCE_RULESET_ID = 19820724
 LABEL = "appverse-gated"  # Controls optional auto-merge enrollment, NOT required check publication.
 CHECK_NAME = "Appverse Merge Gate"
-GITHUB_ACTIONS_APP_ID = 15368
+GITHUB_ACTIONS_APP_ID = 15368  # shared by every workflow: valid for CI evidence, NEVER for the gate itself
+GATE_APP_ID = 5645415  # dedicated "Oasis Appverse Merge Gate" GitHub App: the only accepted publisher of CHECK_NAME
+ADVISORY_CHECK_NAME = "Appverse Merge Gate (advisory)"  # shared-identity output; must never be a required check
+GATE_ENVIRONMENT = "appverse-merge-gate"  # holds the App credentials; must be restricted to deployments from main
+PUBLISH_MODES = {"advisory", "authoritative"}
+# Which environment variable carries each identity's credential (values are variable NAMES, never secrets).
+CREDENTIAL_ENV = {"actions": "GH_TOKEN", "app": "GH_APP_TOKEN"}
 TRUSTED_HUMANS = {"oasisbaklawa2006", "dineshmutrejabackup-cmd"}
 TRUSTED_BOT_APPROVERS = {"cursor[bot]"}
 REQUIRED_CHECKS = {
@@ -107,7 +123,7 @@ class GateError(Exception):
     """Unknown, missing or inconsistent evidence never satisfies merge requirements."""
 
 
-def api(path: str, *, method: str = "GET", data: dict | None = None) -> dict | list:
+def api(path: str, *, method: str = "GET", data: dict | None = None, identity: str = "actions") -> dict | list:
     """Single choke point for GitHub I/O: fixed HTTPS host, bounded retries on GET, allow-listed writes."""
     if not path.startswith("/") or any(ch in path for ch in "\r\n "):
         raise GateError("Invalid GitHub API path; fail closed")
@@ -115,7 +131,11 @@ def api(path: str, *, method: str = "GET", data: dict | None = None) -> dict | l
         raise GateError(f"HTTP method {method} is not permitted for the controller")
     if method == "POST" and path not in ALLOWED_POST_PATHS:
         raise GateError(f"POST {path} is not permitted: the controller may only publish its check-run")
-    token = os.environ["GH_TOKEN"]
+    if identity not in CREDENTIAL_ENV:
+        raise GateError("Unknown credential identity; fail closed")
+    token = os.environ.get(CREDENTIAL_ENV[identity])
+    if not token:
+        raise GateError(f"{identity} credential is not available")
     body = None if data is None else json.dumps(data).encode("utf-8")
     headers = {
         "Authorization": f"Bearer {token}",
@@ -174,6 +194,12 @@ def current_pr(number: int) -> dict:
     return api(f"/repos/{REPO}/pulls/{number}")
 
 
+def ruleset_identity() -> str:
+    """bypass_actors is only returned to callers with administration read. Prefer the dedicated App's least-privilege
+    installation token for ruleset reads; the workflow token stays read-only and usually cannot attest bypass actors."""
+    return "app" if os.environ.get(CREDENTIAL_ENV["app"]) else "actions"
+
+
 def _main_ruleset_problems(label: str, ruleset: dict) -> list[str]:
     """Common server-side enforcement preconditions for a ruleset that must protect main."""
     problems = []
@@ -196,22 +222,25 @@ def _main_ruleset_problems(label: str, ruleset: dict) -> list[str]:
 def ruleset_problems() -> list[str]:
     """Both independent server-side rulesets must enforce their protections; returns the reasons they do not."""
     problems = []
-    ruleset = api(f"/repos/{REPO}/rulesets/{RULESET_ID}")
+    ruleset = api(f"/repos/{REPO}/rulesets/{RULESET_ID}", identity=ruleset_identity())
     problems += _main_ruleset_problems(f"CI ruleset {RULESET_ID}", ruleset)
     required_status = next((x for x in ruleset.get("rules", [])
                             if x.get("type") == "required_status_checks"), None)
     params = (required_status or {}).get("parameters") or {}
-    # Pin to the GitHub Actions app: a name alone could be satisfied by any other app or a user-posted status.
-    exact_gate_source = any(
-        x.get("context") == CHECK_NAME and x.get("integration_id") == GITHUB_ACTIONS_APP_ID
-        for x in params.get("required_status_checks", [])
-    )
-    if not exact_gate_source:
-        problems.append(f"CI ruleset {RULESET_ID}: '{CHECK_NAME}' is not required from the GitHub Actions app")
+    # The gate must be required from the DEDICATED App. The shared Actions identity is impersonable by any workflow
+    # that can request checks:write, so a pin to it (or an unpinned entry) gives no provenance at all.
+    gate_entries = [x for x in params.get("required_status_checks", []) if x.get("context") == CHECK_NAME]
+    if not gate_entries:
+        problems.append(f"CI ruleset {RULESET_ID}: '{CHECK_NAME}' is not a required status check")
+    elif any(x.get("integration_id") == GITHUB_ACTIONS_APP_ID for x in gate_entries):
+        problems.append(f"CI ruleset {RULESET_ID}: '{CHECK_NAME}' is pinned to the shared GitHub Actions identity "
+                        f"({GITHUB_ACTIONS_APP_ID}); any workflow can impersonate it, pin the dedicated App {GATE_APP_ID}")
+    elif any(x.get("integration_id") != GATE_APP_ID for x in gate_entries):
+        problems.append(f"CI ruleset {RULESET_ID}: '{CHECK_NAME}' is not pinned exclusively to the dedicated gate App {GATE_APP_ID}")
     if not params.get("strict_required_status_checks_policy"):
         problems.append(f"CI ruleset {RULESET_ID}: strict (up-to-date) policy is not enabled")
 
-    governance = api(f"/repos/{REPO}/rulesets/{GOVERNANCE_RULESET_ID}")
+    governance = api(f"/repos/{REPO}/rulesets/{GOVERNANCE_RULESET_ID}", identity=ruleset_identity())
     problems += _main_ruleset_problems(f"governance ruleset {GOVERNANCE_RULESET_ID}", governance)
     pr_rule = next((x for x in governance.get("rules", []) if x.get("type") == "pull_request"), None)
     review = (pr_rule or {}).get("parameters") or {}
@@ -352,6 +381,15 @@ def sensitive_paths(paths: set[str]) -> list[str]:
     return hits
 
 
+def foreign_gate_checks(checks: dict) -> list[str]:
+    """Check-runs carrying the gate's authoritative name that were NOT published by the dedicated App."""
+    found = []
+    for (name, slug), item in checks.items():
+        if name == CHECK_NAME and (item.get("app") or {}).get("id") != GATE_APP_ID:
+            found.append(f"{slug or 'unknown'}")
+    return sorted(set(found))
+
+
 def unexpected_check_state(checks: dict, required: dict[str, str]) -> list[str]:
     """Any other check on the head that is failing or still running also blocks: a lane the gate did not list
     (or a path-filter drift) must never be able to fail silently. Skipped/neutral extras and advisory jobs are fine."""
@@ -407,6 +445,9 @@ def validate(pr: dict) -> list[str]:
 
     checks = latest_checks(sha)
     required = relevant_checks(filenames)
+    for source in foreign_gate_checks(checks):
+        errors.append(f"SPOOF_ATTEMPT: a check named '{CHECK_NAME}' was published by '{source}', not by the dedicated "
+                      f"gate App {GATE_APP_ID}; it carries no authority")
     errors.extend(unexpected_check_state(checks, required))
     for name, slug in required.items():
         item = checks.get((name, slug))
@@ -437,43 +478,90 @@ def validate(pr: dict) -> list[str]:
     return errors
 
 
-def update_gate_check(number: int) -> None:
+def publisher_problems() -> list[str]:
+    """Authoritative publication is allowed only when the credential could not have been read by a branch workflow."""
+    if not os.environ.get(CREDENTIAL_ENV["app"]):
+        return ["dedicated App installation token not provided"]
+    problems = []
+    try:
+        environment = api(f"/repos/{REPO}/environments/{GATE_ENVIRONMENT}", identity="app")
+        policy = environment.get("deployment_branch_policy") or {}
+        if not policy.get("custom_branch_policies"):
+            problems.append(f"environment {GATE_ENVIRONMENT}: deployment branches are not restricted to selected branches")
+        else:
+            listing = api(f"/repos/{REPO}/environments/{GATE_ENVIRONMENT}/deployment-branch-policies", identity="app")
+            names = {entry.get("name") for entry in listing.get("branch_policies", [])}
+            if names != {"main"}:
+                problems.append(f"environment {GATE_ENVIRONMENT}: allowed branches are {sorted(map(str, names))}, expected exactly ['main']")
+    except GateError as exc:
+        problems.append(f"environment {GATE_ENVIRONMENT} policy could not be verified: {exc}")
+    return problems
+
+
+def verdict_and_summary(number: int, head: str, errors: list[str]) -> tuple[str, str]:
+    verdict = "failure" if errors else "success"
+    summary = (f"PR #{number}; exact head {head}; {verdict.upper()}.\n"
+               + ("\n".join("- " + error for error in errors[:35]) if errors
+                  else "All required exact-head checks and reviews PASS; GitHub rules remain authoritative."))[:5000]
+    return verdict, summary
+
+
+def update_gate_check(number: int, mode: str = "advisory") -> None:
+    if mode not in PUBLISH_MODES:
+        raise GateError(f"Unknown publish mode {mode!r}")
     pr = current_pr(number)
     head = pr["head"]["sha"]
     try:
         errors = validate(pr)
     except Exception as exc:
         errors = [f"BLOCKED_GATE_VERIFICATION: {type(exc).__name__}: {exc}"]
-    verdict = "failure" if errors else "success"
-    summary = (f"PR #{number}; exact head {head}; {verdict.upper()}.\n"
-               + ("\n".join("- " + error for error in errors[:35]) if errors
-                  else "All required exact-head checks and reviews PASS; GitHub rules remain authoritative."))[:5000]
-    previous = latest_checks(head).get((CHECK_NAME, "github-actions"))
+    verdict, summary = verdict_and_summary(number, head, errors)
+    if mode == "authoritative":
+        name, identity = CHECK_NAME, "app"
+        problems = publisher_problems()
+        if problems:
+            # Fail closed by publishing nothing: an absent required check blocks merging.
+            print(f"#{number}: authoritative publication withheld: " + "; ".join(problems))
+            return
+    else:
+        name, identity = ADVISORY_CHECK_NAME, "actions"
+    previous = next((item for (n, _), item in latest_checks(head).items()
+                     if n == name and (mode == "advisory" or (item.get("app") or {}).get("id") == GATE_APP_ID)), None)
     if (previous and previous.get("status") == "completed"
         and previous.get("conclusion") == verdict
         and ((previous.get("output") or {}).get("summary") or "") == summary):
-        print(f"#{number}: unchanged {verdict}")
+        print(f"#{number}: unchanged {verdict} ({mode})")
         return
-    api(f"/repos/{REPO}/check-runs", method="POST", data={
-        "name": CHECK_NAME, "head_sha": head, "status": "completed",
+    posted = api(f"/repos/{REPO}/check-runs", method="POST", identity=identity, data={
+        "name": name, "head_sha": head, "status": "completed",
         "conclusion": verdict, "external_id": f"appverse-pr-{number}-{head}",
         "details_url": f"https://github.com/{REPO}/pull/{number}",
-        "output": {"title": "Appverse merge eligible" if not errors else "Appverse merge blocked",
+        "output": {"title": ("Appverse merge eligible" if not errors else "Appverse merge blocked")
+                   + (" (advisory, not authoritative)" if mode == "advisory" else ""),
                    "summary": summary},
     })
-    print(f"#{number}: {verdict}; " + "; ".join(errors[:5]))
+    if mode == "authoritative" and (posted.get("app") or {}).get("id") != GATE_APP_ID:
+        raise GateError(f"authoritative check was published by app {(posted.get('app') or {}).get('id')}, "
+                        f"expected {GATE_APP_ID}; the ruleset will ignore it")
+    print(f"#{number}: {verdict} ({mode}); " + "; ".join(errors[:5]))
 
 
 def main() -> None:
     if os.environ.get("GITHUB_REPOSITORY") != REPO:
         raise SystemExit("Incorrect repository; fail closed")
+    mode = os.environ.get("APPVERSE_PUBLISH_MODE", "advisory").strip()
+    if mode not in PUBLISH_MODES:
+        raise SystemExit("Invalid publish mode; fail closed")
+    if mode == "advisory" and os.environ.get(CREDENTIAL_ENV["app"]):
+        # The shared-identity job must never hold the dedicated App credential.
+        raise SystemExit("Advisory mode refuses to run with the dedicated App token present; fail closed")
     # GitHub Actions supplies the trusted numeric PR identifier directly;
     # never read a filesystem path supplied through the environment.
     pr_number = os.environ.get("APPVERSE_PR_NUMBER", "").strip()
     if pr_number:
         if not pr_number.isascii() or not pr_number.isdecimal():
             raise SystemExit("Invalid PR number; fail closed")
-        update_gate_check(int(pr_number))
+        update_gate_check(int(pr_number), mode)
         return
     # A globally mandatory check must be published for every main-bound PR,
     # not only PRs opted into optional native auto-merge.
@@ -482,7 +570,7 @@ def main() -> None:
         if pr.get("base", {}).get("ref") != "main":
             continue
         try:
-            update_gate_check(int(pr["number"]))
+            update_gate_check(int(pr["number"]), mode)
         except Exception as exc:
             failures.append(f"#{pr['number']}: {type(exc).__name__}: {exc}")
     if failures:

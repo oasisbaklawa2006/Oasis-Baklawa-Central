@@ -92,8 +92,10 @@ class ControllerWorkflowSecurityTests(unittest.TestCase):
         self.assertEqual(granted, {"contents": "read", "actions": "read", "pull-requests": "read",
                                    "checks": "write", "statuses": "read"})
         for forbidden in ("contents: write", "pull-requests: write", "issues: write", "id-token", "packages",
-                          "administration", "deployments", "write-all", "secrets."):
+                          "deployments", "write-all"):
             self.assertNotIn(forbidden, self.code)
+        # Secrets exist only in the opt-in authoritative job, and only the single App key.
+        self.assertEqual(set(re.findall(r"secrets\.(\w+)", self.code)), {"APPVERSE_GATE_APP_PRIVATE_KEY"})
 
     def test_checks_out_trusted_main_without_persisted_credentials(self):
         self.assertIn("ref: main", self.code)
@@ -137,6 +139,69 @@ class ControllerWorkflowSecurityTests(unittest.TestCase):
         existing = {workflow_name(p.read_text()) for p in WORKFLOWS.glob("*.yml")}
         self.assertTrue(watched)
         self.assertFalse(watched - existing, f"controller watches non-existent workflows: {watched - existing}")
+
+
+def job_blocks(text: str) -> dict:
+    """Split the workflow's jobs: {job_id: text} (two-space job ids under 'jobs:')."""
+    body = text.split("\njobs:\n", 1)[1]
+    parts = re.split(r"(?m)^  ([A-Za-z0-9_-]+):\s*$", body)
+    return {parts[i]: parts[i + 1] for i in range(1, len(parts), 2)}
+
+
+class TwoIdentityWorkflowTests(unittest.TestCase):
+    """The shared Actions identity may only publish the advisory check; the dedicated App publishes the real one."""
+
+    jobs = job_blocks(strip_comments(CONTROLLER))
+
+    def test_exactly_one_advisory_and_one_authoritative_job(self):
+        self.assertEqual(set(self.jobs), {"advisory-evaluation", "authoritative-publication"})
+
+    def test_advisory_job_holds_no_secret_environment_or_app_credential(self):
+        job = self.jobs["advisory-evaluation"]
+        self.assertIn("APPVERSE_PUBLISH_MODE: advisory", job)
+        for forbidden in ("secrets.", "GH_APP_TOKEN", "environment:", "create-github-app-token", "APPVERSE_GATE_APP"):
+            self.assertNotIn(forbidden, job, forbidden)
+
+    def test_authoritative_job_is_opt_in_main_only_and_environment_gated(self):
+        job = self.jobs["authoritative-publication"]
+        self.assertIn("vars.APPVERSE_GATE_PUBLISHER == 'actions-environment'", job)
+        self.assertIn("github.ref == 'refs/heads/main'", job)
+        self.assertIn(f"environment: {gate.GATE_ENVIRONMENT}", job)
+        self.assertIn("APPVERSE_PUBLISH_MODE: authoritative", job)
+
+    def test_authoritative_job_workflow_token_is_read_only_and_writes_use_the_app(self):
+        job = self.jobs["authoritative-publication"]
+        perms = re.search(r"(?m)^    permissions:\n((?:      .*\n)+)", job).group(1)
+        self.assertNotIn("write", perms)
+        self.assertEqual(set(re.findall(r"^      ([a-z-]+):", perms, re.M)),
+                         {"contents", "actions", "pull-requests", "checks", "statuses"})
+
+    def test_installation_token_is_least_privilege_and_single_repository(self):
+        job = self.jobs["authoritative-publication"]
+        self.assertRegex(job, r"actions/create-github-app-token@[0-9a-f]{40}")
+        granted = dict(re.findall(r"permission-([a-z-]+):\s*(\w+)", job))
+        self.assertEqual(granted.get("checks"), "write")
+        self.assertEqual(granted.get("administration"), "read")
+        self.assertEqual({k for k, v in granted.items() if v == "write"}, {"checks"})
+        self.assertIn("repositories: ${{ github.event.repository.name }}", job)
+
+    def test_only_the_authoritative_job_may_see_the_private_key(self):
+        for name, job in self.jobs.items():
+            has_secret = "secrets.APPVERSE_GATE_APP_PRIVATE_KEY" in job
+            self.assertEqual(has_secret, name == "authoritative-publication", name)
+
+    def test_advisory_publication_cannot_use_the_authoritative_name(self):
+        self.assertNotEqual(gate.ADVISORY_CHECK_NAME, gate.CHECK_NAME)
+        for name, job in self.jobs.items():
+            self.assertNotIn(f"name: {gate.CHECK_NAME}\n", job)
+
+    def test_environment_name_matches_the_script_contract(self):
+        self.assertIn(f"environment: {gate.GATE_ENVIRONMENT}", CONTROLLER)
+
+    def test_no_workflow_requires_the_advisory_check_or_pins_the_actions_app_for_the_gate(self):
+        for path in WORKFLOWS.glob("*.yml"):
+            text = strip_comments(path.read_text())
+            self.assertNotIn("integration_id: 15368", text, path.name)
 
 
 class UnitTestWorkflowTests(unittest.TestCase):
@@ -215,15 +280,35 @@ def codeowners_rules() -> list:
     return rules
 
 
+UNSUPPORTED_CODEOWNERS_SYNTAX = ("[", "]", "!", "?", "\\")
+
+
+def codeowners_regex(pattern: str) -> re.Pattern:
+    """GitHub CODEOWNERS subset: leading '/' anchors, trailing '/' means directory, '*' stays in a segment, '**' crosses
+    directories. Character classes, negation, '?' and escapes are NOT supported by GitHub and are rejected here."""
+    if any(ch in pattern for ch in UNSUPPORTED_CODEOWNERS_SYNTAX):
+        raise ValueError(f"unsupported CODEOWNERS syntax in {pattern!r}")
+    anchored = pattern.startswith("/")
+    body = pattern.strip("/") if pattern.endswith("/") else pattern.lstrip("/")
+    out, i = [], 0
+    while i < len(body):
+        if body.startswith("**/", i):
+            out.append("(?:.*/)?")
+            i += 3
+        elif body.startswith("**", i):
+            out.append(".*")
+            i += 2
+        elif body[i] == "*":
+            out.append("[^/]*")
+            i += 1
+        else:
+            out.append(re.escape(body[i]))
+            i += 1
+    return re.compile(("^" if anchored else "^(?:.*/)?") + "".join(out) + r"(?:/.*)?$")
+
+
 def covered(pattern: str, path: str) -> bool:
-    """Anchored CODEOWNERS pattern: leading segments must match (directory patterns cover their contents)."""
-    if not pattern.startswith("/"):
-        return False
-    pattern_parts = pattern.strip("/").split("/")
-    path_parts = path.split("/")
-    if len(path_parts) < len(pattern_parts):
-        return False
-    return all(fnmatch.fnmatchcase(path_parts[i], pattern_parts[i]) for i in range(len(pattern_parts)))
+    return bool(codeowners_regex(pattern).match(path))
 
 
 def sensitive_files_on_disk() -> list:
@@ -253,7 +338,65 @@ def sensitive_files_on_disk() -> list:
     return sorted(found)
 
 
+# Single source for the vocabulary block of CODEOWNERS (kept next to the tests that enforce it).
+CODEOWNERS_PLAIN_VOCABULARY = ("finance", "payment", "invoice", "settlement", "wallet", "refund", "ledger", "reversal",
+                               "rbac", "permission", "password", "credential", "authority", "dispatch", "login", "mfa",
+                               "token", "session", "security")
+CODEOWNERS_BOUNDARY_VOCABULARY = ("auth", "gate", "role")  # short words: only at a camelCase or - _ boundary
+CODEOWNERS_SCRIPT_VOCABULARY = ("authority", "secret", "credential")
+# Files the gate classifies by vocabulary that are deliberately NOT natively owned (the gate's human-approval rule
+# still covers them): archived reference tests whose names merely contain 'Migration', and a Vite typings file.
+VOCABULARY_EXEMPT = ("src/lib/wa-governance/archived-whatsapp-business-intakes-reference/", "src/vite-env.d.ts")
+
+
+def expected_vocabulary_rules() -> set:
+    rules = set()
+    for word in CODEOWNERS_PLAIN_VOCABULARY:
+        rules |= {f"/src/**/*{word.capitalize()}*", f"/src/**/*{word}*"}
+    for word in CODEOWNERS_BOUNDARY_VOCABULARY:
+        rules |= {f"/src/**/*{word.capitalize()}*", f"/src/**/{word}*", f"/src/**/*-{word}*", f"/src/**/*_{word}*"}
+    for word in CODEOWNERS_SCRIPT_VOCABULARY:
+        rules.add(f"/scripts/**/*{word}*")
+    return rules
+
+
 class CodeownersTests(unittest.TestCase):
+    def test_only_github_supported_syntax_is_used(self):
+        for pattern, _ in codeowners_rules():
+            codeowners_regex(pattern)  # raises on [ ] ! ? and backslash escapes
+
+    def test_matcher_rejects_unsupported_syntax(self):
+        for bad in ("/src/**/*[Ff]inance*", "!/src/x", "/src/?.ts", "/src/\\#x"):
+            with self.assertRaises(ValueError):
+                codeowners_regex(bad)
+
+    def test_vocabulary_block_matches_its_single_source_of_truth(self):
+        actual = {pattern for pattern, _ in codeowners_rules() if pattern.startswith(("/src/**/", "/scripts/**/"))}
+        self.assertEqual(actual, expected_vocabulary_rules())
+
+    def test_authority_code_in_src_and_scripts_is_natively_owned(self):
+        rules = [pattern for pattern, _ in codeowners_rules()]
+        flagged = []
+        for base in ("src", "scripts"):
+            for path in (ROOT / base).rglob("*"):
+                if path.is_file() and "node_modules" not in path.parts and "__pycache__" not in path.parts:
+                    rel = path.relative_to(ROOT).as_posix()
+                    if gate.sensitive_paths({rel}) and not rel.startswith(VOCABULARY_EXEMPT):
+                        flagged.append(rel)
+        self.assertTrue(len(flagged) > 150, "classifier unexpectedly found too few authority files")
+        uncovered = [rel for rel in flagged if not any(covered(rule, rel) for rule in rules)]
+        self.assertEqual(uncovered[:10], [], "authority code without a native CODEOWNERS rule (showing up to 10)")
+
+    def test_vocabulary_patterns_avoid_known_false_positives(self):
+        rules = [pattern for pattern, _ in codeowners_rules()]
+        for path in ("src/lib/navigate.ts", "src/lib/aggregateTotals.ts", "src/utils/surrogate.ts",
+                     "src/components/Button.tsx"):
+            self.assertFalse(any(covered(rule, path) for rule in rules if rule.startswith("/src/**/")), path)
+        for path in ("src/pages/admin/AdminSecurityGate.tsx", "src/utils/gateScanEvidence.ts",
+                     "src/components/RoleProtectedRoute.tsx", "src/lib/token-hash-verification.ts",
+                     "src/lib/msg91-session-bridge-routing.ts", "src/lib/post-claim-buyer-role-race.ts"):
+            self.assertTrue(any(covered(rule, path) for rule in rules), path)
+
     def test_owners_are_exactly_the_trusted_humans_the_gate_accepts(self):
         expected = {"@" + login for login in gate.TRUSTED_HUMANS}
         for pattern, owners in codeowners_rules():

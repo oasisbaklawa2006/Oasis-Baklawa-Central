@@ -19,6 +19,16 @@ SPEC.loader.exec_module(gate)
 SHA = "1" * 40
 ENV_API = "GH_TOKEN"  # name of the env var the controller reads; values used in tests are dummies
 DUMMY_CREDENTIAL = "x" * 8
+
+
+def env(actions=None, app=None, **extra):
+    """Environment mapping built from the script's own identity->variable table (values are dummies)."""
+    out = dict(extra)
+    if actions:
+        out[gate.CREDENTIAL_ENV["actions"]] = actions if isinstance(actions, str) else "dummy-actions"
+    if app:
+        out[gate.CREDENTIAL_ENV["app"]] = app if isinstance(app, str) else "dummy-app"
+    return out
 BASE = "b" * 40
 AUTHOR = "oasisbaklawa2006"
 OWNER2 = "dineshmutrejabackup-cmd"
@@ -43,7 +53,7 @@ def ok_status_rule(**overrides):
             "conditions": {"ref_name": {"include": ["refs/heads/main"]}},
             "rules": [{"type": "required_status_checks", "parameters": {
                 "strict_required_status_checks_policy": True,
-                "required_status_checks": [{"context": gate.CHECK_NAME, "integration_id": 15368}]}}]}
+                "required_status_checks": [{"context": gate.CHECK_NAME, "integration_id": gate.GATE_APP_ID}]}}]}
     rule.update(overrides)
     return rule
 
@@ -80,12 +90,41 @@ class RulesetTests(GateTestCase):
         rule = ok_status_rule()
         rule["rules"][0]["parameters"]["required_status_checks"] = [{"context": gate.CHECK_NAME}]
         problems = self.evaluate(rule, ok_governance())
-        self.assertTrue(any("GitHub Actions app" in p for p in problems))
+        self.assertTrue(any("not pinned exclusively to the dedicated gate App" in p for p in problems))
 
     def test_wrong_integration_id_rejects(self):
         rule = ok_status_rule()
         rule["rules"][0]["parameters"]["required_status_checks"][0]["integration_id"] = 999
         self.assertTrue(self.evaluate(rule, ok_governance()))
+
+    def test_pin_to_the_shared_actions_identity_is_rejected_as_impersonable(self):
+        rule = ok_status_rule()
+        rule["rules"][0]["parameters"]["required_status_checks"][0]["integration_id"] = gate.GITHUB_ACTIONS_APP_ID
+        problems = self.evaluate(rule, ok_governance())
+        self.assertTrue(any("shared GitHub Actions identity" in p and "impersonate" in p for p in problems), problems)
+
+    def test_actions_entry_alongside_the_dedicated_app_is_rejected(self):
+        rule = ok_status_rule()
+        rule["rules"][0]["parameters"]["required_status_checks"].append(
+            {"context": gate.CHECK_NAME, "integration_id": gate.GITHUB_ACTIONS_APP_ID})
+        self.assertTrue(self.evaluate(rule, ok_governance()))
+
+    def test_gate_must_be_required_at_all(self):
+        rule = ok_status_rule()
+        rule["rules"][0]["parameters"]["required_status_checks"] = [{"context": "Something Else", "integration_id": gate.GATE_APP_ID}]
+        self.assertTrue(any("not a required status check" in p for p in self.evaluate(rule, ok_governance())))
+
+    def test_the_advisory_check_name_can_never_satisfy_the_requirement(self):
+        rule = ok_status_rule()
+        rule["rules"][0]["parameters"]["required_status_checks"] = [
+            {"context": gate.ADVISORY_CHECK_NAME, "integration_id": gate.GITHUB_ACTIONS_APP_ID}]
+        self.assertTrue(self.evaluate(rule, ok_governance()))
+        self.assertNotEqual(gate.ADVISORY_CHECK_NAME, gate.CHECK_NAME)
+        self.assertIn("(advisory)", gate.ADVISORY_CHECK_NAME)
+
+    def test_dedicated_app_is_the_expected_identity(self):
+        self.assertEqual(gate.GATE_APP_ID, 5645415)
+        self.assertNotEqual(gate.GATE_APP_ID, gate.GITHUB_ACTIONS_APP_ID)
 
     def test_bypass_actor_rejects(self):
         problems = self.evaluate(ok_status_rule(bypass_actors=[{"actor_id": 5}]), ok_governance())
@@ -336,9 +375,9 @@ class ScopeTests(GateTestCase):
             self.assertEqual(gate.unexpected_check_state(run(*ok), required), [], ok)
 
 
-def check(name, slug, conclusion="success", status="completed", cid=1):
-    return {"name": name, "app": {"slug": slug}, "status": status, "conclusion": conclusion, "id": cid,
-            "started_at": "2026-11-06T00:00:00Z"}
+def check(name, slug, conclusion="success", status="completed", cid=1, app_id=None):
+    return {"name": name, "app": {"slug": slug, **({"id": app_id} if app_id else {})}, "status": status,
+            "conclusion": conclusion, "id": cid, "started_at": "2026-11-06T00:00:00Z"}
 
 
 def all_green(required):
@@ -500,13 +539,13 @@ class UpdateAndSweepTests(GateTestCase):
         previous = {"status": "completed", "conclusion": "failure", "output": {"summary": summary}}
         with mock.patch.object(gate, "current_pr", return_value=base_pr()), \
              mock.patch.object(gate, "validate", return_value=["x"]), \
-             mock.patch.object(gate, "latest_checks", return_value={(gate.CHECK_NAME, "github-actions"): previous}), \
+             mock.patch.object(gate, "latest_checks", return_value={(gate.ADVISORY_CHECK_NAME, "github-actions"): previous}), \
              mock.patch.object(gate, "api", side_effect=no_network):
             gate.update_gate_check(700)  # no POST => no network call
 
     def test_sweep_isolates_per_pr_failures_and_exits_non_zero(self):
         calls = []
-        def fake_update(number):
+        def fake_update(number, mode="advisory"):
             calls.append(number)
             if number == 2:
                 raise RuntimeError("transient")
@@ -646,6 +685,208 @@ class TransportTests(GateTestCase):
         with mock.patch.object(self.original, "api", return_value={"message": "oops"}):
             with self.assertRaises(self.original.GateError):
                 self.original.paginated("/repos/x/list")
+
+
+class SpoofDetectionTests(GateTestCase):
+    """The gate's authoritative name carries authority only when published by the dedicated App."""
+
+    def test_check_with_the_gate_name_from_actions_is_a_spoof(self):
+        checks = {(gate.CHECK_NAME, "github-actions"): check(gate.CHECK_NAME, "github-actions", app_id=gate.GITHUB_ACTIONS_APP_ID)}
+        self.assertEqual(gate.foreign_gate_checks(checks), ["github-actions"])
+
+    def test_check_with_the_gate_name_from_any_other_app_or_unknown_app_is_a_spoof(self):
+        for app_id in (1, 999999, None):
+            checks = {(gate.CHECK_NAME, "evil-app"): check(gate.CHECK_NAME, "evil-app", app_id=app_id)}
+            self.assertEqual(gate.foreign_gate_checks(checks), ["evil-app"], app_id)
+
+    def test_check_from_the_dedicated_app_is_not_a_spoof(self):
+        checks = {(gate.CHECK_NAME, "oasis-appverse-merge-gate"):
+                  check(gate.CHECK_NAME, "oasis-appverse-merge-gate", app_id=gate.GATE_APP_ID)}
+        self.assertEqual(gate.foreign_gate_checks(checks), [])
+
+    def test_advisory_name_is_not_flagged_and_other_checks_are_ignored(self):
+        checks = {(gate.ADVISORY_CHECK_NAME, "github-actions"): check(gate.ADVISORY_CHECK_NAME, "github-actions", app_id=15368),
+                  ("CodeRabbit", "coderabbitai"): check("CodeRabbit", "coderabbitai", app_id=1)}
+        self.assertEqual(gate.foreign_gate_checks(checks), [])
+
+    def test_validate_reports_the_spoof_attempt(self):
+        required = gate.relevant_checks({"docs/README.md"})
+        runs = all_green(required) + [check(gate.CHECK_NAME, "github-actions", app_id=gate.GITHUB_ACTIONS_APP_ID, cid=900)]
+        errors = ValidateMatrixTests("run_validate").run_validate(checks=runs)
+        self.assertTrue(any(e.startswith("SPOOF_ATTEMPT") and "github-actions" in e for e in errors), errors)
+
+    def test_a_branch_workflow_posting_the_gate_name_cannot_make_the_ruleset_pass(self):
+        # The ruleset pin is the real control: an entry pinned to Actions is itself reported as unsafe.
+        rule = ok_status_rule()
+        rule["rules"][0]["parameters"]["required_status_checks"][0]["integration_id"] = gate.GITHUB_ACTIONS_APP_ID
+        with mock.patch.object(gate, "api", side_effect=[rule, ok_governance()]):
+            self.assertFalse(gate.configured_ruleset())
+
+
+class CredentialIdentityTests(GateTestCase):
+    def setUp(self):
+        super().setUp()
+        self.original = importlib.util.module_from_spec(SPEC)
+        SPEC.loader.exec_module(self.original)
+
+    def request(self, identity, env):
+        with mock.patch.dict(self.original.os.environ, env, clear=True), \
+             mock.patch.object(self.original.http.client, "HTTPSConnection") as conn:
+            response = mock.Mock(status=200)
+            response.read.return_value = b"{}"
+            conn.return_value.getresponse.return_value = response
+            self.original.api("/repos/x", identity=identity)
+            return conn.return_value.request.call_args.kwargs["headers"]["Authorization"]
+
+    def test_each_identity_sends_only_its_own_credential(self):
+        creds = env(actions="credential-one", app="credential-two")
+        self.assertEqual(self.request("actions", creds), "Bearer credential-one")
+        self.assertEqual(self.request("app", creds), "Bearer credential-two")
+
+    def test_missing_credential_and_unknown_identity_fail_closed(self):
+        with mock.patch.dict(self.original.os.environ, env(actions=True), clear=True):
+            with self.assertRaises(self.original.GateError):
+                self.original.api("/repos/x", identity="app")
+            with self.assertRaises(self.original.GateError):
+                self.original.api("/repos/x", identity="root")
+
+    def test_ruleset_reads_prefer_the_dedicated_app_credential_when_present(self):
+        with mock.patch.dict(self.original.os.environ, env(actions=True, app=True), clear=True):
+            self.assertEqual(self.original.ruleset_identity(), "app")
+        with mock.patch.dict(self.original.os.environ, env(actions=True), clear=True):
+            self.assertEqual(self.original.ruleset_identity(), "actions")
+
+    def test_ruleset_requests_use_that_identity(self):
+        seen = []
+        def fake(path, **kw):
+            seen.append(kw.get("identity"))
+            return ok_status_rule() if str(gate.RULESET_ID) in path else ok_governance()
+        with mock.patch.dict(gate.os.environ, env(actions=True, app=True), clear=True), \
+             mock.patch.object(gate, "api", side_effect=fake):
+            self.assertEqual(gate.ruleset_problems(), [])
+        self.assertEqual(seen, ["app", "app"])
+
+
+def environment_api(*, custom=True, branches=("main",), error=None):
+    def fake(path, **kw):
+        if error:
+            raise gate.GateError(error)
+        if path.endswith("/deployment-branch-policies"):
+            return {"branch_policies": [{"name": b, "type": "branch"} for b in branches]}
+        return {"deployment_branch_policy": {"protected_branches": False, "custom_branch_policies": custom}}
+    return fake
+
+
+class PublicationTests(GateTestCase):
+    def publish(self, mode, *, env, api_fn, errors=(), previous=None):
+        posted = []
+        def fake_api(path, **kw):
+            if kw.get("method") == "POST":
+                posted.append((path, kw))
+                return {"app": {"id": gate.GATE_APP_ID}} if kw.get("identity") == "app" else {"app": {"id": 15368}}
+            return api_fn(path, **kw)
+        with mock.patch.dict(gate.os.environ, env, clear=True), \
+             mock.patch.object(gate, "current_pr", return_value=base_pr()), \
+             mock.patch.object(gate, "validate", return_value=list(errors)), \
+             mock.patch.object(gate, "latest_checks", return_value=previous or {}), \
+             mock.patch.object(gate, "api", side_effect=fake_api):
+            gate.update_gate_check(700, mode)
+        return posted
+
+    def test_advisory_mode_publishes_only_the_advisory_name_with_the_actions_identity(self):
+        posted = self.publish("advisory", env=env(actions=True), api_fn=no_network)
+        (path, kw), = posted
+        self.assertEqual(kw["data"]["name"], gate.ADVISORY_CHECK_NAME)
+        self.assertEqual(kw["identity"], "actions")
+        self.assertIn("advisory", kw["data"]["output"]["title"])
+
+    def test_advisory_mode_can_never_publish_the_authoritative_name(self):
+        for errors in ((), ("x",)):
+            posted = self.publish("advisory", env=env(actions=True), api_fn=no_network, errors=errors)
+            self.assertTrue(all(kw["data"]["name"] != gate.CHECK_NAME for _, kw in posted))
+
+    def test_authoritative_mode_publishes_the_gate_name_with_the_dedicated_app_when_environment_is_restricted(self):
+        posted = self.publish("authoritative", env=env(actions=True, app=True), api_fn=environment_api())
+        (path, kw), = posted
+        self.assertEqual(kw["data"]["name"], gate.CHECK_NAME)
+        self.assertEqual(kw["identity"], "app")
+        self.assertEqual(kw["data"]["head_sha"], SHA)
+        self.assertEqual(kw["data"]["conclusion"], "success")
+
+    def test_authoritative_failure_verdict_is_published_too(self):
+        posted = self.publish("authoritative", env=env(actions=True, app=True),
+                              api_fn=environment_api(), errors=["blocked"])
+        self.assertEqual(posted[0][1]["data"]["conclusion"], "failure")
+
+    def test_authoritative_publication_is_withheld_without_the_app_credential(self):
+        self.assertEqual(self.publish("authoritative", env=env(actions=True), api_fn=no_network), [])
+
+    def test_authoritative_publication_is_withheld_when_the_environment_is_not_restricted(self):
+        self.assertEqual(self.publish("authoritative", env=env(actions=True, app=True),
+                                      api_fn=environment_api(custom=False)), [])
+
+    def test_authoritative_publication_is_withheld_when_other_branches_are_allowed(self):
+        for branches in (("main", "release/x"), ("feature",), ()):
+            self.assertEqual(self.publish("authoritative", env=env(actions=True, app=True),
+                                          api_fn=environment_api(branches=branches)), [], branches)
+
+    def test_authoritative_publication_is_withheld_when_the_policy_cannot_be_verified(self):
+        self.assertEqual(self.publish("authoritative", env=env(actions=True, app=True),
+                                      api_fn=environment_api(error="HTTP 403")), [])
+
+    def test_authoritative_check_published_by_the_wrong_app_raises(self):
+        def fake_api(path, **kw):
+            if kw.get("method") == "POST":
+                return {"app": {"id": 15368}}
+            return environment_api()(path, **kw)
+        with mock.patch.dict(gate.os.environ, env(actions=True, app=True), clear=True), \
+             mock.patch.object(gate, "current_pr", return_value=base_pr()), \
+             mock.patch.object(gate, "validate", return_value=[]), \
+             mock.patch.object(gate, "latest_checks", return_value={}), \
+             mock.patch.object(gate, "api", side_effect=fake_api):
+            with self.assertRaises(gate.GateError):
+                gate.update_gate_check(700, "authoritative")
+
+    def test_unknown_mode_is_refused(self):
+        with self.assertRaises(gate.GateError):
+            gate.update_gate_check(700, "both")
+
+    def test_idempotency_is_per_identity_and_ignores_spoofed_history(self):
+        _, summary = gate.verdict_and_summary(700, SHA, [])
+        spoof = {(gate.CHECK_NAME, "github-actions"): {"status": "completed", "conclusion": "success",
+                                                         "output": {"summary": summary}, "app": {"id": 15368}}}
+        posted = self.publish("authoritative", env=env(actions=True, app=True),
+                              api_fn=environment_api(), previous=spoof)
+        self.assertEqual(len(posted), 1, "a spoofed identical check must not suppress the genuine publication")
+        genuine = {(gate.CHECK_NAME, "dedicated"): {"status": "completed", "conclusion": "success",
+                                                      "output": {"summary": summary}, "app": {"id": gate.GATE_APP_ID}}}
+        self.assertEqual(self.publish("authoritative", env=env(actions=True, app=True),
+                                      api_fn=environment_api(), previous=genuine), [])
+
+
+class ModeGuardTests(GateTestCase):
+    def run_main(self, env):
+        with mock.patch.dict(gate.os.environ, {"GITHUB_REPOSITORY": gate.REPO, **env}, clear=True), \
+             mock.patch.object(gate, "paginated", return_value=[{"number": 1, "base": {"ref": "main"}}]), \
+             mock.patch.object(gate, "update_gate_check") as update:
+            gate.main()
+            return update
+
+    def test_default_mode_is_advisory(self):
+        update = self.run_main(env(actions=True))
+        update.assert_called_once_with(1, "advisory")
+
+    def test_invalid_mode_is_refused(self):
+        with self.assertRaises(SystemExit):
+            self.run_main({"APPVERSE_PUBLISH_MODE": "root"})
+
+    def test_advisory_mode_refuses_to_run_with_the_dedicated_credential_present(self):
+        with self.assertRaises(SystemExit):
+            self.run_main(env(app=True, APPVERSE_PUBLISH_MODE="advisory"))
+
+    def test_authoritative_mode_passes_through(self):
+        update = self.run_main(env(app=True, APPVERSE_PUBLISH_MODE="authoritative"))
+        update.assert_called_once_with(1, "authoritative")
 
 
 if __name__ == "__main__":
