@@ -1,0 +1,9 @@
+# Protected Appverse merge automation — independent code-owner review.
+# The PR author may not approve their own governance changes.
+# Admin activation requires Central ruleset #19820724: require_code_owner_review=true.
+/.github/CODEOWNERS @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/.github/workflows/appverse-merge-gate.yml @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/.github/workflows/appverse-merge-gate-ci.yml @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/scripts/appverse-control/appverse_merge_gate.py @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/tests/appverse-control/test_appverse_merge_gate.py @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/docs/appverse-control/AUTONOMOUS_RELEASE_POLICY.md @oasisbaklawa2006 @dineshmutrejabackup-cmd
