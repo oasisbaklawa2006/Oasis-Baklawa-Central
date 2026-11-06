@@ -1,0 +1,56 @@
+name: Appverse Trusted Merge Controller
+
+# Trusted default-branch code only. Never execute PR-controlled code with write permissions.
+on:
+  pull_request_target:
+    branches: [main]
+    types: [opened, reopened, synchronize, ready_for_review, converted_to_draft, labeled, unlabeled, edited]
+  pull_request_review:
+    types: [submitted, dismissed]
+  workflow_run:
+    workflows:
+      - Release Quality Gate
+      - Buyer Golden Path Certification
+      - Factory Operations Ephemeral Certification
+      - Point100 Final Software Dress Rehearsal
+      - Secret Exposure Guard
+      - Repo Ownership Boundaries
+    types: [completed]
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  pull-requests: read
+  checks: write
+  statuses: read
+
+concurrency:
+  group: appverse-trusted-merge-gate
+  cancel-in-progress: false
+
+jobs:
+  trusted-evaluation:
+    name: Evaluate Appverse merge authority on exact PR head
+    if: github.repository == 'oasisbaklawa2006/Oasis-Baklawa-Central'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout trusted main, never untrusted PR code
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Confirm trusted main and Python syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse --abbrev-ref HEAD)" = main
+          python3 -m py_compile scripts/appverse-control/appverse_merge_gate.py
+      - name: Publish exact-head fail-closed check run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: python3 scripts/appverse-control/appverse_merge_gate.py
