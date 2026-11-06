@@ -105,4 +105,93 @@ describe("certification lane dispatch-authority guard", () => {
     const point100 = read("scripts/point100-certification/start-ephemeral.sh");
     expect(point100).toContain("FACTORY_CERT_P38_GOVERNED_CHAIN=false");
   });
+
+  describe("Buyer-to-Dispatch journey does not manufacture business evidence", () => {
+    const journeyFiles = [
+      "scripts/integration-certification/buyer-order-journey.mjs",
+      "scripts/integration-certification/verify-buyer-to-dispatch-journey.mjs",
+      "scripts/integration-certification/start-ephemeral.sh",
+    ];
+
+    it("creates the order only through Core's quoted checkout, never by insert/update/upsert", () => {
+      const buyer = read("scripts/integration-certification/buyer-order-journey.mjs");
+      expect(buyer).toContain("customer_checkout_quote_v1");
+      expect(buyer).toContain("submit_customer_order_quoted_v1");
+      expect(buyer).toContain("create_sales_order_proforma_invoice_v1");
+      expect(buyer).not.toMatch(/\.(insert|upsert|update)\(/);
+      expect(buyer).not.toContain("submit_customer_order_v1");
+      expect(buyer).not.toMatch(/cleared_for_dispatch|status:\s*"/);
+    });
+
+    it("verification is read-only (service role never writes business tables)", () => {
+      const verify = read("scripts/integration-certification/verify-buyer-to-dispatch-journey.mjs");
+      expect(verify).not.toMatch(/\.(insert|upsert|delete)\(/);
+      expect(verify.match(/\.update\(/g)).toBeNull();
+      expect(verify).toContain('"dispatched"');
+      expect(verify).toContain("JOURNEY_BUYER_DISPATCH_AUTHORITY_NOT_REJECTED");
+    });
+
+    it("no journey file forces an order status with SQL or reuses the Factory seeded order", () => {
+      for (const file of journeyFiles) {
+        const text = read(file);
+        expect(text, file).not.toMatch(/UPDATE\s+public\.orders/i);
+        expect(text, file).not.toMatch(/SET\s+status\s*=/i);
+        expect(text, file).not.toContain("seed-production-fixtures");
+      }
+      expect(read("scripts/integration-certification/start-ephemeral.sh")).toContain("FACTORY_CERT_P38_GOVERNED_CHAIN=false");
+    });
+
+    it("status transitions come from Core's own order authorities, gated to the journey lane only", () => {
+      const exit = read("scripts/point100-certification/prepare-point38-canonical-exit.mjs");
+      expect(exit).toContain('process.env.POINT38_JOURNEY_GOVERNED_STATUS_PATH === "true"');
+      for (const rpc of [
+        "release_order_to_manufacturing_v1",
+        "release_order_to_in_production_v1",
+        "release_order_to_packed_ready_v1",
+        "clear_order_for_dispatch_v1",
+      ]) {
+        expect(exit).toContain(rpc);
+      }
+      // The only table write is the explicitly-labelled staff production completion under an authenticated role.
+      expect(exit.match(/\.update\(/g)?.length).toBe(1);
+      expect(exit).toContain("NOT a governed RPC");
+      expect(read("scripts/integration-certification/start-ephemeral.sh")).toContain("POINT38_JOURNEY_GOVERNED_STATUS_PATH=true");
+    });
+  });
+
+  describe("CP18 consumer adoption of Core #481 and #483", () => {
+    it("the tail records Gate evidence through record_b2b_dispatch_gate_scan_v1 and only falls back when the RPC does not exist", () => {
+      const tail = read("scripts/point100-certification/finalize-point38-canonical-tail.mjs");
+      expect(tail).toContain("record_b2b_dispatch_gate_scan_v1");
+      expect(tail).toContain("POINT38_GATE_SCAN_MODE");
+      expect(tail).toMatch(/gateScanMode === "rpc" \|\| !missing/);
+      // the unauthorized/duplicate/wrong-carton/replay probes of the new contract
+      for (const code of ["B2B_GATE_SCAN_DIRECT_INSERT_FORBIDDEN", "B2B_GATE_SCAN_BARCODE_MISMATCH", "B2B_GATE_SCAN_CARTON_NOT_FOUND", "B2B_GATE_SCAN_DUPLICATE", "B2B_GATE_SCAN_IDEMPOTENCY_CONFLICT"]) {
+        expect(tail).toContain(code);
+      }
+      // Gate evidence is created after the carton is ready_to_load (the RPC enforces the physical-exit state)
+      expect(tail.indexOf("await ensureGateScan()")).toBeGreaterThan(tail.indexOf("mark_b2b_dispatch_carton_ready_to_load_v1"));
+    });
+
+    it("the governed production leg writes no business table and never fabricates accepted evidence", () => {
+      const leg = read("scripts/integration-certification/governed-production-leg.mjs");
+      expect(leg).not.toMatch(/\.(insert|upsert|update|delete)\(/);
+      for (const rpc of ["reserve_rgs_stock", "create_production_shortage_demand", "accept_production_job", "record_production_output",
+        "declare_production_ready", "dispatch_production_to_rgs", "record_rgs_receipt", "accept_rgs_production_receipt", "complete_order_item_from_production_v1"]) {
+        expect(leg).toContain(rpc);
+      }
+      expect(leg).toContain("JOURNEY_PRODUCTION_BLOCKED_STOCK_COVERED");
+    });
+
+    it("the combined-Core workflow is manual, non-production and independent of the protected-release pin", () => {
+      const wf = read(".github/workflows/buyer-to-dispatch-journey-combined-core.yml");
+      expect(wf).toContain("workflow_dispatch");
+      expect(wf).not.toContain("pull_request");
+      expect(wf).not.toMatch(/branches: \[main\]/);
+      expect(wf).toContain("NON-PRODUCTION");
+      expect(wf).toContain("POINT38_GATE_SCAN_MODE: rpc");
+      expect(wf).toContain("JOURNEY_CORE_CONTRACTS: combined");
+      expect(wf).not.toContain("POINT100_PRODUCTION_MIGRATION_RUN_ID");
+    });
+  });
 });

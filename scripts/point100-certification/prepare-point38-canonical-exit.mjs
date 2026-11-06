@@ -26,6 +26,7 @@ import {
   readCredential,
   requireBootstrapEnv,
 } from "./point38-bootstrap-common.mjs";
+import { recordPhase } from "../integration-certification/journey-ledger.mjs";
 
 const LOCAL_LABEL = "POINT100_POINT38";
 const BATCH_LOT = "POINT100-P38-LOT-001";
@@ -506,6 +507,67 @@ async function submitPoint38DispatchCustodyToFinance(dispatchRole, adminRole, fi
   return financeDplReceiptId;
 }
 
+
+/**
+ * Buyer-to-Dispatch journey only (POINT38_JOURNEY_GOVERNED_STATUS_PATH=true). The historical Factory fixture forces
+ * orders.status to cleared_for_dispatch with SQL; the journey must instead reach it through Core's own status
+ * authorities: release_order_to_manufacturing_v1 -> release_order_to_in_production_v1 -> production completion ->
+ * release_order_to_packed_ready_v1 -> (dispatch custody, Finance clearance) -> clear_order_for_dispatch_v1.
+ */
+const JOURNEY_STATUS_PATH = process.env.POINT38_JOURNEY_GOVERNED_STATUS_PATH === "true";
+
+async function journeyTransition(role, roleLabel, rpcName, orderId) {
+  const result = await role.client.rpc(rpcName, { p_order_id: orderId });
+  assertNoError(result.error, `Journey ${rpcName}`);
+  const payload = firstRow(result.data);
+  if (!payload || payload.ok !== true) {
+    throw new Error(`JOURNEY_TRANSITION_BLOCKED: ${rpcName} -> ${JSON.stringify(payload)}`);
+  }
+  recordPhase(`Order transition ${rpcName}`, roleLabel, rpcName, { newStatus: payload.new_status ?? null, alreadyApplied: payload.already_applied ?? null });
+}
+
+async function journeyReleaseAndProduction(financeRole, adminRole, dispatchRole, orderId, orderItem) {
+  let productionLegGoverned = false;
+  await journeyTransition(financeRole, "FINANCE_HEAD", "release_order_to_manufacturing_v1", orderId);
+  await journeyTransition(financeRole, "FINANCE_HEAD", "release_order_to_in_production_v1", orderId);
+  if (process.env.JOURNEY_CORE_CONTRACTS === "combined") {
+    // Core #483: completion is derived from real production jobs accepted by RGS receiving; no table write.
+    const { runGovernedProductionLeg } = await import("../integration-certification/governed-production-leg.mjs");
+    try {
+      await runGovernedProductionLeg({ orderId, orderItem, adminClient: adminRole.client, dispatchClient: dispatchRole.client });
+      productionLegGoverned = true;
+    } catch (error) {
+      if (!String(error?.message ?? "").startsWith("JOURNEY_PRODUCTION_BLOCKED_")) throw error;
+      // The pipeline cannot supply accepted evidence for this line. Record the exact block (never PASS), then continue the
+      // rest of the chain with the previously disclosed synthetic staff write so Gate/Dispatch adoption is still exercised.
+      recordPhase("Governed production completion BLOCKED; falling back to the disclosed synthetic staff write", "CORE", "complete_order_item_from_production_v1", {
+        status: "BLOCKED",
+        reason: String(error.message).slice(0, 400),
+        missingAuthority: "Core defines two fulfilment models (RGS reservation -> issue -> acknowledge, and production acceptance); #483 recognises only the latter, so a line partly covered by finished-goods stock cannot complete. Needs a Core owner decision.",
+      });
+    }
+  }
+  if (!productionLegGoverned) {
+    // Core exposes no governed RPC that completes a non-3PCS order item (complete_3pgs_order_item is 3PCS-only). Central
+    // admin screens update order_items directly under staff RLS; the journey performs exactly that staff write under RLS
+    // (authenticated ADMIN, never service role) and records it as a Core contract gap rather than a governed transition.
+    const completion = await adminRole.client
+      .from("order_items")
+      .update({ production_status: "completed", actual_packed_qty: Number(orderItem.quantity) })
+      .eq("id", orderItem.id)
+      .eq("order_id", orderId)
+      .select("id,production_status,actual_packed_qty");
+    assertNoError(completion.error, "Journey production completion (staff table write under RLS)");
+    if (completion.data?.length !== 1 || completion.data[0].production_status !== "completed") {
+      throw new Error(`JOURNEY_PRODUCTION_COMPLETION_BLOCKED: ${JSON.stringify(completion.data)}`);
+    }
+    recordPhase("Production/packing completion recorded for the order item", "ADMIN", "order_items staff table write under RLS (NOT a governed RPC)", {
+      contractGap: "No governed Core RPC completes non-3PCS order items; needs Mission Control reassignment to Core.",
+    });
+  }
+  await journeyTransition(dispatchRole, "DISPATCH_MANAGER", "release_order_to_packed_ready_v1", orderId);
+}
+
 const financeRole = await authenticatedRole("FINANCE_HEAD", { aal2: true });
 const adminRole = await authenticatedRole("ADMIN");
 const dispatchRole = await authenticatedRole("DISPATCH_MANAGER");
@@ -523,6 +585,9 @@ try {
   const commercialVersionId = String(bindings[0].commercial_version_id);
 
   await ensureOperationsClearance(financeRole.client, financeRole.actorId, piId, commercialVersionId);
+  if (JOURNEY_STATUS_PATH) {
+    recordPhase("Advance payment proof recorded and verified; operations clearance GRANTED", "FINANCE_HEAD", "record_order_payment_proof_v1 + verify_order_payment_v1 + decide_finance_operations_clearance_v1", { piId });
+  }
 
   const { data: orderItem, error: orderItemError } = await dispatchRole.client
     .from("order_items")
@@ -535,6 +600,9 @@ try {
     throw new Error(`POINT100_POINT38_ORDER_ITEM_INVALID: ${JSON.stringify(orderItem)}`);
   }
   const quantity = Number(orderItem.quantity);
+  if (JOURNEY_STATUS_PATH) {
+    await journeyReleaseAndProduction(financeRole, adminRole, dispatchRole, point38OrderId, orderItem);
+  }
   const financeDplReceiptId = await submitPoint38DispatchCustodyToFinance(
     dispatchRole,
     adminRole,
@@ -543,6 +611,12 @@ try {
     quantity,
   );
 
+  if (JOURNEY_STATUS_PATH) {
+    recordPhase("Dispatch custody: consignment, source handoff (synthetic PRODUCTION source), carton scan, lock, DPL, Finance DPL receipt", "DISPATCH_MANAGER+ADMIN+FINANCE_HEAD", "create_b2b_dispatch_consignment ... receive_submitted_b2b_dispatch_dpls_v1", {
+      financeDplReceiptId,
+      syntheticInput: "source handoff declared from POINT100_SYNTHETIC_READY; no real production/stock movement",
+    });
+  }
   const invoiceDate = await ensureFinalPaymentCoverage(
     financeRole.client,
     financeRole.actorId,
@@ -569,6 +643,9 @@ try {
   if (!finalInvoiceId) throw new Error("POINT100_POINT38_FINAL_INVOICE_ID_MISSING");
 
   await ensureFinalSettlement(financeRole.client, financeRole.actorId, piId, commercialVersionId, finalInvoiceId);
+  if (JOURNEY_STATUS_PATH) {
+    recordPhase("Final payment request, settlement and final invoice issued by Finance", "FINANCE_HEAD", "issue_sales_order_pi_final_payment_request_v1 + issue_final_invoice_v1 + get_final_settlement_facts_v1", { finalInvoiceId });
+  }
 
   const ewayResult = await financeRole.client.rpc("record_eway_bill_evidence_v1", {
     p_final_invoice_id: finalInvoiceId,
@@ -594,6 +671,10 @@ try {
     p_actor_id: financeRole.actorId,
   });
   assertNoError(clearanceResult.error, "Point38 Finance Dispatch Clearance");
+  if (JOURNEY_STATUS_PATH) {
+    recordPhase("Finance grants dispatch clearance", "FINANCE_HEAD", "decide_finance_dispatch_clearance_v1", { finalInvoiceId });
+    await journeyTransition(dispatchRole, "DISPATCH_MANAGER", "clear_order_for_dispatch_v1", point38OrderId);
+  }
 
   const exitFactsResult = await dispatchRole.client.rpc("get_finance_exit_facts_v1", { p_order_id: point38OrderId });
   assertNoError(exitFactsResult.error, "Point38 finance exit verification");
