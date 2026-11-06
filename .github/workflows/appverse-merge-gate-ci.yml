@@ -1,0 +1,25 @@
+name: Appverse Merge Gate Unit Tests
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/appverse-merge-gate*.yml'
+      - 'scripts/appverse-control/appverse_merge_gate.py'
+      - 'tests/appverse-control/test_appverse_merge_gate.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    name: Appverse gate unit tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Python test suite
+        run: python3 -m unittest discover -s tests/appverse-control -p 'test_appverse_merge_gate.py' -v
