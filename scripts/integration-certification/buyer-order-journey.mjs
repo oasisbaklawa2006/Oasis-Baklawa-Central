@@ -24,6 +24,7 @@ import {
   requireBootstrapEnv,
 } from "../point100-certification/point38-bootstrap-common.mjs";
 import { recordPhase, setLedgerOrder } from "./journey-ledger.mjs";
+import { SUPPORTED_DEPARTMENTS } from "./governed-production-leg.mjs";
 import { randomBytes } from "node:crypto";
 
 const LABEL = "JOURNEY";
@@ -81,10 +82,10 @@ if (process.env.JOURNEY_CORE_CONTRACTS === "combined") {
     candidates.push({ productId, sku: prod?.sku ?? row.sku ?? null, department: prod?.production_department ?? null, finishedGoodsOnHand: onHand });
   }
   console.log(`JOURNEY product candidates: ${JSON.stringify(candidates)}`);
-  const eligible = new Set(candidates.filter((c) => String(c.department ?? "").toLowerCase() === "arabic_sweets" && c.finishedGoodsOnHand === 0).map((c) => c.productId));
+  const eligible = new Set(candidates.filter((c) => SUPPORTED_DEPARTMENTS.has(String(c.department ?? "").toLowerCase()) && c.finishedGoodsOnHand === 0).map((c) => c.productId));
   orderedRows = orderedRows.filter((row) => eligible.has(String(row.product_id ?? "")));
   if (orderedRows.length === 0) {
-    throw new Error(`JOURNEY_PRODUCTION_BLOCKED_NO_STOCKLESS_PRODUCT: no published, priced Arabic-sweets product with zero finished-goods stock exists in the fixture (candidates ${JSON.stringify(candidates)}); Core #483 cannot complete a stock-covered line`);
+    throw new Error(`JOURNEY_PRODUCTION_BLOCKED_NO_STOCKLESS_PRODUCT: no published, priced product with a fixture production role and zero finished-goods stock exists in the fixture (candidates ${JSON.stringify(candidates)}); Core #483 cannot complete a stock-covered line`);
   }
 }
 for (const row of orderedRows) {

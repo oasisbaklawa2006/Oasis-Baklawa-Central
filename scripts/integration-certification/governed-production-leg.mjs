@@ -24,7 +24,14 @@ import {
 import { recordPhase } from "./journey-ledger.mjs";
 
 const LABEL = "JOURNEY_PRODUCTION";
-const SUPPORTED_DEPARTMENTS = new Map([["arabic_sweets", { source: "ARABIC_SWEETS", role: "PROD_ARABIC_SWEETS" }]]);
+/** Production departments the disposable fixture has a production role for (production_department -> RGS source + role). */
+export const SUPPORTED_DEPARTMENTS = new Map([
+  ["arabic_sweets", { source: "ARABIC_SWEETS", role: "PROD_ARABIC_SWEETS" }],
+  ["bakery", { source: "BAKERY", role: "PROD_BAKERY" }],
+  ["chocolates_confectionery", { source: "CHOCOLATES_CONFECTIONERY", role: "PROD_CHOCOLATE" }],
+  ["fusion_sweets", { source: "FUSION_SWEETS", role: "PROD_FUSION" }],
+  ["seasoned_nuts_mixes", { source: "SEASONED_NUTS_MIXES", role: "PROD_NUTS" }],
+]);
 
 async function signIn(role, credentials, backendUrl, anonKey) {
   const client = createClient(backendUrl, anonKey, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });
