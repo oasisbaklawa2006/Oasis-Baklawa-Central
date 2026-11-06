@@ -83,13 +83,13 @@ if (process.env.JOURNEY_CORE_CONTRACTS === "combined") {
   const { data: completions, error: completionError } = await admin.from("order_item_production_completions").select("outcome,packed_qty,evidence").eq("order_item_id", item.id).order("created_at");
   assertNoError(completionError, "Journey completion events read");
   const { data: unsupported } = await admin.from("audit_logs").select("id").eq("entity_id", orderId).eq("action_type", "PACKED_READY_WITHOUT_GOVERNED_PRODUCTION_EVIDENCE");
+  const outcomes = (completions ?? []).map((row) => row.outcome);
   if (productionBlocked) {
     // The governed leg was recorded BLOCKED (no accepted evidence obtainable). Nothing may claim governed completion, and
     // the packed-ready transition lacking evidence must have been surfaced by the Core observe policy, not hidden.
     if ((completions ?? []).length !== 0) fail("JOURNEY_BLOCKED_LEG_HAS_COMPLETION_EVENTS", completions);
     if (!unsupported?.length) fail("JOURNEY_UNSUPPORTED_PACKED_READY_NOT_AUDITED", orderId);
   } else {
-    const outcomes = (completions ?? []).map((row) => row.outcome);
     if (outcomes.join(",") !== "PARTIAL,COMPLETE") fail("JOURNEY_COMPLETION_EVENTS_UNEXPECTED", completions);
     if (Number(completions.at(-1).packed_qty) !== Number(item.quantity)) fail("JOURNEY_COMPLETION_QTY_MISMATCH", completions);
     if (!Array.isArray(completions.at(-1).evidence?.transfer_ids) || completions.at(-1).evidence.transfer_ids.length < 2) fail("JOURNEY_COMPLETION_EVIDENCE_THIN", completions.at(-1).evidence);
