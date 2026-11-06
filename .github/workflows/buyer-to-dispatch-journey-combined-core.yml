@@ -44,12 +44,24 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Checkout production-certified Core schema authority
+      - name: Resolve the draft Core ref to an exact SHA (detached checkout, NOT a production release)
+        id: core
+        shell: bash
+        run: |
+          set -euo pipefail
+          ref="${{ inputs.core_ref || 'candidate/core-combined-481-482-483-20261106' }}"
+          if [[ "${ref}" =~ ^[0-9a-f]{40}$ ]]; then sha="${ref}"; else
+            sha="$(git ls-remote https://github.com/oasisbaklawa2006/oasis-supabase-core "refs/heads/${ref}" | cut -f1)"
+          fi
+          [[ "${sha}" =~ ^[0-9a-f]{40}$ ]] || { echo "Cannot resolve ${ref} to a SHA" >&2; exit 1; }
+          echo "sha=${sha}" >> "${GITHUB_OUTPUT}"
+
+      - name: Checkout draft Core (detached, exact SHA)
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
           repository: oasisbaklawa2006/oasis-supabase-core
-          ref: ${{ inputs.core_ref || 'candidate/core-combined-481-482-483-20261106' }}
+          ref: ${{ steps.core.outputs.sha }}
           path: oasis-supabase-core
 
       - name: Set up pinned Supabase CLI
