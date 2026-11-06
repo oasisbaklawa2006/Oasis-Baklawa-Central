@@ -102,7 +102,7 @@ class GatePolicyTests(unittest.TestCase):
     def test_changes_requested_rejects_bot_approval(self):
         reviews = [
             {"user": {"login": "cursor[bot]"}, "state": "APPROVED", "commit_id": "1" * 40},
-            {"user": {"login": "another"}, "state": "CHANGES_REQUESTED", "commit_id": "1" * 40},
+            {"user": {"login": "dineshmutrejabackup-cmd"}, "author_association": "COLLABORATOR", "state": "CHANGES_REQUESTED", "commit_id": "1" * 40},
         ]
         with mock.patch.object(gate, "paginated", return_value=reviews):
             self.assertFalse(gate.review_approval(1, "1" * 40, "oasisbaklawa2006"))
@@ -122,6 +122,42 @@ class GatePolicyTests(unittest.TestCase):
             review_approval=lambda *args: True, current_pr=lambda _: pr,
         ):
             self.assertTrue(any("Evidence-only" in error for error in gate.validate(pr)))
+
+
+    def test_relevant_paths_require_only_matching_expensive_lanes(self):
+        tests = gate.relevant_checks({"docs/README.md"})
+        self.assertNotIn("Disposable Factory certification", tests)
+        self.assertNotIn("Disposable Buyer golden path certification", tests)
+        self.assertNotIn("Point100 production-bound software rehearsal", tests)
+        factory = gate.relevant_checks({"scripts/factory-certification/seed.mjs"})
+        self.assertIn("Disposable Factory certification", factory)
+        self.assertIn("Point100 production-bound software rehearsal", factory)
+        buyer = gate.relevant_checks({"src/pages/customer/BuyerApp.tsx"})
+        self.assertIn("Disposable Buyer golden path certification", buyer)
+        self.assertNotIn("Disposable Factory certification", buyer)
+
+    def test_governance_change_requires_human_not_bot(self):
+        v = [{"user": {"login": "cursor[bot]"}, "state": "APPROVED", "commit_id": "1" * 40}]
+        with mock.patch.object(gate, "paginated", return_value=v):
+            self.assertFalse(gate.review_approval(1, "1" * 40, "oasisbaklawa2006", require_human=True))
+
+    def test_trusted_human_codeowner_can_approve(self):
+        v = [{"user": {"login": "dineshmutrejabackup-cmd"}, "author_association": "COLLABORATOR",
+              "state": "APPROVED", "commit_id": "1" * 40}]
+        with mock.patch.object(gate, "paginated", return_value=v):
+            self.assertTrue(gate.review_approval(1, "1" * 40, "oasisbaklawa2006", require_human=True))
+
+    def test_coderabbit_actionable_review_fails_closed(self):
+        v = [{"user": {"login": "coderabbitai[bot]"}, "state": "COMMENTED",
+              "commit_id": "1" * 40, "body": "Actionable comments posted: 3"}]
+        with mock.patch.object(gate, "paginated", return_value=v):
+            self.assertFalse(gate.coderabbit_review_clean(1, "1" * 40))
+
+    def test_coderabbit_zero_actionable_accepts(self):
+        v = [{"user": {"login": "coderabbitai[bot]"}, "state": "COMMENTED",
+              "commit_id": "1" * 40, "body": "Actionable comments posted: 0"}]
+        with mock.patch.object(gate, "paginated", return_value=v):
+            self.assertTrue(gate.coderabbit_review_clean(1, "1" * 40))
 
 
 if __name__ == "__main__":
