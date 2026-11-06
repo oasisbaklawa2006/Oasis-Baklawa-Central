@@ -1,12 +1,9 @@
 name: Appverse Trusted Merge Controller
 
 # Trusted default-branch code only. Never execute PR-controlled code with write permissions.
+# workflow_run and schedule always execute the workflow version from default main.
+# Deliberately no pull_request_target: no candidate branch can supply privileged gate code.
 on:
-  pull_request_target:
-    branches: [main]
-    types: [opened, reopened, synchronize, ready_for_review, converted_to_draft, labeled, unlabeled, edited]
-  pull_request_review:
-    types: [submitted, dismissed]
   workflow_run:
     workflows:
       - Release Quality Gate
@@ -61,5 +58,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
-          APPVERSE_PR_NUMBER: ${{ github.event.pull_request.number || '' }}
         run: python3 scripts/appverse-control/appverse_merge_gate.py
