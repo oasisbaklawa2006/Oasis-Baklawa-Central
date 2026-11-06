@@ -9,8 +9,11 @@ import urllib.request
 
 REPO = "oasisbaklawa2006/Oasis-Baklawa-Central"
 RULESET_ID = 19200597
-LABEL = "appverse-gated"
+LABEL = "appverse-gated"  # Controls optional auto-merge enrollment, NOT required check publication.
 CHECK_NAME = "Appverse Merge Gate"
+GITHUB_ACTIONS_APP_ID = 15368
+TRUSTED_HUMANS = {"oasisbaklawa2006", "dineshmutrejabackup-cmd"}
+TRUSTED_BOT_APPROVERS = {"cursor[bot]"}
 REQUIRED_CHECKS = {
     "Typecheck, unit test, production build, and Playwright smoke": "github-actions",
     "Enforce Catalogue AI-Studio repo ownership boundaries": "github-actions",
@@ -20,15 +23,18 @@ REQUIRED_CHECKS = {
     "Cursor Security Agent: Security Reviewer": "cursor",
     "Cursor Approval Agent: Pull Request Approver": "cursor",
     "CodeRabbit": "coderabbitai",
-    "Analyze (javascript-typescript)": "github-actions",
-    "Analyze (actions)": "github-actions",
-    "Disposable Buyer golden path certification": "github-actions",
-    "Disposable Factory certification": "github-actions",
-    "Point100 production-bound software rehearsal": "github-actions",
 }
-REQUIRED_STATUSES = {"security/snyk (oasisbaklawa2006)": "success", "Vercel": "success"}
+REQUIRED_STATUSES = {
+    "security/snyk (oasisbaklawa2006)": ("success", "snyk-io[bot]"),
+    "Vercel": ("success", "vercel[bot]"),
+}
 GATE_FILE = ".github/workflows/appverse-merge-gate.yml"
 GATE_SCRIPT = "scripts/appverse-control/appverse_merge_gate.py"
+GOVERNANCE_FILES = {
+    GATE_FILE, GATE_SCRIPT, ".github/CODEOWNERS",
+    ".github/workflows/appverse-merge-gate-ci.yml",
+    "tests/appverse-control/test_appverse_merge_gate.py",
+}
 
 
 class GateError(Exception):
