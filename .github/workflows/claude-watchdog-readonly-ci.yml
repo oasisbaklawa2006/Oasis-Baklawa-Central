@@ -1,0 +1,31 @@
+name: Claude Watchdog Read-only Pilot Tests
+
+# Advisory-only. No PR-trusted execution with elevated token or secrets.
+on:
+  pull_request:
+    paths:
+      - 'scripts/appverse-control/claude_watchdog_readonly.py'
+      - 'tests/appverse-control/test_claude_watchdog_readonly.py'
+      - 'docs/appverse-control/CLAUDE_WATCHDOG_READONLY_PILOT.md'
+      - '.github/workflows/claude-watchdog-readonly-ci.yml'
+  push:
+    branches:
+      - automation/gpt-governed-watchdog-readonly-20261106
+
+permissions:
+  contents: read
+
+jobs:
+  offline-negative-tests:
+    name: Read-only stall classification regression tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout candidate without persisted credentials
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Compile observer
+        run: python3 -m py_compile scripts/appverse-control/claude_watchdog_readonly.py
+      - name: Run offline negative test matrix
+        run: python3 -m unittest discover -s tests/appverse-control -p 'test_claude_watchdog_readonly.py' -v
