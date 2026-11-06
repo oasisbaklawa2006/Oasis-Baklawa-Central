@@ -83,9 +83,14 @@ if (process.env.JOURNEY_CORE_CONTRACTS === "combined") {
   }
   console.log(`JOURNEY product candidates: ${JSON.stringify(candidates)}`);
   const eligible = new Set(candidates.filter((c) => SUPPORTED_DEPARTMENTS.has(String(c.department ?? "").toLowerCase()) && c.finishedGoodsOnHand === 0).map((c) => c.productId));
-  orderedRows = orderedRows.filter((row) => eligible.has(String(row.product_id ?? "")));
-  if (orderedRows.length === 0) {
-    throw new Error(`JOURNEY_PRODUCTION_BLOCKED_NO_STOCKLESS_PRODUCT: no published, priced product with a fixture production role and zero finished-goods stock exists in the fixture (candidates ${JSON.stringify(candidates)}); Core #483 cannot complete a stock-covered line`);
+  const pricedStockless = orderedRows.filter((row) => eligible.has(String(row.product_id ?? "")) && pricedIds.has(String(row.product_id ?? "")));
+  console.log(`JOURNEY priced product ids: ${JSON.stringify([...pricedIds])}; priced stock-free candidates: ${pricedStockless.length}`);
+  if (pricedStockless.length > 0) {
+    orderedRows = pricedStockless;
+  } else {
+    // No Buyer-priced, stock-free product exists in the fixture. Keep the priced (stock-covered) product so the journey
+    // continues; the governed production leg will record the exact BLOCKED reason. Stock and prices are never altered.
+    console.log("JOURNEY NOTICE: no Buyer-priced stock-free product; production leg is expected to record BLOCKED_STOCK_COVERED");
   }
 }
 for (const row of orderedRows) {
