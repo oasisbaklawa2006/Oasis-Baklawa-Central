@@ -25,11 +25,48 @@ class GatePolicyTests(unittest.TestCase):
             self.assertFalse(gate.configured_ruleset())
 
     def test_strict_required_rule_accepts(self):
-        response = {"enforcement": "active", "rules": [{"type": "required_status_checks",
-            "parameters": {"strict_required_status_checks_policy": True,
-                           "required_status_checks": [{"context": gate.CHECK_NAME}]}}]}
-        with mock.patch.object(gate, "api", return_value=response):
+        status_rule = {"enforcement": "active", "bypass_actors": [], "rules": [{
+            "type": "required_status_checks", "parameters": {
+                "strict_required_status_checks_policy": True,
+                "required_status_checks": [{"context": gate.CHECK_NAME, "integration_id": 15368}],
+            },
+        }]}
+        governance = {"enforcement": "active", "bypass_actors": [], "rules": [{
+            "type": "pull_request", "parameters": {
+                "required_approving_review_count": 1,
+                "require_code_owner_review": True,
+                "dismiss_stale_reviews_on_push": True,
+                "required_review_thread_resolution": True,
+            },
+        }]}
+        with mock.patch.object(gate, "api", side_effect=[status_rule, governance]):
             self.assertTrue(gate.configured_ruleset())
+
+    def test_bypass_actor_rejects(self):
+        status_rule = {"enforcement": "active", "bypass_actors": [{"actor_id": 5}], "rules": [{
+            "type": "required_status_checks", "parameters": {
+                "strict_required_status_checks_policy": True,
+                "required_status_checks": [{"context": gate.CHECK_NAME, "integration_id": 15368}],
+            },
+        }]}
+        with mock.patch.object(gate, "api", return_value=status_rule):
+            self.assertFalse(gate.configured_ruleset())
+
+    def test_code_owner_review_must_be_enforced(self):
+        status_rule = {"enforcement": "active", "bypass_actors": [], "rules": [{
+            "type": "required_status_checks", "parameters": {
+                "strict_required_status_checks_policy": True,
+                "required_status_checks": [{"context": gate.CHECK_NAME, "integration_id": 15368}],
+            },
+        }]}
+        governance = {"enforcement": "active", "bypass_actors": [], "rules": [{
+            "type": "pull_request", "parameters": {
+                "required_approving_review_count": 1, "require_code_owner_review": False,
+                "dismiss_stale_reviews_on_push": True, "required_review_thread_resolution": True,
+            },
+        }]}
+        with mock.patch.object(gate, "api", side_effect=[status_rule, governance]):
+            self.assertFalse(gate.configured_ruleset())
 
     def test_pending_outranks_stale_success(self):
         checks = [
