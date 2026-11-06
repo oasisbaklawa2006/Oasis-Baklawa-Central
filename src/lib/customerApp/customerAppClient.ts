@@ -1,3 +1,4 @@
+import { BuyerQuoteChangedError, parseBuyerCheckoutQuote, type BuyerCheckoutQuote } from "@/lib/customerApp/buyerCheckoutQuote";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database, Json } from "@/integrations/supabase/database.types";
 import { parseGovernedHttpsPaymentLink } from "@/lib/order-authority/governedPaymentLink";
@@ -444,6 +445,37 @@ async function publishedProducts(): Promise<BuyerCatalogueProduct[]> {
   return (result.data ?? []).map(toBuyerCatalogueProduct);
 }
 
+type GenericRpcClient = {
+  rpc: (fn: string, args?: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }>;
+};
+
+/** Core's authoritative quote for the active draft (customer_checkout_quote_v1). */
+async function checkoutQuote(): Promise<BuyerCheckoutQuote> {
+  // Local narrow cast: the generated Database type predates this already-deployed Core RPC.
+  const result = await (supabase as unknown as GenericRpcClient).rpc("customer_checkout_quote_v1");
+  if (result.error) {
+    classifyCustomerRpcFailure(result.error);
+    throw new Error(CUSTOMER_SAFE_REQUEST_ERROR);
+  }
+  return parseBuyerCheckoutQuote(result.data);
+}
+
+/** Creates the order only for the exact quotation the Buyer approved (submit_customer_order_quoted_v1). */
+async function submitQuoted(idempotencyKey: string, approvedFingerprint: string, requestedDispatchDate?: string) {
+  if (!/^[0-9a-f]{32}$/.test(approvedFingerprint)) throw new Error("QUOTE_APPROVAL_REQUIRED");
+  const result = await (supabase as unknown as GenericRpcClient).rpc("submit_customer_order_quoted_v1", {
+    p_idempotency_key: idempotencyKey,
+    p_quote_fingerprint: approvedFingerprint,
+    p_requested_dispatch_date: requestedDispatchDate || null,
+  });
+  if (result.error) {
+    if (result.error.message.includes("QUOTE_CHANGED_REFRESH_REQUIRED")) throw new BuyerQuoteChangedError();
+    classifyCustomerRpcFailure(result.error);
+    throw new Error(CUSTOMER_SAFE_REQUEST_ERROR);
+  }
+  return result.data as Array<{ order_id: string; order_number: string | null }> | null;
+}
+
 export const customerAppClient = {
   company: () => rpc("customer_company_v1"),
   team: () => rpc("customer_team_v1"),
@@ -454,6 +486,9 @@ export const customerAppClient = {
   updateLine: (lineId: string, quantity: number) => rpc("update_customer_order_draft_line_v1", { p_line_id: lineId, p_quantity: quantity }),
   removeLine: (lineId: string) => rpc("remove_customer_order_draft_line_v1", { p_line_id: lineId }),
   clearDraft: () => rpc("clear_customer_order_draft_v1"),
+  checkoutQuote,
+  submitQuoted,
+  /** @deprecated Legacy writer kept until Core revokes it; the cart uses the quoted path. */
   submit: (idempotencyKey: string, requestedDispatchDate?: string) => rpc("submit_customer_order_v1", {
     p_idempotency_key: idempotencyKey,
     p_requested_dispatch_date: requestedDispatchDate || null,

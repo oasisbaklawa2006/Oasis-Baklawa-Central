@@ -58,6 +58,7 @@ import {
   customerReadinessMessages,
 } from "@/lib/customerApp/customerPresentation";
 import { buildBuyerCommunicationLog, buyerCommunicationLogCount } from "@/lib/customerApp/buyerCommunicationLog";
+import { BuyerQuoteChangedError, summariseBuyerCheckoutQuote, type BuyerCheckoutQuote } from "@/lib/customerApp/buyerCheckoutQuote";
 import logoImg from "@/assets/logo-open.png";
 import { CustomerOrderTimeline } from "@/components/customer/CustomerOrderTimeline";
 import SystemAlertMarquee from "@/components/buyer/SystemAlertMarquee";
@@ -598,6 +599,10 @@ function Cart({ data }: { data: ReturnType<typeof useBuyerData> }) {
   const navigate = useNavigate();
   const [submitting, setSubmitting] = useState(false);
   const [requestedDispatchDate, setRequestedDispatchDate] = useState("");
+  const [quote, setQuote] = useState<BuyerCheckoutQuote | null>(null);
+  const [quoteState, setQuoteState] = useState<"idle" | "loading" | "failed">("idle");
+  const [quoteNonce, setQuoteNonce] = useState(0);
+  const [approvedFingerprint, setApprovedFingerprint] = useState<string | null>(null);
   const productById = useMemo(() => new Map(data.products.map((product) => [product.id, product])), [data.products]);
   const priceById = useMemo(() => new Map(data.prices.map((price) => [price.product_id, price])), [data.prices]);
   const lines = data.draft.filter((line): line is BuyerDraftLine & { line_id: string; product_id: string } => Boolean(line.line_id && line.product_id));
@@ -615,6 +620,21 @@ function Cart({ data }: { data: ReturnType<typeof useBuyerData> }) {
       );
     })));
   const canSubmit = lines.length > 0 && data.draft.every((line) => line.readiness_status === "ready");
+  const draftSignature = lines.map((line) => `${line.line_id}:${line.quantity}`).join("|");
+  // Core's quotation is the only source of the final amounts. Any change to the cart invalidates the Buyer's approval.
+  useEffect(() => {
+    setApprovedFingerprint(null);
+    setQuote(null);
+    if (!canSubmit) { setQuoteState("idle"); return undefined; }
+    let cancelled = false;
+    setQuoteState("loading");
+    customerAppClient.checkoutQuote()
+      .then((next) => { if (!cancelled) { setQuote(next); setQuoteState("idle"); } })
+      .catch(() => { if (!cancelled) setQuoteState("failed"); });
+    return () => { cancelled = true; };
+  }, [canSubmit, draftSignature, quoteNonce]);
+  const quoteSummary = quote ? summariseBuyerCheckoutQuote(quote) : null;
+  const quoteApproved = Boolean(quote && approvedFingerprint === quote.fingerprint);
   const mutate = async (action: () => Promise<unknown>) => {
     try {
       await action();
@@ -624,18 +644,24 @@ function Cart({ data }: { data: ReturnType<typeof useBuyerData> }) {
     }
   };
   const submit = async () => {
-    if (!canSubmit || submitting) return;
+    if (!canSubmit || submitting || !quote || approvedFingerprint !== quote.fingerprint) return;
     setSubmitting(true);
     try {
-      const result = await customerAppClient.submit(getCheckoutIdempotencyKey(), requestedDispatchDate || undefined);
+      const result = await customerAppClient.submitQuoted(getCheckoutIdempotencyKey(), approvedFingerprint, requestedDispatchDate || undefined);
       const row = result?.[0];
       if (!row) throw new Error("Checkout returned no order");
       clearCheckoutIdempotencyKey();
       toast.success(row.order_number ? `Order ${row.order_number} submitted` : "Order submitted");
       await data.refresh();
       navigate(`/buyer/orders/${row.order_id}`);
-    } catch {
-      toast.error(BUYER_ORDER_SUBMIT_ERROR);
+    } catch (error) {
+      setApprovedFingerprint(null);
+      if (error instanceof BuyerQuoteChangedError) {
+        toast.error("Your quotation changed. Review the updated totals and approve again.");
+        setQuoteNonce((value) => value + 1);
+      } else {
+        toast.error(BUYER_ORDER_SUBMIT_ERROR);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -654,7 +680,7 @@ function Cart({ data }: { data: ReturnType<typeof useBuyerData> }) {
             const lineTotal = typeof unitPrice === "number" ? Number(line.quantity || 0) * unitPrice : null;
             return <div key={line.line_id} className="flex items-center gap-3 rounded-xl border bg-card p-3 shadow-[var(--card-shadow)]"><div className="h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-muted"><BuyerProductImage src={product?.image_url || null} alt={line.product_name_snapshot || productTitle(product)} compact /></div><div className="min-w-0 flex-1"><p className="truncate font-semibold">{line.product_name_snapshot || productTitle(product)}</p><p className="text-xs text-muted-foreground">SKU {line.sku_snapshot || product?.sku || "pending"} · {line.uom_snapshot || price?.uom || "unit"}</p><p className="text-xs text-muted-foreground">{money(unitPrice)} each · line preview {lineTotal === null ? "Not available" : money(lineTotal)}</p><p className="text-[11px] text-muted-foreground">Minimum {minimum}; increments of {increment}</p></div><div className="flex items-center gap-1"><button type="button" aria-label={`Decrease ${line.product_name_snapshot || "item"} quantity`} onClick={() => { void mutate(() => customerAppClient.updateLine(line.line_id, Math.max(minimum, Number(line.quantity || 1) - increment))); }} className="rounded-lg border p-2"><Minus size={14} aria-hidden /></button><span className="w-8 text-center text-sm" aria-live="polite">{line.quantity}</span><button type="button" aria-label={`Increase ${line.product_name_snapshot || "item"} quantity`} onClick={() => { void mutate(() => customerAppClient.updateLine(line.line_id, Number(line.quantity || 1) + increment)); }} className="rounded-lg border p-2"><Plus size={14} aria-hidden /></button><button type="button" aria-label={`Remove ${line.product_name_snapshot || "item"}`} onClick={() => { void mutate(() => customerAppClient.removeLine(line.line_id)); }} className="rounded-lg p-2 text-destructive"><Trash2 size={16} aria-hidden /></button></div></div>;
           })}</div>
-          <div className="rounded-2xl border bg-card p-5 shadow-[var(--card-shadow)]"><div className="flex justify-between text-sm"><span>Subtotal preview</span><strong>{total === null ? "Available after review" : money(total)}</strong></div><p className="mt-2 text-xs text-muted-foreground">This is a Core-provided line-price preview. Final tax, charges and the approved advance are resolved by Core at submission.</p>{!canSubmit && <div className="mt-4 rounded-xl bg-destructive/10 p-3 text-sm text-destructive"><p className="font-semibold">Review your quantities before submitting</p><ul className="mt-1 list-disc pl-5">{readinessMessages.length > 0 ? readinessMessages.map((message) => <li key={message}>{message}</li>) : <li>Review the quantity and carton requirements before submitting.</li>}</ul></div>}<label className="mt-4 block text-sm font-medium" htmlFor="buyer-requested-dispatch-date">Requested dispatch date <span className="font-normal text-muted-foreground">(optional)</span><input id="buyer-requested-dispatch-date" type="date" value={requestedDispatchDate} min={getLocalDateInputValue()} onChange={(event) => { setRequestedDispatchDate(event.target.value); }} className="mt-1 w-full rounded-xl border bg-background px-3 py-3 text-sm" /></label><p className="mt-2 text-xs text-muted-foreground">Core validates and preserves this request on the governed order.</p><button type="button" disabled={submitting || !canSubmit} onClick={() => { void submit(); }} className="mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary py-3 font-bold text-primary-foreground disabled:opacity-50">{submitting && <Loader2 size={16} className="animate-spin" aria-hidden />}{submitting ? "Submitting…" : "Submit order"}</button></div>
+          <div className="rounded-2xl border bg-card p-5 shadow-[var(--card-shadow)]"><div className="flex justify-between text-sm"><span>Subtotal preview</span><strong>{total === null ? "Available after review" : money(total)}</strong></div><p className="mt-2 text-xs text-muted-foreground">This is a line-price preview. The final GST-inclusive quotation below comes from Core and must be approved before you can submit.</p>{quoteState === "loading" && <p className="mt-3 text-sm text-muted-foreground">Preparing your quotation…</p>}{quoteState === "failed" && <div className="mt-3 rounded-xl bg-destructive/10 p-3 text-sm text-destructive" role="alert"><p>We could not prepare your quotation. Your order has not been submitted.</p><button type="button" onClick={() => { setQuoteNonce((value) => value + 1); }} className="mt-2 rounded-lg border px-3 py-2 font-semibold">Refresh quotation</button></div>}{quote && quoteSummary && <div className="mt-4 rounded-xl border p-4 text-sm" aria-label="Final quotation"><p className="font-semibold">Final quotation from Core</p><dl className="mt-2 space-y-1"><div className="flex justify-between"><dt>Taxable value</dt><dd>{money(quoteSummary.taxable)}</dd></div><div className="flex justify-between"><dt>GST</dt><dd>{money(quoteSummary.tax)}</dd></div><div className="flex justify-between font-semibold"><dt>Total (GST inclusive)</dt><dd>{money(quoteSummary.total)}</dd></div><div className="flex justify-between"><dt>Advance required</dt><dd>{money(quoteSummary.advance)}</dd></div><div className="flex justify-between"><dt>Balance after advance</dt><dd>{money(quoteSummary.balance)}</dd></div></dl><label className="mt-3 flex items-start gap-2 text-sm" htmlFor="buyer-accept-quotation"><input id="buyer-accept-quotation" type="checkbox" checked={quoteApproved} onChange={(event) => { setApprovedFingerprint(event.target.checked ? quote.fingerprint : null); }} className="mt-1" /><span>I accept this quotation, including GST and the required advance. This approval applies only to these exact amounts.</span></label></div>}{!canSubmit && <div className="mt-4 rounded-xl bg-destructive/10 p-3 text-sm text-destructive"><p className="font-semibold">Review your quantities before submitting</p><ul className="mt-1 list-disc pl-5">{readinessMessages.length > 0 ? readinessMessages.map((message) => <li key={message}>{message}</li>) : <li>Review the quantity and carton requirements before submitting.</li>}</ul></div>}<label className="mt-4 block text-sm font-medium" htmlFor="buyer-requested-dispatch-date">Requested dispatch date <span className="font-normal text-muted-foreground">(optional)</span><input id="buyer-requested-dispatch-date" type="date" value={requestedDispatchDate} min={getLocalDateInputValue()} onChange={(event) => { setRequestedDispatchDate(event.target.value); }} className="mt-1 w-full rounded-xl border bg-background px-3 py-3 text-sm" /></label><p className="mt-2 text-xs text-muted-foreground">Core validates and preserves this request on the governed order.</p><button type="button" disabled={submitting || !canSubmit || !quoteApproved} onClick={() => { void submit(); }} className="mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary py-3 font-bold text-primary-foreground disabled:opacity-50">{submitting && <Loader2 size={16} className="animate-spin" aria-hidden />}{submitting ? "Submitting…" : "Submit order"}</button></div>
         </>
       )}
     </section>
