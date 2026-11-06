@@ -1,5 +1,4 @@
 """Static policy tests for the merge-gate workflows, CODEOWNERS and CI-lane drift (no network, no YAML dependency)."""
-import fnmatch
 import importlib.util
 import pathlib
 import re
