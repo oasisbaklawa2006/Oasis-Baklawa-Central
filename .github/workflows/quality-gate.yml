@@ -14,7 +14,9 @@ concurrency:
 jobs:
   quality-gate:
     name: Typecheck, unit test, production build, and Playwright smoke
-    runs-on: ubuntu-latest
+    # Pin the runner: Playwright 1.59.1 Chromium install is not compatible with ubuntu26.04-x64.
+    # Avoid ubuntu-latest image drift; keep the full browser smoke suite enforced.
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
 
     steps:
