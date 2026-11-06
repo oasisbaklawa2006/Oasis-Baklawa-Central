@@ -1,9 +1,49 @@
 # Protected Appverse merge automation — independent code-owner review.
-# The PR author may not approve their own governance changes.
-# Admin activation requires Central ruleset #19820724: require_code_owner_review=true.
-/.github/CODEOWNERS @oasisbaklawa2006 @dineshmutrejabackup-cmd
-/.github/workflows/appverse-merge-gate.yml @oasisbaklawa2006 @dineshmutrejabackup-cmd
-/.github/workflows/appverse-merge-gate-ci.yml @oasisbaklawa2006 @dineshmutrejabackup-cmd
-/scripts/appverse-control/appverse_merge_gate.py @oasisbaklawa2006 @dineshmutrejabackup-cmd
-/tests/appverse-control/test_appverse_merge_gate.py @oasisbaklawa2006 @dineshmutrejabackup-cmd
-/docs/appverse-control/AUTONOMOUS_RELEASE_POLICY.md @oasisbaklawa2006 @dineshmutrejabackup-cmd
+# The PR author may not approve their own governance changes; AI/bot approval never satisfies these paths.
+# Takes effect only when Central ruleset #19820724 enables require_code_owner_review=true (admin action, not
+# performed by any PR). Keep in sync with SENSITIVE_PREFIXES in scripts/appverse-control/appverse_merge_gate.py;
+# tests/appverse-control/test_workflow_policy.py fails when an owner or a sensitive area drifts.
+
+# --- Merge controller, CI definitions and CI evidence producers -------------------------------------------------
+/.github/ @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/.appverse/ @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/scripts/appverse-control/ @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/tests/appverse-control/ @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/docs/appverse-control/ @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/scripts/point100-certification/ @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/scripts/factory-certification/ @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/scripts/buyer-certification/ @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/scripts/integration-certification/ @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/tests/point100/ @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/tests/factory-certification/ @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/tests/buyer-certification/ @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/lib/point100/ @oasisbaklawa2006 @dineshmutrejabackup-cmd
+
+# --- Finance, payments, authentication/roles, dispatch and Gate authority, stock authority ----------------------
+/src/lib/finance-authority/ @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/lib/finance-governance/ @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/lib/order-authority/ @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/lib/execution-authority/ @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/lib/stock-authority/ @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/lib/inventory-authority/ @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/lib/macro-order-dispatch/ @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/lib/auth/ @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/lib/auth-*.ts @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/lib/dispatch* @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/lib/roleNormalization.ts @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/lib/point79WalletAuthority.ts @oasisbaklawa2006 @dineshmutrejabackup-cmd
+
+# --- Database/edge governance, deployment and supply chain ------------------------------------------------------
+/supabase/ @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/vercel.json @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/package.json @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/package-lock.json @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/bun.lock @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/bun.lockb @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/deno.lock @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/SECURITY.md @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/AGENTS.md @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/CLAUDE.md @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/APPVERSE_MISSION_CONTROL.md @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/APPVERSE_THREAD_GUARDRAIL.md @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/BACKEND_OWNERSHIP.md @oasisbaklawa2006 @dineshmutrejabackup-cmd

@@ -4,9 +4,11 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - '.github/workflows/appverse-merge-gate*.yml'
-      - 'scripts/appverse-control/appverse_merge_gate.py'
-      - 'tests/appverse-control/test_appverse_merge_gate.py'
+      - '.github/workflows/**'
+      - '.github/CODEOWNERS'
+      - 'scripts/appverse-control/**'
+      - 'tests/appverse-control/**'
+      - 'docs/appverse-control/**'
   workflow_dispatch:
 
 permissions:
@@ -22,4 +24,4 @@ jobs:
         with:
           persist-credentials: false
       - name: Python test suite
-        run: python3 -m unittest discover -s tests/appverse-control -p 'test_appverse_merge_gate.py' -v
+        run: python3 -m unittest discover -s tests/appverse-control -p 'test_*.py' -v

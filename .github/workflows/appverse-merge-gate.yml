@@ -31,7 +31,8 @@ concurrency:
 jobs:
   trusted-evaluation:
     name: Evaluate Appverse merge authority on exact PR head
-    if: github.repository == 'oasisbaklawa2006/Oasis-Baklawa-Central'
+    # Controller code runs only from trusted main: workflow_run/schedule always do; a manual dispatch must also be main.
+    if: github.repository == 'oasisbaklawa2006/Oasis-Baklawa-Central' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
