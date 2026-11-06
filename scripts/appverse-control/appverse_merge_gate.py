@@ -82,16 +82,35 @@ def current_pr(number: int) -> dict:
 
 
 def configured_ruleset() -> bool:
+    """Both independent server-side rulesets must enforce their protections."""
     ruleset = api(f"/repos/{REPO}/rulesets/{RULESET_ID}")
-    if ruleset.get("enforcement") != "active":
+    if ruleset.get("enforcement") != "active" or ruleset.get("bypass_actors"):
         return False
-    for rule in ruleset.get("rules", []):
-        if rule.get("type") != "required_status_checks":
-            continue
-        params = rule.get("parameters") or {}
-        contexts = {entry.get("context") for entry in params.get("required_status_checks", [])}
-        return CHECK_NAME in contexts and bool(params.get("strict_required_status_checks_policy"))
-    return False
+    required_status = next((x for x in ruleset.get("rules", [])
+                            if x.get("type") == "required_status_checks"), None)
+    if required_status is None:
+        return False
+    params = required_status.get("parameters") or {}
+    # Pin to the GitHub Actions app (Core ruleset uses integration 15368).
+    exact_gate_source = any(
+        x.get("context") == CHECK_NAME and x.get("integration_id") == 15368
+        for x in params.get("required_status_checks", [])
+    )
+    if not exact_gate_source or not params.get("strict_required_status_checks_policy"):
+        return False
+
+    governance = api(f"/repos/{REPO}/rulesets/19820724")
+    if governance.get("enforcement") != "active" or governance.get("bypass_actors"):
+        return False
+    pr_rule = next((x for x in governance.get("rules", [])
+                    if x.get("type") == "pull_request"), None)
+    if pr_rule is None:
+        return False
+    review = pr_rule.get("parameters") or {}
+    return (int(review.get("required_approving_review_count") or 0) >= 1
+            and bool(review.get("require_code_owner_review"))
+            and bool(review.get("dismiss_stale_reviews_on_push"))
+            and bool(review.get("required_review_thread_resolution")))
 
 
 def latest_checks(sha: str) -> dict:
