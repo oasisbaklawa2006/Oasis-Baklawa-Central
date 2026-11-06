@@ -17,6 +17,8 @@ gate = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(gate)
 
 SHA = "1" * 40
+ENV_API = "GH_TOKEN"  # name of the env var the controller reads; values used in tests are dummies
+DUMMY_CREDENTIAL = "x" * 8
 BASE = "b" * 40
 AUTHOR = "oasisbaklawa2006"
 OWNER2 = "dineshmutrejabackup-cmd"
@@ -536,7 +538,7 @@ class ControllerCannotMergeTests(GateTestCase):
     def test_writes_other_than_its_own_check_run_are_refused(self):
         original = importlib.util.module_from_spec(SPEC)
         SPEC.loader.exec_module(original)
-        with mock.patch.dict(original.os.environ, {"GH_TOKEN": "t"}), \
+        with mock.patch.dict(original.os.environ, {ENV_API: DUMMY_CREDENTIAL}), \
              mock.patch.object(original.http.client, "HTTPSConnection") as conn:
             for method, path in (
                 ("POST", f"/repos/{original.REPO}/pulls/1/merge"),
@@ -562,7 +564,7 @@ class ControllerCannotMergeTests(GateTestCase):
     def test_invalid_paths_are_refused(self):
         original = importlib.util.module_from_spec(SPEC)
         SPEC.loader.exec_module(original)
-        with mock.patch.dict(original.os.environ, {"GH_TOKEN": "t"}):
+        with mock.patch.dict(original.os.environ, {ENV_API: DUMMY_CREDENTIAL}):
             for path in ("https://evil.example/x", "repos/x", "/repos/x\r\nHost: evil", "/repos/x y"):
                 with self.assertRaises(original.GateError, msg=path):
                     original.api(path)
@@ -579,7 +581,7 @@ class TransportTests(GateTestCase):
         super().setUp()
         self.original = importlib.util.module_from_spec(SPEC)
         SPEC.loader.exec_module(self.original)
-        env = mock.patch.dict(self.original.os.environ, {"GH_TOKEN": "tkn"})
+        env = mock.patch.dict(self.original.os.environ, {ENV_API: DUMMY_CREDENTIAL})
         env.start()
         self.addCleanup(env.stop)
         sleeper = mock.patch.object(self.original.time, "sleep")

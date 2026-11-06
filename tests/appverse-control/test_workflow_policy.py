@@ -3,7 +3,6 @@ import fnmatch
 import importlib.util
 import pathlib
 import re
-import subprocess
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -227,6 +226,33 @@ def covered(pattern: str, path: str) -> bool:
     return all(fnmatch.fnmatchcase(path_parts[i], pattern_parts[i]) for i in range(len(pattern_parts)))
 
 
+def sensitive_files_on_disk() -> list:
+    """Files under the gate's prefix/file lists, found by walking the tree (no subprocess needed)."""
+    found = set()
+    skip = {"__pycache__", "node_modules", ".git"}
+
+    def add(path: pathlib.Path):
+        paths = [path] if path.is_file() else [p for p in path.rglob("*") if p.is_file()]
+        for p in paths:
+            rel = p.relative_to(ROOT)
+            if not skip.intersection(rel.parts):
+                found.add(rel.as_posix())
+
+    for prefix in gate.SENSITIVE_PREFIXES:
+        if prefix.endswith("/"):
+            base = ROOT / prefix.rstrip("/")
+            if base.exists():
+                add(base)
+        else:
+            parent, stem = (ROOT / prefix).parent, pathlib.PurePosixPath(prefix).name
+            for entry in parent.glob(stem + "*") if parent.exists() else []:
+                add(entry)
+    for name in gate.SENSITIVE_FILES | gate.GOVERNANCE_FILES:
+        if (ROOT / name).is_file():
+            found.add(name)
+    return sorted(found)
+
+
 class CodeownersTests(unittest.TestCase):
     def test_owners_are_exactly_the_trusted_humans_the_gate_accepts(self):
         expected = {"@" + login for login in gate.TRUSTED_HUMANS}
@@ -238,14 +264,10 @@ class CodeownersTests(unittest.TestCase):
         self.assertEqual(gate.TRUSTED_BOT_APPROVERS, {"cursor[bot]"})
         self.assertFalse(gate.TRUSTED_BOT_APPROVERS & gate.TRUSTED_HUMANS)
 
-    def test_every_tracked_sensitive_file_has_a_code_owner_rule(self):
-        tracked = subprocess.run(["git", "ls-files"], cwd=ROOT, capture_output=True, text=True, check=True).stdout.split("\n")
+    def test_every_sensitive_file_on_disk_has_a_code_owner_rule(self):
         rules = [pattern for pattern, _ in codeowners_rules()]
-        uncovered = []
-        for path in filter(None, tracked):
-            by_prefix = path in gate.SENSITIVE_FILES or path in gate.GOVERNANCE_FILES or path.startswith(gate.SENSITIVE_PREFIXES)
-            if by_prefix and not any(covered(rule, path) for rule in rules):
-                uncovered.append(path)
+        uncovered = [path for path in sensitive_files_on_disk()
+                     if not any(covered(rule, path) for rule in rules)]
         self.assertEqual(uncovered[:10], [], "sensitive files without a CODEOWNERS rule (showing up to 10)")
 
     def test_every_workflow_including_new_ones_is_code_owner_protected(self):
