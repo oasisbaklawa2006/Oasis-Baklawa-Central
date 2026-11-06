@@ -527,13 +527,27 @@ async function journeyTransition(role, roleLabel, rpcName, orderId) {
 }
 
 async function journeyReleaseAndProduction(financeRole, adminRole, dispatchRole, orderId, orderItem) {
+  let productionLegGoverned = false;
   await journeyTransition(financeRole, "FINANCE_HEAD", "release_order_to_manufacturing_v1", orderId);
   await journeyTransition(financeRole, "FINANCE_HEAD", "release_order_to_in_production_v1", orderId);
   if (process.env.JOURNEY_CORE_CONTRACTS === "combined") {
     // Core #483: completion is derived from real production jobs accepted by RGS receiving; no table write.
     const { runGovernedProductionLeg } = await import("../integration-certification/governed-production-leg.mjs");
-    await runGovernedProductionLeg({ orderId, orderItem, adminClient: adminRole.client, dispatchClient: dispatchRole.client });
-  } else {
+    try {
+      await runGovernedProductionLeg({ orderId, orderItem, adminClient: adminRole.client, dispatchClient: dispatchRole.client });
+      productionLegGoverned = true;
+    } catch (error) {
+      if (!String(error?.message ?? "").startsWith("JOURNEY_PRODUCTION_BLOCKED_")) throw error;
+      // The pipeline cannot supply accepted evidence for this line. Record the exact block (never PASS), then continue the
+      // rest of the chain with the previously disclosed synthetic staff write so Gate/Dispatch adoption is still exercised.
+      recordPhase("Governed production completion BLOCKED; falling back to the disclosed synthetic staff write", "CORE", "complete_order_item_from_production_v1", {
+        status: "BLOCKED",
+        reason: String(error.message).slice(0, 400),
+        missingAuthority: "Core defines two fulfilment models (RGS reservation -> issue -> acknowledge, and production acceptance); #483 recognises only the latter, so a line partly covered by finished-goods stock cannot complete. Needs a Core owner decision.",
+      });
+    }
+  }
+  if (!productionLegGoverned) {
     // Core exposes no governed RPC that completes a non-3PCS order item (complete_3pgs_order_item is 3PCS-only). Central
     // admin screens update order_items directly under staff RLS; the journey performs exactly that staff write under RLS
     // (authenticated ADMIN, never service role) and records it as a Core contract gap rather than a governed transition.

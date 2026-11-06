@@ -12,9 +12,10 @@ export function readLedger() {
 
 export function recordPhase(name, authority, rpc, detail = {}) {
   const ledger = readLedger();
-  ledger.phases.push({ n: ledger.phases.length + 1, name, authority, rpc, status: "PASS", at: new Date().toISOString(), ...detail });
+  const entry = { n: ledger.phases.length + 1, name, authority, rpc, status: "PASS", at: new Date().toISOString(), ...detail };
+  ledger.phases.push(entry);
   writeFileSync("/tmp/buyer-to-dispatch-journey-ledger.json", `${JSON.stringify(ledger, null, 2)}\n`, "utf8");
-  console.log(`JOURNEY PHASE ${ledger.phases.length} PASS: ${name} [${authority}] ${rpc}`);
+  console.log(`JOURNEY PHASE ${entry.n} ${entry.status}: ${name} [${authority}] ${rpc}`);
 }
 
 export function setLedgerOrder(orderId, extra = {}) {
