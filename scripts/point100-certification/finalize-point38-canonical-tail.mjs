@@ -17,6 +17,7 @@
  */
 
 import { createClient } from "@supabase/supabase-js";
+import { recordPhase } from "../integration-certification/journey-ledger.mjs";
 import {
   RUN_TOKEN,
   assertLoopbackHttpOrigin,
@@ -76,6 +77,7 @@ if (authorityMode !== "role-separated") {
 // Proof recording and finalization belong to Dispatch; the Gate only releases the carton.
 const proofRole = dispatchRole;
 const stopBeforeFinalize = process.env.POINT38_TAIL_STOP_BEFORE_FINALIZE === "true";
+const journeyLedger = process.env.POINT38_JOURNEY_GOVERNED_STATUS_PATH === "true";
 console.log("Point100 Point38 tail authority mode: gate/dispatch role-separated (Core >= 20261001220000)");
 
 /**
@@ -231,6 +233,11 @@ try {
     .update({ verification_status: "verified" })
     .eq("id", gateScanId);
   assertNoError(verifyScanError, "Point38 tail gate evidence verification");
+  if (journeyLedger) {
+    recordPhase("Independent Security Gate releases the carton (5 negative authority probes rejected first)", "GATE_SECURITY", "release_b2b_dispatch_carton_at_gate_v1", {
+      syntheticInput: "gate scan evidence row inserted/verified by the Gate role under RLS (no governed Core RPC exists for B2B gate scan evidence)",
+    });
+  }
 
   await expectRejected(
     "GATE_SECURITY must not record the dispatch proof (Dispatch-owned)",
@@ -269,6 +276,9 @@ try {
   });
   assertNoError(proofError, "Point38 tail immutable dispatch proof");
   const dispatchProofId = String(firstRow(proofData)?.dispatch_proof_id ?? "");
+  if (journeyLedger) {
+    recordPhase("Dispatch records the immutable dispatch proof packet", "DISPATCH_MANAGER", "record_dispatch_proof_packet_v1", { dispatchProofId });
+  }
   if (!dispatchProofId) throw new Error("POINT100_POINT38_TAIL_DISPATCH_PROOF_ID_MISSING");
 
   await expectRejected(
@@ -313,6 +323,10 @@ try {
   const finalize = firstRow(finalizeData) ?? finalizeData;
   if (finalize?.ok !== true || finalize?.new_status !== "dispatched") {
     throw new Error(`POINT100_POINT38_TAIL_FINALIZE_BLOCKED: ${JSON.stringify(finalize)}`);
+  }
+
+  if (journeyLedger) {
+    recordPhase("Dispatch finalizes the order through the canonical Core RPC", "DISPATCH_MANAGER", "release_order_to_dispatched_v1", { newStatus: finalize.new_status });
   }
 
   const { data: exitFactsData, error: exitFactsError } = await proofRole.client.rpc("get_finance_exit_facts_v1", {
