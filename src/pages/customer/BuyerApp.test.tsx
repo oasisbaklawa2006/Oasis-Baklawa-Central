@@ -13,6 +13,7 @@ const buyerMock = vi.hoisted(() => ({
   company: vi.fn(),
   team: vi.fn(),
   prices: vi.fn(),
+  products: vi.fn(),
   draft: vi.fn(),
   addLine: vi.fn(),
   updateLine: vi.fn(),
@@ -122,6 +123,7 @@ vi.mock("@/lib/customerApp/customerAppClient", async (importOriginal) => {
       company: buyerMock.company,
       team: buyerMock.team,
       prices: buyerMock.prices,
+      products: buyerMock.products,
       draft: buyerMock.draft,
       addLine: buyerMock.addLine,
       updateLine: buyerMock.updateLine,
@@ -167,14 +169,9 @@ vi.mock("sonner", () => ({
 
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
-    from: vi.fn(() => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const builder: any = {};
-      builder.select = () => builder;
-      builder.eq = () => builder;
-      builder.then = (onFulfilled: (value: unknown) => unknown) => Promise.resolve({ data: [buyerMock.product], error: null }).then(onFulfilled);
-      return builder;
-    }),
+    // Core denies public.products to buyer sessions. A direct table lookup
+    // must never make a unit test appear greener than production policy.
+    from: vi.fn(() => { throw new Error("BUYER_DIRECT_PRODUCTS_TABLE_READ_FORBIDDEN"); }),
   },
 }));
 
@@ -208,6 +205,7 @@ beforeEach(() => {
   }]);
   buyerMock.team.mockResolvedValue([]);
   buyerMock.prices.mockResolvedValue([buyerMock.price]);
+  buyerMock.products.mockResolvedValue([buyerMock.product]);
   buyerMock.draft.mockResolvedValue([buyerMock.draftLine]);
   buyerMock.orders.mockResolvedValue([buyerMock.order]);
   buyerMock.items.mockResolvedValue([{
