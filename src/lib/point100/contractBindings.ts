@@ -13,7 +13,8 @@ export type Point100ContractBinding = {
 
 export const POINT100_CONTRACT_BINDINGS: readonly Point100ContractBinding[] = [
   { key: "buyer_draft_line", kind: "core_rpc", canonical: "add_customer_order_draft_line_v1" },
-  { key: "buyer_submit_order", kind: "core_rpc", canonical: "submit_customer_order_v1" },
+  { key: "buyer_checkout_quote", kind: "core_rpc", canonical: "customer_checkout_quote_v1" },
+  { key: "buyer_submit_order", kind: "core_rpc", canonical: "submit_customer_order_quoted_v1" },
   { key: "payment_proof", kind: "core_rpc", canonical: "record_order_payment_proof_v1" },
   { key: "payment_verify", kind: "core_rpc", canonical: "verify_order_payment_v1" },
   { key: "finance_clearance_facts", kind: "core_rpc", canonical: "get_finance_operations_clearance_facts_v1" },
