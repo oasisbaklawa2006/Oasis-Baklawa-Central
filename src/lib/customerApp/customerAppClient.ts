@@ -599,32 +599,35 @@ export const customerAppClient = {
   }),
 };
 
-let fallbackCheckoutKey: string | null = null;
+/** Each company + active Core draft has an independent durable retry scope. */
+function checkoutIdempotencyStorageKey(draftId: string, companyId: string): string {
+  if (!draftId?.trim() || !companyId?.trim()) throw new Error(CUSTOMER_SAFE_REQUEST_ERROR);
+  return `oasis_buyer_checkout_idempotency:${companyId}:${draftId}`;
+}
 
 /**
- * Returns the stable browser-session key used to make checkout retries
- * idempotent when the first response is lost or a buyer double-clicks.
+ * Persist one retry key per company and draft before any financial submission.
+ * Never fall back to an ephemeral key when storage fails: a lost response
+ * could otherwise create a second order after a refresh or account switch.
  */
-export function getCheckoutIdempotencyKey(): string {
-  const key = "oasis_buyer_checkout_idempotency";
+export function getCheckoutIdempotencyKey(draftId: string, companyId: string): string {
+  const storageKey = checkoutIdempotencyStorageKey(draftId, companyId);
   try {
-    const existing = sessionStorage.getItem(key);
+    const existing = sessionStorage.getItem(storageKey);
     if (existing) return existing;
     const generated = crypto.randomUUID();
-    sessionStorage.setItem(key, generated);
+    sessionStorage.setItem(storageKey, generated);
+    if (sessionStorage.getItem(storageKey) !== generated) throw new Error("Persisted key not readable");
     return generated;
   } catch {
-    // Private browsing/storage-disabled clients still retain one in-memory key
-    // for lost-response retries during this page lifetime.
-    fallbackCheckoutKey ??= crypto.randomUUID();
-    return fallbackCheckoutKey;
+    throw new Error(CUSTOMER_SAFE_REQUEST_ERROR);
   }
 }
 
-/** Clears the checkout retry key after Core has acknowledged the submission. */
-export function clearCheckoutIdempotencyKey() {
-  fallbackCheckoutKey = null;
-  try { sessionStorage.removeItem("oasis_buyer_checkout_idempotency"); } catch { /* storage disabled */ }
+/** Clear only the acknowledged draft's retry key after Core returns a Sales Order. */
+export function clearCheckoutIdempotencyKey(draftId: string, companyId: string): void {
+  const storageKey = checkoutIdempotencyStorageKey(draftId, companyId);
+  try { sessionStorage.removeItem(storageKey); } catch { /* best-effort cleanup after Core success */ }
 }
 
 /** Formats a Date for an HTML date input using the browser's local calendar. */
