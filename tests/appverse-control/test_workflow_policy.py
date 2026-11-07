@@ -863,6 +863,22 @@ class PolicyDocumentTests(unittest.TestCase):
             self.assertIn(phrase, self.doc, phrase)
         self.assertNotIn("before or immediately after the merge", self.doc)
 
+    def test_publisher_variable_activation_uses_case_insensitive_equality(self):
+        """Never describe a case-variant of the enabling value as safely disabled."""
+        self.assertIn("must confirm **before the merge**", self.doc)
+        self.assertIn("case-insensitively", self.doc)
+        self.assertIn("`Actions-Environment` also enables the job", self.doc)
+        self.assertIn("explicit disabled value", self.doc)
+        self.assertNotIn("unset or has any other value", self.doc)
+
+    def test_scheduled_reconciliation_is_not_a_delivery_deadline(self):
+        """A scheduled ten-minute interval must not promise a ten-minute maximum."""
+        for phrase in ("scheduled ten-minute reconciliation interval", "not a guaranteed maximum delay",
+                       "delay or drop scheduled runs", "without any gate check indefinitely",
+                       "in Phase 1, the gate is not required and its absence blocks nothing"):
+            self.assertIn(phrase, self.doc, phrase)
+        self.assertNotIn("for up to ten minutes", self.doc)
+
     def test_offline_merge_readiness_is_never_confused_with_live_commissioning(self):
         """Verify the policy keeps the two certificates apart and keeps the live items as HOLD, not as closed."""
         for phrase in ("OFFLINE #656 CODE MERGE-READY", "LIVE TRUSTED AUTO-MERGE COMMISSIONED", "PR MERGED != STAGE CLEARED",
