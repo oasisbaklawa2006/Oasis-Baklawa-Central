@@ -157,7 +157,10 @@ function normalizeBuyerCheckoutQuoteLine(value: unknown): BuyerCheckoutQuoteLine
   const gstRate = finiteNonNegativeNumber(value.gst_rate);
   const sku = nonEmptyString(value.sku);
   const productName = nonEmptyString(value.product_name);
-  if (!productId || quantity === null || sellingPrice === null || !currency || !uom || gstRate === null || !sku || !productName) {
+  // The Buyer web payment summary is rendered in rupees. Fail closed rather
+  // than misrepresent a foreign-currency commercial quote as an INR amount.
+  if (!productId || quantity === null || sellingPrice === null || currency !== "INR" ||
+      !uom || gstRate === null || gstRate > 100 || !sku || !productName) {
     return null;
   }
   if (typeof value.tax_inclusive !== "boolean") return null;
@@ -184,7 +187,8 @@ export function normalizeBuyerCheckoutQuote(value: unknown): BuyerCheckoutQuote 
   const fingerprint = nonEmptyString(value.fingerprint);
   const salesOrderValue = finitePositiveNumber(value.sales_order_value);
   const advanceRequired = finitePositiveNumber(value.advance_required);
-  if (!draftId || !fingerprint || !isCheckoutQuoteFingerprint(fingerprint) || salesOrderValue === null || advanceRequired === null) {
+  if (!draftId || !fingerprint || !isCheckoutQuoteFingerprint(fingerprint) ||
+      salesOrderValue === null || advanceRequired === null || advanceRequired > salesOrderValue) {
     return null;
   }
   if (!Array.isArray(value.lines) || value.lines.length === 0) return null;
@@ -193,6 +197,7 @@ export function normalizeBuyerCheckoutQuote(value: unknown): BuyerCheckoutQuote 
     .filter((line): line is BuyerCheckoutQuoteLine => Boolean(line));
   if (lines.length !== value.lines.length) return null;
   const sorted = [...lines].sort((a, b) => a.product_id.localeCompare(b.product_id));
+  if (sorted.some((line, index) => index > 0 && line.product_id === sorted[index - 1].product_id)) return null;
   return {
     draft_id: draftId,
     lines: sorted,
