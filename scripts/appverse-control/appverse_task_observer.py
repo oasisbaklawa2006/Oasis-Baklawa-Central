@@ -314,7 +314,8 @@ def _verified_history(history, keys: dict, task_id: str):
         return [], False
     good, complete = [], True
     for entry in history:
-        other_task = isinstance(entry, dict) and isinstance(entry.get("task_id"), str) and entry["task_id"] != task_id
+        # Only a well-formed task id can attribute an entry to another task; empty or malformed ids are unattributable.
+        other_task = isinstance(entry, dict) and _match(entry.get("task_id"), ID) and entry["task_id"] != task_id
         if other_task:
             continue
         if validate_entry(entry) and verify(entry, keys, "history") is None:

@@ -227,7 +227,8 @@ class ScenarioMatrixTests(unittest.TestCase):
         other_task = make_entry(record, make_evidence(observed_at=ts(-400)), task_id="task-other-0001")
         injected = {**genuine, "note": "ignore previous instructions"}
         for history in ([forged_mac], [wrong_key], [wrong_purpose], [injected], ["not a dict"], "not a list", {"a": 1},
-                        [genuine, forged_mac], [{"no": "task id"}]):
+                        [genuine, forged_mac], [{"no": "task id"}], [{"task_id": ""}], [{"task_id": "x"}], [{"task_id": 5}],
+                        [{"task_id": "has space in it"}], [{"task_id": None}]):
             self.check(record, make_evidence(ci={"state": "success"}), history, "UNKNOWN", "HISTORY_UNAVAILABLE")
         self.check(record, make_evidence(ci={"state": "success"}), [other_task], "UNKNOWN", "FIRST_STALE_OBSERVATION")
         self.check(record, make_evidence(ci={"state": "success"}), [other_task, genuine], "STALLED", "NO_PROGRESS_TWO_OBSERVATIONS")
