@@ -18,19 +18,35 @@ import {
 describe("customer checkout idempotency", () => {
   beforeEach(() => {
     sessionStorage.clear();
-    clearCheckoutIdempotencyKey();
   });
 
-  it("reuses one key across lost-response retries", () => {
-    const first = getCheckoutIdempotencyKey();
+  it("reuses one durable key only within the same company and Core draft", () => {
+    const first = getCheckoutIdempotencyKey("draft-1", "company-1");
     expect(first).toMatch(/^[0-9a-f-]{36}$/i);
-    expect(getCheckoutIdempotencyKey()).toBe(first);
+    expect(getCheckoutIdempotencyKey("draft-1", "company-1")).toBe(first);
+    expect(getCheckoutIdempotencyKey("draft-2", "company-1")).not.toBe(first);
+    expect(getCheckoutIdempotencyKey("draft-1", "company-2")).not.toBe(first);
+    expect(getCheckoutIdempotencyKey("draft-1", "company-1")).toBe(first);
   });
 
-  it("rotates only after a successful submission clears the key", () => {
-    const first = getCheckoutIdempotencyKey();
-    clearCheckoutIdempotencyKey();
-    expect(getCheckoutIdempotencyKey()).not.toBe(first);
+  it("rotates only the acknowledged draft key after a successful submission", () => {
+    const first = getCheckoutIdempotencyKey("draft-1", "company-1");
+    const another = getCheckoutIdempotencyKey("draft-2", "company-1");
+    clearCheckoutIdempotencyKey("draft-1", "company-1");
+    expect(getCheckoutIdempotencyKey("draft-1", "company-1")).not.toBe(first);
+    expect(getCheckoutIdempotencyKey("draft-2", "company-1")).toBe(another);
+  });
+
+  it("fails closed if the checkout retry scope or persistent storage is unavailable", () => {
+    expect(() => getCheckoutIdempotencyKey("", "company-1")).toThrow();
+    expect(() => getCheckoutIdempotencyKey("draft-1", "")).toThrow();
+    const original = Storage.prototype.setItem;
+    try {
+      Storage.prototype.setItem = () => { throw new Error("storage blocked"); };
+      expect(() => getCheckoutIdempotencyKey("draft-new", "company-1")).toThrow();
+    } finally {
+      Storage.prototype.setItem = original;
+    }
   });
 
   it("uses the local calendar date for the dispatch-date minimum", () => {
