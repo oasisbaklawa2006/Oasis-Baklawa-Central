@@ -228,6 +228,16 @@ class ScenarioMatrixTests(unittest.TestCase):
         self.check(make_record(), make_evidence(repo="someone/else-repo"), None, "UNKNOWN", "EVIDENCE_TASK_MISMATCH")
         self.check(make_record(), make_evidence(branch="other/branch"), None, "UNKNOWN", "EVIDENCE_TASK_MISMATCH")
 
+    def test_lease_epoch_is_recorded_but_not_enforced_and_must_be_documented_as_such(self):
+        """Pin the known limitation: a superseded epoch is NOT detected, so docs must never claim fencing is enforced."""
+        stale = make_record(lease={"epoch": 3})
+        newer = make_record(lease={"epoch": 4})
+        self.assertEqual(classify(stale, make_evidence())["reason"], classify(newer, make_evidence())["reason"])
+        doc = (ROOT / "docs/appverse-control/TASK_OBSERVER_STAGE1.md").read_text()
+        self.assertIn("Known limitation: lease epoch is recorded, not enforced", doc)
+        self.assertIn("cannot detect that a lease was superseded", doc)
+        self.assertNotIn("(fencing token)", doc)
+
     def test_lease_holder_mismatch_and_expired_lease_hold(self):
         self.check(make_record(), make_evidence(lease_holder="cursor-lease-9"), None, "UNKNOWN", "LEASE_HOLDER_MISMATCH")
         self.check(make_record(lease={"expires_at": ts(-1)}), make_evidence(), None, "UNKNOWN", "LEASE_EXPIRED")

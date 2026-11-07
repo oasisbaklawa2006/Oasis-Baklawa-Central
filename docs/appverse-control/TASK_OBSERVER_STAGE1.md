@@ -22,7 +22,7 @@ Written by the task's runner, signed with a heartbeat key. Strict whitelist: any
 |---|---|
 | `task_id`, `session_id`, `worktree` | opaque identifiers (letters, digits, `._-`, 6 to 64 characters). `worktree` is a label, never a filesystem path |
 | `repo`, `pr`, `branch`, `head_sha` | repository, pull request number or null, branch name, exact 40-hex head |
-| `lease` | `owner`, monotonically increasing `epoch` (fencing token), `expires_at` |
+| `lease` | `owner`, `epoch` (a claimed fencing token, **recorded but not enforced in Stage 1**, see Known limitation), `expires_at` |
 | `stage`, `action_type` | short stage label; one of `edit test push wait_ci wait_review wait_user idle done other` |
 | `seq`, `issued_at`, `last_progress_at` | per-task monotonic counter; UTC timestamps (`...Z`) |
 | `waiting_reason`, `ci_url`, `review_url` | optional enum; optional GitHub run or pull request URLs for the same repository only |
@@ -89,8 +89,14 @@ Exit status: `0` OBSERVE, `10` HOLD, `11` POTENTIAL_STALL, `2` usage or configur
 
 ## Relationship to #658
 
-#658 is an earlier read-only classification prototype on its own branch. Stage 1 is independent and does not modify it. The differences that matter: authentication here is verified (a MAC), not asserted by a boolean in the JSON; there is a lease, fencing epoch, replay and equivocation detection; the stall verdict is named `STALLED` and needs two verified, unchanged, sufficiently separated observations; history is signed, retained under a bound and redacted. If both land, #658 should be retired or reduced to a thin wrapper around this module.
+#658 is an earlier read-only classification prototype on its own branch. Stage 1 is independent and does not modify it. The differences that matter: authentication here is verified (a MAC), not asserted by a boolean in the JSON; there is a lease (holder and expiry checks), a recorded epoch, replay and equivocation detection; the stall verdict is named `STALLED` and needs two verified, unchanged, sufficiently separated observations; history is signed, retained under a bound and redacted. If both land, #658 should be retired or reduced to a thin wrapper around this module.
+
+## Known limitation: lease epoch is recorded, not enforced
+
+The signed record carries `lease.epoch`, but the collector evidence carries only `lease_holder` and has no live epoch, so Stage 1 **cannot detect that a lease was superseded**. A stale but unexpired heartbeat from epoch N can look current if the same actor has since reacquired the branch at epoch N+1. Stage 1 checks lease *holder equality* and *expiry* only; it does not check the epoch against anything, and no test or document should be read as claiming fencing is enforced.
+
+No authoritative machine-readable source for the live epoch exists yet (the collector is not built, and issue-comment leases are not an authenticated epoch source), so adding an evidence field now would invent an authority. This is harmless for a read-only proposal, but it is a hard prerequisite: **before any stage that can resume, restart or write**, an independently verified live lease epoch must be added to the signed collector evidence (schema bump), compared against the record, and fail closed on a missing, older or inconsistent epoch (e.g. a `LEASE_EPOCH_MISMATCH` reason) with signed fixtures, two-observation tests and mutation checks. Stage 2 must treat Stage 1 reports as unfenced.
 
 ## Dependencies for the next stages
 
-Stage 2 (reviewer, dry-run) needs this report format as its input and must bind any decision to the exact repository, task, branch, head SHA, lease and expiry. Stage 3 (guarded recovery) additionally needs the heartbeat writer, the collector, durable history storage, and the protected merge gate (#656) installed and enforced. None of those exist yet, and none is enabled by this change.
+Stage 2 (reviewer, dry-run) needs this report format as its input, must treat it as unfenced (see Known limitation), and must bind any decision to the exact repository, task, branch, head SHA, lease and expiry. Stage 3 (guarded recovery) additionally needs the heartbeat writer, the collector, durable history storage, and the protected merge gate (#656) installed and enforced. None of those exist yet, and none is enabled by this change.
