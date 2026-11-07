@@ -106,8 +106,13 @@ class ControllerWorkflowSecurityTests(unittest.TestCase):
 
     def test_checks_out_trusted_main_without_persisted_credentials(self):
         """Verify checks out trusted main without persisted credentials."""
-        self.assertIn("ref: main", self.code)
-        self.assertIn("persist-credentials: false", self.code)
+        for job_id, job in job_blocks(self.code).items():
+            checkouts = [step for step in step_blocks(job) if "actions/checkout@" in step]
+            self.assertEqual(len(checkouts), 1, job_id)
+            for step in checkouts:
+                self.assertRegex(step, r"(?m)^        uses: actions/checkout@[0-9a-f]{40}\s*$", job_id)
+                self.assertRegex(step, r"(?m)^          ref: main\s*$", job_id)
+                self.assertRegex(step, r"(?m)^          persist-credentials: false\s*$", job_id)
         self.assertNotIn("github.head_ref", self.code)
         self.assertNotIn("github.event.pull_request", self.code)
 
@@ -136,9 +141,10 @@ class ControllerWorkflowSecurityTests(unittest.TestCase):
 
     def test_runner_image_is_pinned(self):
         """Verify runner image is pinned."""
-        for text in (CONTROLLER, UNIT_CI):
-            self.assertIsNone(re.search(r"runs-on:\s*ubuntu-latest", text))
-            self.assertIn("runs-on: ubuntu-24.04", text)
+        for label, text in (("controller", CONTROLLER), ("unit", UNIT_CI), ("quality", QUALITY)):
+            for job_id, job in job_blocks(strip_comments(text)).items():
+                images = re.findall(r"(?m)^    runs-on:\s*([^\n]+)$", job)
+                self.assertEqual(images, ["ubuntu-24.04"], (label, job_id))
 
     def test_controller_never_executes_candidate_code_or_installs_dependencies(self):
         """Verify controller never executes candidate code or installs dependencies."""
@@ -161,6 +167,128 @@ def job_blocks(text: str) -> dict:
     body = text.split("\njobs:\n", 1)[1]
     parts = re.split(r"(?m)^  ([A-Za-z0-9_-]+):\s*$", body)
     return {parts[i]: parts[i + 1] for i in range(1, len(parts), 2)}
+
+
+
+def step_blocks(job: str) -> list[str]:
+    """Split a workflow job into individual named or action-based step blocks."""
+    return re.split(r"(?m)^      - (?=(?:name|uses):)", job)[1:]
+
+
+def workflow_hardening_problems(text: str, profile: str) -> list[str]:
+    """Reject bypass-capable YAML controls outside the documented job/step allowlist."""
+    app = "steps.changes.outputs.app == 'true'"
+    ui = "steps.changes.outputs.ui == 'true'"
+    migration = "steps.changes.outputs.migration == 'true'"
+    tooling = "steps.changes.outputs.tooling == 'true'"
+    tests = "steps.changes.outputs.tests == 'true'"
+    all_changed = " || ".join((app, ui, migration, tooling, tests))
+    build_changed = " || ".join((app, ui, tooling))
+    controller_main = "github.repository == 'oasisbaklawa2006/Oasis-Baklawa-Central' && github.ref == 'refs/heads/main'"
+    expected_jobs = {
+        "controller": {"advisory-evaluation", "authoritative-publication"},
+        "unit": {"tests"},
+        "quality": {"quality-gate"},
+    }
+    expected_conditions = {
+        "controller": {
+            ("advisory-evaluation", None): controller_main,
+            ("authoritative-publication", None): controller_main + " && vars.APPVERSE_GATE_PUBLISHER == 'actions-environment'",
+            ("advisory-evaluation", "Publish advisory check-run (never authoritative)"): "steps.bootstrap.outputs.installed == 'true'",
+        },
+        "unit": {},
+        "quality": {
+            ("quality-gate", "Enforce canonical Supabase migration ownership"): "github.event_name == 'pull_request'",
+            ("quality-gate", "Setup Node"): all_changed,
+            ("quality-gate", "Install dependencies"): all_changed,
+            ("quality-gate", "Typecheck"): app + " || " + tooling,
+            ("quality-gate", "ESLint changed TypeScript files"): app + " || " + tooling + " || " + tests,
+            ("quality-gate", "Unit and migration contract tests"): app + " || " + migration + " || " + tooling + " || " + tests,
+            ("quality-gate", "APPVERSE release controller regression tests"): tooling,
+            ("quality-gate", "Production build"): build_changed,
+            ("quality-gate", "Install Chromium"): build_changed,
+            ("quality-gate", "Start PR build locally"): build_changed,
+            ("quality-gate", "Playwright PR smoke"): build_changed,
+            ("quality-gate", "Docs-only fast pass"): " && ".join(
+                flag.replace(" == 'true'", " != 'true'") for flag in (app, ui, migration, tooling, tests)
+            ),
+            ("quality-gate", "Upload Playwright report"): "$" + "{{ !cancelled() && (" + build_changed + ") }}",
+        },
+    }
+    expected_shell = {
+        "controller": {
+            ("advisory-evaluation", "Confirm trusted main and main-branch installation"),
+            ("authoritative-publication", "Confirm trusted main and main-branch installation"),
+        },
+        "unit": set(),
+        "quality": {
+            ("quality-gate", "Classify changed paths"),
+            ("quality-gate", "Enforce canonical Supabase migration ownership"),
+            ("quality-gate", "ESLint changed TypeScript files"),
+            ("quality-gate", "Start PR build locally"),
+        },
+    }
+    if profile not in expected_jobs:
+        return ["unknown workflow hardening profile"]
+    code = strip_comments(text)
+    problems = []
+    try:
+        jobs = job_blocks(code)
+    except (ValueError, IndexError):
+        return ["jobs missing"]
+    if set(jobs) != expected_jobs[profile]:
+        problems.append("job set changed")
+    seen_conditions = {}
+    seen_shell = set()
+    in_jobs, job_id, step_id = False, None, None
+    lines = code.splitlines()
+    for index, line in enumerate(lines):
+        if line == "jobs:":
+            in_jobs = True
+            continue
+        if in_jobs:
+            job_match = re.match(r"^  ([A-Za-z0-9_-]+):\s*$", line)
+            if job_match:
+                job_id, step_id = job_match.group(1), None
+            step_match = re.match(r"^      - (?:name|uses):\s*(.+?)\s*$", line)
+            if step_match:
+                step_id = step_match.group(1)
+        match = re.match(r"^(\s*)(?:- )?(if|continue-on-error|shell|working-directory):\s*(.*?)\s*$", line)
+        if not match:
+            continue
+        indent, field, value = len(match.group(1)), match.group(2), match.group(3)
+        key = (job_id, step_id if indent == 8 else None)
+        if field == "if":
+            if not in_jobs or indent not in (4, 8):
+                problems.append("unexpected if scope")
+                continue
+            if value in (">-", ">", "|-", "|"):
+                continuation = []
+                for next_line in lines[index + 1:]:
+                    if not next_line.strip():
+                        continue
+                    if len(next_line) - len(next_line.lstrip()) <= indent:
+                        break
+                    continuation.append(next_line.strip())
+                value = " ".join(continuation)
+            if key in seen_conditions:
+                problems.append(f"duplicate if: {key}")
+            seen_conditions[key] = value
+        elif field == "continue-on-error":
+            if value != "false":
+                problems.append(f"unsafe continue-on-error: {key}")
+        elif field == "working-directory":
+            problems.append(f"unexpected working-directory: {key}")
+        elif field == "shell":
+            if value != "bash" or key not in expected_shell[profile] or key in seen_shell:
+                problems.append(f"unexpected shell: {key}")
+            seen_shell.add(key)
+    if seen_conditions != expected_conditions[profile]:
+        problems.append("job or step if guards differ from reviewed baseline")
+    if seen_shell != expected_shell[profile]:
+        problems.append("required explicit bash shells differ from reviewed baseline")
+    return problems
+
 
 
 class TwoIdentityWorkflowTests(unittest.TestCase):
@@ -264,9 +392,52 @@ class QualityGateIntegrityTests(unittest.TestCase):
 
     def test_no_test_step_is_neutralised(self):
         """Verify no test step is neutralised."""
-        code = strip_comments(QUALITY)
-        self.assertNotIn("continue-on-error: true", code)
-        self.assertIsNone(re.search(r"^\s*if:\s*(false|\$\{\{\s*false\s*\}\})\s*$", code, re.M))
+        for label, text in (("controller", CONTROLLER), ("unit", UNIT_CI), ("quality", QUALITY)):
+            self.assertEqual(workflow_hardening_problems(text, label), [], label)
+
+
+    def test_mutated_workflow_bypass_fields_are_rejected(self):
+        """Verify unexpected skip guards, ignored errors, shells and directories cannot bypass CI."""
+        mutations = [
+            ("unit", UNIT_CI.replace(
+                "        run: python3 -m unittest discover",
+                "        continue-on-error: '${{ true }}'\n        run: python3 -m unittest discover", 1)),
+            ("unit", UNIT_CI.replace(
+                "        run: python3 -m unittest discover",
+                "        working-directory: /tmp\n        run: python3 -m unittest discover", 1)),
+            ("unit", UNIT_CI.replace(
+                "        run: python3 -m unittest discover",
+                "        if: ${{ true }}\n        run: python3 -m unittest discover", 1)),
+            ("unit", UNIT_CI.replace(
+                "        run: python3 -m unittest discover",
+                "        shell: sh\n        run: python3 -m unittest discover", 1)),
+            ("controller", CONTROLLER.replace(
+                "if: steps.bootstrap.outputs.installed == 'true'", "if: false", 1)),
+            ("controller", CONTROLLER.replace("ref == 'refs/heads/main'", "ref == 'refs/heads/dev'", 1)),
+            ("controller", CONTROLLER.replace("shell: bash", "shell: python", 1)),
+            ("quality", QUALITY.replace(
+                "if: steps.changes.outputs.tooling == 'true'\n", "if: 'true'\n", 1)),
+            ("quality", QUALITY.replace("shell: bash", "shell: sh", 1)),
+        ]
+        for profile, mutated in mutations:
+            original = {"controller": CONTROLLER, "unit": UNIT_CI, "quality": QUALITY}[profile]
+            self.assertNotEqual(mutated, original, "mutation must actually change the fixture")
+            self.assertTrue(workflow_hardening_problems(mutated, profile), profile)
+
+    def test_extra_checkout_and_runner_drift_are_detected_per_job(self):
+        """Verify a second checkout and a runner change cannot hide behind another safe job."""
+        original = strip_comments(CONTROLLER)
+        jobs = job_blocks(original)
+        for job_id, job in jobs.items():
+            self.assertEqual(len([step for step in step_blocks(job) if "actions/checkout@" in step]), 1, job_id)
+        mutated = original.replace("    runs-on: ubuntu-24.04", "    runs-on: ubuntu-22.04", 1)
+        self.assertNotEqual(mutated, original)
+        image_sets = [
+            re.findall(r"(?m)^    runs-on:\s*([^\n]+)$", job)
+            for job in job_blocks(mutated).values()
+        ]
+        self.assertIn(["ubuntu-22.04"], image_sets)
+        self.assertNotEqual(image_sets, [["ubuntu-24.04"]] * len(image_sets))
 
 
 class CiLaneDriftTests(unittest.TestCase):
