@@ -178,6 +178,7 @@ def api(path: str, *, method: str = "GET", data: dict | None = None, identity: s
 
 
 def graphql(query: str, variables: dict) -> dict:
+    """Execute a read-only GraphQL query and reject mutation operations."""
     if re.search(r"\bmutation\b", query, re.IGNORECASE):
         raise GateError("GraphQL mutations are not permitted for the controller")
     response = api("/graphql", method="POST", data={"query": query, "variables": variables})
@@ -187,6 +188,7 @@ def graphql(query: str, variables: dict) -> dict:
 
 
 def paginated(path: str, key: str | None = None) -> list:
+    """Retrieve bounded pages of read-only GitHub API results."""
     result = []
     for page in range(1, 6):
         suffix = "&" if "?" in path else "?"
@@ -201,6 +203,7 @@ def paginated(path: str, key: str | None = None) -> list:
 
 
 def current_pr(number: int) -> dict:
+    """Return the latest pull-request metadata from GitHub."""
     return api(f"/repos/{REPO}/pulls/{number}")
 
 
@@ -266,10 +269,12 @@ def ruleset_problems() -> list[str]:
 
 
 def configured_ruleset() -> bool:
+    """Report whether all required repository ruleset checks are satisfied."""
     return not ruleset_problems()
 
 
 def latest_checks(sha: str) -> dict:
+    """Return the newest check run for each name and publisher identity."""
     checks = paginated(f"/repos/{REPO}/commits/{sha}/check-runs", key="check_runs")
     selected = {}
     for item in checks:
@@ -281,6 +286,7 @@ def latest_checks(sha: str) -> dict:
 
 
 def latest_statuses(sha: str) -> dict:
+    """Return the most recent status for each context and creator."""
     statuses = paginated(f"/repos/{REPO}/commits/{sha}/statuses")
     newest = {}
     # Never rely on API list order: pick the newest by (updated_at, id) per context so a stale success cannot win.
@@ -291,6 +297,7 @@ def latest_statuses(sha: str) -> dict:
 
 
 def unresolved_threads(number: int) -> int:
+    """Count unresolved review threads, failing closed on incomplete pagination."""
     query = """query($owner:String!,$repo:String!,$number:Int!) {
       repository(owner:$owner,name:$repo) {pullRequest(number:$number) {
         reviewThreads(first:100) {nodes {isResolved} pageInfo {hasNextPage}}
@@ -326,6 +333,7 @@ def trusted_review_decisions(number: int, author: str) -> tuple[dict, set]:
 
 
 def review_approval(number: int, sha: str, author: str, require_human: bool = False) -> bool:
+    """Check that trusted current-head review decisions meet the required approval level."""
     latest, humans = trusted_review_decisions(number, author)
     if any(review.get("state") == "CHANGES_REQUESTED" for review in latest.values()):
         return False
@@ -359,6 +367,7 @@ def _glob_regex(pattern: str) -> re.Pattern:
 
 
 def path_matches(pattern: str, path: str) -> bool:
+    """Determine whether a file path matches a configured scope pattern."""
     return bool(_glob_regex(pattern).match(path))
 
 
@@ -472,10 +481,12 @@ def coderabbit_review_problems(number: int, sha: str) -> list[str]:
 
 
 def coderabbit_review_clean(number: int, sha: str) -> bool:
+    """Indicate whether CodeRabbit reviews have no actionable or pre-merge failures."""
     return not coderabbit_review_problems(number, sha)
 
 
 def validate(pr: dict) -> list[str]:
+    """Collect all fail-closed release eligibility problems for a pull request."""
     errors = []
     number, sha = pr["number"], pr["head"]["sha"]
     ruleset_issues = ruleset_problems()
@@ -566,10 +577,12 @@ def verdict_and_summary(number: int, head: str, errors: list[str]) -> tuple[str,
 
 
 def utc_now() -> datetime.datetime:
+    """Return the current timezone-aware UTC time."""
     return datetime.datetime.now(datetime.timezone.utc)
 
 
 def parse_time(value: str | None) -> datetime.datetime | None:
+    """Parse the given timestamp into a timezone-aware UTC value."""
     try:
         return datetime.datetime.fromisoformat((value or "").replace("Z", "+00:00"))
     except ValueError:
@@ -577,6 +590,7 @@ def parse_time(value: str | None) -> datetime.datetime | None:
 
 
 def stamped(summary: str, now: datetime.datetime) -> str:
+    """Append an evidence freshness timestamp to the check summary."""
     return (f"{summary}\n\nEvaluated at {now.strftime('%Y-%m-%dT%H:%M:%SZ')}. Treat this result as stale after "
             f"{FRESHNESS_SECONDS}s. Eligibility evidence only: native auto-merge stays disabled and a merge actor must "
             "re-validate at merge time (see policy).")
@@ -624,12 +638,14 @@ def evaluate(number: int, expect_sha: str | None = None) -> dict:
 
 
 def authoritative_checks_on(head: str) -> list[dict]:
+    """Return dedicated-App gate checks published for the specified commit."""
     return sorted((item for (name, _), item in latest_checks(head).items()
                    if name == CHECK_NAME and (item.get("app") or {}).get("id") == GATE_APP_ID),
                   key=lambda item: int(item.get("id") or 0))
 
 
 def update_gate_check(number: int, mode: str = "advisory") -> None:
+    """Publish an advisory or authoritative evaluation check without merging code."""
     if mode not in PUBLISH_MODES:
         raise GateError(f"Unknown publish mode {mode!r}")
     pr = current_pr(number)
@@ -718,6 +734,7 @@ def run_evaluate(argv: list[str]) -> int:
 
 
 def main(argv: list[str] | None = None) -> None:
+    """Dispatch the requested gate evaluation or publication CLI mode."""
     argv = sys.argv[1:] if argv is None else argv
     if os.environ.get("GITHUB_REPOSITORY") != REPO:
         raise SystemExit("Incorrect repository; fail closed")
