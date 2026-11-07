@@ -23,7 +23,9 @@ concurrency:
 jobs:
   point100-dress-rehearsal:
     name: Point100 production-bound software rehearsal
-    runs-on: ubuntu-latest
+    # Playwright 1.59.1 cannot provision Chromium on ubuntu26.04 (observed
+    # failure on ubuntu-latest); pin a supported image for executed UAT.
+    runs-on: ubuntu-24.04
     timeout-minutes: 120
     env:
       POINT100_CORE_REPO: ${{ github.workspace }}/oasis-supabase-core
