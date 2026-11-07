@@ -21,7 +21,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { toast } from "sonner";
-import type { Database, Json } from "@/integrations/supabase/database.types";
+import type { Json } from "@/integrations/supabase/database.types";
 import { useAuth } from "@/hooks/useAuth";
 import {
   customerAppClient,
@@ -46,6 +46,7 @@ import {
   type BuyerStatement,
   type BuyerTeamMember,
   type BuyerCheckoutQuote,
+  type BuyerCatalogueProduct,
   type BuyerTicket,
 } from "@/lib/customerApp/customerAppClient";
 import {
@@ -63,7 +64,7 @@ import logoImg from "@/assets/logo-open.png";
 import { CustomerOrderTimeline } from "@/components/customer/CustomerOrderTimeline";
 import SystemAlertMarquee from "@/components/buyer/SystemAlertMarquee";
 
-type Product = Pick<Database["public"]["Tables"]["products"]["Row"], "id" | "name" | "sku" | "description" | "image_url" | "category" | "sub_category" | "is_active" | "visible_in_catalog">;
+type Product = BuyerCatalogueProduct;
 
 const money = (value: number | null | undefined) =>
   typeof value === "number" && Number.isFinite(value)
