@@ -453,7 +453,6 @@ class ValidateMatrixTests(GateTestCase):
         def fake_paginated(path, key=None):
             """Serve review submissions on the reviews path and changed files everywhere else."""
             return reviews if reviews is not None and path.endswith("/reviews") else changed
-        real_review = {} if reviews is None else {"review_approval": gate.review_approval}
         with mock.patch.multiple(
             gate, ruleset_problems=lambda: list(ruleset),
             paginated=fake_paginated, latest_checks=lambda sha: {
