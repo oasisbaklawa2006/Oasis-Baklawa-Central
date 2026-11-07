@@ -3,6 +3,7 @@
 No test may reach the network: setUp replaces ``gate.api`` with a function that fails the test if called unless a
 test installs its own fake.
 """
+import datetime
 import importlib.util
 import json
 import pathlib
@@ -206,32 +207,6 @@ class EvidenceProvenanceTests(GateTestCase):
             with self.assertRaises(gate.GateError):
                 gate.unresolved_threads(5)
 
-    def test_coderabbit_actionable_review_fails_closed(self):
-        v = [{"user": {"login": "coderabbitai[bot]"}, "state": "COMMENTED", "commit_id": SHA,
-              "body": "Actionable comments posted: 3"}]
-        with mock.patch.object(gate, "paginated", return_value=v):
-            self.assertFalse(gate.coderabbit_review_clean(1, SHA))
-
-    def test_coderabbit_zero_actionable_accepts(self):
-        v = [{"user": {"login": "coderabbitai[bot]"}, "state": "COMMENTED", "commit_id": SHA,
-              "body": "Actionable comments posted: 0"}]
-        with mock.patch.object(gate, "paginated", return_value=v):
-            self.assertTrue(gate.coderabbit_review_clean(1, SHA))
-
-    def test_coderabbit_review_on_other_head_or_unparseable_fails_closed(self):
-        old = [{"user": {"login": "coderabbitai[bot]"}, "state": "COMMENTED", "commit_id": "2" * 40,
-                "body": "Actionable comments posted: 0"}]
-        junk = [{"user": {"login": "coderabbitai[bot]"}, "state": "COMMENTED", "commit_id": SHA, "body": "ok"}]
-        for reviews in (old, junk, []):
-            with mock.patch.object(gate, "paginated", return_value=reviews):
-                self.assertFalse(gate.coderabbit_review_clean(1, SHA))
-
-    def test_lookalike_coderabbit_account_is_ignored(self):
-        v = [{"user": {"login": "coderabbitai-fake"}, "state": "COMMENTED", "commit_id": SHA,
-              "body": "Actionable comments posted: 0"}]
-        with mock.patch.object(gate, "paginated", return_value=v):
-            self.assertFalse(gate.coderabbit_review_clean(1, SHA))
-
 
 def review(user, state="APPROVED", sha=SHA, association="NONE"):
     return {"user": {"login": user}, "state": state, "commit_id": sha, "author_association": association}
@@ -413,7 +388,8 @@ class ValidateMatrixTests(GateTestCase):
             paginated=lambda path, key=None: changed, latest_checks=lambda sha: {
                 (c["name"], c["app"]["slug"]): c for c in runs},
             latest_statuses=lambda sha: statuses, unresolved_threads=lambda n: threads,
-            review_approval=fake_review_approval, coderabbit_review_clean=lambda n, s: coderabbit,
+            review_approval=fake_review_approval,
+            coderabbit_review_problems=lambda n, s: ([] if coderabbit is True else ['actionable finding(s)'] if coderabbit is False else list(coderabbit)),
             current_pr=lambda n: now_pr or pr,
         ):
             self.approvals = approvals
@@ -463,7 +439,7 @@ class ValidateMatrixTests(GateTestCase):
         self.assertTrue(any("No valid current-head approval" in e for e in self.run_validate(approved=False)))
 
     def test_coderabbit_actionable_blocks(self):
-        self.assertTrue(any("CodeRabbit has not completed" in e for e in self.run_validate(coderabbit=False)))
+        self.assertTrue(any(e.startswith("CodeRabbit review not clean") for e in self.run_validate(coderabbit=False)))
 
     def test_ruleset_problem_blocks_with_reason(self):
         errors = self.run_validate(ruleset=["governance ruleset: code-owner review is not enforced"])
@@ -533,15 +509,6 @@ class UpdateAndSweepTests(GateTestCase):
              mock.patch.object(gate, "api", side_effect=lambda path, **kw: posted.append(kw)):
             gate.update_gate_check(700)
         self.assertEqual(posted[0]["data"]["conclusion"], "success")
-
-    def test_identical_verdict_is_not_republished(self):
-        summary = f"PR #700; exact head {SHA}; FAILURE.\n- x"
-        previous = {"status": "completed", "conclusion": "failure", "output": {"summary": summary}}
-        with mock.patch.object(gate, "current_pr", return_value=base_pr()), \
-             mock.patch.object(gate, "validate", return_value=["x"]), \
-             mock.patch.object(gate, "latest_checks", return_value={(gate.ADVISORY_CHECK_NAME, "github-actions"): previous}), \
-             mock.patch.object(gate, "api", side_effect=no_network):
-            gate.update_gate_check(700)  # no POST => no network call
 
     def test_sweep_isolates_per_pr_failures_and_exits_non_zero(self):
         calls = []
@@ -777,91 +744,424 @@ def environment_api(*, custom=True, branches=("main",), error=None):
     return fake
 
 
-class PublicationTests(GateTestCase):
-    def publish(self, mode, *, env, api_fn, errors=(), previous=None):
-        posted = []
-        def fake_api(path, **kw):
-            if kw.get("method") == "POST":
-                posted.append((path, kw))
-                return {"app": {"id": gate.GATE_APP_ID}} if kw.get("identity") == "app" else {"app": {"id": 15368}}
-            return api_fn(path, **kw)
-        with mock.patch.dict(gate.os.environ, env, clear=True), \
-             mock.patch.object(gate, "current_pr", return_value=base_pr()), \
-             mock.patch.object(gate, "validate", return_value=list(errors)), \
-             mock.patch.object(gate, "latest_checks", return_value=previous or {}), \
-             mock.patch.object(gate, "api", side_effect=fake_api):
-            gate.update_gate_check(700, mode)
-        return posted
+NOW = datetime.datetime(2026, 11, 7, 12, 0, 0, tzinfo=datetime.timezone.utc)
 
+
+def iso(moment):
+    return moment.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+class FakeGitHub:
+    """In-memory GitHub for the publication tests: check-runs accumulate per SHA and the newest one wins, the
+    environment endpoints answer from a policy, and POSTs can be made to fail. Nothing here touches the network."""
+
+    def __init__(self, *, environment=None, now=NOW):
+        self.runs = []
+        self.posts = []
+        self.environment = environment or environment_api()
+        self.now = now
+        self.next_id = 1000
+        self.listing_error = None
+        self.post_error = None
+        self.hide_new_runs = False  # simulate GitHub not showing a freshly posted run as the newest
+
+    def add_run(self, *, name=None, app_id=None, conclusion="success", head=SHA, number=700, completed=None, summary=None):
+        self.next_id += 1
+        run = {"id": self.next_id, "name": name or gate.CHECK_NAME, "head_sha": head, "status": "completed",
+               "conclusion": conclusion, "app": {"id": app_id if app_id is not None else gate.GATE_APP_ID, "slug": "gate-app"},
+               "external_id": f"appverse-pr-{number}-{head}", "started_at": iso(completed or self.now),
+               "completed_at": iso(completed or self.now), "output": {"summary": summary or ""}}
+        self.runs.append(run)
+        return run
+
+    def api(self, path, **kw):
+        if kw.get("method") == "POST":
+            if self.post_error:
+                raise self.post_error
+            self.posts.append((path, kw))
+            run = self.add_run(name=kw["data"]["name"], conclusion=kw["data"]["conclusion"], head=kw["data"]["head_sha"],
+                               app_id=gate.GATE_APP_ID if kw.get("identity") == "app" else gate.GITHUB_ACTIONS_APP_ID,
+                               summary=kw["data"]["output"]["summary"], completed=self.now)
+            if self.hide_new_runs:
+                self.runs.remove(run)
+            return {"id": run["id"], "app": run["app"]}
+        return self.environment(path, **kw)
+
+    def paginated(self, path, key=None):
+        if path.endswith("/check-runs"):
+            if self.listing_error:
+                raise gate.GateError(self.listing_error)
+            return list(self.runs)
+        raise AssertionError(f"unexpected list request {path}")
+
+    def newest(self, name=None):
+        runs = [r for r in self.runs if r["name"] == (name or gate.CHECK_NAME)]
+        return max(runs, key=lambda r: r["id"]) if runs else None
+
+
+APP_ENV = env(actions=True, app=True)
+
+
+def run_update(fake, mode, *, errors=(), validate_error=None, env_vars=None, pr=None, number=700):
+    validator = mock.Mock(side_effect=validate_error) if validate_error else mock.Mock(return_value=list(errors))
+    with mock.patch.dict(gate.os.environ, env_vars if env_vars is not None else APP_ENV, clear=True), \
+         mock.patch.object(gate, "current_pr", return_value=pr or base_pr()), \
+         mock.patch.object(gate, "validate", validator), \
+         mock.patch.object(gate, "utc_now", return_value=fake.now), \
+         mock.patch.object(gate, "paginated", side_effect=fake.paginated), \
+         mock.patch.object(gate, "api", side_effect=fake.api):
+        gate.update_gate_check(number, mode)
+
+
+class PublicationTests(GateTestCase):
     def test_advisory_mode_publishes_only_the_advisory_name_with_the_actions_identity(self):
-        posted = self.publish("advisory", env=env(actions=True), api_fn=no_network)
-        (path, kw), = posted
+        fake = FakeGitHub()
+        run_update(fake, "advisory", env_vars=env(actions=True))
+        (path, kw), = fake.posts
         self.assertEqual(kw["data"]["name"], gate.ADVISORY_CHECK_NAME)
         self.assertEqual(kw["identity"], "actions")
         self.assertIn("advisory", kw["data"]["output"]["title"])
 
     def test_advisory_mode_can_never_publish_the_authoritative_name(self):
         for errors in ((), ("x",)):
-            posted = self.publish("advisory", env=env(actions=True), api_fn=no_network, errors=errors)
-            self.assertTrue(all(kw["data"]["name"] != gate.CHECK_NAME for _, kw in posted))
+            fake = FakeGitHub()
+            run_update(fake, "advisory", errors=errors, env_vars=env(actions=True))
+            self.assertTrue(all(kw["data"]["name"] != gate.CHECK_NAME for _, kw in fake.posts))
 
-    def test_authoritative_mode_publishes_the_gate_name_with_the_dedicated_app_when_environment_is_restricted(self):
-        posted = self.publish("authoritative", env=env(actions=True, app=True), api_fn=environment_api())
-        (path, kw), = posted
-        self.assertEqual(kw["data"]["name"], gate.CHECK_NAME)
-        self.assertEqual(kw["identity"], "app")
-        self.assertEqual(kw["data"]["head_sha"], SHA)
-        self.assertEqual(kw["data"]["conclusion"], "success")
-
-    def test_authoritative_failure_verdict_is_published_too(self):
-        posted = self.publish("authoritative", env=env(actions=True, app=True),
-                              api_fn=environment_api(), errors=["blocked"])
-        self.assertEqual(posted[0][1]["data"]["conclusion"], "failure")
-
-    def test_authoritative_publication_is_withheld_without_the_app_credential(self):
-        self.assertEqual(self.publish("authoritative", env=env(actions=True), api_fn=no_network), [])
-
-    def test_authoritative_publication_is_withheld_when_the_environment_is_not_restricted(self):
-        self.assertEqual(self.publish("authoritative", env=env(actions=True, app=True),
-                                      api_fn=environment_api(custom=False)), [])
-
-    def test_authoritative_publication_is_withheld_when_other_branches_are_allowed(self):
-        for branches in (("main", "release/x"), ("feature",), ()):
-            self.assertEqual(self.publish("authoritative", env=env(actions=True, app=True),
-                                          api_fn=environment_api(branches=branches)), [], branches)
-
-    def test_authoritative_publication_is_withheld_when_the_policy_cannot_be_verified(self):
-        self.assertEqual(self.publish("authoritative", env=env(actions=True, app=True),
-                                      api_fn=environment_api(error="HTTP 403")), [])
-
-    def test_authoritative_check_published_by_the_wrong_app_raises(self):
-        def fake_api(path, **kw):
-            if kw.get("method") == "POST":
-                return {"app": {"id": 15368}}
-            return environment_api()(path, **kw)
-        with mock.patch.dict(gate.os.environ, env(actions=True, app=True), clear=True), \
-             mock.patch.object(gate, "current_pr", return_value=base_pr()), \
-             mock.patch.object(gate, "validate", return_value=[]), \
-             mock.patch.object(gate, "latest_checks", return_value={}), \
-             mock.patch.object(gate, "api", side_effect=fake_api):
-            with self.assertRaises(gate.GateError):
-                gate.update_gate_check(700, "authoritative")
+    def test_authoritative_publication_uses_the_dedicated_app_exact_head_and_a_freshness_stamp(self):
+        fake = FakeGitHub()
+        run_update(fake, "authoritative")
+        (path, kw), = fake.posts
+        self.assertEqual((kw["data"]["name"], kw["identity"], kw["data"]["head_sha"], kw["data"]["conclusion"]),
+                         (gate.CHECK_NAME, "app", SHA, "success"))
+        summary = kw["data"]["output"]["summary"]
+        self.assertIn("Evaluated at 2026-11-07T12:00:00Z", summary)
+        self.assertIn(f"stale after {gate.FRESHNESS_SECONDS}s", summary)
+        self.assertIn("native auto-merge stays disabled", summary)
+        self.assertEqual(fake.newest()["conclusion"], "success")
 
     def test_unknown_mode_is_refused(self):
         with self.assertRaises(gate.GateError):
             gate.update_gate_check(700, "both")
 
-    def test_idempotency_is_per_identity_and_ignores_spoofed_history(self):
-        _, summary = gate.verdict_and_summary(700, SHA, [])
-        spoof = {(gate.CHECK_NAME, "github-actions"): {"status": "completed", "conclusion": "success",
-                                                         "output": {"summary": summary}, "app": {"id": 15368}}}
-        posted = self.publish("authoritative", env=env(actions=True, app=True),
-                              api_fn=environment_api(), previous=spoof)
-        self.assertEqual(len(posted), 1, "a spoofed identical check must not suppress the genuine publication")
-        genuine = {(gate.CHECK_NAME, "dedicated"): {"status": "completed", "conclusion": "success",
-                                                      "output": {"summary": summary}, "app": {"id": gate.GATE_APP_ID}}}
-        self.assertEqual(self.publish("authoritative", env=env(actions=True, app=True),
-                                      api_fn=environment_api(), previous=genuine), [])
+
+class StaleAuthoritativeSuccessTests(GateTestCase):
+    """A required check cannot be revoked by anyone except its publisher. These scenarios pin down exactly what the code
+    can enforce (supersede with a FAILURE, or fail loudly) and what it cannot (anything when the publisher is gone)."""
+
+    def prior_success(self, fake, age_seconds=60):
+        return fake.add_run(conclusion="success", completed=fake.now - datetime.timedelta(seconds=age_seconds))
+
+    def test_every_revoking_change_supersedes_a_prior_success_with_a_failure(self):
+        scenarios = {
+            "approval revoked": ["No valid current-head approval"],
+            "review blocked": ["CodeRabbit review not clean: 2 actionable finding(s) reported on this head"],
+            "required check failed": ["Required check Typecheck not PASS: completed/failure"],
+            "unresolved thread": ["Unresolved independent review threads"],
+            "sensitive path needs human": ["Sensitive paths changed (src/lib/auth/session.ts): an independent trusted human code-owner approval"],
+        }
+        for name, errors in scenarios.items():
+            fake = FakeGitHub()
+            old = self.prior_success(fake)
+            run_update(fake, "authoritative", errors=errors)
+            newest = fake.newest()
+            self.assertEqual(newest["conclusion"], "failure", name)
+            self.assertGreater(newest["id"], old["id"], name)
+
+    def test_a_verification_error_also_supersedes_a_prior_success_with_a_failure(self):
+        fake = FakeGitHub()
+        old = self.prior_success(fake)
+        run_update(fake, "authoritative", validate_error=gate.GateError("rulesets unreadable"))
+        newest = fake.newest()
+        self.assertEqual(newest["conclusion"], "failure")
+        self.assertIn("BLOCKED_GATE_VERIFICATION", newest["output"]["summary"])
+        self.assertGreater(newest["id"], old["id"])
+
+    def test_publisher_unavailable_fails_loudly_and_never_pretends_the_old_success_is_valid(self):
+        cases = {
+            "missing App token": (env(actions=True), environment_api()),
+            "environment not restricted": (APP_ENV, environment_api(custom=False)),
+            "environment allows other branches": (APP_ENV, environment_api(branches=("main", "feature"))),
+            "expired or rejected token (401)": (APP_ENV, environment_api(error="GitHub API GET /environments: HTTP 401")),
+            "environment unreadable (403)": (APP_ENV, environment_api(error="HTTP 403")),
+        }
+        for name, (env_vars, environment) in cases.items():
+            fake = FakeGitHub(environment=environment)
+            self.prior_success(fake)
+            with self.assertRaises(gate.GateError) as raised:
+                run_update(fake, "authoritative", env_vars=env_vars)
+            message = str(raised.exception)
+            self.assertIn("AUTHORITATIVE_PUBLICATION_WITHHELD", message, name)
+            self.assertIn("PRIOR authoritative SUCCESS exists on this head and is now STALE", message, name)
+            self.assertEqual(fake.posts, [], name)
+
+    def test_withheld_message_distinguishes_no_prior_success_and_unknown(self):
+        fake = FakeGitHub()
+        with self.assertRaises(gate.GateError) as raised:
+            run_update(fake, "authoritative", env_vars=env(actions=True))
+        self.assertIn("no authoritative success exists on this head", str(raised.exception))
+        fake = FakeGitHub()
+        fake.listing_error = "listing down"
+        with self.assertRaises(gate.GateError) as raised:
+            run_update(fake, "authoritative", env_vars=env(actions=True))
+        self.assertIn("could not be determined: assume it is STALE", str(raised.exception))
+
+    def test_a_failing_idempotency_lookup_never_suppresses_publication(self):
+        fake = FakeGitHub()
+        calls = {"n": 0}
+        original = fake.paginated
+
+        def flaky(path, key=None):
+            calls["n"] += 1
+            if calls["n"] == 1:  # the optimisation lookup fails; the later read-back works
+                raise gate.GateError("transient")
+            return original(path, key)
+        fake.paginated = flaky
+        run_update(fake, "authoritative", errors=["blocked"])
+        self.assertEqual(len(fake.posts), 1)
+        self.assertEqual(fake.newest()["conclusion"], "failure")
+
+    def test_a_rejected_post_is_not_swallowed(self):
+        fake = FakeGitHub()
+        fake.post_error = gate.GateError("GitHub API POST /check-runs: HTTP 422")  # e.g. unknown or rejected source SHA
+        self.prior_success(fake)
+        with self.assertRaises(gate.GateError):
+            run_update(fake, "authoritative", errors=["blocked"])
+
+    def test_unconfirmed_supersession_is_reported_not_assumed(self):
+        fake = FakeGitHub()
+        self.prior_success(fake)
+        fake.hide_new_runs = True
+        with self.assertRaises(gate.GateError) as raised:
+            run_update(fake, "authoritative", errors=["blocked"])
+        self.assertIn("SUPERSESSION_NOT_CONFIRMED", str(raised.exception))
+
+    def test_authoritative_check_from_the_wrong_app_is_reported(self):
+        fake = FakeGitHub()
+        real = fake.api
+
+        def wrong_app(path, **kw):
+            result = real(path, **kw)
+            if kw.get("method") == "POST":
+                result = dict(result, app={"id": gate.GITHUB_ACTIONS_APP_ID})
+            return result
+        fake.api = wrong_app
+        with self.assertRaises(gate.GateError):
+            run_update(fake, "authoritative")
+
+    def test_unchanged_verdict_is_skipped_only_while_the_earlier_result_is_fresh(self):
+        fake = FakeGitHub()
+        _, body = gate.verdict_and_summary(700, SHA, [])
+        fresh = fake.add_run(completed=NOW - datetime.timedelta(seconds=60), summary=body + "\n\nEvaluated at x")
+        run_update(fake, "authoritative")
+        self.assertEqual(fake.posts, [], "fresh and identical: nothing to republish")
+        fake.runs.remove(fresh)
+        fake.add_run(completed=NOW - datetime.timedelta(seconds=gate.FRESHNESS_SECONDS), summary=body + "\n\nEvaluated at x")
+        run_update(fake, "authoritative")
+        self.assertEqual(len(fake.posts), 1, "identical but no longer fresh: must be re-stamped")
+
+    def test_a_spoofed_identical_check_never_suppresses_the_genuine_publication(self):
+        fake = FakeGitHub()
+        _, body = gate.verdict_and_summary(700, SHA, [])
+        fake.add_run(app_id=gate.GITHUB_ACTIONS_APP_ID, completed=NOW, summary=body)
+        run_update(fake, "authoritative")
+        self.assertEqual(len(fake.posts), 1)
+
+
+class MergeActorFreshnessTests(GateTestCase):
+    """What the merge actor must check, because a required check cannot expire on its own."""
+
+    def good(self, **overrides):
+        check = {"name": gate.CHECK_NAME, "app": {"id": gate.GATE_APP_ID}, "status": "completed", "conclusion": "success",
+                 "head_sha": SHA, "external_id": f"appverse-pr-700-{SHA}", "completed_at": iso(NOW - datetime.timedelta(seconds=30))}
+        check.update(overrides)
+        return check
+
+    def test_a_fresh_exact_head_dedicated_app_success_has_no_problems(self):
+        self.assertEqual(gate.authoritative_success_problems(self.good(), SHA, NOW), [])
+
+    def test_each_defect_is_reported(self):
+        cases = {
+            "wrong name": {"name": "Appverse Merge Gate (advisory)"},
+            "wrong app": {"app": {"id": gate.GITHUB_ACTIONS_APP_ID}},
+            "failure": {"conclusion": "failure"},
+            "in progress": {"status": "in_progress", "conclusion": None},
+            "other head": {"head_sha": "9" * 40},
+            "external id for another head": {"external_id": "appverse-pr-700-" + "9" * 40},
+            "stale": {"completed_at": iso(NOW - datetime.timedelta(seconds=gate.FRESHNESS_SECONDS + 1))},
+            "no completion time": {"completed_at": None},
+            "future completion time": {"completed_at": iso(NOW + datetime.timedelta(hours=1))},
+        }
+        for name, override in cases.items():
+            self.assertTrue(gate.authoritative_success_problems(self.good(**override), SHA, NOW), name)
+
+    def test_evaluate_is_read_only_and_reports_ineligibility(self):
+        def read_only_api(path, **kw):
+            self.assertNotEqual(kw.get("method"), "POST", "evaluate() must never write")
+            raise AssertionError("evaluate must go through patched helpers only")
+        with mock.patch.object(gate, "current_pr", return_value=base_pr()), \
+             mock.patch.object(gate, "validate", return_value=["No valid current-head approval"]), \
+             mock.patch.object(gate, "api", side_effect=read_only_api):
+            result = gate.evaluate(700)
+        self.assertFalse(result["eligible"])
+        self.assertEqual(result["head"], SHA)
+        self.assertIn("DISABLED", result["native_automerge"])
+
+    def test_evaluate_pins_the_expected_head(self):
+        with mock.patch.object(gate, "current_pr", return_value=base_pr()), mock.patch.object(gate, "validate", return_value=[]):
+            self.assertTrue(gate.evaluate(700, SHA)["eligible"])
+            moved = gate.evaluate(700, "9" * 40)
+        self.assertFalse(moved["eligible"])
+        self.assertTrue(moved["errors"][0].startswith("HEAD_MISMATCH"))
+
+    def test_evaluate_turns_verification_errors_into_ineligible(self):
+        with mock.patch.object(gate, "current_pr", return_value=base_pr()), \
+             mock.patch.object(gate, "validate", side_effect=gate.GateError("rulesets unreadable")):
+            result = gate.evaluate(700)
+        self.assertFalse(result["eligible"])
+        self.assertIn("BLOCKED_GATE_VERIFICATION", result["errors"][0])
+
+    def test_cli_exit_codes(self):
+        with mock.patch.object(gate, "evaluate", return_value={"eligible": True, "errors": []}):
+            self.assertEqual(gate.run_evaluate(["--evaluate", "700"]), 0)
+        with mock.patch.object(gate, "evaluate", return_value={"eligible": False, "errors": ["x"]}):
+            self.assertEqual(gate.run_evaluate(["--evaluate", "700", "--expect-sha", SHA]), 3)
+        for bad in (["--evaluate"], ["--evaluate", "7;rm"], ["--evaluate", "7", "--expect-sha", "nothex"],
+                    ["--evaluate", "7", "--expect-sha"]):
+            self.assertEqual(gate.run_evaluate(bad), 2, bad)
+
+    def test_main_evaluate_mode_needs_the_right_repository(self):
+        with mock.patch.dict(gate.os.environ, {"GITHUB_REPOSITORY": "someone/else"}, clear=True):
+            with self.assertRaises(SystemExit):
+                gate.main(["--evaluate", "700"])
+
+
+class GateAuthorityNameTests(GateTestCase):
+    def test_dedicated_app_check_under_a_different_name_is_reported_as_a_mismatch(self):
+        checks = {("Oasis Appverse Merge Gate", "gate-app"): check("Oasis Appverse Merge Gate", "gate-app", app_id=gate.GATE_APP_ID)}
+        self.assertEqual(gate.unrecognised_gate_app_checks(checks), ["Oasis Appverse Merge Gate"])
+        required = gate.relevant_checks({"docs/README.md"})
+        errors = ValidateMatrixTests("run_validate").run_validate(checks=all_green(required) + list(
+            [check("Oasis Appverse Merge Gate", "gate-app", app_id=gate.GATE_APP_ID, cid=901)]))
+        self.assertTrue(any(e.startswith("NAME_MISMATCH") and "Oasis Appverse Merge Gate" in e for e in errors), errors)
+
+    def test_the_authoritative_name_from_the_dedicated_app_and_other_apps_names_are_not_mismatches(self):
+        checks = {(gate.CHECK_NAME, "gate-app"): check(gate.CHECK_NAME, "gate-app", app_id=gate.GATE_APP_ID),
+                  ("CodeRabbit", "coderabbitai"): check("CodeRabbit", "coderabbitai", app_id=1),
+                  (gate.ADVISORY_CHECK_NAME, "github-actions"): check(gate.ADVISORY_CHECK_NAME, "github-actions", app_id=15368)}
+        self.assertEqual(gate.unrecognised_gate_app_checks(checks), [])
+
+    def test_there_is_exactly_one_authoritative_name_and_one_authoritative_app(self):
+        self.assertEqual(gate.CHECK_NAME, "Appverse Merge Gate")
+        self.assertEqual(gate.GATE_APP_ID, 5645415)
+        self.assertEqual(sum(1 for value in vars(gate).values() if value == gate.GATE_APP_ID), 1)
+
+
+class UnreadableEvidenceTests(GateTestCase):
+    def test_unreadable_rulesets_become_a_published_failure_not_a_pass(self):
+        fake = FakeGitHub()
+        real_environment = fake.environment
+
+        def rulesets_down(path, **kw):
+            if "/rulesets/" in path:
+                raise gate.GateError("GitHub API GET rulesets: HTTP 403")
+            return real_environment(path, **kw)
+        fake.environment = rulesets_down
+        pr = base_pr()
+        with mock.patch.dict(gate.os.environ, APP_ENV, clear=True), \
+             mock.patch.object(gate, "current_pr", return_value=pr), \
+             mock.patch.object(gate, "utc_now", return_value=fake.now), \
+             mock.patch.object(gate, "paginated", side_effect=fake.paginated), \
+             mock.patch.object(gate, "api", side_effect=fake.api):
+            gate.update_gate_check(700, "authoritative")
+        newest = fake.newest()
+        self.assertEqual(newest["conclusion"], "failure")
+        self.assertIn("BLOCKED_GATE_VERIFICATION", newest["output"]["summary"])
+
+
+class CodeRabbitReviewSemanticsTests(GateTestCase):
+    FIXTURES = pathlib.Path(__file__).resolve().parent / "fixtures" / "coderabbit"
+
+    def body(self, name):
+        return (self.FIXTURES / name).read_text()
+
+    def problems(self, body, *, state="COMMENTED", inline=0, sha=SHA, review_sha=SHA):
+        review = {"id": 77, "user": {"login": "coderabbitai[bot]"}, "state": state, "commit_id": review_sha, "body": body}
+        comments = [{"user": {"login": "coderabbitai[bot]"}, "pull_request_review_id": 77, "in_reply_to_id": None}] * inline
+
+        def fake(path, key=None):
+            return [review] if path.endswith("/reviews") else comments
+        with mock.patch.object(gate, "paginated", side_effect=fake):
+            return gate.coderabbit_review_problems(1, sha)
+
+    def test_real_fixtures_parse_the_way_coderabbit_actually_writes_them(self):
+        no_marker = gate.parse_coderabbit_review(self.body("pr655-36f230b9-no-marker-failed-premerge.html"))
+        self.assertEqual((no_marker["genuine"], no_marker["actionable"], no_marker["nitpicks"], no_marker["failed_premerge"]),
+                         (True, None, 0, ["Docstring Coverage"]))
+        nitpick = gate.parse_coderabbit_review(self.body("pr655-2d7560a6-nitpick-failed-premerge.html"))
+        self.assertEqual((nitpick["actionable"], nitpick["nitpicks"], nitpick["failed_premerge"]), (None, 1, ["Docstring Coverage"]))
+        two = gate.parse_coderabbit_review(self.body("pr656-c4848b81-two-actionable.html"))
+        self.assertEqual((two["actionable"], two["failed_premerge"]), (2, ["Docstring Coverage"]))
+
+    def test_actionable_findings_block(self):
+        problems = self.problems(self.body("pr656-c4848b81-two-actionable.html"))
+        self.assertTrue(any("2 actionable finding(s)" in p for p in problems), problems)
+
+    def test_a_failed_premerge_check_blocks_even_without_actionable_findings(self):
+        problems = self.problems(self.body("pr655-36f230b9-no-marker-failed-premerge.html"))
+        self.assertEqual(problems, ["failed pre-merge check(s): Docstring Coverage"])
+
+    def test_an_explicit_zero_marker_next_to_a_failed_premerge_check_is_not_clean(self):
+        body = self.body("pr655-36f230b9-no-marker-failed-premerge.html") + "\n**Actionable comments posted: 0**"
+        self.assertTrue(self.problems(body))
+
+    def test_marker_absent_zero_inline_and_no_failed_premerge_is_clean(self):
+        body = self.body("pr655-36f230b9-no-marker-failed-premerge.html")
+        cleaned = body.replace("Failed pre-merge checks:", "Passed pre-merge checks:")
+        self.assertEqual(self.problems(cleaned), [])
+
+    def test_explicit_zero_marker_and_no_failures_is_clean(self):
+        self.assertEqual(self.problems("<!-- coderabbit-ai-generated:v1 -->\n**Actionable comments posted: 0**"), [])
+
+    def test_nitpicks_alone_do_not_block(self):
+        body = "<!-- coderabbit-ai-generated:v1 -->\n Nitpick comments: 3\n"
+        self.assertEqual(self.problems(body), [])
+
+    def test_marker_absent_but_inline_findings_exist_is_not_clean(self):
+        body = "<!-- coderabbit-ai-generated:v1 -->\nreview"
+        self.assertTrue(any("inline finding" in p for p in self.problems(body, inline=2)))
+
+    def test_accepted_premerge_failures_are_an_explicit_reviewed_waiver_only(self):
+        self.assertEqual(gate.ACCEPTED_PREMERGE_FAILURES, frozenset())
+        body = self.body("pr655-36f230b9-no-marker-failed-premerge.html")
+        with mock.patch.object(gate, "ACCEPTED_PREMERGE_FAILURES", frozenset({"Docstring Coverage"})):
+            self.assertEqual(self.problems(body), [])
+        with mock.patch.object(gate, "ACCEPTED_PREMERGE_FAILURES", frozenset({"Something Else"})):
+            self.assertTrue(self.problems(body))
+
+    def test_unverifiable_reviews_fail_closed(self):
+        self.assertTrue(self.problems(""))
+        self.assertTrue(self.problems("looks good to me"))
+        self.assertTrue(self.problems("<!-- coderabbit-ai-generated:v1 -->", state="CHANGES_REQUESTED"))
+
+    def test_a_review_of_another_head_or_no_review_is_not_evidence(self):
+        self.assertTrue(any("exact head" in p for p in self.problems("<!-- coderabbit-ai-generated:v1 -->", review_sha="9" * 40)))
+        with mock.patch.object(gate, "paginated", return_value=[]):
+            self.assertTrue(any("exact head" in p for p in gate.coderabbit_review_problems(1, SHA)))
+
+    def test_a_lookalike_account_is_ignored(self):
+        review = {"id": 1, "user": {"login": "coderabbitai-fake"}, "state": "COMMENTED", "commit_id": SHA,
+                  "body": "<!-- coderabbit-ai-generated:v1 -->\n**Actionable comments posted: 0**"}
+        with mock.patch.object(gate, "paginated", return_value=[review]):
+            self.assertTrue(gate.coderabbit_review_problems(1, SHA))
+            self.assertFalse(gate.coderabbit_review_clean(1, SHA))
+
+    def test_a_green_standalone_check_is_never_evidence(self):
+        # The standalone "CodeRabbit" check-run is not consulted at all by the review predicate.
+        import inspect
+        source = inspect.getsource(gate.coderabbit_review_problems)
+        self.assertNotIn("check-runs", source)
+        self.assertNotIn("latest_checks", source)
 
 
 class ModeGuardTests(GateTestCase):

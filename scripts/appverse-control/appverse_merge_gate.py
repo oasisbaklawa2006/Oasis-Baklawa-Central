@@ -17,10 +17,12 @@ spoof attempt and is reported as one.
 """
 from __future__ import annotations
 
+import datetime
 import http.client
 import json
 import os
 import re
+import sys
 import time
 
 REPO = "oasisbaklawa2006/Oasis-Baklawa-Central"
@@ -33,6 +35,14 @@ GATE_APP_ID = 5645415  # dedicated "Oasis Appverse Merge Gate" GitHub App: the o
 ADVISORY_CHECK_NAME = "Appverse Merge Gate (advisory)"  # shared-identity output; must never be a required check
 GATE_ENVIRONMENT = "appverse-merge-gate"  # holds the App credentials; must be restricted to deployments from main
 PUBLISH_MODES = {"advisory", "authoritative"}
+# A required status check cannot expire on its own: if the publisher disappears, an earlier SUCCESS on the same SHA keeps
+# satisfying the ruleset. The only safe consumer is therefore a merge actor that re-validates at merge time and treats
+# any authoritative SUCCESS older than this as stale (see authoritative_success_problems / --evaluate).
+FRESHNESS_SECONDS = 1800
+CODERABBIT_LOGIN = "coderabbitai[bot]"
+# CodeRabbit "Failed pre-merge checks" that the owner has explicitly reviewed and accepted. Empty = fail closed. Changing
+# this set is a change to this (code-owner protected, sensitive) file and so needs independent human approval.
+ACCEPTED_PREMERGE_FAILURES: frozenset = frozenset()
 # Which environment variable carries each identity's credential (values are variable NAMES, never secrets).
 CREDENTIAL_ENV = {"actions": "GH_TOKEN", "app": "GH_APP_TOKEN"}
 TRUSTED_HUMANS = {"oasisbaklawa2006", "dineshmutrejabackup-cmd"}
@@ -390,6 +400,13 @@ def foreign_gate_checks(checks: dict) -> list[str]:
     return sorted(set(found))
 
 
+def unrecognised_gate_app_checks(checks: dict) -> list[str]:
+    """Checks published by the dedicated gate App under any name other than the single authoritative one. The ruleset can
+    only ever be satisfied by CHECK_NAME, so a differently named publication is a misconfiguration, not an approval."""
+    return sorted({name for (name, _), item in checks.items()
+                   if (item.get("app") or {}).get("id") == GATE_APP_ID and name != CHECK_NAME})
+
+
 def unexpected_check_state(checks: dict, required: dict[str, str]) -> list[str]:
     """Any other check on the head that is failing or still running also blocks: a lane the gate did not list
     (or a path-filter drift) must never be able to fail silently. Skipped/neutral extras and advisory jobs are fine."""
@@ -404,19 +421,58 @@ def unexpected_check_state(checks: dict, required: dict[str, str]) -> list[str]:
     return problems
 
 
-def coderabbit_review_clean(number: int, sha: str) -> bool:
-    """A passed CodeRabbit check alone does not settle substantive review notes."""
-    import re
+def parse_coderabbit_review(body: str) -> dict:
+    """Structured facts from a CodeRabbit review body. CodeRabbit prints 'Actionable comments posted: N' only when N > 0
+    (observed: an absent marker accompanies zero inline findings), lists 'Nitpick comments: N', and names failed
+    pre-merge checks under 'Failed pre-merge checks:'."""
+    raw = body or ""
+    text = re.sub(r"<[^>]*>", "", raw)
+    marker = re.search(r"Actionable comments posted:\s*(\d+)", text)
+    nitpicks = re.search(r"Nitpick comments?:\s*(\d+)", text)
+    failed: list[str] = []
+    section = re.search(r"Failed pre-merge checks?:\s*\n(.*?)(?:\n\s*(?:After applying|```|Passed pre-merge)|\Z)", text, re.S)
+    if section:
+        failed = [m.group(1).strip() for m in re.finditer(r"^\s*-\s*(.+?):?\s*$", section.group(1), re.M)]
+    return {
+        "genuine": "coderabbit-ai-generated" in raw,
+        "actionable": int(marker.group(1)) if marker else None,
+        "nitpicks": int(nitpicks.group(1)) if nitpicks else 0,
+        "failed_premerge": failed,
+    }
+
+
+def coderabbit_review_problems(number: int, sha: str) -> list[str]:
+    """Why the CodeRabbit review on this exact head is not clean; an empty list means clean. A green standalone
+    'CodeRabbit' check is never evidence: only the review of this head is."""
     reviews = paginated(f"/repos/{REPO}/pulls/{number}/reviews")
-    current = [r for r in reviews if (r.get("user") or {}).get("login") == "coderabbitai[bot]"
+    current = [r for r in reviews if (r.get("user") or {}).get("login") == CODERABBIT_LOGIN
                and r.get("commit_id") == sha]
     if not current:
-        return False
+        return ["no CodeRabbit review exists for this exact head"]
     newest = current[-1]
     if newest.get("state") == "CHANGES_REQUESTED":
-        return False
-    marker = re.search(r"Actionable comments posted:\s*(\d+)", newest.get("body") or "")
-    return marker is not None and int(marker.group(1)) == 0
+        return ["CodeRabbit requested changes on this head"]
+    facts = parse_coderabbit_review(newest.get("body") or "")
+    if not facts["genuine"]:
+        return ["the CodeRabbit review body is empty or not a recognisable CodeRabbit review; cleanliness is unverifiable"]
+    problems = []
+    if facts["actionable"] is None:
+        # No marker: corroborate with the inline comments that belong to this very review.
+        inline = [c for c in paginated(f"/repos/{REPO}/pulls/{number}/comments")
+                  if (c.get("user") or {}).get("login") == CODERABBIT_LOGIN
+                  and c.get("pull_request_review_id") == newest.get("id") and c.get("in_reply_to_id") is None]
+        if inline:
+            problems.append(f"{len(inline)} inline finding(s) belong to this review but it carries no actionable-count marker")
+    elif facts["actionable"] > 0:
+        problems.append(f"{facts['actionable']} actionable finding(s) reported on this head")
+    unaccepted = [name for name in facts["failed_premerge"] if name not in ACCEPTED_PREMERGE_FAILURES]
+    if unaccepted:
+        problems.append("failed pre-merge check(s): " + ", ".join(unaccepted))
+    return problems
+
+
+def coderabbit_review_clean(number: int, sha: str) -> bool:
+    return not coderabbit_review_problems(number, sha)
 
 
 def validate(pr: dict) -> list[str]:
@@ -448,6 +504,9 @@ def validate(pr: dict) -> list[str]:
     for source in foreign_gate_checks(checks):
         errors.append(f"SPOOF_ATTEMPT: a check named '{CHECK_NAME}' was published by '{source}', not by the dedicated "
                       f"gate App {GATE_APP_ID}; it carries no authority")
+    for name in unrecognised_gate_app_checks(checks):
+        errors.append(f"NAME_MISMATCH: the dedicated gate App {GATE_APP_ID} published '{name}', but the single authoritative "
+                      f"name is '{CHECK_NAME}'; the ruleset is never satisfied until the publisher uses that exact name")
     errors.extend(unexpected_check_state(checks, required))
     for name, slug in required.items():
         item = checks.get((name, slug))
@@ -469,8 +528,7 @@ def validate(pr: dict) -> list[str]:
                           "on the current head is required; bot/AI approval does not count")
         else:
             errors.append("No valid current-head approval")
-    if not coderabbit_review_clean(number, sha):
-        errors.append("CodeRabbit has not completed a clean zero-actionable review on this head")
+    errors.extend(f"CodeRabbit review not clean: {problem}" for problem in coderabbit_review_problems(number, sha))
 
     now = current_pr(number)
     if now["head"]["sha"] != sha or now["base"]["sha"] != pr["base"]["sha"]:
@@ -499,11 +557,75 @@ def publisher_problems() -> list[str]:
 
 
 def verdict_and_summary(number: int, head: str, errors: list[str]) -> tuple[str, str]:
+    """Verdict plus the stable (timestamp-free) summary body; the evaluation stamp is appended separately."""
     verdict = "failure" if errors else "success"
     summary = (f"PR #{number}; exact head {head}; {verdict.upper()}.\n"
                + ("\n".join("- " + error for error in errors[:35]) if errors
-                  else "All required exact-head checks and reviews PASS; GitHub rules remain authoritative."))[:5000]
+                  else "All required exact-head checks and reviews PASS; GitHub rules remain authoritative."))[:4500]
     return verdict, summary
+
+
+def utc_now() -> datetime.datetime:
+    return datetime.datetime.now(datetime.timezone.utc)
+
+
+def parse_time(value: str | None) -> datetime.datetime | None:
+    try:
+        return datetime.datetime.fromisoformat((value or "").replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def stamped(summary: str, now: datetime.datetime) -> str:
+    return (f"{summary}\n\nEvaluated at {now.strftime('%Y-%m-%dT%H:%M:%SZ')}. Treat this result as stale after "
+            f"{FRESHNESS_SECONDS}s. Eligibility evidence only: native auto-merge stays disabled and a merge actor must "
+            "re-validate at merge time (see policy).")
+
+
+def authoritative_success_problems(check: dict, head: str, now: datetime.datetime | None = None) -> list[str]:
+    """For the MERGE ACTOR: why this check-run may not be trusted to authorise merging `head` right now. A required
+    check cannot expire by itself, so freshness has to be judged by whoever merges. Empty list = acceptable evidence,
+    which is still not sufficient on its own: the actor must also call evaluate() and pin the merge to `head`."""
+    problems = []
+    now = now or utc_now()
+    if check.get("name") != CHECK_NAME:
+        problems.append("not the authoritative check name")
+    if (check.get("app") or {}).get("id") != GATE_APP_ID:
+        problems.append(f"not published by the dedicated gate App {GATE_APP_ID}")
+    if check.get("status") != "completed" or check.get("conclusion") != "success":
+        problems.append(f"not a completed success: {check.get('status')}/{check.get('conclusion')}")
+    if check.get("head_sha") != head or not str(check.get("external_id") or "").endswith(f"-{head}"):
+        problems.append("not bound to this exact head SHA")
+    completed = parse_time(check.get("completed_at"))
+    if completed is None:
+        problems.append("no valid completion time")
+    elif (now - completed).total_seconds() > FRESHNESS_SECONDS:
+        problems.append(f"stale: older than {FRESHNESS_SECONDS}s")
+    elif (completed - now).total_seconds() > 60:
+        problems.append("completion time is in the future")
+    return problems
+
+
+def evaluate(number: int, expect_sha: str | None = None) -> dict:
+    """Read-only live evaluation for the merge actor. Publishes nothing (it cannot: it never issues a POST)."""
+    pr = current_pr(number)
+    head = pr["head"]["sha"]
+    if expect_sha and head != expect_sha:
+        errors = [f"HEAD_MISMATCH: expected {expect_sha}, live head is {head}"]
+    else:
+        try:
+            errors = validate(pr)
+        except Exception as exc:
+            errors = [f"BLOCKED_GATE_VERIFICATION: {type(exc).__name__}: {exc}"]
+    return {"pr": number, "head": head, "eligible": not errors, "errors": errors,
+            "evaluated_at": utc_now().strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "native_automerge": "DISABLED: a required check cannot guarantee freshness if its publisher is unavailable"}
+
+
+def authoritative_checks_on(head: str) -> list[dict]:
+    return sorted((item for (name, _), item in latest_checks(head).items()
+                   if name == CHECK_NAME and (item.get("app") or {}).get("id") == GATE_APP_ID),
+                  key=lambda item: int(item.get("id") or 0))
 
 
 def update_gate_check(number: int, mode: str = "advisory") -> None:
@@ -515,40 +637,86 @@ def update_gate_check(number: int, mode: str = "advisory") -> None:
         errors = validate(pr)
     except Exception as exc:
         errors = [f"BLOCKED_GATE_VERIFICATION: {type(exc).__name__}: {exc}"]
-    verdict, summary = verdict_and_summary(number, head, errors)
+    verdict, body = verdict_and_summary(number, head, errors)
     if mode == "authoritative":
         name, identity = CHECK_NAME, "app"
         problems = publisher_problems()
         if problems:
-            # Fail closed by publishing nothing: an absent required check blocks merging.
-            print(f"#{number}: authoritative publication withheld: " + "; ".join(problems))
-            return
+            # A required check cannot be revoked by anyone but its publisher, so an earlier SUCCESS on this head would stay
+            # in force. Nothing can be published here; fail LOUDLY (red job) and say exactly which consequence applies.
+            try:
+                prior_success = any(c.get("conclusion") == "success" for c in authoritative_checks_on(head))
+            except (GateError, KeyError, ValueError):
+                prior_success = None
+            consequence = {True: "a PRIOR authoritative SUCCESS exists on this head and is now STALE: it must not authorise a merge",
+                           False: "no authoritative success exists on this head",
+                           None: "whether an authoritative SUCCESS exists on this head could not be determined: assume it is STALE"}[prior_success]
+            raise GateError(f"AUTHORITATIVE_PUBLICATION_WITHHELD for #{number}: " + "; ".join(problems) + f". {consequence}.")
     else:
         name, identity = ADVISORY_CHECK_NAME, "actions"
-    previous = next((item for (n, _), item in latest_checks(head).items()
-                     if n == name and (mode == "advisory" or (item.get("app") or {}).get("id") == GATE_APP_ID)), None)
-    if (previous and previous.get("status") == "completed"
-        and previous.get("conclusion") == verdict
-        and ((previous.get("output") or {}).get("summary") or "") == summary):
-        print(f"#{number}: unchanged {verdict} ({mode})")
-        return
+    now = utc_now()
+    previous = None
+    try:
+        previous = next((item for (n, _), item in latest_checks(head).items()
+                         if n == name and (mode == "advisory" or (item.get("app") or {}).get("id") == GATE_APP_ID)), None)
+    except (GateError, KeyError, ValueError):
+        previous = None  # an optimisation lookup must NEVER suppress publication of the current verdict
+    if previous and previous.get("status") == "completed" and previous.get("conclusion") == verdict:
+        completed = parse_time(previous.get("completed_at"))
+        age = (now - completed).total_seconds() if completed else None
+        if (((previous.get("output") or {}).get("summary") or "").startswith(body)
+                and age is not None and 0 <= age < FRESHNESS_SECONDS / 2):
+            print(f"#{number}: unchanged {verdict} ({mode})")
+            return
     posted = api(f"/repos/{REPO}/check-runs", method="POST", identity=identity, data={
         "name": name, "head_sha": head, "status": "completed",
         "conclusion": verdict, "external_id": f"appverse-pr-{number}-{head}",
         "details_url": f"https://github.com/{REPO}/pull/{number}",
         "output": {"title": ("Appverse merge eligible" if not errors else "Appverse merge blocked")
                    + (" (advisory, not authoritative)" if mode == "advisory" else ""),
-                   "summary": summary},
+                   "summary": stamped(body, now)},
     })
-    if mode == "authoritative" and (posted.get("app") or {}).get("id") != GATE_APP_ID:
-        raise GateError(f"authoritative check was published by app {(posted.get('app') or {}).get('id')}, "
-                        f"expected {GATE_APP_ID}; the ruleset will ignore it")
+    if mode == "authoritative":
+        if (posted.get("app") or {}).get("id") != GATE_APP_ID:
+            raise GateError(f"authoritative check was published by app {(posted.get('app') or {}).get('id')}, "
+                            f"expected {GATE_APP_ID}; the ruleset will ignore it")
+        # Read back: the verdict we just published must now be the newest authoritative check on this head. If GitHub does
+        # not show that, the previous result may still be what the ruleset sees, which must not go unnoticed.
+        newest = authoritative_checks_on(head)
+        if not newest or int(newest[-1].get("id") or 0) != int(posted.get("id") or -1):
+            raise GateError(f"SUPERSESSION_NOT_CONFIRMED for #{number}: the newly published {verdict} is not the newest "
+                            "authoritative check on this head; an earlier result may still be in force")
     print(f"#{number}: {verdict} ({mode}); " + "; ".join(errors[:5]))
 
 
-def main() -> None:
+def run_evaluate(argv: list[str]) -> int:
+    """`--evaluate N [--expect-sha SHA]`: print JSON, exit 0 eligible, 3 ineligible, 2 usage error. Read-only."""
+    try:
+        position = argv.index("--evaluate")
+        number = argv[position + 1]
+    except (ValueError, IndexError):
+        print("usage: --evaluate PR_NUMBER [--expect-sha SHA]", file=sys.stderr)
+        return 2
+    expect = None
+    if "--expect-sha" in argv:
+        expect = argv[argv.index("--expect-sha") + 1] if argv.index("--expect-sha") + 1 < len(argv) else ""
+        if not re.fullmatch(r"[0-9a-f]{40}", expect):
+            print("invalid --expect-sha", file=sys.stderr)
+            return 2
+    if not (number.isascii() and number.isdecimal()):
+        print("invalid PR number", file=sys.stderr)
+        return 2
+    result = evaluate(int(number), expect)
+    print(json.dumps(result, indent=2))
+    return 0 if result["eligible"] else 3
+
+
+def main(argv: list[str] | None = None) -> None:
+    argv = sys.argv[1:] if argv is None else argv
     if os.environ.get("GITHUB_REPOSITORY") != REPO:
         raise SystemExit("Incorrect repository; fail closed")
+    if "--evaluate" in argv:
+        raise SystemExit(run_evaluate(argv))
     mode = os.environ.get("APPVERSE_PUBLISH_MODE", "advisory").strip()
     if mode not in PUBLISH_MODES:
         raise SystemExit("Invalid publish mode; fail closed")
