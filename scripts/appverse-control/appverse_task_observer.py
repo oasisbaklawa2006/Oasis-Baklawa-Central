@@ -409,16 +409,19 @@ def observation_entry(report: dict, record: dict, evidence: dict, key: bytes, ke
     }, key, key_id)
 
 
-def prune_history(entries: list, now: datetime.datetime, policy: dict | None = None, keys: dict | None = None) -> list:
+def prune_history(entries: list, now: datetime.datetime, policy: dict | None = None, keys: dict | None = None,
+                  skew_seconds: int = DEFAULTS["skew_seconds"]) -> list:
     """Deterministic bounded retention: drop invalid, unauthenticated or expired entries, then cap per task, tasks and size.
 
     Authentication happens BEFORE the caps so forged or future-dated entries can never displace genuine history.
-    Without keys nothing can be authenticated, so nothing is retained."""
+    Without keys nothing can be authenticated, so nothing is retained.
+
+    Pass the same ``skew_seconds`` as the classification config, or an entry ``classify`` accepts may be pruned away."""
     policy = policy or RETENTION
     cutoff = now - datetime.timedelta(days=policy["max_age_days"])
     keys = keys if isinstance(keys, dict) else {}
     kept = [e for e in entries if validate_entry(e) and verify(e, keys, "history") is None
-            and cutoff <= parse_ts(e["observed_at"]) <= now + datetime.timedelta(seconds=DEFAULTS["skew_seconds"])]
+            and cutoff <= parse_ts(e["observed_at"]) <= now + datetime.timedelta(seconds=skew_seconds)]
     by_task: dict = {}
     for entry in sorted(kept, key=lambda e: (e["observed_at"], e["record_seq"])):
         by_task.setdefault(entry["task_id"], []).append(entry)

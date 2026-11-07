@@ -500,6 +500,11 @@ class HistoryRetentionRedactionTests(unittest.TestCase):
         self.assertEqual(ob.prune_history(genuine, NOW), [])  # no keys, nothing can be authenticated
         self.assertEqual(ob.prune_history(genuine, NOW, keys={}), [])
 
+    def test_pruning_honours_the_configured_skew(self):
+        near_future = [make_entry(make_record(seq=5), make_evidence(observed_at=ts(200)))]
+        self.assertEqual(ob.prune_history(near_future, NOW, keys=KEYS), [])  # beyond the default 120 s skew
+        self.assertEqual(ob.prune_history(near_future, NOW, keys=KEYS, skew_seconds=300), near_future)
+
     def test_redaction_removes_credentials_pii_and_bounds_length(self):
         github = "gh" + "p_" + "A1" * 18
         pat = "github_pat_" + "B2" * 15
