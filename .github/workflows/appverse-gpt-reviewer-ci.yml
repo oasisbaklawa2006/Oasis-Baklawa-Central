@@ -1,0 +1,33 @@
+name: Appverse GPT Reviewer Tests
+
+# Offline unit tests for Stage 2 (and the Stage 1 observer it depends on). No secrets, no network access to anything but the
+# checkout, no write permission, no privileged trigger, no API key. Stage 2 is review-only and default OFF.
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'scripts/appverse-control/appverse_gpt_reviewer.py'
+      - 'scripts/appverse-control/appverse_task_observer.py'
+      - 'tests/appverse-control/test_appverse_gpt_reviewer.py'
+      - 'tests/appverse-control/test_appverse_task_observer.py'
+      - 'docs/appverse-control/GPT_REVIEWER_STAGE2.md'
+      - 'docs/appverse-control/TASK_OBSERVER_STAGE1.md'
+      - '.github/workflows/appverse-gpt-reviewer-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    name: Appverse GPT reviewer tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Stage 1 observer tests (trust root)
+        run: python3 -m unittest tests/appverse-control/test_appverse_task_observer.py -v
+      - name: Stage 2 reviewer tests (offline, mock-only)
+        run: python3 -m unittest tests/appverse-control/test_appverse_gpt_reviewer.py -v
