@@ -104,7 +104,7 @@ class FakeFence:
         """Script the attestation status, owner and epoch."""
         self.value = {"status": status, "owner": owner, "epoch": epoch}
 
-    def attest(self, record):
+    def attest(self, _record):
         """Return the scripted attestation."""
         return dict(self.value)
 
@@ -123,8 +123,10 @@ def reply(verdict="ALLOW_RESUME", reason="TASK_STALLED_NO_PROGRESS", *, model=TE
     return build
 
 
-def make_controller(script=(), *, policy=TEST_POLICY, fence=None, keys=KEYS, transport=None, meter=None):
-    """A controller wired to a scripted fake transport and a deterministic nonce source."""
+def make_controller(script=(), *, policy=None, fence=None, keys=None, transport=None, meter=None):
+    """A controller wired to a scripted fake transport and a deterministic nonce source (defaults: the test policy and keys)."""
+    policy = TEST_POLICY if policy is None else policy
+    keys = KEYS if keys is None else keys
     counter = itertools.count(1)
     transport = transport if transport is not None else rv.FakeTransport(script)
     controller = rv.DecisionController(keys, transport, policy, meter=meter, fence_authority=fence or FakeFence(),

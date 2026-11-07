@@ -341,8 +341,8 @@ class TransportDisabled(TransportError):
 class DisabledLiveTransport:
     """The only 'live' transport in Stage 2. It refuses every call and contains no network code."""
 
-    def send(self, request: dict, timeout_seconds: int) -> dict:
-        """Always refuses."""
+    def send(self, _request: dict, _timeout_seconds: int) -> dict:
+        """Always refuses (arguments are accepted only to match the transport interface)."""
         raise TransportDisabled()
 
 
@@ -354,7 +354,7 @@ class FakeTransport:
         self._script = list(script)
         self.requests = []
 
-    def send(self, request: dict, timeout_seconds: int) -> dict:
+    def send(self, request: dict, _timeout_seconds: int) -> dict:
         """Pop the next scripted outcome; record the request. Raises scripted exceptions."""
         self.requests.append(request)
         if not self._script:
@@ -499,8 +499,8 @@ class BudgetMeter:
 class NoFenceAuthority:
     """The only fence authority shipped. There is no independent live lease epoch source yet, so nothing is ever VERIFIED."""
 
-    def attest(self, record: dict) -> dict:
-        """Always UNVERIFIED."""
+    def attest(self, _record: dict) -> dict:
+        """Always UNVERIFIED (the argument is accepted only to match the fence-authority interface)."""
         return {"status": "UNVERIFIED"}
 
 
@@ -513,7 +513,7 @@ DECISION_FIELDS = {"schema", "task_id", "repo", "branch", "pr", "head_sha", "lea
 _BINDING_FIELDS = ("task_id", "repo", "branch", "head_sha", "lease_owner", "claimed_epoch", "lease_expires_at", "proposed_action")
 
 
-def executable_authority(decision) -> frozenset:
+def executable_authority(_decision) -> frozenset:
     """The set of actions a decision authorises. Empty for every decision and every verdict, by construction."""
     return frozenset()
 
@@ -564,10 +564,10 @@ def verify_decision(decision, keys: dict, now: datetime.datetime, expected=None,
 class DecisionController:
     """Trusted, model-independent controller. Validates, gates, budgets, calls the reviewer, binds and signs."""
 
-    def __init__(self, keys: dict, transport, policy: dict = POLICY, meter: BudgetMeter | None = None, fence_authority=None,
+    def __init__(self, keys: dict, transport, policy: dict | None = None, meter: BudgetMeter | None = None, fence_authority=None,
                  nonce_source=None, stage1_config: dict | None = None):
-        """Validate the policy and keys; wire the transport, meter, fence authority and nonce source."""
-        self._policy = validate_policy(policy)
+        """Validate the policy (default: the shipped, disabled POLICY) and keys; wire the transport, meter, fence authority and nonce source."""
+        self._policy = validate_policy(POLICY if policy is None else policy)
         controller_ids = sorted(k for k in keys if k.startswith(CONTROLLER_PREFIX))
         if not controller_ids:
             raise ReviewerError("a ctl- controller key is required")
@@ -725,7 +725,7 @@ class DecisionController:
                 if error.kind in ("timeout", "unavailable"):
                     continue
                 return self._decision(now, "HOLD", mapped, ri, fingerprint, ledger_ref=entry["ref"])
-            except Exception:  # any other transport fault is a fail-closed hold, never a crash
+            except Exception:  # pylint: disable=broad-exception-caught  # untrusted transport: ANY fault must become a signed hold
                 self._meter.settle(entry, None)
                 return self._decision(now, "HOLD", "REVIEWER_UNAVAILABLE", ri, fingerprint, ledger_ref=entry["ref"])
             parsed, usage, bad = parse_reviewer_response(raw, self._policy)
