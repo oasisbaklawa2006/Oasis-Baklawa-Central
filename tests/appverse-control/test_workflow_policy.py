@@ -283,27 +283,45 @@ UNSUPPORTED_CODEOWNERS_SYNTAX = ("[", "]", "!", "?", "\\")
 
 
 def codeowners_regex(pattern: str) -> re.Pattern:
-    """GitHub CODEOWNERS subset: leading '/' anchors, trailing '/' means directory, '*' stays in a segment, '**' crosses
-    directories. Character classes, negation, '?' and escapes are NOT supported by GitHub and are rejected here."""
+    """Model of GitHub's documented CODEOWNERS matching (not a replacement for it; verify with a real PR):
+
+    * a leading '/' (or a '/' inside the pattern) anchors it at the repository root; otherwise it matches at any depth;
+    * a trailing '/' matches a DIRECTORY with that name and everything beneath it;
+    * a final segment without wildcards names a file or directory; a directory covers everything beneath it
+      (docs example: '/apps/github', '**/logs');
+    * a final segment WITH a wildcard matches only entries at that level and does not descend
+      (docs example: '/docs/*' matches docs/a.md but not docs/a/b.md);
+    * '*' stays inside one path segment, '**' crosses directories; a trailing '/**' covers everything beneath.
+    Character classes, negation, '?' and escapes are not supported by GitHub and are rejected here."""
     if any(ch in pattern for ch in UNSUPPORTED_CODEOWNERS_SYNTAX):
         raise ValueError(f"unsupported CODEOWNERS syntax in {pattern!r}")
-    anchored = pattern.startswith("/")
-    body = pattern.strip("/") if pattern.endswith("/") else pattern.lstrip("/")
+    core = pattern.strip("/")
+    anchored = pattern.startswith("/") or "/" in core
+    directory_only = pattern.endswith("/")
+    last = core.rsplit("/", 1)[-1]
     out, i = [], 0
-    while i < len(body):
-        if body.startswith("**/", i):
+    while i < len(core):
+        if core.startswith("**/", i):
             out.append("(?:.*/)?")
             i += 3
-        elif body.startswith("**", i):
+        elif core.startswith("**", i):
             out.append(".*")
             i += 2
-        elif body[i] == "*":
+        elif core[i] == "*":
             out.append("[^/]*")
             i += 1
         else:
-            out.append(re.escape(body[i]))
+            out.append(re.escape(core[i]))
             i += 1
-    return re.compile(("^" if anchored else "^(?:.*/)?") + "".join(out) + r"(?:/.*)?$")
+    if directory_only:
+        tail = r"/.+$"
+    elif core.endswith("/**") or core == "**":
+        tail = r"$"
+    elif "*" not in last:
+        tail = r"(?:/.+)?$"
+    else:
+        tail = r"$"
+    return re.compile(("^" if anchored else "^(?:.*/)?") + "".join(out) + tail)
 
 
 def covered(pattern: str, path: str) -> bool:
@@ -349,14 +367,76 @@ VOCABULARY_EXEMPT = ("src/lib/wa-governance/archived-whatsapp-business-intakes-r
 
 
 def expected_vocabulary_rules() -> set:
+    """File forms (match entries named like the word) and directory forms (trailing '/', cover everything beneath)."""
     rules = set()
     for word in CODEOWNERS_PLAIN_VOCABULARY:
-        rules |= {f"/src/**/*{word.capitalize()}*", f"/src/**/*{word}*"}
+        for form in (f"*{word.capitalize()}*", f"*{word}*"):
+            rules |= {f"/src/**/{form}", f"/src/**/{form}/"}
     for word in CODEOWNERS_BOUNDARY_VOCABULARY:
-        rules |= {f"/src/**/*{word.capitalize()}*", f"/src/**/{word}*", f"/src/**/*-{word}*", f"/src/**/*_{word}*"}
+        for form in (f"*{word.capitalize()}*", f"{word}*", f"*-{word}*", f"*_{word}*"):
+            rules |= {f"/src/**/{form}", f"/src/**/{form}/"}
     for word in CODEOWNERS_SCRIPT_VOCABULARY:
-        rules.add(f"/scripts/**/*{word}*")
+        rules |= {f"/scripts/**/*{word}*", f"/scripts/**/*{word}*/"}
     return rules
+
+
+class CodeownersMatcherSemanticsTests(unittest.TestCase):
+    """The model must not be permissive: a wildcard filename pattern must not own a directory's contents."""
+
+    def assert_match(self, pattern, path, expected):
+        self.assertEqual(covered(pattern, path), expected, f"{pattern!r} vs {path!r}")
+
+    def test_wildcard_file_pattern_does_not_own_a_matching_directorys_contents(self):
+        self.assert_match("/src/**/*Finance*", "src/FinanceFolder/plain.ts", False)
+        self.assert_match("/src/**/*Finance*", "src/a/b/FinanceFolder/c/plain.ts", False)
+
+    def test_wildcard_file_pattern_matches_files_at_every_depth(self):
+        for path in ("src/FinanceX.ts", "src/a/FinanceX.ts", "src/a/b/c/x.Finance.ts"):
+            self.assert_match("/src/**/*Finance*", path, True)
+        self.assert_match("/src/**/*Finance*", "src/a/Other.ts", False)
+        self.assert_match("/src/**/*Finance*", "lib/FinanceX.ts", False)
+
+    def test_trailing_slash_wildcard_owns_matching_directories_and_everything_beneath(self):
+        for path in ("src/FinanceFolder/plain.ts", "src/a/b/FinanceFolder/c/d.ts", "src/FinanceFolder/x/y/z.ts"):
+            self.assert_match("/src/**/*Finance*/", path, True)
+        self.assert_match("/src/**/*Finance*/", "src/FinanceX.ts", False)  # a file is not a directory
+        self.assert_match("/src/**/*Finance*/", "src/Other/plain.ts", False)
+
+    def test_double_star_logs_owns_descendants_of_any_directory_named_logs(self):
+        for path in ("logs/a.txt", "build/logs/logs.txt", "scripts/logs/deep/x.txt", "logs"):
+            self.assert_match("**/logs", path, True)
+        self.assert_match("**/logs", "build/mylogs/a.txt", False)
+        self.assert_match("**/logs", "build/logsX/a.txt", False)
+
+    def test_single_star_directory_pattern_does_not_descend(self):
+        self.assert_match("/docs/*", "docs/a.md", True)
+        self.assert_match("/docs/*", "docs/a/b.md", False)
+
+    def test_trailing_slash_directory_matches_at_any_depth_unless_anchored(self):
+        self.assert_match("docs/", "docs/a.md", True)
+        self.assert_match("docs/", "src/docs/a/b.md", True)
+        self.assert_match("docs/", "mydocs/a.md", False)
+        self.assert_match("/docs/", "src/docs/a.md", False)
+
+    def test_literal_directory_without_slash_owns_its_contents(self):
+        self.assert_match("/apps/github", "apps/github/x.ts", True)
+        self.assert_match("/apps/github", "apps/github", True)
+        self.assert_match("/apps/github", "apps/githubX/x.ts", False)
+
+    def test_wildcard_final_segment_after_literal_prefix_does_not_descend(self):
+        self.assert_match("/src/lib/finance*", "src/lib/financeX.ts", True)
+        self.assert_match("/src/lib/finance*", "src/lib/finance-authority/x.ts", False)
+        self.assert_match("/src/lib/finance*/", "src/lib/finance-authority/x.ts", True)
+
+    def test_trailing_double_star_owns_everything_beneath_but_not_the_directory_itself(self):
+        self.assert_match("/a/**", "a/b/c.ts", True)
+        self.assert_match("/a/**", "a", False)
+
+    def test_leading_double_star_and_anchoring(self):
+        self.assert_match("**/x.ts", "x.ts", True)
+        self.assert_match("**/x.ts", "a/b/x.ts", True)
+        self.assert_match("/x.ts", "a/x.ts", False)
+        self.assert_match("x.ts", "a/b/x.ts", True)
 
 
 class CodeownersTests(unittest.TestCase):
@@ -419,6 +499,10 @@ class CodeownersTests(unittest.TestCase):
             future = prefix + "nested/FutureFile.ts" if prefix.endswith("/") else prefix + "FutureFile.ts"
             self.assertEqual(gate.sensitive_paths({future}), [future], future)
             self.assertTrue(any(covered(rule, future) for rule in rules), f"no CODEOWNERS rule covers {future}")
+            if not prefix.endswith("/"):
+                nested = prefix + "-new/nested/FutureFile.ts"  # a new directory whose name starts with the prefix
+                self.assertEqual(gate.sensitive_paths({nested}), [nested], nested)
+                self.assertTrue(any(covered(rule, nested) for rule in rules), f"no CODEOWNERS rule covers {nested}")
         for name in sorted(gate.SENSITIVE_FILES):
             self.assertTrue(any(covered(rule, name) for rule in rules), f"no CODEOWNERS rule covers {name}")
 
@@ -439,7 +523,9 @@ class PolicyDocumentTests(unittest.TestCase):
 
     def test_states_evaluator_vs_actuator_and_ai_approval_rules(self):
         for phrase in ("Merge actuator", "never merges", "#657", "GPT Governance", "bot or AI approval",
-                       "Residual risk", "Phase 2"):
+                       "Residual risk", "Phase 2", "NAME_MISMATCH", "AUTHORITATIVE_PUBLICATION_WITHHELD",
+                       "native auto-merge stays DISABLED", "--evaluate", "FRESHNESS_SECONDS", "ACCEPTED_PREMERGE_FAILURES",
+                       "Residual architectural blocker", "Oasis Appverse Merge Gate"):
             self.assertIn(phrase, self.doc, phrase)
 
 
