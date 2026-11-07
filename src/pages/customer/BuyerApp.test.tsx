@@ -675,6 +675,28 @@ describe("Buyer App governed commercial handoff", () => {
     await waitFor(() => expect(buyerMock.clearDraft).toHaveBeenCalledTimes(1));
   });
 
+  it("re-requests a Core quotation after a rejected cart edit without restoring approval", async () => {
+    buyerMock.updateLine.mockRejectedValueOnce(new Error("temporary network error"));
+    render(<MemoryRouter initialEntries={["/buyer/cart"]}><BuyerApp /></MemoryRouter>);
+
+    await approveCheckoutQuote();
+    const initialQuoteCalls = buyerMock.checkoutQuote.mock.calls.length;
+    expect(screen.getByRole("button", { name: "Submit approved quotation" })).not.toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Increase Pista Baklawa quantity" }));
+    await waitFor(() => expect(buyerMock.updateLine).toHaveBeenCalledWith("line-1", 3));
+    await waitFor(() => expect(toastMock.error).toHaveBeenCalledWith("We couldn't update your cart. Please try again."));
+    await waitFor(() => expect(buyerMock.checkoutQuote.mock.calls.length).toBeGreaterThan(initialQuoteCalls));
+    await waitFor(() => expect(screen.getByText("Required advance", { exact: true })).toBeTruthy());
+
+    // A new quote is displayed, but the previously accepted fingerprint
+    // cannot silently re-enable submission after a failed/ambiguous edit.
+    expect(screen.getByRole("button", { name: "Submit order" })).toBeDisabled();
+    expect(buyerMock.submitQuotedOrder).not.toHaveBeenCalled();
+    await approveCheckoutQuote();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Submit approved quotation" })).not.toBeDisabled());
+  });
+
   it("invalidates buyer quotation approval before a pending cart edit completes", async () => {
     let releaseEdit: (() => void) | undefined;
     buyerMock.updateLine.mockImplementationOnce(() => new Promise<void>((resolve) => {
