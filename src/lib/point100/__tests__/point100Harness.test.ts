@@ -81,7 +81,9 @@ describe("point100 certification evidence attribution", () => {
         executed: false,
       });
       expect(outcome.status).toBe("implemented");
+      expect(outcome.detail).toContain("Contract signature resolved on the probed backend");
       expect(outcome.detail).toContain("capability probe did not execute this stage");
+      expect(outcome.detail).not.toContain(POINT100_CORE_PRODUCTION_VERIFIED_SHA);
       expect(outcome.detail).not.toContain("full journey execution is certified");
       const ledger = buildCapabilityMatrix([outcome], "disposable-local-core");
       const serialized = JSON.stringify(ledger);
