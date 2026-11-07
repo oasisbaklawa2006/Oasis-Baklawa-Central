@@ -960,6 +960,20 @@ class StaleAuthoritativeSuccessTests(GateTestCase):
         run_update(fake, "authoritative")
         self.assertEqual(len(fake.posts), 1, "identical but no longer fresh: must be re-stamped")
 
+    def test_a_same_named_advisory_check_from_another_app_never_suppresses_the_advisory_publication(self):
+        fake = FakeGitHub()
+        _, body = gate.verdict_and_summary(700, SHA, [])
+        fake.add_run(name=gate.ADVISORY_CHECK_NAME, app_id=1234, completed=NOW, summary=body)  # some other app
+        run_update(fake, "advisory", env_vars=env(actions=True))
+        self.assertEqual(len(fake.posts), 1, "only the Actions app's own earlier advisory result may be reused")
+
+    def test_the_actions_apps_own_fresh_identical_advisory_result_is_reused(self):
+        fake = FakeGitHub()
+        _, body = gate.verdict_and_summary(700, SHA, [])
+        fake.add_run(name=gate.ADVISORY_CHECK_NAME, app_id=gate.GITHUB_ACTIONS_APP_ID, completed=NOW, summary=body)
+        run_update(fake, "advisory", env_vars=env(actions=True))
+        self.assertEqual(fake.posts, [])
+
     def test_a_spoofed_identical_check_never_suppresses_the_genuine_publication(self):
         fake = FakeGitHub()
         _, body = gate.verdict_and_summary(700, SHA, [])
@@ -1020,6 +1034,33 @@ class MergeActorFreshnessTests(GateTestCase):
             result = gate.evaluate(700)
         self.assertFalse(result["eligible"])
         self.assertIn("BLOCKED_GATE_VERIFICATION", result["errors"][0])
+
+    def test_evaluate_fails_closed_when_the_first_pr_read_fails(self):
+        with mock.patch.object(gate, "current_pr", side_effect=gate.GateError("GitHub API GET /pulls/700: HTTP 502")):
+            result = gate.evaluate(700, SHA)
+        self.assertFalse(result["eligible"])
+        self.assertIsNone(result["head"])
+        self.assertIn("BLOCKED_GATE_VERIFICATION", result["errors"][0])
+        self.assertIn("DISABLED", result["native_automerge"])
+
+    def test_cli_prints_blocked_json_and_exits_3_when_the_first_pr_read_fails(self):
+        import contextlib
+        import io
+        buffer = io.StringIO()
+        with mock.patch.object(gate, "current_pr", side_effect=gate.GateError("HTTP 502")), contextlib.redirect_stdout(buffer):
+            code = gate.run_evaluate(["--evaluate", "700"])
+        self.assertEqual(code, 3)
+        printed = json.loads(buffer.getvalue())
+        self.assertFalse(printed["eligible"])
+
+    def test_cli_turns_any_unexpected_evaluate_error_into_blocked_json_and_exit_3(self):
+        import contextlib
+        import io
+        buffer = io.StringIO()
+        with mock.patch.object(gate, "evaluate", side_effect=RuntimeError("boom")), contextlib.redirect_stdout(buffer):
+            code = gate.run_evaluate(["--evaluate", "700"])
+        self.assertEqual(code, 3)
+        self.assertFalse(json.loads(buffer.getvalue())["eligible"])
 
     def test_cli_exit_codes(self):
         with mock.patch.object(gate, "evaluate", return_value={"eligible": True, "errors": []}):

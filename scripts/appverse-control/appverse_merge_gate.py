@@ -608,15 +608,16 @@ def authoritative_success_problems(check: dict, head: str, now: datetime.datetim
 
 def evaluate(number: int, expect_sha: str | None = None) -> dict:
     """Read-only live evaluation for the merge actor. Publishes nothing (it cannot: it never issues a POST)."""
-    pr = current_pr(number)
-    head = pr["head"]["sha"]
-    if expect_sha and head != expect_sha:
-        errors = [f"HEAD_MISMATCH: expected {expect_sha}, live head is {head}"]
-    else:
-        try:
+    head = None
+    try:
+        pr = current_pr(number)
+        head = pr["head"]["sha"]
+        if expect_sha and head != expect_sha:
+            errors = [f"HEAD_MISMATCH: expected {expect_sha}, live head is {head}"]
+        else:
             errors = validate(pr)
-        except Exception as exc:
-            errors = [f"BLOCKED_GATE_VERIFICATION: {type(exc).__name__}: {exc}"]
+    except Exception as exc:  # every failure, including the first PR read, is an ineligible verdict
+        errors = [f"BLOCKED_GATE_VERIFICATION: {type(exc).__name__}: {exc}"]
     return {"pr": number, "head": head, "eligible": not errors, "errors": errors,
             "evaluated_at": utc_now().strftime("%Y-%m-%dT%H:%M:%SZ"),
             "native_automerge": "DISABLED: a required check cannot guarantee freshness if its publisher is unavailable"}
@@ -657,8 +658,9 @@ def update_gate_check(number: int, mode: str = "advisory") -> None:
     now = utc_now()
     previous = None
     try:
+        publisher_id = GITHUB_ACTIONS_APP_ID if mode == "advisory" else GATE_APP_ID
         previous = next((item for (n, _), item in latest_checks(head).items()
-                         if n == name and (mode == "advisory" or (item.get("app") or {}).get("id") == GATE_APP_ID)), None)
+                         if n == name and (item.get("app") or {}).get("id") == publisher_id), None)
     except (GateError, KeyError, ValueError):
         previous = None  # an optimisation lookup must NEVER suppress publication of the current verdict
     if previous and previous.get("status") == "completed" and previous.get("conclusion") == verdict:
@@ -706,7 +708,11 @@ def run_evaluate(argv: list[str]) -> int:
     if not (number.isascii() and number.isdecimal()):
         print("invalid PR number", file=sys.stderr)
         return 2
-    result = evaluate(int(number), expect)
+    try:
+        result = evaluate(int(number), expect)
+    except Exception as exc:  # the contract is JSON plus exit 3, whatever goes wrong
+        result = {"pr": int(number), "head": None, "eligible": False,
+                  "errors": [f"BLOCKED_GATE_VERIFICATION: {type(exc).__name__}: {exc}"]}
     print(json.dumps(result, indent=2))
     return 0 if result["eligible"] else 3
 
