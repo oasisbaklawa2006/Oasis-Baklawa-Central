@@ -1,0 +1,69 @@
+# E0 CP16 — Contract dispositions and measurement proposal
+
+Status: **DRAFT, docs-only, no behaviour change.** Evidence base: Core `645899439fe0a84806238b9114649eb2c3785a75` (read-only clone), production project `tcxvcatsqqertcnycuop` (read-only `SELECT`), Central `main` `4f80f144`. Owner direction recorded in Mission Control #437: **Central adapts to Core; Core is not bent to obsolete Central names.** Nothing here authorises a Core migration, a policy change, a merge or a deployment.
+
+## 1. Finance control contract (Point 80 typed controls)
+
+Central's `POINT80_REQUIRED_CORE_RPCS` (`src/lib/order-authority/financeHoldReleaseAuthorityClient.ts`) names seven RPCs. Core and production define a **different, event-sourced** contract (`finance_control_events` + `finance_control_idempotency`, migrations `20260907140000`, `20260908020000`).
+
+| Central expects | Core / production has | Verdict |
+|---|---|---|
+| `get_finance_control_facts_v1` (order/PI scoped) | `get_finance_control_projection_v1(p_company_id, p_order_id DEFAULT NULL)` → jsonb (AR ageing, exposure, disputes, pending approvals, adjustments) | **Not equivalent.** Company-scoped projection; no PI/commercial-version binding, no stale-version facts. Adaptable for display only. |
+| `place_finance_hold_v1(order, PI, commercial_version, hold_type, …, expected_source_version)` | `apply_finance_hold_v1(company, order, final_invoice, scope∈{COMPANY,ORDER,INVOICE,DISPATCH}, amount, …)` → `(control_event_id, decision, requires_second_approval, already_applied)` | **Not equivalent.** Core binds to company/order/final invoice and an **amount** (≥ 100 000 ⇒ `PENDING` + maker-checker). Central binds to PI + commercial version before a final invoice exists and has no amount. |
+| `release_finance_hold_v1(order, PI, version, hold_event, …, source_channel, expected_source_version)` | `release_finance_hold_v1(hold_event, reason, evidence, correlation, idempotency, actor)` → `(control_event_id, decision, already_released)` | **Name-compatible, argument-incompatible.** Central sends six arguments Core's signature lacks, so PostgREST returns `PGRST202`, which Central misreports as "Core prerequisite missing". Semantics (hold-bound release, Finance actor, idempotency, `prior_event_id` provenance) match; Core has **no** second approval on release. |
+| `request_finance_reversal_v1` + `complete_finance_reversal_v1` (two steps) | `reverse_finance_control_v1(event, reason, evidence, correlation, idempotency, actor)` — **one step**, any control event, immediate `REVERSAL` event | **Not equivalent.** Core has no request/complete separation. Mapping both Central calls onto one immediate reversal would **remove** a control Central expects. Not done. |
+| `request_finance_second_approval_v1` (for a release) | none. `decide_finance_second_approval_v1(pending_hold_event, p_approve boolean, …)` decides **pending holds**, not releases | **Not equivalent.** Different subject (hold vs release) and argument shape (`p_approve` vs `p_decision`). |
+
+Common Core properties (all five functions): `assert_finance_clearance_actor_v1` first (internal staff, `finance_review` role, **AAL2** via `has_step_up_auth()`); idempotency keyed with an actor+fingerprint conflict check; events immutable (`prevent_finance_control_event_mutation`); maker≠checker enforced on second approval (`FINANCE_SECOND_APPROVAL_MAKER_CHECKER`).
+
+Consumers: only `src/pages/admin/FinanceGovernanceBoard.tsx` (through `financeControlBoundary.ts`, which resolves to `blocked` in production because the probe lists all seven). No screen calls the five mutations, so there is **no live runtime defect**; the board is fail-closed.
+
+**Disposition.** Equivalence is established only for `release_finance_hold_v1` (arguments differ) and, conceptually, `decide_finance_second_approval_v1` for *holds*. The full Central surface cannot be mapped without weakening a control (two-step reversal, release second approval) or inventing PI/version binding Core does not store. Therefore **no Central code change is made** and no wrapper is proposed. Approval-ready options for Mission Control / owner:
+
+1. **Adapt Central to Core's model (owner-preferred).** Redefine the Point 80 surface as: `get_finance_control_projection_v1`, `apply_finance_hold_v1` (company/order/final invoice + amount), `release_finance_hold_v1`, `decide_finance_second_approval_v1` (pending holds only), `reverse_finance_control_v1`. Drop request/complete reversal and release-second-approval from the Point 80 definition, or accept that reversal is a single AAL2 Finance action. This is a **product/control decision** (it removes two-step reversal) and needs explicit owner approval before any Central code is written.
+2. **Core-owned proposal (only if the two-step controls are required):** add `request_finance_reversal_v1` / `complete_finance_reversal_v1` over `finance_control_events` (`control_kind='REVERSAL_REQUEST'`), completion by a different AAL2 Finance actor than the requester, same idempotency/fingerprint pattern, new immutable events, no change to existing functions. Positive, negative (same actor, non-Finance, no AAL2, already reversed, replay with changed fingerprint) and replay tests in Core; forward-only migration; rollback = drop the new functions (no existing contract touched). Not drafted as SQL here: Central must not create Core migrations.
+
+Negative authorization tests for the Central side (to add with option 1): Gate/Dispatch/Buyer sessions rejected with `FINANCE_CLEARANCE_ACTOR_REQUIRED`/`finance authority required`; Finance without AAL2 rejected `FINANCE_CLEARANCE_AAL2_REQUIRED`; second approval by the placing actor rejected `FINANCE_SECOND_APPROVAL_MAKER_CHECKER`; replay with same key + same fingerprint returns `already_*`; same key + different fingerprint rejected `*_IDEMPOTENCY_CONFLICT`.
+
+## 2. Non-3PCS production completion
+
+Current: `release_order_to_packed_ready_v1` (role `mark_packed_ready`) requires every `order_items` row to have `production_status ∈ {completed, partial_ready}` and `actual_packed_qty ≥ quantity`. The only governed writer is `complete_3pgs_order_item` (department `3PCS` only). For every other product the columns are written by direct table updates from Central admin screens (`AdminOrders.tsx`, `AdminOperations.tsx`, …); only the PI trigger guards `quantity/pack_size/carton_type`, **not** these two columns.
+Reusable existing contracts: the governed production pipeline (`production_jobs`, `advance_production_job_stage`, `record_production_output`, `declare_production_ready`, assembly handover, B2B inventory receipts) already records authoritative production truth keyed by reservation (`order_id`, `product_id`) — but nothing rolls it up into `order_items`.
+Required: `packed_ready` must be reachable only from governed production/packing evidence.
+- Owning repository: **Core**. Authority boundary: Operations/Packing roles (`mark_packed_ready` set) — not Finance, not Gate.
+- Minimum correction: Core RPC that completes an order item **from** completed production jobs / accepted receipts for the same order + product (quantity ≥ item quantity), writing the two columns under `SECURITY DEFINER`; later, a column-guard trigger rejecting direct updates (after Central screens migrate to the RPC — otherwise ten live screens break).
+- Tests: positive (jobs complete ⇒ item completes), negative (insufficient output, wrong department, non-Operations role, Buyer), replay (idempotent second call), direct-write rejection once the guard lands.
+- Deployment/rollback: forward-only migration; guard trigger shipped separately and last; rollback = drop trigger, keep RPC.
+Launch-critical: **yes** (a staff direct write can currently assert completion with no production evidence). Status: returned to Mission Control for Core reassignment; not implemented here.
+
+## 3. B2B Gate scan evidence
+
+Current: `release_b2b_dispatch_carton_at_gate_v1(carton, scan_evidence_id)` validates the *content* of an `operational_scan_records` row (carton id, order, barcode, scan type, status `scanned|verified`) but not its **provenance**. In production the table is append-only (no UPDATE policy + `trg_operational_scan_records_no_update/no_delete`) and RLS allows INSERT to **any internal staff** (`Staff insert operational scan records`); anon holds table INSERT but has no policy. `trace_record_gate_scan_v1` writes Trace's `ols_gate_scans`, not this table.
+Consequence: any internal staff member can insert a matching `dispatch_gate` row (actor/role/source are free text) and the Gate decision cannot tell it from a real scan. The independent Gate role does not control its own evidence.
+Disposition: **launch-critical authority gap, Core-owned.**
+- Minimum correction: Core RPC `record_b2b_dispatch_gate_scan_v1(carton_id, scanned_barcode, idempotency_key)` restricted to `SECURITY_CONTROL/GATE_SECURITY` (+admin), deriving order/carton/barcode from the governed carton row and `actor_id/actor_role` from the session; a `BEFORE INSERT` guard rejecting direct `scan_type='dispatch_gate'` inserts; Gate release additionally requiring the evidence row's `actor_id` to hold the Gate role.
+- Tests: positive (Gate scans own carton), negative (Dispatch/Finance/Buyer; wrong barcode; wrong carton; direct insert), replay (same key ⇒ same row; changed payload ⇒ conflict).
+- Deployment/rollback: forward-only; update Central and the Point100/journey tails to use the RPC in the same release; rollback = drop guard first, keep RPC.
+Note: the certification lanes' `.update({verification_status:"verified"})` on this table matches no row (append-only), so it is a no-op; scan rows stay `scanned`, which Gate release accepts.
+
+## 4. Buyer checkout alignment
+
+Core (compatibility phase, `20261022150000`): `customer_checkout_quote_v1()` returns lines, tax-aware `sales_order_value`, `advance_required` and an md5 `fingerprint`; `submit_customer_order_quoted_v1(idempotency, fingerprint, dispatch_date)` rejects without an approved fingerprint (`QUOTE_APPROVAL_REQUIRED`) and replays only the same approved quote. `submit_customer_order_v1` stays granted to `authenticated` until "a separate coordinated Buyer rollout".
+Consumers: Central `customerAppClient.submit` → `submit_customer_order_v1`; the cart shows **"Subtotal preview" = Σ qty × unit price** (no GST, ignores `tax_inclusive`, no advance); `oasis-baklawa` (Expo, `e5096cf`) `src/lib/api/checkout.ts` also calls `submit_customer_order_v1`. Neither calls the quote.
+Findings: the live UIs **can** place an order (Core computes the correct tax-inclusive total at submit), but the Buyer never sees or accepts the authoritative total/advance before submission, so the governed *quoted* checkout is **not exercised** by any UI. Core cannot revoke the legacy RPC until both UIs move.
+Approval-ready change proposal (not implemented — customer-facing commercial flow, outside the draft-only certification authority): (1) cart calls `customer_checkout_quote_v1` on every change and renders lines, GST, total and advance from it; (2) explicit "I accept this total" control stores the returned `fingerprint`; (3) submit via `submit_customer_order_quoted_v1` with that fingerprint, mapping `QUOTE_APPROVAL_REQUIRED`/fingerprint mismatch to "totals changed — review again"; (4) same in `oasis-baklawa`; (5) after both ship, Core revokes `submit_customer_order_v1` from `authenticated` (Core change, owner-approved). Tests: tax-inclusive and tax-exclusive lines, price change between quote and submit, replay, missing fingerprint, duplicate click.
+Disposable-Auth journey tests prove the Core path only; **OTP/MSG91 certification is NOT_TESTED** and is not inferred.
+
+## 5. Public website register
+
+Confirmed public website repository: **`oasisbaklawa2006/oasis-baklawa-gifting`**. Recorded in `appverse-control/state.json` under a new `registered_surfaces` key, deliberately **not** in `repositories` (which drives the GitHub-state snapshot and the five-repo dependency graph). It is separate from the Expo Buyer App (`oasis-baklawa`) and Central's legacy Buyer interface. No website code is read, changed or rebuilt here.
+
+## 6. Weighted 1–100 denominator — proposal (no percentages)
+
+Register: the 100 points and titles are immutable (Master Programme Register v1.1, issue #437/#459); this repository's matrix (`POINT_1_100_EVIDENCE_MATRIX.md`) lists them with weights unset. Points per phase: A 15, B 10, C 31, D 20, E 16, F 7, G 1.
+Proposal for owner approval:
+1. **Unit and denominator:** 100 points, frozen as a hashed list (SHA-256 of `number|title|phase|owner repos`, committed with the weights). Any change = new denominator version.
+2. **Weights:** each point gets exactly one tier — `T1` launch-critical runtime (money, dispatch, identity, security), `T2` operational, `T3` governance/documentation — and a weight per tier approved by the owner (not chosen here). Equal weights are the fallback.
+3. **Four measures, separate numerators:** *Build* (point's software merged on `main`, exact SHA), *Testing* (deterministic automated proof at that SHA, run id), *Certification* (independent review + exact-head certification lane + any provider/physical gate for that point), *Combined* (defined only after the first three are accepted; never an average of unapproved numbers). A point scores 1 only with an evidence link; partial credit only through owner-approved sub-controls (the "163 Studio controls" list is missing and must be supplied).
+4. **Acceptance for leaving N/V:** denominator frozen + weights approved + per-point evidence schema in place + at least the measure's own evidence rows verified at an exact SHA. Until then Build/Testing/Certification/Combined stay **N/V**. `PR MERGED != STAGE CLEARED`.
+5. **Evidence row schema (per point, per measure):** `{point, measure, status ∈ PASS|FAIL|BLOCKED|NOT_TESTED, sha, runId|reviewRef, scope, notes}` — append-only, no overwrites.
