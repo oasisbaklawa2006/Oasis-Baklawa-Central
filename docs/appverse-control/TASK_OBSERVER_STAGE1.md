@@ -68,14 +68,14 @@ Residual limit: HMAC is symmetric, so anyone holding a heartbeat key can mint he
 7. Another active writer, a lease holder different from the record, or an expired lease: `UNKNOWN`.
 8. **Independent evidence** of a wait: agent quota, human approval, user input, CI queued or running, review tool rate-limited, review pending. A task's own claim that it is waiting is never an excuse.
 9. Heartbeat younger than 300 s: `RUNNING`. CI state unknown: `UNKNOWN`. Younger than 900 s: `HEARTBEAT_AGING` (not yet judged).
-10. Heartbeat 900 s or older with no wait: a **second verified observation** of the *same unchanged heartbeat on the same head*, at least 120 s earlier, is required for `STALLED`. One observation, a duplicate, observations too close together, or any progress in between stay `UNKNOWN`.
+10. Heartbeat 900 s or older with no wait: a **second verified observation** of the *same unchanged heartbeat on the same head*, at least 120 s earlier, is required for `STALLED`. One observation, a duplicate, observations too close together, or any progress in between stay `UNKNOWN`. The earlier observation must itself have found no independent reason to wait (a prior `WAITING_CI`, `WAITING_REVIEW`, `RUNNING` or ambiguous-evidence observation does not confirm a stall).
 
 Thresholds are configurable but bounded: a stall window under 300 s, or any non-integer value, is rejected.
 
 ## Retention and redaction
 
 * Persisted history is the observer-signed `appverse.observation/1` entry only: task id, head SHA, observation time, a 32-hex heartbeat fingerprint, the record's sequence and progress time, and the resulting enum state and reason. No free text.
-* `prune_history` bounds it deterministically: entries older than 14 days are dropped, at most 20 per task, 200 tasks and 256 KiB overall (oldest first); invalid or tampered entries are discarded; pruning is idempotent and order-independent.
+* `prune_history` bounds it deterministically: entries older than 14 days are dropped, at most 20 per task, 200 tasks and 256 KiB overall (oldest first); entries are authenticated with the `obs-` keys BEFORE the caps are applied, so unsigned, tampered or future-dated entries are discarded and can never displace genuine history (without keys nothing is retained); pruning is idempotent and order-independent.
 * `redact()` scrubs GitHub and OpenAI-style keys, AWS keys, bearer values, JWTs, private-key blocks, e-mail addresses, phone numbers and `password=` style assignments, and bounds length. Stage 1 stores no free text, so this is defence in depth for any text a later stage might add.
 * In Stage 1 **the caller persists history**; the observer never writes. If history is lost, replay cannot be detected, which is why a lost history can only make results more conservative, never produce `STALLED`.
 

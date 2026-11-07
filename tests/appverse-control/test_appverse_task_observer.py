@@ -370,6 +370,20 @@ class ScenarioMatrixTests(unittest.TestCase):
             self.assertIsNotNone(report[field])
 
 
+class ConfirmingObservationTests(unittest.TestCase):
+    def test_prior_independent_wait_cannot_confirm_a_stall(self):
+        record = stale_record()
+        waiting = prior_for(record, state="WAITING_CI", reason="CI_RUNNING")
+        report = classify(record, make_evidence(ci={"state": "success"}), [waiting])
+        self.assertEqual((report["state"], report["reason"]), ("UNKNOWN", "UNCONFIRMED_STALL"))
+        for state, reason in (("UNKNOWN", "CI_STATE_UNKNOWN"), ("UNKNOWN", "HEARTBEAT_AGING"), ("WAITING_REVIEW", "REVIEW_PENDING"),
+                              ("RUNNING", "HEARTBEAT_FRESH")):
+            report = classify(record, make_evidence(ci={"state": "success"}), [prior_for(record, state=state, reason=reason)])
+            self.assertEqual(report["state"], "UNKNOWN", reason)
+        confirmed = classify(record, make_evidence(ci={"state": "success"}), [prior_for(record, state="UNKNOWN", reason="FIRST_STALE_OBSERVATION")])
+        self.assertEqual(confirmed["state"], "STALLED")
+
+
 class PropertyTests(unittest.TestCase):
     def test_any_single_field_change_to_a_signed_record_invalidates_it(self):
         genuine = make_record()
@@ -432,6 +446,13 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(classify(record, make_evidence(), config=ob.make_config(fresh_seconds=600, stall_seconds=1200))["reason"], "HEARTBEAT_FRESH")
 
 
+class TimestampStrictnessTests(unittest.TestCase):
+    def test_only_ascii_digits_are_accepted(self):
+        for bad in ("\u0662\u0660\u0662\u0666-11-07T00:00:00Z", "2026-\u0661\u0661-07T00:00:00Z", "2026-11-07T\u0660\u0660:00:00Z"):
+            self.assertIsNone(ob.parse_ts(bad))
+        self.assertIsNotNone(ob.parse_ts("2026-11-07T00:00:00Z"))
+
+
 class HistoryRetentionRedactionTests(unittest.TestCase):
     def entries(self, count, task="task-657-stage1", start=-3600, step=60, **overrides):
         return [make_entry(make_record(task_id=task, seq=i), make_evidence(observed_at=ts(start + i * step)), **overrides) for i in range(count)]
@@ -445,21 +466,29 @@ class HistoryRetentionRedactionTests(unittest.TestCase):
 
     def test_retention_is_bounded_deterministic_and_idempotent(self):
         many = self.entries(50)
-        pruned = ob.prune_history(many, NOW)
+        pruned = ob.prune_history(many, NOW, keys=KEYS)
         self.assertEqual(len(pruned), ob.RETENTION["max_entries_per_task"])
         self.assertEqual(pruned, sorted(pruned, key=lambda e: (e["observed_at"], e["task_id"], e["record_seq"])))
-        self.assertEqual(ob.prune_history(pruned, NOW), pruned)
-        self.assertEqual(ob.prune_history(list(reversed(many)), NOW), pruned)
+        self.assertEqual(ob.prune_history(pruned, NOW, keys=KEYS), pruned)
+        self.assertEqual(ob.prune_history(list(reversed(many)), NOW, keys=KEYS), pruned)
 
     def test_expired_invalid_and_oversized_history_is_dropped(self):
         old = self.entries(3, start=-60 * 60 * 24 * 20, step=60)
         valid = self.entries(2)
         invalid = [{"schema": "x"}, "text", None, {**valid[0], "state": "NOT_A_STATE"}]
-        self.assertEqual(ob.prune_history(old + valid + invalid, NOW), valid)
+        self.assertEqual(ob.prune_history(old + valid + invalid, NOW, keys=KEYS), valid)
         tasks = [e for index in range(300) for e in self.entries(1, task=f"task-{index:05d}x", start=-index)]
-        self.assertEqual(len({e["task_id"] for e in ob.prune_history(tasks, NOW)}), ob.RETENTION["max_tasks"])
+        self.assertEqual(len({e["task_id"] for e in ob.prune_history(tasks, NOW, keys=KEYS)}), ob.RETENTION["max_tasks"])
         tiny = dict(ob.RETENTION, max_total_bytes=1500)
-        self.assertLessEqual(len(json.dumps(ob.prune_history(self.entries(20), NOW, tiny), separators=(",", ":"))), 1500)
+        self.assertLessEqual(len(json.dumps(ob.prune_history(self.entries(20), NOW, tiny, KEYS), separators=(",", ":"))), 1500)
+
+    def test_pruning_authenticates_before_applying_caps(self):
+        genuine = self.entries(5)
+        forged = [{**e, "mac": "0" * 64} for e in self.entries(30, start=-30, step=1)]
+        future = [make_entry(make_record(seq=900 + i), make_evidence(observed_at=ts(3600 + i))) for i in range(30)]
+        self.assertEqual(ob.prune_history(genuine + forged + future, NOW, keys=KEYS), genuine)
+        self.assertEqual(ob.prune_history(genuine, NOW), [])  # no keys, nothing can be authenticated
+        self.assertEqual(ob.prune_history(genuine, NOW, keys={}), [])
 
     def test_redaction_removes_credentials_pii_and_bounds_length(self):
         github = "gh" + "p_" + "A1" * 18
@@ -562,6 +591,27 @@ class KeyAndCliTests(unittest.TestCase):
         big.write_text(json.dumps({"pad": "x" * (ob.MAX_INPUT_BYTES + 10)}))
         oversized = self.cli("--keys", keys, "--now", ts(0), "--record", str(big), "--evidence", str(big))
         self.assertEqual((oversized[0], json.loads(oversized[1])["reason"]), (10, "RECORD_INVALID"))
+
+    def test_deeply_nested_json_fails_closed(self):
+        keys = self.keys_file()
+        nested = self.dir / "nested.json"
+        nested.write_text("[" * 60000)
+        self.assertLess(nested.stat().st_size, ob.MAX_INPUT_BYTES)
+        code, out, _ = self.cli("--keys", keys, "--now", ts(0), "--record", str(nested), "--evidence", str(nested))
+        self.assertEqual((code, json.loads(out)["reason"]), (10, "NO_TELEMETRY"))
+        hostile_keys = self.dir / "nested-keys.json"
+        hostile_keys.write_text("[" * 60000)
+        os.chmod(hostile_keys, 0o600)
+        code, out, _ = self.cli("--keys", str(hostile_keys), "--now", ts(0))
+        self.assertEqual((code, json.loads(out)["reason"]), (10, "KEYS_UNAVAILABLE"))
+
+    def test_non_string_key_values_are_rejected_not_crashed(self):
+        for bad in (123, None, ["aa"], {"x": 1}, True):
+            path = self.write("badkeys.json", {"hb-x-1": bad})
+            with self.assertRaises(ob.ObserverError):
+                ob.load_keys(path)
+            code, out, _ = self.cli("--keys", path, "--now", ts(0))
+            self.assertEqual((code, json.loads(out)["reason"]), (10, "KEYS_UNAVAILABLE"))
 
     def test_cli_with_unsafe_or_missing_keys_trusts_nothing(self):
         record, evidence = self.write("r.json", make_record()), self.write("e.json", make_evidence())

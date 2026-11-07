@@ -85,7 +85,7 @@ REPO = re.compile(r"[A-Za-z0-9._-]{1,39}/[A-Za-z0-9._-]{1,100}")
 BRANCH = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/-]{0,199}")
 SHA = re.compile(r"[0-9a-f]{40}")
 STAGE = re.compile(r"[A-Za-z0-9_.-]{1,32}")
-STAMP = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z")
+STAMP = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", re.ASCII)
 URL = re.compile(r"https://github\.com/([A-Za-z0-9._-]{1,39}/[A-Za-z0-9._-]{1,100})/"
                  r"(?:actions/runs/\d{1,20}(?:/job/\d{1,20})?|pull/\d{1,10}|runs/\d{1,20})")
 HEX64 = re.compile(r"[0-9a-f]{64}")
@@ -182,6 +182,8 @@ def load_keys(path: str) -> dict:
     for key_id, hex_value in raw.items():
         if not (isinstance(key_id, str) and any(key_id.startswith(p) for p in KEY_PREFIX.values())):
             raise ObserverError("key ids must start with hb-, ev- or obs-")
+        if not isinstance(hex_value, str):
+            raise ObserverError("key values must be hex strings")
         key = bytes.fromhex(hex_value)
         if len(key) < 32:
             raise ObserverError("keys must be at least 32 bytes")
@@ -298,6 +300,11 @@ def _verified_history(history, keys: dict, task_id: str) -> list:
     return sorted(good, key=lambda e: e["observed_at"])
 
 
+# A prior observation can confirm a stall only if it too found no independent reason to wait and no ambiguity.
+_NO_WAIT_REASONS = frozenset({"FIRST_STALE_OBSERVATION", "DUPLICATE_OBSERVATION", "OBSERVATIONS_TOO_CLOSE",
+                              "UNCONFIRMED_STALL", "NO_PROGRESS_TWO_OBSERVATIONS"})
+
+
 def classify(record, evidence, history, keys: dict, now: datetime.datetime, config: dict | None = None) -> dict:
     cfg = config or make_config()
     skew = datetime.timedelta(seconds=cfg["skew_seconds"])
@@ -386,7 +393,7 @@ def classify(record, evidence, history, keys: dict, now: datetime.datetime, conf
     if not gap_ok:
         return _result("UNKNOWN", "OBSERVATIONS_TOO_CLOSE", record, **extra)
     confirming = [e for e in gap_ok if e["heartbeat_id"] == heartbeat_id and e["head_sha"] == record["head_sha"]
-                  and e["last_progress_at"] == record["last_progress_at"] and e["state"] not in ("FINISHED", "RATE_LIMITED")]
+                  and e["last_progress_at"] == record["last_progress_at"] and e["reason"] in _NO_WAIT_REASONS]
     if not confirming:
         return _result("UNKNOWN", "UNCONFIRMED_STALL", record, **extra)
     return _result("STALLED", "NO_PROGRESS_TWO_OBSERVATIONS", record, observations_used=2, **extra)
@@ -402,11 +409,16 @@ def observation_entry(report: dict, record: dict, evidence: dict, key: bytes, ke
     }, key, key_id)
 
 
-def prune_history(entries: list, now: datetime.datetime, policy: dict | None = None) -> list:
-    """Deterministic bounded retention: drop invalid or expired entries, cap per task, cap tasks, cap total size."""
+def prune_history(entries: list, now: datetime.datetime, policy: dict | None = None, keys: dict | None = None) -> list:
+    """Deterministic bounded retention: drop invalid, unauthenticated or expired entries, then cap per task, tasks and size.
+
+    Authentication happens BEFORE the caps so forged or future-dated entries can never displace genuine history.
+    Without keys nothing can be authenticated, so nothing is retained."""
     policy = policy or RETENTION
     cutoff = now - datetime.timedelta(days=policy["max_age_days"])
-    kept = [e for e in entries if validate_entry(e) and parse_ts(e["observed_at"]) >= cutoff]
+    keys = keys if isinstance(keys, dict) else {}
+    kept = [e for e in entries if validate_entry(e) and verify(e, keys, "history") is None
+            and cutoff <= parse_ts(e["observed_at"]) <= now + datetime.timedelta(seconds=DEFAULTS["skew_seconds"])]
     by_task: dict = {}
     for entry in sorted(kept, key=lambda e: (e["observed_at"], e["record_seq"])):
         by_task.setdefault(entry["task_id"], []).append(entry)
@@ -451,7 +463,7 @@ def _read_json(path: str | None):
         if len(raw) > MAX_INPUT_BYTES:
             return {"_oversized": True}
         return json.loads(raw)
-    except (OSError, ValueError):
+    except (OSError, ValueError, RecursionError):
         return None
 
 
@@ -478,7 +490,7 @@ def run(argv: list[str]) -> int:
         return 2
     try:
         keys = load_keys(args.keys)
-    except (ObserverError, OSError, ValueError, AttributeError):
+    except (ObserverError, OSError, ValueError, AttributeError, RecursionError):
         keys = {}
     record, evidence, history = _read_json(args.record), _read_json(args.evidence), _read_json(args.history)
     if isinstance(record, dict) and record.get("_oversized"):
