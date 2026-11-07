@@ -46,7 +46,7 @@ concurrency:
 jobs:
   environment-governance-gate:
     name: Lane 2 certification environment governance gate (fail closed)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 1
     steps:
       - name: Refuse to run -- no approved Lane 2 certification backend exists
@@ -63,7 +63,7 @@ jobs:
   connectivity-guard:
     name: Prove runner reachability to non-production target (fail closed)
     needs: environment-governance-gate
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
       url: ${{ steps.target.outputs.url }}
@@ -160,7 +160,7 @@ jobs:
   lane2-pna-e2e:
     name: Lane 2 P&A end-to-end staging proof
     needs: connectivity-guard
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     env:
       TEST_PREVIEW_URL: ${{ needs.connectivity-guard.outputs.url }}

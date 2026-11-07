@@ -23,7 +23,7 @@ concurrency:
 jobs:
   connectivity-guard:
     name: Prove GitHub-hosted runner connectivity (fail closed)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: Resolve and validate target URL (fixed host, no caller override)
@@ -120,7 +120,7 @@ jobs:
   authenticated-smoke:
     name: Lane 1 role-separated authenticated smoke
     needs: connectivity-guard
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
       # Re-sourced directly from the secret (not the connectivity-guard

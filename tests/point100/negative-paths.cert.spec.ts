@@ -246,7 +246,7 @@ test("POINT100 :: negative-path failure injection suite", async ({ page }) => {
     recordStage(negativePaths, "gate_mismatch", null, "DISPATCH_MANAGER", `p100-neg-${RUN_SUFFIX}-gate-route`, "PASS", "independent gate route denied for dispatch roles (#556 least privilege; /security-gate uses canAccessSecurityGate)");
   });
 
-  await test.step("negative: dispatch manager cannot substitute gate evidence", async () => {
+  await test.step("negative: dispatch manager cannot substitute the independent security gate", async () => {
     await switchRole(page, dispatchManager);
     const { client } = await createAuthenticatedCertificationClient(page);
     const correlationId = `p100-neg-${RUN_SUFFIX}-gate-mismatch`;
@@ -254,13 +254,14 @@ test("POINT100 :: negative-path failure injection suite", async ({ page }) => {
       p_carton_id: "00000000-0000-4000-8000-000000000099",
       p_scan_evidence_id: "00000000-0000-4000-8000-000000000098",
     });
-    expect(error, error?.message).toBeNull();
-    const result = data as { ok?: boolean; blockers?: Array<{ code?: string }> } | null;
-    const blockerCodes = Array.isArray(result?.blockers)
-      ? result.blockers.map((blocker) => String(blocker?.code ?? ""))
-      : [];
-    expect(result?.ok, "unknown carton gate release must fail closed").toBe(false);
-    expect(blockerCodes, "gate rejection must identify the canonical carton_not_found blocker").toContain("carton_not_found");
+    // Core's role separation (20261001220000): the Gate release is reserved to the independent Security Gate
+    // role and is rejected for Dispatch BEFORE any carton lookup, so no carton-level fail-closed blocker is
+    // reachable (or needed) for this actor. The previous assertion (error null, ok=false, carton_not_found)
+    // described a Core in which Dispatch could reach the Gate RPC at all; accepting that now would hide a
+    // regression of the separation, so the explicit role rejection is required.
+    expect(error, "DISPATCH_MANAGER must be rejected by the independent Gate role check").not.toBeNull();
+    expect(error?.message ?? "").toContain("independent security gate authority required");
+    expect(data, "a rejected Gate release must not return a decision payload").toBeNull();
     recordStage(
       negativePaths,
       "gate_mismatch",
@@ -268,7 +269,7 @@ test("POINT100 :: negative-path failure injection suite", async ({ page }) => {
       "DISPATCH_MANAGER",
       correlationId,
       "PASS",
-      `blockers=${blockerCodes.join(",")}`,
+      `rejected: ${error!.message}`,
     );
   });
 

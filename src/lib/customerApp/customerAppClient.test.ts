@@ -1,5 +1,8 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  customerAppClient,
   canonicalSupportIssueType,
   clearCheckoutIdempotencyKey,
   getCheckoutIdempotencyKey,
@@ -10,7 +13,12 @@ import {
   normalizeBuyerFinalPaymentPiFacts,
   normalizeBuyerGeneralQuery,
   normalizeBuyerStatement,
+  toBuyerCatalogueProduct,
 } from "./customerAppClient";
+
+// Mocked Supabase client: no network. `from` is a spy so a direct table read would be observable and fail the test.
+const supabaseMock = vi.hoisted(() => ({ rpc: vi.fn(), from: vi.fn() }));
+vi.mock("@/integrations/supabase/client", () => ({ supabase: supabaseMock }));
 
 describe("customer checkout idempotency", () => {
   beforeEach(() => {
@@ -178,5 +186,145 @@ describe("customer checkout idempotency", () => {
     })).toMatchObject({
       payment_link: "https://pay.example.test/checkout",
     });
+  });
+});
+
+describe("Buyer catalogue read contract", () => {
+  it("maps Core's published_products_v1 projection to the Buyer product shape", () => {
+    expect(
+      toBuyerCatalogueProduct({
+        product_id: "00000000-0000-4000-8000-000000000100",
+        sku: "CERT-BUYER-GOLDEN-001",
+        product_name: "Synthetic Certification Baklawa",
+        short_description: "short",
+        long_description: null,
+        category: "Bakery",
+        subcategory: "Baklawa",
+        hero_image_url: "https://example.invalid/hero.webp",
+        pack_size: null,
+        storage_type: null,
+        shelf_life: null,
+        shelf_life_days: null,
+        dietary_tags: null,
+        allergen_warnings: null,
+        primary_uom: "kg",
+        created_at: "2026-11-05T00:00:00Z",
+      }),
+    ).toEqual({
+      id: "00000000-0000-4000-8000-000000000100",
+      name: "Synthetic Certification Baklawa",
+      sku: "CERT-BUYER-GOLDEN-001",
+      description: "short",
+      image_url: "https://example.invalid/hero.webp",
+      category: "Bakery",
+      sub_category: "Baklawa",
+      is_active: true,
+      visible_in_catalog: true,
+    });
+  });
+
+  it("Buyer app never reads public.products directly (Core limits it to internal staff)", () => {
+    const source = readFileSync(resolve(__dirname, "../../pages/customer/BuyerApp.tsx"), "utf8");
+    expect(source).not.toMatch(/\.from\(\s*["']products["']\s*\)/);
+    expect(source).toContain("customerAppClient.products()");
+  });
+});
+
+describe("customerAppClient.products() behaviour", () => {
+  const projectionRow = (overrides: Record<string, unknown> = {}) => ({
+    product_id: "00000000-0000-4000-8000-000000000100",
+    sku: "CERT-BUYER-GOLDEN-001",
+    product_name: "Synthetic Certification Baklawa",
+    short_description: "short",
+    long_description: null,
+    category: "Bakery",
+    subcategory: "Baklawa",
+    hero_image_url: "https://example.invalid/hero.webp",
+    pack_size: null,
+    storage_type: null,
+    shelf_life: null,
+    shelf_life_days: null,
+    dietary_tags: null,
+    allergen_warnings: null,
+    primary_uom: "kg",
+    created_at: "2026-11-05T00:00:00Z",
+    ...overrides,
+  });
+
+  beforeEach(() => {
+    supabaseMock.rpc.mockReset();
+    supabaseMock.from.mockReset();
+  });
+
+  it("reads only Core's published_products_v1 RPC, never the products table, and maps the result", async () => {
+    supabaseMock.rpc.mockResolvedValue({
+      data: [
+        projectionRow(),
+        projectionRow({
+          product_id: "00000000-0000-4000-8000-000000000101",
+          sku: "CERT-BUYER-GOLDEN-002",
+          product_name: "Second Synthetic Product",
+          short_description: "short two",
+          long_description: "long two",
+          category: "Chocolates",
+          subcategory: null,
+          hero_image_url: null,
+        }),
+      ],
+      error: null,
+    });
+
+    const products = await customerAppClient.products();
+
+    expect(supabaseMock.rpc).toHaveBeenCalledTimes(1);
+    expect(supabaseMock.rpc).toHaveBeenCalledWith("published_products_v1");
+    expect(supabaseMock.from).not.toHaveBeenCalled();
+    expect(products).toEqual([
+      {
+        id: "00000000-0000-4000-8000-000000000100",
+        name: "Synthetic Certification Baklawa",
+        sku: "CERT-BUYER-GOLDEN-001",
+        description: "short",
+        image_url: "https://example.invalid/hero.webp",
+        category: "Bakery",
+        sub_category: "Baklawa",
+        is_active: true,
+        visible_in_catalog: true,
+      },
+      {
+        id: "00000000-0000-4000-8000-000000000101",
+        name: "Second Synthetic Product",
+        sku: "CERT-BUYER-GOLDEN-002",
+        description: "long two", // the long description wins over the short one
+        image_url: null,
+        category: "Chocolates",
+        sub_category: null,
+        is_active: true,
+        visible_in_catalog: true,
+      },
+    ]);
+  });
+
+  it("returns an empty catalogue for null or empty projection data", async () => {
+    for (const data of [null, []]) {
+      supabaseMock.rpc.mockResolvedValueOnce({ data, error: null });
+      await expect(customerAppClient.products()).resolves.toEqual([]);
+    }
+    expect(supabaseMock.from).not.toHaveBeenCalled();
+  });
+
+  it("surfaces a safe error without leaking the database message, and still never reads the table", async () => {
+    supabaseMock.rpc.mockResolvedValue({ data: null, error: { message: 'relation "internal_secret_table" denied' } });
+
+    const failure = await customerAppClient.products().then(
+      () => null,
+      (error: unknown) => error as Error,
+    );
+
+    expect(failure).toBeInstanceOf(Error);
+    expect(failure?.message).toBe("We couldn't complete that request. Please try again.");
+    expect(failure?.message).not.toContain("internal_secret_table");
+    expect(supabaseMock.rpc).toHaveBeenCalledTimes(1);
+    expect(supabaseMock.from).not.toHaveBeenCalled();
   });
 });

@@ -3,6 +3,8 @@ import type { Database, Json } from "@/integrations/supabase/database.types";
 import { parseGovernedHttpsPaymentLink } from "@/lib/order-authority/governedPaymentLink";
 import { classifyIntegrationError } from "@/lib/integration-contracts";
 
+import type { PublishedProductProjectionRow } from "@/lib/published-products/types";
+
 type PublicFunctions = Database["public"]["Functions"];
 type RpcName = keyof PublicFunctions;
 
@@ -396,10 +398,57 @@ export function normalizeBuyerGeneralQuery(value: unknown): BuyerGeneralQuery | 
   };
 }
 
+/**
+ * Buyer catalogue product, derived from Core's customer-safe `published_products_v1()` publication projection.
+ * Buyers cannot read `public.products` directly (Core limits that table to internal staff), so the catalogue must
+ * come from the governed projection; prices come separately from `buyer_product_prices_v1()`.
+ */
+export type BuyerCatalogueProduct = {
+  id: string;
+  name: string | null;
+  sku: string | null;
+  description: string | null;
+  image_url: string | null;
+  category: string | null;
+  sub_category: string | null;
+  is_active: boolean;
+  visible_in_catalog: boolean;
+};
+
+export function toBuyerCatalogueProduct(row: PublishedProductProjectionRow): BuyerCatalogueProduct {
+  return {
+    id: row.product_id,
+    name: row.product_name,
+    sku: row.sku,
+    description: row.long_description ?? row.short_description,
+    image_url: row.hero_image_url,
+    category: row.category,
+    sub_category: row.subcategory,
+    // The projection only returns active, visible, catalogue-ready products.
+    is_active: true,
+    visible_in_catalog: true,
+  };
+}
+
+type PublishedProductsRpcClient = {
+  rpc: (fn: "published_products_v1") => Promise<{ data: PublishedProductProjectionRow[] | null; error: { message: string } | null }>;
+};
+
+async function publishedProducts(): Promise<BuyerCatalogueProduct[]> {
+  // Local narrow cast: the generated Database type predates this already-deployed Core RPC.
+  const result = await (supabase as unknown as PublishedProductsRpcClient).rpc("published_products_v1");
+  if (result.error) {
+    classifyCustomerRpcFailure(result.error);
+    throw new Error(CUSTOMER_SAFE_REQUEST_ERROR);
+  }
+  return (result.data ?? []).map(toBuyerCatalogueProduct);
+}
+
 export const customerAppClient = {
   company: () => rpc("customer_company_v1"),
   team: () => rpc("customer_team_v1"),
   prices: () => rpc("buyer_product_prices_v1"),
+  products: () => publishedProducts(),
   draft: () => rpc("get_customer_order_draft_v1"),
   addLine: (productId: string, quantity: number) => rpc("add_customer_order_draft_line_v1", { p_product_id: productId, p_quantity: quantity }),
   updateLine: (lineId: string, quantity: number) => rpc("update_customer_order_draft_line_v1", { p_line_id: lineId, p_quantity: quantity }),

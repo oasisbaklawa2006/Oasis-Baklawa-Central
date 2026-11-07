@@ -201,19 +201,32 @@ describe("point100 probe runner", () => {
 
   it("embeds current Core/#245 provenance in capability matrix", () => {
     const originalSha = process.env.POINT100_CORE_VERIFIED_SHA;
-    process.env.POINT100_CORE_VERIFIED_SHA = POINT100_CORE_PRODUCTION_VERIFIED_SHA;
-    const matrix = buildCapabilityMatrix([], "test-env");
-    expect(matrix.certification_mode).toBe("disposable_synthetic");
-    expect(matrix.inventory_production_verified).toBe(true);
-    expect(matrix.dispatch_production_verified).toBe(true);
-    expect(matrix.pending_core_recert_pr).toBeNull();
-    expect(matrix.core_verified_sha).toBe(POINT100_CORE_PRODUCTION_VERIFIED_SHA);
-    expect(matrix.production_migration_gate).toBe(POINT100_PRODUCTION_MIGRATION_GATE);
-    expect(matrix.production_migration_run_id).toBe(POINT100_PRODUCTION_MIGRATION_RUN_ID);
-    expect(resolveProductionMigrationRunId()).toBe(POINT100_PRODUCTION_MIGRATION_RUN_ID);
-    expect(POINT100_CORE_PENDING_DISPATCH_PR).toBe("#260");
-    if (originalSha === undefined) delete process.env.POINT100_CORE_VERIFIED_SHA;
-    else process.env.POINT100_CORE_VERIFIED_SHA = originalSha;
+    const originalRunId = process.env.POINT100_PRODUCTION_MIGRATION_RUN_ID;
+    try {
+      process.env.POINT100_CORE_VERIFIED_SHA = POINT100_CORE_PRODUCTION_VERIFIED_SHA;
+      // The workflow can provide another successful protected release run for the same SHA.
+      // A default-value assertion must not inherit that legitimate environment override.
+      delete process.env.POINT100_PRODUCTION_MIGRATION_RUN_ID;
+      const matrix = buildCapabilityMatrix([], "test-env");
+      expect(matrix.certification_mode).toBe("disposable_synthetic");
+      expect(matrix.inventory_production_verified).toBe(true);
+      expect(matrix.dispatch_production_verified).toBe(true);
+      expect(matrix.pending_core_recert_pr).toBeNull();
+      expect(matrix.core_verified_sha).toBe(POINT100_CORE_PRODUCTION_VERIFIED_SHA);
+      expect(matrix.production_migration_gate).toBe(POINT100_PRODUCTION_MIGRATION_GATE);
+      expect(matrix.production_migration_run_id).toBe(POINT100_PRODUCTION_MIGRATION_RUN_ID);
+      expect(resolveProductionMigrationRunId()).toBe(POINT100_PRODUCTION_MIGRATION_RUN_ID);
+      expect(POINT100_CORE_PENDING_DISPATCH_PR).toBe("#260");
+
+      process.env.POINT100_PRODUCTION_MIGRATION_RUN_ID = "123456789";
+      expect(resolveProductionMigrationRunId()).toBe("123456789");
+      expect(buildCapabilityMatrix([], "test-env").production_migration_run_id).toBe("123456789");
+    } finally {
+      if (originalSha === undefined) delete process.env.POINT100_CORE_VERIFIED_SHA;
+      else process.env.POINT100_CORE_VERIFIED_SHA = originalSha;
+      if (originalRunId === undefined) delete process.env.POINT100_PRODUCTION_MIGRATION_RUN_ID;
+      else process.env.POINT100_PRODUCTION_MIGRATION_RUN_ID = originalRunId;
+    }
   });
 
   it("binds #556 canonical dispatch workflow routes in Central census", () => {
