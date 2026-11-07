@@ -87,8 +87,8 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
     const { client } = await createAuthenticatedCertificationClient(page);
     const intent = await executeStageProbe(client, "buyer_catalogue_intent", `p100-${RUN_SUFFIX}-intent`);
     const so = await executeStageProbe(client, "buyer_quotation_so", `p100-${RUN_SUFFIX}-so`);
-    recordStage(stages, "buyer_catalogue_intent", "submit_customer_order_v1", "ADMIN", `p100-${RUN_SUFFIX}-intent`, intent.ok ? "PASS" : "FAIL", intent.detail);
-    recordStage(stages, "buyer_quotation_so", "submit_customer_order_v1", "ADMIN", `p100-${RUN_SUFFIX}-so`, so.ok ? "PASS" : "FAIL", so.detail);
+    recordStage(stages, "buyer_catalogue_intent", "add_customer_order_draft_line_v1", "ADMIN", `p100-${RUN_SUFFIX}-intent`, intent.ok ? "PASS" : "FAIL", intent.detail);
+    recordStage(stages, "buyer_quotation_so", "submit_customer_order_quoted_v1", "ADMIN", `p100-${RUN_SUFFIX}-so`, so.ok ? "PASS" : "FAIL", so.detail);
     expect(intent.ok, intent.detail).toBe(true);
     expect(so.ok, so.detail).toBe(true);
   });
