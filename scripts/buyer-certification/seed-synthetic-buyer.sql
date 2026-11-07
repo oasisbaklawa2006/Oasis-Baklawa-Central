@@ -80,8 +80,20 @@ BEGIN
   VALUES (v_product, 'b2b', true, 1, 1, 1)
   ON CONFLICT DO NOTHING;
 
-  INSERT INTO public.orders (id, company_id, status, order_origin, order_number, tracking_token)
-  VALUES (v_order, v_company, 'submitted', 'CUSTOMER_APP', 'SO-CERT-PRESEED-001', md5(random()::text))
+  -- A synthetic CUSTOMER_APP order must carry the same immutable, fully
+  -- specified commercial snapshot as a canonical Core checkout. This seed
+  -- runs only against the disposable certification database.
+  INSERT INTO public.orders (
+    id, company_id, status, order_origin, order_number, tracking_token, checkout_snapshot
+  )
+  VALUES (
+    v_order, v_company, 'submitted', 'CUSTOMER_APP', 'SO-CERT-PRESEED-001', md5(random()::text),
+    jsonb_build_array(jsonb_build_object(
+      'product_id', v_product, 'quantity', 5, 'selling_price', 500,
+      'currency', 'INR', 'uom', 'kg', 'gst_rate', 18, 'tax_inclusive', false,
+      'sku', 'CERT-BUYER-GOLDEN-001', 'product_name', 'Synthetic Certification Baklawa'
+    ))
+  )
   ON CONFLICT (id) DO NOTHING;
 
   INSERT INTO public.order_items (id, order_id, product_id, quantity, pack_size, carton_type)

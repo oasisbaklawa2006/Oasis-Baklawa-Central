@@ -41,7 +41,7 @@ const CENTRAL_CLIENT_BINDINGS = new Set([
 
 /** Explicit dotted member bindings exercised by the Point100 lifecycle. */
 const CENTRAL_DOTTED_BINDINGS = new Set([
-  "customerAppClient.submitOrder",
+  "customerAppClient.submitQuotedOrder",
   "customerAppClient.complaint_window_status",
 ]);
 
@@ -55,7 +55,9 @@ const CENTRAL_DOTTED_BINDINGS = new Set([
 const POINT100_RPC_PROBE_ARGS: Record<string, Record<string, unknown>> = {
   add_customer_order_draft_line_v1: { p_product_id: null, p_quantity: null },
   clear_customer_order_draft_v1: {},
+  customer_checkout_quote_v1: {},
   submit_customer_order_v1: { p_idempotency_key: null, p_requested_dispatch_date: null },
+  submit_customer_order_quoted_v1: { p_idempotency_key: null, p_quote_fingerprint: null, p_requested_dispatch_date: null },
   record_order_payment_proof_v1: {
     p_order_id: null, p_pi_id: null, p_commercial_version_id: null, p_payment_type: null,
     p_submitted_amount: null, p_currency: null, p_payment_mode: null, p_external_reference: null,
