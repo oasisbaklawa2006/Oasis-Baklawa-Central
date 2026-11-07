@@ -607,6 +607,9 @@ function Cart({ data }: { data: ReturnType<typeof useBuyerData> }) {
   const [quoteApproved, setQuoteApproved] = useState(false);
   const [isOnline, setIsOnline] = useState(() => (typeof navigator !== "undefined" ? navigator.onLine : true));
   const quoteRequestRef = useRef(0);
+  const checkoutSubmitInFlightRef = useRef(false);
+  const cartMutationInFlightRef = useRef(false);
+  const [cartMutating, setCartMutating] = useState(false);
   const productById = useMemo(() => new Map(data.products.map((product) => [product.id, product])), [data.products]);
   const priceById = useMemo(() => new Map(data.prices.map((price) => [price.product_id, price])), [data.prices]);
   const lines = data.draft.filter((line): line is BuyerDraftLine & { line_id: string; product_id: string } => Boolean(line.line_id && line.product_id));
@@ -631,8 +634,10 @@ function Cart({ data }: { data: ReturnType<typeof useBuyerData> }) {
   useEffect(() => {
     const handleOnline = () => { setIsOnline(true); };
     const handleOffline = () => {
+      quoteRequestRef.current += 1; // invalidate any in-flight Core quote response
       setIsOnline(false);
       setQuote(null);
+      setQuoteLoading(false);
       setQuoteApproved(false);
       setQuoteStale(true);
     };
@@ -646,14 +651,19 @@ function Cart({ data }: { data: ReturnType<typeof useBuyerData> }) {
 
   const loadQuote = useCallback(async () => {
     if (!canSubmit || !isOnline) {
+      quoteRequestRef.current += 1;
       setQuote(null);
       setQuoteApproved(false);
+      setQuoteLoading(false);
+      setQuoteStale(true);
       return;
     }
     const requestId = quoteRequestRef.current + 1;
     quoteRequestRef.current = requestId;
+    setQuote(null);
+    setQuoteApproved(false);
     setQuoteLoading(true);
-    setQuoteStale(false);
+    setQuoteStale(true);
     try {
       const nextQuote = await customerAppClient.checkoutQuote();
       if (quoteRequestRef.current !== requestId) return;
@@ -664,6 +674,7 @@ function Cart({ data }: { data: ReturnType<typeof useBuyerData> }) {
         return;
       }
       setQuote(nextQuote);
+      setQuoteStale(false);
       setQuoteApproved(false);
     } catch {
       if (quoteRequestRef.current !== requestId) return;
@@ -681,27 +692,42 @@ function Cart({ data }: { data: ReturnType<typeof useBuyerData> }) {
   }, [cartRevision, canSubmit, isOnline, loadQuote]);
 
   const mutate = async (action: () => Promise<unknown>) => {
+    if (cartMutationInFlightRef.current || checkoutSubmitInFlightRef.current) return;
+    cartMutationInFlightRef.current = true;
+    quoteRequestRef.current += 1; // old approved quote must not outlive an edit
+    setQuote(null);
+    setQuoteApproved(false);
+    setQuoteStale(true);
+    setCartMutating(true);
     try {
       await action();
       await data.refresh();
-      setQuoteApproved(false);
-      setQuoteStale(true);
     } catch {
       toast.error(BUYER_CART_UPDATE_ERROR);
+    } finally {
+      cartMutationInFlightRef.current = false;
+      setCartMutating(false);
     }
   };
   const submit = async () => {
-    if (!canSubmit || submitting || !quote || !quoteApproved || quoteStale || !isOnline) return;
+    if (!canSubmit || submitting || cartMutating || quoteLoading ||
+        checkoutSubmitInFlightRef.current || cartMutationInFlightRef.current ||
+        !quote || !quoteApproved || quoteStale || !isOnline) return;
+    const companyId = data.draft[0]?.company_id;
+    if (!companyId || data.draft.some((line) =>
+      line.company_id !== companyId || line.draft_id !== quote.draft_id
+    )) return;
+    checkoutSubmitInFlightRef.current = true;
     setSubmitting(true);
     try {
       const result = await customerAppClient.submitQuotedOrder(
-        getCheckoutIdempotencyKey(),
+        getCheckoutIdempotencyKey(quote.draft_id, companyId),
         quote.fingerprint,
         requestedDispatchDate || undefined,
       );
       const row = result?.[0];
       if (!row) throw new Error("Checkout returned no order");
-      clearCheckoutIdempotencyKey();
+      clearCheckoutIdempotencyKey(quote.draft_id, companyId);
       toast.success(row.order_number ? `Order ${row.order_number} submitted` : "Order submitted");
       await data.refresh();
       navigate(`/buyer/orders/${row.order_id}`);
@@ -711,10 +737,12 @@ function Cart({ data }: { data: ReturnType<typeof useBuyerData> }) {
       await loadQuote();
       toast.error(BUYER_ORDER_SUBMIT_ERROR);
     } finally {
+      checkoutSubmitInFlightRef.current = false;
       setSubmitting(false);
     }
   };
   const submitDisabled = submitting
+    || cartMutating
     || !canSubmit
     || !quote
     || !quoteApproved
