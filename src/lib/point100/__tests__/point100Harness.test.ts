@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { buildCapabilityMatrix, summarizeCapabilityMatrix } from "../capabilityStatus";
 import { POINT100_LIFECYCLE_STAGES, POINT100_NEGATIVE_PATHS, stagesForNegativePath } from "../lifecycleStages";
@@ -33,6 +35,30 @@ describe("point100 lifecycle stages", () => {
     for (const negative of POINT100_NEGATIVE_PATHS) {
       expect(stagesForNegativePath(negative.id).length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe("point100 Buyer financial-consent invariants", () => {
+  it("binds the executable Buyer stage to Core quotation and quoted-only submission", () => {
+    const stage = POINT100_LIFECYCLE_STAGES.find((candidate) => candidate.id === "buyer_quotation_so");
+    expect(stage).toBeDefined();
+    expect(stage!.coreRpcs).toEqual(["customer_checkout_quote_v1", "submit_customer_order_quoted_v1"]);
+    expect(stage!.centralBindings).toContain("customerAppClient.checkoutQuote");
+    expect(stage!.centralBindings).toContain("customerAppClient.submitQuotedOrder");
+    expect(stage!.centralBindings).not.toContain("customerAppClient.submitOrder");
+    expect(bindingByKey("buyer_checkout_quote")?.canonical).toBe("customer_checkout_quote_v1");
+    expect(bindingByKey("buyer_submit_order")?.canonical).toBe("submit_customer_order_quoted_v1");
+    expect(resolvedRpcForStage(stage!)).toEqual(["submit_customer_order_quoted_v1", "customer_checkout_quote_v1"]);
+  });
+
+  it("never mistakes an obsolete web direct-order writer for the certified Buyer checkout", () => {
+    const source = readFileSync(resolve(__dirname, "../../customerApp/customerAppClient.ts"), "utf8");
+    const route = readFileSync(resolve(__dirname, "../../../pages/customer/BuyerApp.tsx"), "utf8");
+    expect(source).toContain("checkoutQuote: async");
+    expect(source).toContain("submitQuotedOrder:");
+    expect(source).not.toMatch(/rpc\(["']submit_customer_order_v1["']/);
+    expect(route).toContain("customerAppClient.submitQuotedOrder(");
+    expect(route).not.toMatch(/customerAppClient\.submit\(/);
   });
 });
 
