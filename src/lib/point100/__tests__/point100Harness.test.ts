@@ -53,7 +53,10 @@ describe("point100 Buyer financial-consent invariants", () => {
 
   it("keeps Factory golden, Point-37 and Point-38 fixtures behind Core quotation consent", () => {
     const seed = readFileSync(resolve(__dirname, "../../../../scripts/factory-certification/seed-production-fixtures.mjs"), "utf8");
-    expect(seed).not.toMatch(/\.rpc\(["']submit_customer_order_v1["']/);
+    const directLegacyRpc = /\.rpc\s*\(\s*["']submit_customer_order_v1["']/;
+    expect(directLegacyRpc.test(`.rpc(
+      "submit_customer_order_v1", { p_idempotency_key: "obsolete" })`)).toBe(true);
+    expect(seed).not.toMatch(directLegacyRpc);
     expect(seed.match(/\.rpc\(["']customer_checkout_quote_v1["']/g)).toHaveLength(3);
     expect(seed.match(/\.rpc\(["']submit_customer_order_quoted_v1["']/g)).toHaveLength(3);
     for (const name of ["goldenQuote", "point37Quote", "point38Quote"]) {
