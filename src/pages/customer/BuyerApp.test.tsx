@@ -666,17 +666,14 @@ describe("Buyer App governed commercial handoff", () => {
     render(<MemoryRouter initialEntries={["/buyer/cart"]}><BuyerApp /></MemoryRouter>);
 
     await screen.findByText("Pista Baklawa");
-    const increase = screen.getByRole("button", { name: "Increase Pista Baklawa quantity" });
-    const remove = screen.getByRole("button", { name: "Remove Pista Baklawa" });
-    const clear = screen.getByRole("button", { name: "Clear cart" });
-
-    fireEvent.click(increase);
+    fireEvent.click(screen.getByRole("button", { name: "Increase Pista Baklawa quantity" }));
     await waitFor(() => expect(buyerMock.updateLine).toHaveBeenCalledWith("line-1", 3));
-    await waitFor(() => expect(remove).not.toBeDisabled());
-    fireEvent.click(remove);
+    // refresh() can unmount/remount Cart, so always query the current button.
+    await waitFor(() => expect(screen.getByRole("button", { name: "Remove Pista Baklawa" })).not.toBeDisabled());
+    fireEvent.click(screen.getByRole("button", { name: "Remove Pista Baklawa" }));
     await waitFor(() => expect(buyerMock.removeLine).toHaveBeenCalledWith("line-1"));
-    await waitFor(() => expect(clear).not.toBeDisabled());
-    fireEvent.click(clear);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Clear cart" })).not.toBeDisabled());
+    fireEvent.click(screen.getByRole("button", { name: "Clear cart" }));
     await waitFor(() => expect(buyerMock.clearDraft).toHaveBeenCalledTimes(1));
   });
 
