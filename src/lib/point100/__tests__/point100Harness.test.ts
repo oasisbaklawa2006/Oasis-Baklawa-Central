@@ -70,6 +70,26 @@ describe("point100 certification evidence attribution", () => {
     expect(source).toContain("`fixture check: ${intent.detail}`");
     expect(source).toContain("`fixture check: ${so.detail}`");
   });
+  it("marks unexecuted Buyer capability records as contract-only, including the serialized matrix", () => {
+    for (const stageId of ["buyer_catalogue_intent", "buyer_quotation_so"]) {
+      const stage = POINT100_LIFECYCLE_STAGES.find((candidate) => candidate.id === stageId)!;
+      const outcome = buildProbeOutcome({
+        stage,
+        rpcResults: stage.coreRpcs.map((rpc) => ({ rpc, exists: true, detail: "signature resolved" })),
+        centralBindingsPresent: true,
+        missingFixtureKeys: [],
+        executed: false,
+      });
+      expect(outcome.status).toBe("implemented");
+      expect(outcome.detail).toContain("capability probe did not execute this stage");
+      expect(outcome.detail).not.toContain("full journey execution is certified");
+      const ledger = buildCapabilityMatrix([outcome], "disposable-local-core");
+      const serialized = JSON.stringify(ledger);
+      expect(serialized).toContain("capability probe did not execute this stage");
+      expect(serialized).not.toContain("full journey execution is certified");
+    }
+  });
+
 });
 
 describe("point100 contract bindings", () => {
