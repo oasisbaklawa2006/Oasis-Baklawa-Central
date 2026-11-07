@@ -1,0 +1,28 @@
+name: Appverse Task Observer Tests
+
+# Read-only unit tests for the Stage 1 observer. No secrets, no network access to anything but the checkout, no write
+# permission, and no privileged trigger.
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'scripts/appverse-control/appverse_task_observer.py'
+      - 'tests/appverse-control/test_appverse_task_observer.py'
+      - 'docs/appverse-control/TASK_OBSERVER_STAGE1.md'
+      - '.github/workflows/appverse-task-observer-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    name: Appverse task observer tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Observer unit tests
+        run: python3 -m unittest tests/appverse-control/test_appverse_task_observer.py -v
