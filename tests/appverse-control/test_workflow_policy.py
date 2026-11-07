@@ -857,7 +857,8 @@ class PolicyDocumentTests(unittest.TestCase):
         for phrase in ("publishing nothing does **not** block merging", "What merging Phase 1 does and does not change",
                        "not entirely inert", "APPVERSE_GATE_PUBLISHER", "advisory check",
                        "cannot invalidate a prior authoritative SUCCESS", "requiring the check alone cannot protect unattended merges",
-                       "remains **prohibited**", "protects only a head that has *no* authoritative check yet"):
+                       "remains **prohibited**", "protects only a head that has *no* authoritative check yet",
+                       "in Phase 1, the gate is not required and its absence blocks nothing"):
             self.assertIn(phrase, self.doc, phrase)
 
     def test_offline_merge_readiness_is_never_confused_with_live_commissioning(self):
