@@ -858,8 +858,10 @@ class PolicyDocumentTests(unittest.TestCase):
                        "not entirely inert", "APPVERSE_GATE_PUBLISHER", "advisory check",
                        "cannot invalidate a prior authoritative SUCCESS", "requiring the check alone cannot protect unattended merges",
                        "remains **prohibited**", "protects only a head that has *no* authoritative check yet",
-                       "in Phase 1, the gate is not required and its absence blocks nothing"):
+                       "in Phase 1, the gate is not required and its absence blocks nothing",
+                       "must confirm **before the merge** that this variable is unset"):
             self.assertIn(phrase, self.doc, phrase)
+        self.assertNotIn("before or immediately after the merge", self.doc)
 
     def test_offline_merge_readiness_is_never_confused_with_live_commissioning(self):
         """Verify the policy keeps the two certificates apart and keeps the live items as HOLD, not as closed."""
