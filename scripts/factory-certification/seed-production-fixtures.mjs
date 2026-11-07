@@ -14,6 +14,7 @@ import {
   createLocalSupabaseAdminClient,
   runLocalPostgresRoleStatement,
 } from "./local-supabase-client.mjs";
+import { submitQuotedCheckout } from "./quoted-checkout.mjs";
 
 const baseUrl = process.env.FACTORY_CERT_SUPABASE_URL?.trim();
 const serviceRoleKey = process.env.FACTORY_CERT_LOCAL_SERVICE_ROLE_KEY?.trim();
@@ -145,7 +146,7 @@ assertNoSupabaseError(buyerProfileError, "Golden-order buyer public.profiles ups
 // The test deliberately uses stable ids so every downstream custody assertion
 // can identify the same order/item without seeding a business-transition row.
 // We therefore alter only the UUID defaults in this disposable database for
-// the duration of the governed checkout. Core's submit_customer_order_v1 still
+// the duration of the governed checkout. Core's quoted checkout (submit_customer_order_quoted_v1) still
 // performs the actual INSERT under its private creation scope, numbering,
 // snapshot, pricing, MOQ and idempotency authority. Defaults are restored in a
 // finally block before any Factory transition executes.
@@ -166,11 +167,7 @@ try {
   if (!Array.isArray(draftLineRows) || draftLineRows.length !== 1 || draftLineRows[0]?.readiness_status !== "ready") {
     throw new Error(`Golden-order Buyer draft did not become ready: ${JSON.stringify(draftLineRows)}`);
   }
-  const { data, error: checkoutError } = await buyerClient.rpc("submit_customer_order_v1", {
-    p_idempotency_key: "factory-cert-golden-order-checkout-v1", p_requested_dispatch_date: null,
-  });
-  assertNoSupabaseError(checkoutError, "Golden-order governed Buyer checkout failed");
-  checkoutRows = data;
+  checkoutRows = await submitQuotedCheckout(buyerClient, { idempotencyKey: "factory-cert-golden-order-checkout-v1", label: "Golden-order" });
   await buyerClient.auth.signOut();
 } finally {
   runLocalPostgresRoleStatement(localDbUrl,
@@ -297,12 +294,7 @@ try {
   if (!Array.isArray(point37DraftLineRows) || point37DraftLineRows.length !== 1 || point37DraftLineRows[0]?.readiness_status !== "ready") {
     throw new Error(`Point-37 Buyer draft did not become ready: ${JSON.stringify(point37DraftLineRows)}`);
   }
-  const { data, error: point37CheckoutError } = await point37BuyerClient.rpc("submit_customer_order_v1", {
-    p_idempotency_key: "factory-cert-point37-order-checkout-v1",
-    p_requested_dispatch_date: null,
-  });
-  assertNoSupabaseError(point37CheckoutError, "Point-37 governed Buyer checkout failed");
-  point37CheckoutRows = data;
+  point37CheckoutRows = await submitQuotedCheckout(point37BuyerClient, { idempotencyKey: "factory-cert-point37-order-checkout-v1", label: "Point-37" });
   await point37BuyerClient.auth.signOut();
 } finally {
   runLocalPostgresRoleStatement(localDbUrl,
@@ -502,12 +494,7 @@ try {
   if (!Array.isArray(point38DraftLineRows) || point38DraftLineRows.length !== 1 || point38DraftLineRows[0]?.readiness_status !== "ready") {
     throw new Error(`Point-38 Buyer draft did not become ready: ${JSON.stringify(point38DraftLineRows)}`);
   }
-  const { data, error: point38CheckoutError } = await point38BuyerClient.rpc("submit_customer_order_v1", {
-    p_idempotency_key: "factory-cert-point38-order-checkout-v1",
-    p_requested_dispatch_date: null,
-  });
-  assertNoSupabaseError(point38CheckoutError, "Point-38 governed Buyer checkout failed");
-  point38CheckoutRows = data;
+  point38CheckoutRows = await submitQuotedCheckout(point38BuyerClient, { idempotencyKey: "factory-cert-point38-order-checkout-v1", label: "Point-38" });
   await point38BuyerClient.auth.signOut();
 } finally {
   runLocalPostgresRoleStatement(localDbUrl,

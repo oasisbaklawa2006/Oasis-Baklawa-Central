@@ -14,6 +14,12 @@ on:
       - 'tests/factory-operations-*.cert.spec.ts'
       - 'tests/factory-certification/**'
   workflow_dispatch:
+    inputs:
+      core_ref:
+        description: 'Core ref to certify against (default main; use refs/pull/489/head for the Core #488 revoke migration)'
+        required: false
+        default: main
+        type: string
 
 permissions:
   contents: read
@@ -44,7 +50,7 @@ jobs:
         with:
           persist-credentials: false
           repository: oasisbaklawa2006/oasis-supabase-core
-          ref: main
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.core_ref || 'main' }}
           path: oasis-supabase-core
 
       - name: Checkout Trace client contracts
