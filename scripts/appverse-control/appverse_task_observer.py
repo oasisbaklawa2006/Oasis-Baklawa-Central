@@ -65,7 +65,7 @@ REASONS = {
     "EVIDENCE_TASK_MISMATCH": "The evidence is about a different repository or branch.",
     "HEAD_SHA_CHANGED": "The live head SHA differs from the SHA the task recorded.",
     "CONCURRENT_WRITER": "Another writer is active on this branch.",
-    "LEASE_HOLDER_MISMATCH": "The observed lease holder is not the holder named in the record.",
+    "LEASE_HOLDER_MISMATCH": "The observed lease holder is missing or is not the holder named in the record.",
     "LEASE_EXPIRED": "The lease has expired; the holder is no longer authoritative.",
     "HEARTBEAT_AGING": "The heartbeat is ageing but not old enough to judge.",
     "CI_STATE_UNKNOWN": "CI state could not be determined.",
@@ -385,7 +385,8 @@ def classify(record, evidence, history, keys: dict, now: datetime.datetime, conf
     if evidence["other_writers"]:
         return _result("UNKNOWN", "CONCURRENT_WRITER", record, **extra)
     holder = evidence["lease_holder"]
-    if holder is not None and holder != record["lease"]["owner"]:
+    # A missing holder is unconfirmed, not a pass: only an observed holder equal to the record's owner proceeds.
+    if holder != record["lease"]["owner"]:
         return _result("UNKNOWN", "LEASE_HOLDER_MISMATCH", record, **extra)
     if parse_ts(record["lease"]["expires_at"]) <= now:
         return _result("UNKNOWN", "LEASE_EXPIRED", record, **extra)

@@ -283,6 +283,9 @@ class ScenarioMatrixTests(unittest.TestCase):
     def test_lease_holder_mismatch_and_expired_lease_hold(self):
         """Checks that lease holder mismatch and expired lease hold."""
         self.check(make_record(), make_evidence(lease_holder="cursor-lease-9"), None, "UNKNOWN", "LEASE_HOLDER_MISMATCH")
+        self.check(make_record(), make_evidence(lease_holder=None), None, "UNKNOWN", "LEASE_HOLDER_MISMATCH")
+        stale = stale_record()
+        self.check(stale, make_evidence(lease_holder=None, ci={"state": "success"}), [prior_for(stale)], "UNKNOWN", "LEASE_HOLDER_MISMATCH")
         self.check(make_record(lease={"expires_at": ts(-1)}), make_evidence(), None, "UNKNOWN", "LEASE_EXPIRED")
         self.check(make_record(lease={"expires_at": ts(0)}), make_evidence(), None, "UNKNOWN", "LEASE_EXPIRED")
 

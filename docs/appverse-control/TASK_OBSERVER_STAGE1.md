@@ -65,7 +65,7 @@ Residual limit: HMAC is symmetric, so anyone holding a heartbeat key can mint he
 4. Replay: a lower sequence than one already verified for this task, or the same sequence with a different heartbeat: `HEARTBEAT_REPLAY`. The identical heartbeat seen again is allowed (it is simply unchanged).
 5. Evidence for another repository or branch, or a live head different from the recorded head: `UNKNOWN`.
 6. Pull request closed or merged, or an authenticated `DONE` record: `FINISHED`.
-7. Another active writer, a lease holder different from the record, or an expired lease: `UNKNOWN`.
+7. Another active writer, a lease holder different from the record, a **missing** (`null`) lease holder, or an expired lease: `UNKNOWN`. A holder the collector did not observe is unconfirmed, never a pass; only an observed holder equal to the record's lease owner proceeds.
 8. **Independent evidence** of a wait: agent quota, human approval, user input, CI queued or running, review tool rate-limited, review pending. A task's own claim that it is waiting is never an excuse.
 9. Heartbeat younger than 300 s: `RUNNING`. CI state unknown: `UNKNOWN`. Younger than 900 s: `HEARTBEAT_AGING` (not yet judged).
 10. Heartbeat 900 s or older with no wait: a **second verified observation** of the *same unchanged heartbeat on the same head*, at least 120 s earlier, is required for `STALLED`. One observation, a duplicate, observations too close together, or any progress in between stay `UNKNOWN`. The earlier observation must itself have found no independent reason to wait (a prior `WAITING_CI`, `WAITING_REVIEW`, `RUNNING` or ambiguous-evidence observation does not confirm a stall).
