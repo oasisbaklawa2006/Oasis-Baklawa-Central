@@ -659,22 +659,48 @@ describe("Buyer App governed commercial handoff", () => {
     expect(screen.queryByText("future_internal_state")).toBeNull();
   });
 
-  it("keeps cart controls available for clear and line updates", async () => {
+  it("serializes cart edits and preserves the governed clear/remove controls", async () => {
     buyerMock.updateLine.mockResolvedValue(undefined);
     buyerMock.removeLine.mockResolvedValue(undefined);
     buyerMock.clearDraft.mockResolvedValue(undefined);
     render(<MemoryRouter initialEntries={["/buyer/cart"]}><BuyerApp /></MemoryRouter>);
 
     await screen.findByText("Pista Baklawa");
-    fireEvent.click(screen.getByRole("button", { name: "Increase Pista Baklawa quantity" }));
-    fireEvent.click(screen.getByRole("button", { name: "Remove Pista Baklawa" }));
-    fireEvent.click(screen.getByRole("button", { name: "Clear cart" }));
-    await waitFor(() => {
-      expect(buyerMock.updateLine).toHaveBeenCalledWith("line-1", 3);
-      expect(buyerMock.removeLine).toHaveBeenCalledWith("line-1");
-      expect(buyerMock.clearDraft).toHaveBeenCalledTimes(1);
-    });
+    const increase = screen.getByRole("button", { name: "Increase Pista Baklawa quantity" });
+    const remove = screen.getByRole("button", { name: "Remove Pista Baklawa" });
+    const clear = screen.getByRole("button", { name: "Clear cart" });
+
+    fireEvent.click(increase);
+    await waitFor(() => expect(buyerMock.updateLine).toHaveBeenCalledWith("line-1", 3));
+    await waitFor(() => expect(remove).not.toBeDisabled());
+    fireEvent.click(remove);
+    await waitFor(() => expect(buyerMock.removeLine).toHaveBeenCalledWith("line-1"));
+    await waitFor(() => expect(clear).not.toBeDisabled());
+    fireEvent.click(clear);
+    await waitFor(() => expect(buyerMock.clearDraft).toHaveBeenCalledTimes(1));
   });
+
+  it("invalidates buyer quotation approval before a pending cart edit completes", async () => {
+    let releaseEdit: (() => void) | undefined;
+    buyerMock.updateLine.mockImplementationOnce(() => new Promise<void>((resolve) => {
+      releaseEdit = resolve;
+    }));
+    render(<MemoryRouter initialEntries={["/buyer/cart"]}><BuyerApp /></MemoryRouter>);
+
+    await approveCheckoutQuote();
+    expect(screen.getByRole("button", { name: "Submit approved quotation" })).not.toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Increase Pista Baklawa quantity" }));
+    await waitFor(() => expect(buyerMock.updateLine).toHaveBeenCalledTimes(1));
+
+    expect(screen.getByRole("button", { name: "Submit order" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Remove Pista Baklawa" })).toBeDisabled();
+    expect(buyerMock.submitQuotedOrder).not.toHaveBeenCalled();
+    releaseEdit?.();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Remove Pista Baklawa" })).not.toBeDisabled());
+    expect(buyerMock.submitQuotedOrder).not.toHaveBeenCalled();
+  });
+
+
 
   it("shows a truthful empty cart state", async () => {
     buyerMock.draft.mockResolvedValue([]);
