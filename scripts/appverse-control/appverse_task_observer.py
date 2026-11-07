@@ -108,6 +108,7 @@ class ObserverError(Exception):
 
 # ------------------------------------------------------------------------------------------------ time and config
 def parse_ts(value) -> datetime.datetime | None:
+    """Parse a strict ASCII `YYYY-MM-DDTHH:MM:SSZ` UTC stamp; return an aware datetime, or None for anything else."""
     if not isinstance(value, str) or not STAMP.fullmatch(value):
         return None
     try:
@@ -117,6 +118,7 @@ def parse_ts(value) -> datetime.datetime | None:
 
 
 def fmt_ts(moment: datetime.datetime) -> str:
+    """Format a datetime as the canonical UTC stamp used throughout the schemas."""
     return moment.astimezone(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
@@ -144,10 +146,12 @@ def make_config(**overrides) -> dict:
 
 # ------------------------------------------------------------------------------------------------ authentication
 def canonical(obj: dict) -> bytes:
+    """Canonical JSON bytes (sorted keys, no whitespace, ASCII only): the exact input to every MAC."""
     return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("ascii")
 
 
 def compute_mac(obj: dict, key: bytes) -> str:
+    """HMAC-SHA256 hex digest over the canonical JSON of `obj` without its own `mac` field."""
     return hmac.new(key, canonical({k: v for k, v in obj.items() if k != "mac"}), hashlib.sha256).hexdigest()
 
 
@@ -194,6 +198,7 @@ def load_keys(path: str) -> dict:
 
 # ------------------------------------------------------------------------------------------------ schemas
 def _exact(obj, allowed: set) -> bool:
+    """True only for a dict whose keys are exactly `allowed` (strict whitelist, no extras, none missing)."""
     return isinstance(obj, dict) and set(obj) == allowed
 
 
@@ -209,10 +214,12 @@ def _match(value, pattern) -> bool:
 
 
 def _int(value, low=0, high=2 ** 53) -> bool:
+    """True for a real int (never a bool) within the inclusive range [low, high]."""
     return isinstance(value, int) and not isinstance(value, bool) and low <= value <= high
 
 
 def _url_ok(value, repo) -> bool:
+    """True when `value` is None or a GitHub run or pull request URL belonging to the same repository `repo`."""
     if value is None:
         return True
     match = isinstance(value, str) and URL.fullmatch(value)
@@ -244,6 +251,7 @@ def validate_record(rec) -> bool:
 
 
 def validate_evidence(ev) -> bool:
+    """Strict schema check of collector evidence (unsigned body fields); True only when every field is well-formed."""
     fields = {"schema", "repo", "branch", "head_sha", "pr_state", "observed_at", "api_ok", "ci", "review", "user_input_required",
               "agent_rate_limited", "other_writers", "lease_holder"}
     if not _body_exact(ev, fields) or ev["schema"] != EVIDENCE_SCHEMA:
@@ -266,6 +274,7 @@ def validate_evidence(ev) -> bool:
 
 
 def validate_entry(entry) -> bool:
+    """Strict schema check of an observer-signed history entry (body fields only); True only when well-formed."""
     fields = {"schema", "task_id", "head_sha", "observed_at", "heartbeat_id", "record_seq", "last_progress_at", "state", "reason"}
     return bool(
         _body_exact(entry, fields) and entry["schema"] == OBSERVATION_SCHEMA and _match(entry["task_id"], ID)
@@ -277,6 +286,7 @@ def validate_entry(entry) -> bool:
 
 # ------------------------------------------------------------------------------------------------ classification
 def _result(state: str, reason: str, rec: dict | None = None, **extra) -> dict:
+    """Build the single report shape. Echoes only fields already validated; never side effects or resume/merge permission."""
     proposal = {"STALLED": "POTENTIAL_STALL", "UNKNOWN": "HOLD"}.get(state, "OBSERVE")
     out = {
         "state": state, "reason": reason, "proposal": proposal, "message": f"{state}: {REASONS[reason]}",
@@ -307,6 +317,7 @@ _NO_WAIT_REASONS = frozenset({"FIRST_STALE_OBSERVATION", "DUPLICATE_OBSERVATION"
 
 
 def classify(record, evidence, history, keys: dict, now: datetime.datetime, config: dict | None = None) -> dict:
+    """Classify one task from signed record, evidence and history; fail closed to UNKNOWN when anything is missing."""
     cfg = config or make_config()
     skew = datetime.timedelta(seconds=cfg["skew_seconds"])
     if not isinstance(keys, dict) or not keys:
@@ -472,6 +483,7 @@ def _read_json(path: str | None):
 
 
 def run(argv: list[str]) -> int:
+    """CLI entry point (read-only, dry run). Returns exit 0 OBSERVE, 10 HOLD, 11 POTENTIAL_STALL, or 2 for bad usage."""
     parser = argparse.ArgumentParser(description="Appverse task observer (Stage 1, read-only, dry-run)")
     parser.add_argument("--record", help="signed heartbeat record (JSON)")
     parser.add_argument("--evidence", help="signed collector evidence (JSON)")
@@ -514,6 +526,7 @@ def run(argv: list[str]) -> int:
 
 
 def main() -> None:
+    """Process entry point: run the CLI and exit with its status code."""
     raise SystemExit(run(sys.argv[1:]))
 
 
