@@ -841,6 +841,15 @@ class PolicyDocumentTests(unittest.TestCase):
                        "Residual architectural blocker", "Oasis Appverse Merge Gate"):
             self.assertIn(phrase, self.doc, phrase)
 
+    def test_offline_merge_readiness_is_never_confused_with_live_commissioning(self):
+        """Verify the policy keeps the two certificates apart and keeps the live items as HOLD, not as closed."""
+        for phrase in ("OFFLINE #656 CODE MERGE-READY", "LIVE TRUSTED AUTO-MERGE COMMISSIONED", "PR MERGED != STAGE CLEARED",
+                       "Review threads that stay HOLD after merge", "App 5645415", "RepositoryRole 5",
+                       "**not applied**", "Native unattended auto-merge stays **DISABLED**"):
+            self.assertIn(phrase, self.doc, phrase)
+        commissioned_row = next(line for line in self.doc.splitlines() if line.startswith("| **LIVE TRUSTED AUTO-MERGE COMMISSIONED**"))
+        self.assertIn("**NO.**", commissioned_row)
+
 
 if __name__ == "__main__":
     unittest.main()

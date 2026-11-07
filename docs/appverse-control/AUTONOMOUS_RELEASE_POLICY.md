@@ -85,3 +85,27 @@ Residual architectural blocker (not solvable by a PR): unattended native auto-me
 6. Only then consider #657 (GPT Governance) for any unattended merging.
 
 **Blocking conditions:** gate not installed on main; missing mandatory ruleset; unapproved/changed head; tests pending/failing/skipped; unresolved reviews; mismatched Core authority; real physical/provider evidence absent. Such PRs must not auto-merge. No final live certification is claimed solely from CI.
+
+## Two different certificates: offline code merge-ready vs live trusted auto-merge commissioned
+
+| Certificate | Meaning | Status of this change |
+|---|---|---|
+| **OFFLINE #656 CODE MERGE-READY** | The inert software (controller, workflow definitions, tests, CODEOWNERS, this policy) has no known code defect, every offline negative test passes on the exact head, exact-head CI and reviewers are clean, and an independent human code-owner has approved that SHA. Merging it changes nothing about how any PR is merged. | May be claimed only for a specific final SHA, only after independent human approval. |
+| **LIVE TRUSTED AUTO-MERGE COMMISSIONED** | A dedicated-App publisher is proven live, the rulesets enforce the gate with no bypass, and a freshness mechanism the merge actor cannot skip is certified. | **NO.** Not commissioned, not claimed, not implied by merging #656. |
+
+Neither certificate is a substitute for the other, and `PR MERGED != STAGE CLEARED`.
+
+### Review threads that stay HOLD after merge (precisely identified, impossible to verify before the code exists on `main`)
+
+1. **Live `bypass_actors` attestation through the dedicated App installation token.** Code and offline tests already fail closed: a hidden field is *unverifiable*, never *empty*; any bypass actor, a pin to the shared Actions identity, an unpinned or mixed list, or a wrong integration id is reported; an unreadable ruleset publishes FAILURE. An owner/admin-capable token read is **not** equivalent to proof that the App token can read the field. Post-installation certification: authenticate App 5645415 from the `main`-only environment, dispatch the controller on `main`, and record that both rulesets' `bypass_actors` are visible to *that* token (otherwise the gate stays red and the requirement must not be enabled).
+2. **Stale authoritative SUCCESS after a publisher outage.** A required check has no expiry; nothing in a PR can revoke an earlier SUCCESS when the publisher is down. Not solved by an early return, a re-poll, the 1800 s freshness text, an advisory check, a new check name, or a success check alone. Native unattended auto-merge stays **DISABLED** and no background merge actuator is added. Until a merge-time pinned-SHA revalidation is an enforceable deployed path (merge queue, a "Require workflows to pass" rule, or an equivalent certified by an administrator), the supervised merge actor must run `--evaluate PR --expect-sha SHA` and `authoritative_success_problems` itself.
+
+### Administrator-only steps after the infrastructure merge (proposed here; **not applied** by #656)
+
+1. Authenticate App 5645415 from a protected, `main`-only environment; prove actor visibility and exact-SHA check publication.
+2. Remove the existing RepositoryRole 5 bypass from ruleset #19200597.
+3. Add `Appverse Merge Gate` as a required status check pinned to integration 5645415, with strict mode on.
+4. Enable code-owner review in ruleset #19820724.
+5. Verify (and record) a freshness-safe merging mechanism before any unattended actor exists.
+6. Run the live negative spoof test of the checklist above and record it.
+
