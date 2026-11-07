@@ -51,6 +51,17 @@ describe("point100 Buyer financial-consent invariants", () => {
     expect(resolvedRpcForStage(stage!)).toEqual(["submit_customer_order_quoted_v1", "customer_checkout_quote_v1"]);
   });
 
+  it("keeps Factory golden, Point-37 and Point-38 fixtures behind Core quotation consent", () => {
+    const seed = readFileSync(resolve(__dirname, "../../../../scripts/factory-certification/seed-production-fixtures.mjs"), "utf8");
+    expect(seed).not.toMatch(/\.rpc\(["']submit_customer_order_v1["']/);
+    expect(seed.match(/\.rpc\(["']customer_checkout_quote_v1["']/g)).toHaveLength(3);
+    expect(seed.match(/\.rpc\(["']submit_customer_order_quoted_v1["']/g)).toHaveLength(3);
+    for (const name of ["goldenQuote", "point37Quote", "point38Quote"]) {
+      expect(seed).toContain(`p_quote_fingerprint: ${name}.fingerprint`);
+      expect(seed).toContain(`${name}?.draft_id !==`);
+    }
+  });
+
   it("never mistakes an obsolete web direct-order writer for the certified Buyer checkout", () => {
     const source = readFileSync(resolve(__dirname, "../../customerApp/customerAppClient.ts"), "utf8");
     const route = readFileSync(resolve(__dirname, "../../../pages/customer/BuyerApp.tsx"), "utf8");
