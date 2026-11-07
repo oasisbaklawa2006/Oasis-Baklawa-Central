@@ -533,7 +533,8 @@ def verify_decision(decision, keys: dict, now: datetime.datetime, expected=None,
     if decision["dry_run"] is not True or decision["can_resume"] is not False or decision["can_merge"] is not False \
             or decision["can_deploy"] is not False:
         problems.append("flags")
-    if decision["verdict"] not in VERDICTS or decision["reason_code"] not in DECISION_REASONS:
+    if decision["verdict"] not in VERDICTS or not isinstance(decision["reason_code"], str) \
+            or decision["reason_code"] not in DECISION_REASONS:
         problems.append("verdict")
     issued, expires = s1.parse_ts(decision["issued_at"]), s1.parse_ts(decision["expires_at"])
     lease_expiry = s1.parse_ts(decision["lease_expires_at"]) if decision["lease_expires_at"] is not None else None
@@ -710,7 +711,7 @@ class DecisionController:
         for attempt in range(1, limits["max_attempts"] + 1):
             entry, refusal = self._meter.reserve(task, f"{review_id}:{attempt}", review_id)
             if refusal:
-                return self._decision(now, "HOLD", refusal if attempt == 1 else last_reason, ri, fingerprint)
+                return self._decision(now, "HOLD", refusal, ri, fingerprint)  # the budget cause is never masked by an earlier fault
             nonce = self._fresh_nonce()
             try:
                 raw = self._transport.send(build_request(ri, nonce, self._policy), limits["timeout_seconds"])
@@ -783,7 +784,10 @@ def run(argv: list) -> int:
     except (ReviewerError, OSError, ValueError, AttributeError, RecursionError):
         print(json.dumps({"ok": False, "problems": ["keys"]}))
         return 10
-    problems = verify_decision(_read_json(args.decision), keys, now)
+    try:
+        problems = verify_decision(_read_json(args.decision), keys, now)
+    except (TypeError, ValueError, KeyError, AttributeError, RecursionError):
+        problems = ["malformed"]  # a hostile file must never crash the verifier
     print(json.dumps({"ok": not problems, "problems": problems, "authorises": []}, sort_keys=True))
     return 0 if not problems else 10
 

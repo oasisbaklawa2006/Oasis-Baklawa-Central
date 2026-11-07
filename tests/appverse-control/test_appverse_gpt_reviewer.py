@@ -619,6 +619,26 @@ class ControllerReviewerTests(unittest.TestCase):
         self.assertEqual(controller.meter.committed(), 2 * WORST_CASE)
         self.held([rv.TransportError("unavailable")], "RETRY_EXHAUSTED", calls=2)  # empty script then behaves as unavailable
 
+    def test_a_budget_refusal_on_a_retry_keeps_its_own_reason(self):
+        """Checks that when attempt 1 times out (charged worst case) and attempt 2 is refused by a budget cap, the budget cause is reported."""
+        policy = copy.deepcopy(TEST_POLICY)
+        policy["budget"].update(per_task_cap_micro_usd=WORST_CASE, per_call_cap_micro_usd=WORST_CASE)
+        controller, transport = make_controller([rv.TransportError("timeout"), reply()], policy=policy)
+        decision = run_review(controller)
+        self.assertEqual((decision["verdict"], decision["reason_code"]), ("HOLD", "BUDGET_PER_TASK_CAP"))
+        self.assertEqual(len(transport.requests), 1)
+        meter = rv.BudgetMeter(TEST_POLICY)
+        controller, transport = make_controller([rv.TransportError("timeout"), reply()], meter=meter)
+        meter.tripped = False
+        original = meter.settle
+
+        def settle_and_trip(entry, usage):
+            """Settle as usual, then trip the meter as an overrun would."""
+            original(entry, usage)
+            meter.tripped = True
+        meter.settle = settle_and_trip
+        self.assertEqual(run_review(controller)["reason_code"], "BUDGET_TRIPPED")
+
     def test_one_timeout_then_success_is_accepted_within_the_retry_cap(self):
         """Checks that a single timeout followed by a valid reply yields a valid decision with two ledger entries."""
         controller, transport = make_controller([rv.TransportError("timeout"), reply()])
@@ -688,6 +708,18 @@ class ControllerReviewerTests(unittest.TestCase):
         for junk in (None, "x", [], {}):
             self.assertEqual(rv.verify_decision(junk, KEYS, NOW), ["schema"])
 
+    def test_hostile_decision_files_never_crash_the_verifier(self):
+        """Checks (field by field, with unhashable and mistyped junk) that verify_decision always returns a problem list and never raises."""
+        controller, _ = make_controller([reply()])
+        decision = run_review(controller)
+        junk = ([], {}, [[]], {"a": []}, None, 5, 1.5, True, "x", "", b"b".decode(), [1, 2], {"k": {"k": {}}})
+        for name in sorted(decision):
+            for value in junk:
+                problems = rv.verify_decision({**decision, name: value}, KEYS, NOW)
+                self.assertIsInstance(problems, list, (name, value))
+        for name in ("reason_code", "verdict", "key_id", "mac", "nonce", "issued_at", "expires_at", "lease_expires_at"):
+            self.assertTrue(rv.verify_decision({**decision, name: []}, KEYS, NOW), name)
+
     def test_an_allow_without_complete_bindings_or_a_verified_fence_is_never_valid(self):
         """Checks that a signed ALLOW lacking bindings or fence verification fails independent verification."""
         controller, _ = make_controller([reply()])
@@ -713,7 +745,7 @@ class ControllerReviewerTests(unittest.TestCase):
         second = run_review(controller)
         self.assertEqual(first, second)
         self.assertEqual(len(transport.requests), 1)
-        self.assertEqual(controller.meter.committed(), WORST_CASE - (WORST_CASE - controller.meter.committed()))
+        self.assertEqual(controller.meter.committed(), 1200 * 2 + 80 * 8)  # 3040 micro-USD: settled at reported usage, charged once
         self.assertEqual(len(controller.meter.ledger()), 1)
         third = run_review(controller, now=NOW + datetime.timedelta(seconds=901))  # evidence is now stale: Stage 1 UNKNOWN, no new call
         self.assertEqual(third["reason_code"], "STAGE1_UNKNOWN")
@@ -851,6 +883,26 @@ class KeysAndCliTests(unittest.TestCase):
         self.assertEqual(self.cli("verify", "--keys", keys, "--decision", good, "--now", "yesterday")[0], 2)
         self.assertEqual(self.cli()[0], 2)
         self.assertEqual(self.cli("review")[0], 2)
+
+    def test_verify_reports_a_hostile_decision_file_instead_of_crashing(self):
+        """Checks that the verify command returns exit 10 with a problem list for a decision whose fields are unhashable junk."""
+        keys = self.write("keys.json", {k: v.hex() for k, v in KEYS.items()})
+        controller, _ = make_controller([reply()])
+        decision = run_review(controller)
+        for field in ("reason_code", "verdict", "mac", "key_id"):
+            path = self.write("hostile.json", {**decision, field: {"a": []}})
+            code, out, _ = self.cli("verify", "--keys", keys, "--decision", path, "--now", ts(0))
+            self.assertEqual(code, 10, field)
+            self.assertFalse(json.loads(out)["ok"])
+
+    def test_the_cli_guard_turns_an_unexpected_verifier_fault_into_a_reported_problem(self):
+        """Checks defence in depth: even if verify_decision itself were to raise, the CLI reports a malformed decision with exit 10."""
+        keys = self.write("keys.json", {k: v.hex() for k, v in KEYS.items()})
+        path = self.write("d.json", {"anything": 1})
+        for error in (TypeError("x"), KeyError("k"), AttributeError("a"), ValueError("v"), RecursionError()):
+            with mock.patch.object(rv, "verify_decision", side_effect=error):
+                code, out, _ = self.cli("verify", "--keys", keys, "--decision", path, "--now", ts(0))
+            self.assertEqual((code, json.loads(out)["problems"]), (10, ["malformed"]), repr(error))
 
     def test_there_is_no_cli_path_that_performs_a_review_or_prints_key_material(self):
         """Checks that the CLI exposes only policy, schema and verify, writes nothing, and never prints a key."""
