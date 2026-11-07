@@ -110,7 +110,7 @@ class ControllerWorkflowSecurityTests(unittest.TestCase):
             checkouts = [step for step in step_blocks(job) if "actions/checkout@" in step]
             self.assertEqual(len(checkouts), 1, job_id)
             for step in checkouts:
-                self.assertRegex(step, r"(?m)^        uses: actions/checkout@[0-9a-f]{40}\s*$", job_id)
+                self.assertRegex(step, r"(?m)^        uses: actions/checkout@[0-9a-f]{40}(?:[ \t]+#.*)?$", job_id)
                 self.assertRegex(step, r"(?m)^          ref: main\s*$", job_id)
                 self.assertRegex(step, r"(?m)^          persist-credentials: false\s*$", job_id)
         self.assertNotIn("github.head_ref", self.code)
