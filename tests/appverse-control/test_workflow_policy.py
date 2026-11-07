@@ -851,6 +851,13 @@ class PolicyDocumentTests(unittest.TestCase):
                        "Residual architectural blocker", "Oasis Appverse Merge Gate"):
             self.assertIn(phrase, self.doc, phrase)
 
+    def test_policy_never_claims_that_publishing_nothing_blocks_merging(self):
+        """Verify the false 'publishing nothing blocks merging' claim is gone and the true limitation and Phase 1 scope are stated."""
+        self.assertNotIn("publishing nothing blocks merging", self.doc)
+        for phrase in ("publishing nothing does **not** block merging", "What merging Phase 1 does and does not change",
+                       "not entirely inert", "APPVERSE_GATE_PUBLISHER", "advisory check"):
+            self.assertIn(phrase, self.doc, phrase)
+
     def test_offline_merge_readiness_is_never_confused_with_live_commissioning(self):
         """Verify the policy keeps the two certificates apart and keeps the live items as HOLD, not as closed."""
         for phrase in ("OFFLINE #656 CODE MERGE-READY", "LIVE TRUSTED AUTO-MERGE COMMISSIONED", "PR MERGED != STAGE CLEARED",
