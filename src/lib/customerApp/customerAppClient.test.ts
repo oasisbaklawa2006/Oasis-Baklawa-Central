@@ -201,6 +201,27 @@ describe("customer checkout idempotency", () => {
     expect(normalizeBuyerCheckoutQuote({ draft_id: "draft-1", fingerprint: "not-a-hash" })).toBeNull();
   });
 
+  it("rejects quoted amounts or lines that the INR-only checkout cannot safely display", () => {
+    const line = {
+      product_id: "p-1", quantity: 2, selling_price: 1000, currency: "INR",
+      uom: "kg", gst_rate: 18, tax_inclusive: false,
+      sku: "Q-1", product_name: "Baklawa",
+      minimum_order_quantity: 1, order_increment: 1, min_carton_qty: null,
+    };
+    const quote = {
+      draft_id: "d-1", fingerprint: "0123456789abcdef0123456789abcdef",
+      sales_order_value: 2360, advance_required: 1000, lines: [line],
+    };
+    expect(normalizeBuyerCheckoutQuote(quote)).not.toBeNull();
+    expect(normalizeBuyerCheckoutQuote({ ...quote, lines: [{ ...line, currency: "USD" }] })).toBeNull();
+    expect(normalizeBuyerCheckoutQuote({ ...quote, lines: [{ ...line, gst_rate: 101 }] })).toBeNull();
+    expect(normalizeBuyerCheckoutQuote({ ...quote, lines: [{ ...line, gst_rate: -1 }] })).toBeNull();
+    expect(normalizeBuyerCheckoutQuote({ ...quote, lines: [{ ...line, tax_inclusive: undefined }] })).toBeNull();
+    expect(normalizeBuyerCheckoutQuote({ ...quote, lines: [line, { ...line }] })).toBeNull();
+    expect(normalizeBuyerCheckoutQuote({ ...quote, advance_required: 2361 })).toBeNull();
+    expect(normalizeBuyerCheckoutQuote({ ...quote, advance_required: Number.POSITIVE_INFINITY })).toBeNull();
+  });
+
   it("omits unsafe final-payment links from the customer-safe projection", () => {
     expect(normalizeBuyerFinalPaymentPiFacts({
       order_id: "order-1",
