@@ -174,7 +174,7 @@ export async function runBuyerGoldenPath(
     // Finance consent is mandatory: wait for the actual Core quote rather
     // than bypassing quotation via a legacy direct-order submit.
     await expect(page.getByText("Sales order value (incl. GST)")).toBeVisible({ timeout: 120_000 });
-    await expect(page.getByText("Required advance")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText("Required advance", { exact: true })).toBeVisible({ timeout: 30_000 });
     const approval = page.getByRole("checkbox", { name: /I approve this Core quotation/i });
     await expect(approval).toBeEnabled({ timeout: 120_000 });
     await approval.check();
