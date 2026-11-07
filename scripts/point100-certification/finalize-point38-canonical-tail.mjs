@@ -17,6 +17,7 @@
  */
 
 import { createClient } from "@supabase/supabase-js";
+import { recordPhase } from "../integration-certification/journey-ledger.mjs";
 import {
   RUN_TOKEN,
   assertLoopbackHttpOrigin,
@@ -76,6 +77,7 @@ if (authorityMode !== "role-separated") {
 // Proof recording and finalization belong to Dispatch; the Gate only releases the carton.
 const proofRole = dispatchRole;
 const stopBeforeFinalize = process.env.POINT38_TAIL_STOP_BEFORE_FINALIZE === "true";
+const journeyLedger = process.env.POINT38_JOURNEY_GOVERNED_STATUS_PATH === "true";
 console.log("Point100 Point38 tail authority mode: gate/dispatch role-separated (Core >= 20261001220000)");
 
 /**
@@ -117,6 +119,55 @@ try {
   if (!cartonId || !cartonCode) throw new Error("POINT100_POINT38_TAIL_CARTON_MISSING");
 
   const gateScanCorrelation = `${RUN_TOKEN}:synthetic-gate-scan`;
+  const gateScanMode = (process.env.POINT38_GATE_SCAN_MODE ?? "auto").trim();
+  if (!["auto", "rpc", "direct"].includes(gateScanMode)) throw new Error(`POINT38_GATE_SCAN_MODE_INVALID: ${gateScanMode}`);
+  let gateScanId = "";
+  let gateScanVia = "direct";
+
+  /**
+   * Gate scan evidence. Core #481 makes record_b2b_dispatch_gate_scan_v1 the only writer (Gate authority, server-derived
+   * attribution, idempotent) and rejects direct client inserts. "rpc" requires it; "auto" uses it when the Core under test
+   * has it and falls back to the legacy direct insert ONLY when the function does not exist (the pinned production Core
+   * predates #481). The fallback is a compatibility bridge for that pin, never a substitute when the RPC exists.
+   * Must run after the carton is ready_to_load: the RPC enforces the physical-exit state.
+   */
+  const expectGateProbeRejected = async (label, call, fragment) => {
+    const { data, error } = await call();
+    if (!error || !String(error.message ?? "").includes(fragment)) {
+      throw new Error(`POINT38_GATE_SCAN_PROBE_FAILED: ${label}: expected "${fragment}", got ${JSON.stringify({ error: error?.message ?? null, data })}`);
+    }
+    console.log(`Point38 gate-scan authority PASS: ${label} -> rejected ("${fragment}")`);
+  };
+
+  /** Exercises the #481 contract against the live evidence: replay, duplicate, wrong barcode/carton, unauthorized, direct write. */
+  const assertGateScanAuthority = async () => {
+    const replay = await gateRole.client.rpc("record_b2b_dispatch_gate_scan_v1", { p_carton_id: cartonId, p_scanned_barcode: cartonCode, p_idempotency_key: gateScanCorrelation });
+    assertNoError(replay.error, "Point38 gate scan replay");
+    if (replay.data?.already_recorded !== true || String(replay.data?.scan_id ?? "") !== gateScanId) throw new Error(`POINT38_GATE_SCAN_REPLAY_NOT_IDEMPOTENT: ${JSON.stringify(replay.data)}`);
+    console.log("Point38 gate-scan authority PASS: replay with the same key returns the same evidence row");
+    await expectGateProbeRejected("DISPATCH_MANAGER must not record Gate evidence", () => dispatchRole.client.rpc("record_b2b_dispatch_gate_scan_v1", { p_carton_id: cartonId, p_scanned_barcode: cartonCode, p_idempotency_key: `${RUN_TOKEN}:dm-gate-scan-probe` }), "independent security gate authority required");
+    await expectGateProbeRejected("Gate session must not insert evidence directly", () => gateRole.client.from("operational_scan_records").insert({
+      scan_type: "dispatch_gate", verification_type: "gate_check", entity_type: "b2b_dispatch_carton", entity_id: cartonId, order_id: point38OrderId,
+      barcode_value: cartonCode, expected_barcode: cartonCode, verification_status: "scanned", scan_source: "forged", correlation_id: `${RUN_TOKEN}:forged-gate-scan`,
+    }), "B2B_GATE_SCAN_DIRECT_INSERT_FORBIDDEN");
+    await expectGateProbeRejected("wrong barcode for the carton", () => gateRole.client.rpc("record_b2b_dispatch_gate_scan_v1", { p_carton_id: cartonId, p_scanned_barcode: `${cartonCode}-WRONG`, p_idempotency_key: `${RUN_TOKEN}:wrong-barcode-probe` }), "B2B_GATE_SCAN_BARCODE_MISMATCH");
+    await expectGateProbeRejected("unknown carton", () => gateRole.client.rpc("record_b2b_dispatch_gate_scan_v1", { p_carton_id: "00000000-0000-4000-8000-0000000000b1", p_scanned_barcode: cartonCode, p_idempotency_key: `${RUN_TOKEN}:wrong-carton-probe` }), "B2B_GATE_SCAN_CARTON_NOT_FOUND");
+    await expectGateProbeRejected("duplicate scan under a new key", () => gateRole.client.rpc("record_b2b_dispatch_gate_scan_v1", { p_carton_id: cartonId, p_scanned_barcode: cartonCode, p_idempotency_key: `${RUN_TOKEN}:duplicate-probe` }), "B2B_GATE_SCAN_DUPLICATE");
+    await expectGateProbeRejected("same key with a different payload", () => gateRole.client.rpc("record_b2b_dispatch_gate_scan_v1", { p_carton_id: cartonId, p_scanned_barcode: `${cartonCode}-X`, p_idempotency_key: gateScanCorrelation }), "B2B_GATE_SCAN_IDEMPOTENCY_CONFLICT");
+  };
+
+  const ensureGateScan = async () => {
+    if (gateScanMode !== "direct") {
+      const viaRpc = await gateRole.client.rpc("record_b2b_dispatch_gate_scan_v1", {
+        p_carton_id: cartonId,
+        p_scanned_barcode: cartonCode,
+        p_idempotency_key: gateScanCorrelation,
+      });
+      if (!viaRpc.error) return { id: String(viaRpc.data?.scan_id ?? ""), via: "rpc" };
+      const missing = /could not find the function|schema cache|PGRST202|42883/i.test(`${viaRpc.error.code ?? ""} ${viaRpc.error.message ?? ""}`);
+      if (gateScanMode === "rpc" || !missing) throw new Error(`POINT38_GATE_SCAN_RPC_FAILED: ${viaRpc.error.message}`);
+      console.log("Point38 Gate scan: record_b2b_dispatch_gate_scan_v1 not present in this Core; using the legacy direct evidence insert (pre-#481 pin).");
+    }
   const { data: priorScan, error: priorScanError } = await gateRole.client
     .from("operational_scan_records")
     .select("id")
@@ -124,8 +175,8 @@ try {
     .maybeSingle();
   assertNoError(priorScanError, "Point38 tail prior gate scan lookup");
 
-  let gateScanId = String(priorScan?.id ?? "");
-  if (!gateScanId) {
+  let legacyId = String(priorScan?.id ?? "");
+  if (!legacyId) {
     const { data: gateScan, error: gateScanError } = await gateRole.client
       .from("operational_scan_records")
       .insert({
@@ -146,9 +197,10 @@ try {
       .select("id")
       .single();
     assertNoError(gateScanError, "Point38 tail synthetic gate scan");
-    gateScanId = String(gateScan?.id ?? "");
+    legacyId = String(gateScan?.id ?? "");
   }
-  if (!gateScanId) throw new Error("POINT100_POINT38_TAIL_GATE_SCAN_ID_MISSING");
+  return { id: legacyId, via: "direct" };
+  };
 
   // #366 closed the historical locked -> ready_to_load authority gap.
   // Use the canonical authenticated Core RPC; Point100 must never manufacture
@@ -172,6 +224,10 @@ try {
       `POINT100_POINT38_TAIL_CARTON_NOT_GATE_READY: status=${String(readyCarton?.status ?? "unknown")}`,
     );
   }
+
+  ({ id: gateScanId, via: gateScanVia } = await ensureGateScan());
+  if (!gateScanId) throw new Error("POINT100_POINT38_TAIL_GATE_SCAN_ID_MISSING");
+  if (gateScanVia === "rpc") await assertGateScanAuthority();
 
   // Finance stays independent too: neither Dispatch nor the Security Gate may issue Finance documents or decide
   // Finance clearance. Core checks the Finance actor first, before any argument or state validation, so dummy
@@ -226,11 +282,21 @@ try {
     throw new Error(`POINT100_POINT38_TAIL_GATE_BLOCKED: ${JSON.stringify(gateDecision?.blockers ?? gateDecision)}`);
   }
 
-  const { error: verifyScanError } = await gateRole.client
-    .from("operational_scan_records")
-    .update({ verification_status: "verified" })
-    .eq("id", gateScanId);
-  assertNoError(verifyScanError, "Point38 tail gate evidence verification");
+  if (gateScanVia === "direct") {
+    const { error: verifyScanError } = await gateRole.client
+      .from("operational_scan_records")
+      .update({ verification_status: "verified" })
+      .eq("id", gateScanId);
+    assertNoError(verifyScanError, "Point38 tail gate evidence verification");
+  }
+  if (journeyLedger) {
+    recordPhase("Independent Security Gate releases the carton (5 negative authority probes rejected first)", "GATE_SECURITY", "release_b2b_dispatch_carton_at_gate_v1", {
+      gateScanVia,
+      syntheticInput: gateScanVia === "rpc"
+        ? "none for Gate evidence: recorded by record_b2b_dispatch_gate_scan_v1 (server-derived attribution); the barcode is typed by the harness, not read by a physical scanner"
+        : "gate scan evidence row inserted by the Gate-role session under staff RLS (legacy pre-#481 Core)",
+    });
+  }
 
   await expectRejected(
     "GATE_SECURITY must not record the dispatch proof (Dispatch-owned)",
@@ -269,6 +335,9 @@ try {
   });
   assertNoError(proofError, "Point38 tail immutable dispatch proof");
   const dispatchProofId = String(firstRow(proofData)?.dispatch_proof_id ?? "");
+  if (journeyLedger) {
+    recordPhase("Dispatch records the immutable dispatch proof packet", "DISPATCH_MANAGER", "record_dispatch_proof_packet_v1", { dispatchProofId });
+  }
   if (!dispatchProofId) throw new Error("POINT100_POINT38_TAIL_DISPATCH_PROOF_ID_MISSING");
 
   await expectRejected(
@@ -313,6 +382,10 @@ try {
   const finalize = firstRow(finalizeData) ?? finalizeData;
   if (finalize?.ok !== true || finalize?.new_status !== "dispatched") {
     throw new Error(`POINT100_POINT38_TAIL_FINALIZE_BLOCKED: ${JSON.stringify(finalize)}`);
+  }
+
+  if (journeyLedger) {
+    recordPhase("Dispatch finalizes the order through the canonical Core RPC", "DISPATCH_MANAGER", "release_order_to_dispatched_v1", { newStatus: finalize.new_status });
   }
 
   const { data: exitFactsData, error: exitFactsError } = await proofRole.client.rpc("get_finance_exit_facts_v1", {
