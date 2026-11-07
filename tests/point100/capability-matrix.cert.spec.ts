@@ -38,11 +38,12 @@ test("POINT100 :: generate capability/blocker matrix from executable probes", as
     recordStage(
       matrixStages,
       probe.stageId,
-      probe.coreRpc,
+      // Contract-signature discovery must never be recorded as an executed RPC.
       null,
       null,
-      probe.executable ? "PASS" : "BLOCKED",
-      probe.detail,
+      null,
+      "BLOCKED",
+      `capability-only (${probe.status}; executable=${probe.executable}): ${probe.detail}`,
     );
   }
 
@@ -66,6 +67,11 @@ test("POINT100 :: generate capability/blocker matrix from executable probes", as
   expect(probes.length).toBe(16);
   expect(probes.every((probe) => probe.status)).toBe(true);
   assertNoSilentSkips(ledger);
+  // This is an availability matrix, not evidence of business-stage invocation.
+  // A PASS here would misrepresent contract discoverability as lifecycle UAT.
+  expect(ledger.status).toBe("BLOCKED");
+  expect(ledger.stages.every((stage) => stage.status === "BLOCKED" && stage.rpc === null)).toBe(true);
+  expect(ledger.stages.every((stage) => stage.detail.startsWith("capability-only ("))).toBe(true);
 
   const implemented = probes.filter((p) => p.status === "implemented").length;
   const physicalOnly = probes.filter((p) => p.status === "physical_uat_only").length;
