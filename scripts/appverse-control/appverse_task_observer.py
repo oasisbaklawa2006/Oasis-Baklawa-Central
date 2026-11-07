@@ -56,7 +56,7 @@ REASONS = {
     "HEARTBEAT_KEY_UNKNOWN": "The heartbeat names a key that is not trusted for heartbeats.",
     "HEARTBEAT_UNAUTHENTICATED": "The heartbeat authentication code does not verify; treated as forged.",
     "HEARTBEAT_REPLAY": "The heartbeat is older than, or conflicts with, one already seen.",
-    "HISTORY_UNAVAILABLE": "An explicitly supplied history file is unreadable, oversized or malformed; replay cannot be checked.",
+    "HISTORY_UNAVAILABLE": "History is unreadable, oversized, malformed or has an invalid entry for this task; replay cannot be checked.",
     "CLOCK_SKEW": "A timestamp is in the future beyond the allowed skew.",
     "STATUS_API_UNAVAILABLE": "Independent evidence is missing or the status API was unavailable.",
     "EVIDENCE_INVALID": "The collector evidence does not match the strict schema.",
@@ -302,13 +302,26 @@ def _result(state: str, reason: str, rec: dict | None = None, **extra) -> dict:
     return out
 
 
-def _verified_history(history, keys: dict, task_id: str) -> list:
-    """Only history entries this observer signed and that belong to this task; everything else is ignored."""
-    good = []
-    for entry in history if isinstance(history, list) else []:
-        if validate_entry(entry) and entry["task_id"] == task_id and verify(entry, keys, "history") is None:
+def _verified_history(history, keys: dict, task_id: str):
+    """Return (verified entries for this task, complete).
+
+    Entries that clearly belong to a different task are ignored. Anything else that is not a valid, authentic entry
+    (same task, or unattributable because it is not a dict or has no readable task id) makes the history incomplete,
+    because it may have held the newest sequence number; the caller then fails closed."""
+    if history is None:
+        return [], True
+    if not isinstance(history, list):
+        return [], False
+    good, complete = [], True
+    for entry in history:
+        other_task = isinstance(entry, dict) and isinstance(entry.get("task_id"), str) and entry["task_id"] != task_id
+        if other_task:
+            continue
+        if validate_entry(entry) and verify(entry, keys, "history") is None:
             good.append(entry)
-    return sorted(good, key=lambda e: e["observed_at"])
+        else:
+            complete = False
+    return sorted(good, key=lambda e: e["observed_at"]), complete
 
 
 # A prior observation can confirm a stall only if it too found no independent reason to wait and no ambiguity.
@@ -346,7 +359,9 @@ def classify(record, evidence, history, keys: dict, now: datetime.datetime, conf
     if (now - observed).total_seconds() > cfg["evidence_max_age_seconds"]:
         return _result("UNKNOWN", "EVIDENCE_STALE", record)
 
-    prior = _verified_history(history, keys, record["task_id"])
+    prior, history_complete = _verified_history(history, keys, record["task_id"])
+    if not history_complete:
+        return _result("UNKNOWN", "HISTORY_UNAVAILABLE", record)
     heartbeat_id = record["mac"][:32]
     seen = prior  # sequence numbers are monotonic per task, regardless of head
     newest_seq = max((e["record_seq"] for e in seen), default=-1)
