@@ -703,6 +703,10 @@ function Cart({ data }: { data: ReturnType<typeof useBuyerData> }) {
       await data.refresh();
     } catch {
       toast.error(BUYER_CART_UPDATE_ERROR);
+      // If the edit was refused, the previous draft still needs a fresh Core
+      // quote. Any remotely applied but locally unconfirmed change remains
+      // fail-closed because loadQuote rechecks the draft/quote line match.
+      void loadQuote();
     } finally {
       cartMutationInFlightRef.current = false;
       setCartMutating(false);
