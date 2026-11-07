@@ -89,8 +89,12 @@ def stale_record(**overrides):
     return make_record(last_progress_at=ts(-2000), issued_at=ts(-1990), **overrides)
 
 
-def classify(record, evidence, history=None, keys=KEYS, now=NOW, config=None):
-    return ob.classify(record, evidence, history, keys, now, config)
+_DEFAULT_KEYS = object()
+
+
+def classify(record, evidence, history=None, keys=_DEFAULT_KEYS, now=NOW, config=None):
+    """keys=None or {} mean 'no keys available'; omitting it means the standard test keys."""
+    return ob.classify(record, evidence, history, KEYS if keys is _DEFAULT_KEYS else keys, now, config)
 
 
 def prior_for(record, seconds_before=300, **overrides):
