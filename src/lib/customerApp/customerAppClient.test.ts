@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   canonicalSupportIssueType,
@@ -9,25 +11,45 @@ import {
   normalizeBuyerFinanceFacts,
   normalizeBuyerFinalPaymentPiFacts,
   normalizeBuyerGeneralQuery,
+  normalizeBuyerCheckoutQuote,
   normalizeBuyerStatement,
+  draftCartMatchesCheckoutQuote,
+  isCheckoutQuoteFingerprint,
+  toBuyerCatalogueProduct,
 } from "./customerAppClient";
 
 describe("customer checkout idempotency", () => {
   beforeEach(() => {
     sessionStorage.clear();
-    clearCheckoutIdempotencyKey();
   });
 
-  it("reuses one key across lost-response retries", () => {
-    const first = getCheckoutIdempotencyKey();
+  it("reuses one durable key only within the same company and Core draft", () => {
+    const first = getCheckoutIdempotencyKey("draft-1", "company-1");
     expect(first).toMatch(/^[0-9a-f-]{36}$/i);
-    expect(getCheckoutIdempotencyKey()).toBe(first);
+    expect(getCheckoutIdempotencyKey("draft-1", "company-1")).toBe(first);
+    expect(getCheckoutIdempotencyKey("draft-2", "company-1")).not.toBe(first);
+    expect(getCheckoutIdempotencyKey("draft-1", "company-2")).not.toBe(first);
+    expect(getCheckoutIdempotencyKey("draft-1", "company-1")).toBe(first);
   });
 
-  it("rotates only after a successful submission clears the key", () => {
-    const first = getCheckoutIdempotencyKey();
-    clearCheckoutIdempotencyKey();
-    expect(getCheckoutIdempotencyKey()).not.toBe(first);
+  it("rotates only the acknowledged draft key after a successful submission", () => {
+    const first = getCheckoutIdempotencyKey("draft-1", "company-1");
+    const another = getCheckoutIdempotencyKey("draft-2", "company-1");
+    clearCheckoutIdempotencyKey("draft-1", "company-1");
+    expect(getCheckoutIdempotencyKey("draft-1", "company-1")).not.toBe(first);
+    expect(getCheckoutIdempotencyKey("draft-2", "company-1")).toBe(another);
+  });
+
+  it("fails closed if the checkout retry scope or persistent storage is unavailable", () => {
+    expect(() => getCheckoutIdempotencyKey("", "company-1")).toThrow();
+    expect(() => getCheckoutIdempotencyKey("draft-1", "")).toThrow();
+    const original = Storage.prototype.setItem;
+    try {
+      Storage.prototype.setItem = () => { throw new Error("storage blocked"); };
+      expect(() => getCheckoutIdempotencyKey("draft-new", "company-1")).toThrow();
+    } finally {
+      Storage.prototype.setItem = original;
+    }
   });
 
   it("uses the local calendar date for the dispatch-date minimum", () => {
@@ -157,6 +179,68 @@ describe("customer checkout idempotency", () => {
     expect(normalizeBuyerGeneralQuery({ query_id: "query-1", subject: "", message: "" })).toBeNull();
   });
 
+  it("normalizes authoritative checkout quotes and matches draft lines", () => {
+    const quote = normalizeBuyerCheckoutQuote({
+      draft_id: "draft-1",
+      fingerprint: "0123456789abcdef0123456789abcdef",
+      sales_order_value: 13125,
+      advance_required: 5000,
+      lines: [{
+        product_id: "product-1",
+        quantity: 2,
+        selling_price: 6250,
+        currency: "INR",
+        uom: "carton",
+        gst_rate: 5,
+        tax_inclusive: false,
+        sku: "SKU-1",
+        product_name: "Pista Baklawa",
+        minimum_order_quantity: 1,
+        order_increment: 1,
+        min_carton_qty: null,
+      }],
+    });
+    expect(quote).toMatchObject({ draft_id: "draft-1", sales_order_value: 13125 });
+    expect(isCheckoutQuoteFingerprint(quote?.fingerprint ?? "")).toBe(true);
+    expect(draftCartMatchesCheckoutQuote([{
+      draft_id: "draft-1",
+      company_id: "company-1",
+      status: "active",
+      readiness_status: "ready",
+      readiness_issues: [],
+      line_id: "line-1",
+      product_id: "product-1",
+      quantity: 2,
+      unit_price_snapshot: 6250,
+      currency_snapshot: "INR",
+      uom_snapshot: "carton",
+      sku_snapshot: "SKU-1",
+      product_name_snapshot: "Pista Baklawa",
+    }], quote!)).toBe(true);
+    expect(normalizeBuyerCheckoutQuote({ draft_id: "draft-1", fingerprint: "not-a-hash" })).toBeNull();
+  });
+
+  it("rejects quoted amounts or lines that the INR-only checkout cannot safely display", () => {
+    const line = {
+      product_id: "p-1", quantity: 2, selling_price: 1000, currency: "INR",
+      uom: "kg", gst_rate: 18, tax_inclusive: false,
+      sku: "Q-1", product_name: "Baklawa",
+      minimum_order_quantity: 1, order_increment: 1, min_carton_qty: null,
+    };
+    const quote = {
+      draft_id: "d-1", fingerprint: "0123456789abcdef0123456789abcdef",
+      sales_order_value: 2360, advance_required: 1000, lines: [line],
+    };
+    expect(normalizeBuyerCheckoutQuote(quote)).not.toBeNull();
+    expect(normalizeBuyerCheckoutQuote({ ...quote, lines: [{ ...line, currency: "USD" }] })).toBeNull();
+    expect(normalizeBuyerCheckoutQuote({ ...quote, lines: [{ ...line, gst_rate: 101 }] })).toBeNull();
+    expect(normalizeBuyerCheckoutQuote({ ...quote, lines: [{ ...line, gst_rate: -1 }] })).toBeNull();
+    expect(normalizeBuyerCheckoutQuote({ ...quote, lines: [{ ...line, tax_inclusive: undefined }] })).toBeNull();
+    expect(normalizeBuyerCheckoutQuote({ ...quote, lines: [line, { ...line }] })).toBeNull();
+    expect(normalizeBuyerCheckoutQuote({ ...quote, advance_required: 2361 })).toBeNull();
+    expect(normalizeBuyerCheckoutQuote({ ...quote, advance_required: Number.POSITIVE_INFINITY })).toBeNull();
+  });
+
   it("omits unsafe final-payment links from the customer-safe projection", () => {
     expect(normalizeBuyerFinalPaymentPiFacts({
       order_id: "order-1",
@@ -178,5 +262,44 @@ describe("customer checkout idempotency", () => {
     })).toMatchObject({
       payment_link: "https://pay.example.test/checkout",
     });
+  });
+});
+
+describe("Core-governed Buyer catalogue projection", () => {
+  it("maps published_products_v1 to the exact customer-safe product tile shape", () => {
+    expect(toBuyerCatalogueProduct({
+      product_id: "00000000-0000-4000-8000-000000000100",
+      sku: "CERT-BUYER-GOLDEN-001",
+      product_name: "Synthetic Certification Baklawa",
+      short_description: "Short description",
+      long_description: null,
+      category: "Bakery",
+      subcategory: "Baklawa",
+      hero_image_url: "https://example.invalid/hero.webp",
+      pack_size: null,
+      storage_type: null,
+      shelf_life: null,
+      shelf_life_days: null,
+      dietary_tags: null,
+      allergen_warnings: null,
+      primary_uom: "kg",
+      created_at: "2026-11-05T00:00:00Z",
+    })).toEqual({
+      id: "00000000-0000-4000-8000-000000000100",
+      name: "Synthetic Certification Baklawa",
+      sku: "CERT-BUYER-GOLDEN-001",
+      description: "Short description",
+      image_url: "https://example.invalid/hero.webp",
+      category: "Bakery",
+      sub_category: "Baklawa",
+      is_active: true,
+      visible_in_catalog: true,
+    });
+  });
+
+  it("forbids a direct products-table read in the live Buyer route", () => {
+    const source = readFileSync(resolve(__dirname, "../../pages/customer/BuyerApp.tsx"), "utf8");
+    expect(source).not.toMatch(/\.from\(\s*["']products["']\s*\)/);
+    expect(source).toContain("customerAppClient.products()");
   });
 });

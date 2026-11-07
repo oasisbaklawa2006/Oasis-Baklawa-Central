@@ -25,7 +25,9 @@ concurrency:
 jobs:
   disposable-buyer-golden-path:
     name: Disposable Buyer golden path certification
-    runs-on: ubuntu-latest
+    # Keep the disposable Buyer Chromium journey on a Playwright-supported
+    # runner even when ubuntu-latest advances to an unsupported OS release.
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
       BUYER_CERT_CORE_REPO: ${{ github.workspace }}/oasis-supabase-core

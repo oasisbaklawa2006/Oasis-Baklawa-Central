@@ -23,6 +23,7 @@ export type BuyerGoldenPathEvidence = {
   fixture_email: string;
   fixture_id: string | null;
   viewport: BuyerCertificationViewport["name"];
+  auth_method: "ephemeral_local_gotrue_password_session_not_msg91";
   steps: Array<{ step: string; status: "PASS" | "FAIL"; detail?: string }>;
   screenshot_paths: string[];
 };
@@ -59,14 +60,58 @@ export function requireBuyerCredentials(): { email: string; password: string } {
   return { email, password };
 }
 
+/**
+ * Browser-only synthetic authentication against a disposable local GoTrue.
+ * This is NOT MSG91 OTP, phone possession, mobile APK or production UAT.
+ * The user role and company must still pass the app's normal server-backed gate.
+ */
 export async function loginBuyer(page: Page, email: string, password: string, targetUrl: string) {
+  const apiUrl = process.env.BUYER_CERT_SUPABASE_URL?.trim();
+  const anonKey = process.env.BUYER_CERT_SUPABASE_ANON_KEY?.trim();
+  const expectedId = process.env.BUYER_CERT_SYNTHETIC_FIXTURE_ID?.trim();
+  if (!apiUrl || !anonKey || !expectedId) {
+    throw new Error("CERTIFICATION_ENV_REQUIRED: local GoTrue URL, anon key and fixture ID are required");
+  }
+  const authHost = new URL(apiUrl).hostname;
+  const previewHost = new URL(targetUrl).hostname;
+  if (!LOOPBACK_HOSTS.has(authHost) || !LOOPBACK_HOSTS.has(previewHost)) {
+    throw new Error("CERTIFICATION_LOOPBACK_ONLY: synthetic password sessions cannot be used against remote services");
+  }
+
+  // This is a real GoTrue session for the local fixture, not a forged JWT,
+  // mocked browser login, auth bypass or a claim of MSG91 OTP verification.
+  const response = await page.request.post(`${apiUrl}/auth/v1/token?grant_type=password`, {
+    headers: { apikey: anonKey, "content-type": "application/json" },
+    data: { email, password },
+  });
+  if (response.status() !== 200) {
+    throw new Error(`CERTIFICATION_AUTH_FAILED: local GoTrue returned HTTP ${response.status()}`);
+  }
+  const session = (await response.json()) as {
+    access_token?: unknown;
+    refresh_token?: unknown;
+    token_type?: unknown;
+    expires_in?: unknown;
+    user?: { id?: unknown; email?: unknown };
+  };
+  if (typeof session.access_token !== "string" || !session.access_token ||
+      typeof session.refresh_token !== "string" || !session.refresh_token ||
+      session.user?.id !== expectedId || session.user?.email !== email) {
+    throw new Error("CERTIFICATION_AUTH_MISMATCH: session does not belong to the disposable Buyer fixture");
+  }
+
+  // Set the real session once, before opening the protected app. Do NOT use
+  // addInitScript: it would silently restore the token again after logout.
+  const storageKey = `sb-${authHost.split(".")[0]}-auth-token`;
   await page.goto(`${targetUrl}/login`, { waitUntil: "domcontentloaded", timeout: 60_000 });
-  await expect(page.getByRole("heading", { name: /Welcome Back/i })).toBeVisible({ timeout: 30_000 });
-  await page.getByRole("button", { name: /^Email$/i }).click();
-  await page.getByPlaceholder("you@business.com").fill(email);
-  await page.getByPlaceholder("••••••••").fill(password);
-  await page.getByRole("button", { name: /^Login$/i }).click();
-  await page.waitForURL((url) => /\/buyer(\/|$)/i.test(url.pathname), { timeout: 120_000 });
+  await page.evaluate(({ key, value }) => {
+    localStorage.setItem(key, JSON.stringify(value));
+  }, {
+    key: storageKey,
+    value: { ...session, expires_at: Math.floor(Date.now() / 1000) + Number(session.expires_in ?? 3600) },
+  });
+  await page.goto(`${targetUrl}/buyer`, { waitUntil: "domcontentloaded", timeout: 60_000 });
+  await expect(page.locator("#dashboard-heading")).toBeVisible({ timeout: 60_000 });
 }
 
 export async function runBuyerGoldenPath(
@@ -85,6 +130,7 @@ export async function runBuyerGoldenPath(
     fixture_email: credentials.email,
     fixture_id: process.env.BUYER_CERT_SYNTHETIC_FIXTURE_ID?.trim() || null,
     viewport: viewport.name,
+    auth_method: "ephemeral_local_gotrue_password_session_not_msg91",
     steps: [],
     screenshot_paths: [],
   };
@@ -102,7 +148,7 @@ export async function runBuyerGoldenPath(
 
   try {
     await loginBuyer(page, credentials.email, credentials.password, targetUrl);
-    record("login", "PASS");
+    record("login", "PASS", "real disposable GoTrue session; not MSG91 delivery, OTP or Android authentication");
 
     await page.goto(`${targetUrl}/buyer`, { waitUntil: "domcontentloaded" });
     await expect(page.locator("#dashboard-heading")).toBeVisible({ timeout: 60_000 });
@@ -125,7 +171,14 @@ export async function runBuyerGoldenPath(
     await shot("03-cart");
     record("cart", "PASS");
 
-    const submit = page.getByRole("button", { name: /^Submit order$/i });
+    // Finance consent is mandatory: wait for the actual Core quote rather
+    // than bypassing quotation via a legacy direct-order submit.
+    await expect(page.getByText("Sales order value (incl. GST)")).toBeVisible({ timeout: 120_000 });
+    await expect(page.getByText("Required advance", { exact: true })).toBeVisible({ timeout: 30_000 });
+    const approval = page.getByRole("checkbox", { name: /I approve this Core quotation/i });
+    await expect(approval).toBeEnabled({ timeout: 120_000 });
+    await approval.check();
+    const submit = page.getByRole("button", { name: /^Submit approved quotation$/i });
     await expect(submit).toBeEnabled({ timeout: 120_000 });
     await submit.click();
     await page.waitForURL((url) => /\/buyer\/orders\//.test(url.pathname), { timeout: 120_000 });
