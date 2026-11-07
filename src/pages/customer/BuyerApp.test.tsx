@@ -175,9 +175,13 @@ vi.mock("@/integrations/supabase/client", () => ({
   },
 }));
 
+/** Wait for actual Core quote availability before accepting a financial fingerprint. */
 async function approveCheckoutQuote() {
   await waitFor(() => expect(buyerMock.checkoutQuote).toHaveBeenCalled());
-  fireEvent.click(await screen.findByRole("checkbox", { name: /I approve this Core quotation/i }));
+  const approval = await screen.findByRole("checkbox", { name: /I approve this Core quotation/i });
+  await waitFor(() => expect(approval).not.toBeDisabled());
+  fireEvent.click(approval);
+  await waitFor(() => expect(approval).toBeChecked());
 }
 
 beforeEach(() => {
