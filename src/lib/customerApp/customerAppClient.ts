@@ -2,6 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Database, Json } from "@/integrations/supabase/database.types";
 import { parseGovernedHttpsPaymentLink } from "@/lib/order-authority/governedPaymentLink";
 import { classifyIntegrationError } from "@/lib/integration-contracts";
+import type { PublishedProductProjectionRow } from "@/lib/published-products/types";
 
 type PublicFunctions = Database["public"]["Functions"];
 type RpcName = keyof PublicFunctions;
@@ -520,10 +521,54 @@ export function normalizeBuyerGeneralQuery(value: unknown): BuyerGeneralQuery | 
   };
 }
 
+/** Governed, customer-safe Core published-products projection, never public.products. */
+export type BuyerCatalogueProduct = {
+  id: string;
+  name: string | null;
+  sku: string | null;
+  description: string | null;
+  image_url: string | null;
+  category: string | null;
+  sub_category: string | null;
+  is_active: boolean;
+  visible_in_catalog: boolean;
+};
+
+export function toBuyerCatalogueProduct(row: PublishedProductProjectionRow): BuyerCatalogueProduct {
+  return {
+    id: row.product_id,
+    name: row.product_name,
+    sku: row.sku,
+    description: row.long_description ?? row.short_description,
+    image_url: row.hero_image_url,
+    category: row.category,
+    sub_category: row.subcategory,
+    // Core excludes unpublished, inactive and unapproved catalogue rows.
+    is_active: true,
+    visible_in_catalog: true,
+  };
+}
+
+type PublishedProductsRpcClient = {
+  rpc: (name: "published_products_v1") =>
+    Promise<{ data: PublishedProductProjectionRow[] | null; error: { message: string } | null }>;
+};
+
+async function publishedProducts(): Promise<BuyerCatalogueProduct[]> {
+  // The generated Database type does not yet expose this existing Core RPC.
+  const result = await (supabase as unknown as PublishedProductsRpcClient).rpc("published_products_v1");
+  if (result.error || !Array.isArray(result.data)) {
+    if (result.error) classifyCustomerRpcFailure(result.error);
+    throw new Error(CUSTOMER_SAFE_REQUEST_ERROR);
+  }
+  return result.data.map(toBuyerCatalogueProduct);
+}
+
 export const customerAppClient = {
   company: () => rpc("customer_company_v1"),
   team: () => rpc("customer_team_v1"),
   prices: () => rpc("buyer_product_prices_v1"),
+  products: () => publishedProducts(),
   draft: () => rpc("get_customer_order_draft_v1"),
   addLine: (productId: string, quantity: number) => rpc("add_customer_order_draft_line_v1", { p_product_id: productId, p_quantity: quantity }),
   updateLine: (lineId: string, quantity: number) => rpc("update_customer_order_draft_line_v1", { p_line_id: lineId, p_quantity: quantity }),
