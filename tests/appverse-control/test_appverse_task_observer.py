@@ -628,6 +628,23 @@ class KeyAndCliTests(unittest.TestCase):
             code, out, _ = self.cli("--keys", path, "--now", ts(0))
             self.assertEqual((code, json.loads(out)["reason"]), (10, "KEYS_UNAVAILABLE"))
 
+    def test_explicit_but_unusable_history_fails_closed_instead_of_acting_like_none(self):
+        keys = self.keys_file()
+        record, evidence = self.write("r.json", make_record()), self.write("e.json", make_evidence())
+        code, out, _ = self.cli("--keys", keys, "--now", ts(0), "--record", record, "--evidence", evidence)
+        self.assertEqual(code, 0)  # history genuinely omitted: unchanged behaviour
+        bad = self.dir / "badhist.json"
+        bad.write_text("{not json")
+        big = self.dir / "bighist.json"
+        big.write_text(json.dumps(["x" * (ob.MAX_INPUT_BYTES + 10)]))
+        notlist = self.write("notlist.json", {"a": 1})
+        for hist in (str(bad), str(big), notlist, str(self.dir / "absent-history.json")):
+            code, out, _ = self.cli("--keys", keys, "--now", ts(0), "--record", record, "--evidence", evidence, "--history", hist)
+            self.assertEqual((code, json.loads(out)["reason"]), (10, "HISTORY_UNAVAILABLE"), hist)
+        good = self.write("goodhist.json", [])
+        code, _, _ = self.cli("--keys", keys, "--now", ts(0), "--record", record, "--evidence", evidence, "--history", good)
+        self.assertEqual(code, 0)
+
     def test_cli_with_unsafe_or_missing_keys_trusts_nothing(self):
         record, evidence = self.write("r.json", make_record()), self.write("e.json", make_evidence())
         for keys in (self.keys_file(0o644), str(self.dir / "absent.json")):
@@ -689,7 +706,7 @@ class StaticSafetyTests(unittest.TestCase):
         self.assertEqual(sorted(ob.REASONS), sorted([
             "HEARTBEAT_FRESH", "CI_RUNNING", "REVIEW_PENDING", "REVIEW_TOOL_RATE_LIMITED", "HUMAN_APPROVAL_REQUIRED", "USER_INPUT_REQUIRED",
             "AGENT_QUOTA_EXHAUSTED", "PR_CLOSED_OR_MERGED", "TASK_REPORTED_DONE", "NO_PROGRESS_TWO_OBSERVATIONS", "NO_TELEMETRY",
-            "RECORD_INVALID", "KEYS_UNAVAILABLE", "HEARTBEAT_KEY_UNKNOWN", "HEARTBEAT_UNAUTHENTICATED", "HEARTBEAT_REPLAY", "CLOCK_SKEW",
+            "RECORD_INVALID", "KEYS_UNAVAILABLE", "HEARTBEAT_KEY_UNKNOWN", "HEARTBEAT_UNAUTHENTICATED", "HEARTBEAT_REPLAY", "HISTORY_UNAVAILABLE", "CLOCK_SKEW",
             "STATUS_API_UNAVAILABLE", "EVIDENCE_INVALID", "EVIDENCE_UNAUTHENTICATED", "EVIDENCE_STALE", "EVIDENCE_TASK_MISMATCH",
             "HEAD_SHA_CHANGED", "CONCURRENT_WRITER", "LEASE_HOLDER_MISMATCH", "LEASE_EXPIRED", "HEARTBEAT_AGING", "CI_STATE_UNKNOWN",
             "FIRST_STALE_OBSERVATION", "DUPLICATE_OBSERVATION", "OBSERVATIONS_TOO_CLOSE", "UNCONFIRMED_STALL"]))

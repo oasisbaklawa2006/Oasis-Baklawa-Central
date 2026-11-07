@@ -56,6 +56,7 @@ REASONS = {
     "HEARTBEAT_KEY_UNKNOWN": "The heartbeat names a key that is not trusted for heartbeats.",
     "HEARTBEAT_UNAUTHENTICATED": "The heartbeat authentication code does not verify; treated as forged.",
     "HEARTBEAT_REPLAY": "The heartbeat is older than, or conflicts with, one already seen.",
+    "HISTORY_UNAVAILABLE": "An explicitly supplied history file is unreadable, oversized or malformed; replay cannot be checked.",
     "CLOCK_SKEW": "A timestamp is in the future beyond the allowed skew.",
     "STATUS_API_UNAVAILABLE": "Independent evidence is missing or the status API was unavailable.",
     "EVIDENCE_INVALID": "The collector evidence does not match the strict schema.",
@@ -501,6 +502,10 @@ def run(argv: list[str]) -> int:
     if isinstance(evidence, dict) and evidence.get("_oversized"):
         evidence = {}
     report = classify(record, evidence, history, keys, now, cfg)
+    # An explicit --history that cannot be loaded must not behave like an omitted one: replay detection would silently be off.
+    history_bad = bool(args.history) and not isinstance(history, list)
+    if history_bad and report["state"] != "UNKNOWN":
+        report = _result("UNKNOWN", "HISTORY_UNAVAILABLE")
     if args.format == "text":
         print(f"{report['proposal']}  {report['message']}  [{report['reason']}]")
     else:

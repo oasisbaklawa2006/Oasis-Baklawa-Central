@@ -55,7 +55,7 @@ Residual limit: HMAC is symmetric, so anyone holding a heartbeat key can mint he
 | `RATE_LIMITED` | `AGENT_QUOTA_EXHAUSTED` (the agent's own quota; restarting would not help) |
 | `FINISHED` | `PR_CLOSED_OR_MERGED`, `TASK_REPORTED_DONE` |
 | `STALLED` | `NO_PROGRESS_TWO_OBSERVATIONS` |
-| `UNKNOWN` (HOLD) | `NO_TELEMETRY`, `RECORD_INVALID`, `KEYS_UNAVAILABLE`, `HEARTBEAT_KEY_UNKNOWN`, `HEARTBEAT_UNAUTHENTICATED`, `HEARTBEAT_REPLAY`, `CLOCK_SKEW`, `STATUS_API_UNAVAILABLE`, `EVIDENCE_INVALID`, `EVIDENCE_UNAUTHENTICATED`, `EVIDENCE_STALE`, `EVIDENCE_TASK_MISMATCH`, `HEAD_SHA_CHANGED`, `CONCURRENT_WRITER`, `LEASE_HOLDER_MISMATCH`, `LEASE_EXPIRED`, `HEARTBEAT_AGING`, `CI_STATE_UNKNOWN`, `FIRST_STALE_OBSERVATION`, `DUPLICATE_OBSERVATION`, `OBSERVATIONS_TOO_CLOSE`, `UNCONFIRMED_STALL` |
+| `UNKNOWN` (HOLD) | `NO_TELEMETRY`, `RECORD_INVALID`, `KEYS_UNAVAILABLE`, `HEARTBEAT_KEY_UNKNOWN`, `HEARTBEAT_UNAUTHENTICATED`, `HEARTBEAT_REPLAY`, `HISTORY_UNAVAILABLE`, `CLOCK_SKEW`, `STATUS_API_UNAVAILABLE`, `EVIDENCE_INVALID`, `EVIDENCE_UNAUTHENTICATED`, `EVIDENCE_STALE`, `EVIDENCE_TASK_MISMATCH`, `HEAD_SHA_CHANGED`, `CONCURRENT_WRITER`, `LEASE_HOLDER_MISMATCH`, `LEASE_EXPIRED`, `HEARTBEAT_AGING`, `CI_STATE_UNKNOWN`, `FIRST_STALE_OBSERVATION`, `DUPLICATE_OBSERVATION`, `OBSERVATIONS_TOO_CLOSE`, `UNCONFIRMED_STALL` |
 
 ### Decision order (first match wins)
 
@@ -77,7 +77,7 @@ Thresholds are configurable but bounded: a stall window under 300 s, or any non-
 * Persisted history is the observer-signed `appverse.observation/1` entry only: task id, head SHA, observation time, a 32-hex heartbeat fingerprint, the record's sequence and progress time, and the resulting enum state and reason. No free text.
 * `prune_history` bounds it deterministically: entries older than 14 days are dropped, at most 20 per task, 200 tasks and 256 KiB overall (oldest first); entries are authenticated with the `obs-` keys BEFORE the caps are applied, so unsigned, tampered or future-dated entries are discarded and can never displace genuine history (without keys nothing is retained); pruning is idempotent and order-independent.
 * `redact()` scrubs GitHub and OpenAI-style keys, AWS keys, bearer values, JWTs, private-key blocks, e-mail addresses, phone numbers and `password=` style assignments, and bounds length. Stage 1 stores no free text, so this is defence in depth for any text a later stage might add.
-* In Stage 1 **the caller persists history**; the observer never writes. If history is lost, replay cannot be detected, which is why a lost history can only make results more conservative, never produce `STALLED`.
+* In Stage 1 **the caller persists history**; the observer never writes. If history is lost or omitted, replay cannot be detected and a stall can never be confirmed (so `STALLED` is never produced), but a superseded heartbeat could otherwise look current. Therefore an explicitly supplied `--history` file that is unreadable, oversized, malformed or not a list fails closed with `HISTORY_UNAVAILABLE` (`HOLD`, exit 10) instead of being treated as omitted; only omitting `--history` entirely means no history. A caller that persists history must treat a missing history store as an error, not as an empty one.
 
 ## Command line (dry run)
 
@@ -99,4 +99,4 @@ No authoritative machine-readable source for the live epoch exists yet (the coll
 
 ## Dependencies for the next stages
 
-Stage 2 (reviewer, dry-run) needs this report format as its input, must treat it as unfenced (see Known limitation), and must bind any decision to the exact repository, task, branch, head SHA, lease and expiry. Stage 3 (guarded recovery) additionally needs the heartbeat writer, the collector, durable history storage, and the protected merge gate (#656) installed and enforced. None of those exist yet, and none is enabled by this change.
+Stage 2 (reviewer, dry-run) needs this report format as its input, must treat it as unfenced (see Known limitation), and must bind any decision to the exact repository, task, branch, head SHA, lease owner, lease epoch and expiry. This report carries only `lease_expires_at`, so Stage 2 needs a separately authenticated input that supplies the lease owner and epoch (from the signed heartbeat record, or a future verified lease source). Stage 3 (guarded recovery) additionally needs the heartbeat writer, the collector, durable history storage, and the protected merge gate (#656) installed and enforced. None of those exist yet, and none is enabled by this change.
