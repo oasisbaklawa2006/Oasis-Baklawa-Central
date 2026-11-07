@@ -15,6 +15,8 @@ SPEC.loader.exec_module(gate)
 CONTROLLER = (WORKFLOWS / "appverse-merge-gate.yml").read_text()
 UNIT_CI = (WORKFLOWS / "appverse-merge-gate-ci.yml").read_text()
 QUALITY = (WORKFLOWS / "quality-gate.yml").read_text()
+# The real pinned checkout of the unit-test workflow (full SHA, optional trailing comment); mutation fixtures derive from it.
+PINNED_UNIT_CHECKOUT = re.search(r"actions/checkout@([0-9a-f]{40})([ \t]+#[^\n]*)?", UNIT_CI)
 
 
 def strip_comments(text: str) -> str:
@@ -464,7 +466,8 @@ class QualityGateIntegrityTests(unittest.TestCase):
 
     def test_every_injected_second_checkout_is_rejected(self):
         """Verify a second checkout is rejected whichever key starts its step, including a mutable tag."""
-        sha = "11d5960a326750d5838078e36cf38b85af677262"
+        self.assertIsNotNone(PINNED_UNIT_CHECKOUT, "the unit workflow checkout must be pinned to a full SHA")
+        sha = PINNED_UNIT_CHECKOUT.group(1)
         variants = {
             "id": f"      - id: sneaky\n        uses: actions/checkout@{sha}\n        with:\n          persist-credentials: false\n",
             "env": f"      - env:\n          X: '1'\n        uses: actions/checkout@{sha}\n        with:\n          persist-credentials: false\n",
@@ -483,11 +486,12 @@ class QualityGateIntegrityTests(unittest.TestCase):
 
     def test_mutable_unpinned_and_credential_persisting_checkouts_are_rejected(self):
         """Verify a mutable tag, a short SHA, persisted credentials and a non-main ref are each rejected on their own."""
-        sha = "11d5960a326750d5838078e36cf38b85af677262"
+        self.assertIsNotNone(PINNED_UNIT_CHECKOUT, "the unit workflow checkout must be pinned to a full SHA")
+        sha, checkout = PINNED_UNIT_CHECKOUT.group(1), PINNED_UNIT_CHECKOUT.group(0)
         for label, mutated, trusted in (
-            ("mutable tag", UNIT_CI.replace(f"actions/checkout@{sha} # v4", "actions/checkout@v4", 1), False),
-            ("branch ref", UNIT_CI.replace(f"actions/checkout@{sha} # v4", "actions/checkout@main", 1), False),
-            ("short sha", UNIT_CI.replace(sha, sha[:12], 1), False),
+            ("mutable tag", UNIT_CI.replace(checkout, "actions/checkout@v4", 1), False),
+            ("branch ref", UNIT_CI.replace(checkout, "actions/checkout@main", 1), False),
+            ("short sha", UNIT_CI.replace(checkout, f"actions/checkout@{sha[:12]}", 1), False),
             ("persisted credentials", UNIT_CI.replace("persist-credentials: false", "persist-credentials: true", 1), False),
             ("credentials omitted", UNIT_CI.replace("        with:\n          persist-credentials: false\n", "", 1), False),
             ("not main", CONTROLLER.replace("ref: main", "ref: dev", 1), True),
@@ -498,8 +502,14 @@ class QualityGateIntegrityTests(unittest.TestCase):
 
     def test_pinned_checkout_with_a_trailing_version_comment_is_accepted(self):
         """Verify a pinned SHA with a benign trailing version comment stays valid, with and without the comment."""
-        self.assertEqual(checkout_problems(UNIT_CI), [])
-        self.assertEqual(checkout_problems(UNIT_CI.replace(" # v4", "", 1)), [])
+        self.assertIsNotNone(PINNED_UNIT_CHECKOUT, "the unit workflow checkout must be pinned to a full SHA")
+        pin = f"actions/checkout@{PINNED_UNIT_CHECKOUT.group(1)}"
+        checkout = PINNED_UNIT_CHECKOUT.group(0)
+        with_comment = UNIT_CI.replace(checkout, pin + " # v4", 1)
+        without_comment = UNIT_CI.replace(checkout, pin, 1)
+        self.assertNotEqual(with_comment, without_comment)
+        self.assertEqual(checkout_problems(with_comment), [])
+        self.assertEqual(checkout_problems(without_comment), [])
 
     def test_nested_lists_stay_inside_their_step(self):
         """Verify deeper list items are not mistaken for steps, so a checkout cannot hide in or behind one."""
