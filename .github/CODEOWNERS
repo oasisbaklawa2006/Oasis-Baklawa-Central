@@ -35,6 +35,17 @@
 /src/lib/roleNormalization*/ @oasisbaklawa2006 @dineshmutrejabackup-cmd
 /src/lib/point79Wallet* @oasisbaklawa2006 @dineshmutrejabackup-cmd
 /src/lib/point79Wallet*/ @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/integrations/supabase/ @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/components/ProtectedRoute* @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/components/ProtectedRoute*/ @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/components/AdminRouteGuard* @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/components/AdminRouteGuard*/ @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/components/AdminModuleRoute* @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/components/AdminModuleRoute*/ @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/lib/appverse/routeAccess* @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/lib/appverse/routeAccess*/ @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/lib/appverse/routeModuleAccess* @oasisbaklawa2006 @dineshmutrejabackup-cmd
+/src/lib/appverse/routeModuleAccess*/ @oasisbaklawa2006 @dineshmutrejabackup-cmd
 
 # --- Database/edge governance, deployment and supply chain ------------------------------------------------------
 /supabase/ @oasisbaklawa2006 @dineshmutrejabackup-cmd

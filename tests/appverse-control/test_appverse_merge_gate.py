@@ -434,8 +434,10 @@ class ValidateMatrixTests(GateTestCase):
     """Full required-check matrix for an ordinary PR, and each way it must fail closed."""
 
     def run_validate(self, *, files=("docs/README.md",), checks=None, statuses=None, threads=0, approved=True,
-                     coderabbit=True, ruleset=(), pr=None, now_pr=None, renames=None):
-        """Run merge eligibility against controlled GitHub and review fixtures."""
+                     coderabbit=True, ruleset=(), pr=None, now_pr=None, renames=None, reviews=None):
+        """Run merge eligibility against controlled GitHub and review fixtures.
+
+        With `reviews`, the REAL review_approval runs against those review submissions instead of a canned answer."""
         pr = pr or base_pr()
         changed = [{"filename": f, **({"previous_filename": renames[f]} if renames and f in renames else {})} for f in files]
         required = gate.relevant_checks(set(files) | set((renames or {}).values()))
@@ -448,12 +450,16 @@ class ValidateMatrixTests(GateTestCase):
             """Record human-review requirements while simulating approval."""
             approvals.append(require_human)
             return approved
+        def fake_paginated(path, key=None):
+            """Serve review submissions on the reviews path and changed files everywhere else."""
+            return reviews if reviews is not None and path.endswith("/reviews") else changed
+        real_review = {} if reviews is None else {"review_approval": gate.review_approval}
         with mock.patch.multiple(
             gate, ruleset_problems=lambda: list(ruleset),
-            paginated=lambda path, key=None: changed, latest_checks=lambda sha: {
+            paginated=fake_paginated, latest_checks=lambda sha: {
                 (c["name"], c["app"]["slug"]): c for c in runs},
             latest_statuses=lambda sha: statuses, unresolved_threads=lambda n: threads,
-            review_approval=fake_review_approval,
+            **({"review_approval": fake_review_approval} if reviews is None else {}),
             coderabbit_review_problems=lambda n, s: ([] if coderabbit is True else ['actionable finding(s)'] if coderabbit is False else list(coderabbit)),
             current_pr=lambda n: now_pr or pr,
         ):
@@ -542,6 +548,42 @@ class ValidateMatrixTests(GateTestCase):
                                    approved=False)
         self.assertTrue(any("Sensitive paths changed" in e for e in errors))
         self.assertEqual(self.approvals, [True])
+
+    def test_supabase_auth_client_changes_are_sensitive_for_every_change_kind(self):
+        """Verify the live Supabase auth client is sensitive when added, modified or renamed, from either path."""
+        for path in ("src/integrations/supabase/client.ts", "src/integrations/supabase/types.ts",
+                     "src/integrations/supabase/nested/dir/newAuthStorage.ts"):
+            self.assertEqual(gate.sensitive_paths({path}), [path], path)
+        self.assertEqual(gate.sensitive_paths({"src/integrations/supabaseX/client.ts"}), [])  # exact directory, no over-match
+        for files, renames in (
+            (("src/integrations/supabase/client.ts",), None),                                              # modified or added
+            (("src/lib/moved.ts",), {"src/lib/moved.ts": "src/integrations/supabase/client.ts"}),           # renamed AWAY (old path)
+            (("src/integrations/supabase/client.ts",), {"src/integrations/supabase/client.ts": "src/lib/old.ts"}),  # renamed IN (new path)
+        ):
+            self.run_validate(files=files, renames=renames, approved=False)
+            self.assertEqual(self.approvals, [True], (files, renames))
+
+    def test_supabase_auth_client_pr_is_never_eligible_on_bot_approval_alone(self):
+        """Verify, with the real review logic, that only an independent trusted human approval makes it eligible."""
+        files = ("src/integrations/supabase/client.ts",)
+        bots = [review("cursor[bot]"), review("coderabbitai[bot]")]
+        for reviews in ([], bots, bots + [review(AUTHOR, association="OWNER")], bots + [review("random-user", association="COLLABORATOR")],
+                        bots + [review(OWNER2, association="NONE")], [review(OWNER2, association="COLLABORATOR", sha="9" * 40)],
+                        bots + [review(OWNER2, "CHANGES_REQUESTED", association="COLLABORATOR")]):
+            errors = self.run_validate(files=files, reviews=reviews)
+            self.assertTrue(any("approval" in e.lower() for e in errors), (reviews, errors))
+        self.assertEqual(self.run_validate(files=files, reviews=bots + [review(OWNER2, association="COLLABORATOR")]), [])
+        # A non-sensitive PR is still satisfiable by the bot alone, proving the human requirement comes from the path.
+        self.assertEqual(self.run_validate(files=("docs/README.md",), reviews=bots), [])
+
+    def test_route_guards_and_route_access_code_require_a_human_code_owner(self):
+        """Verify the UI authorisation boundary is sensitive and bot approval alone cannot satisfy it."""
+        for path in ("src/components/ProtectedRoute.tsx", "src/components/AdminRouteGuard.tsx",
+                     "src/components/AdminModuleRoute.tsx", "src/lib/appverse/routeAccess.ts",
+                     "src/lib/appverse/routeModuleAccess.ts"):
+            self.assertEqual(gate.sensitive_paths({path}), [path], path)
+            errors = self.run_validate(files=(path,), reviews=[review("cursor[bot]")])
+            self.assertTrue(any("approval" in e.lower() for e in errors), path)
 
     def test_core_migration_in_central_blocks(self):
         """Verify core migration in central blocks."""

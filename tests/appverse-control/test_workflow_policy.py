@@ -105,14 +105,8 @@ class ControllerWorkflowSecurityTests(unittest.TestCase):
         self.assertEqual(set(re.findall(r"secrets\.(\w+)", self.code)), {"APPVERSE_GATE_APP_PRIVATE_KEY"})
 
     def test_checks_out_trusted_main_without_persisted_credentials(self):
-        """Verify checks out trusted main without persisted credentials."""
-        for job_id, job in job_blocks(self.code).items():
-            checkouts = [step for step in step_blocks(job) if "actions/checkout@" in step]
-            self.assertEqual(len(checkouts), 1, job_id)
-            for step in checkouts:
-                self.assertRegex(step, r"(?m)^        uses: actions/checkout@[0-9a-f]{40}(?:[ \t]+#.*)?$", job_id)
-                self.assertRegex(step, r"(?m)^          ref: main\s*$", job_id)
-                self.assertRegex(step, r"(?m)^          persist-credentials: false\s*$", job_id)
+        """Verify every job has exactly one pinned, credential-free checkout of trusted main."""
+        self.assertEqual(checkout_problems(CONTROLLER, trusted_main=True), [])
         self.assertNotIn("github.head_ref", self.code)
         self.assertNotIn("github.event.pull_request", self.code)
 
@@ -142,9 +136,7 @@ class ControllerWorkflowSecurityTests(unittest.TestCase):
     def test_runner_image_is_pinned(self):
         """Verify runner image is pinned."""
         for label, text in (("controller", CONTROLLER), ("unit", UNIT_CI), ("quality", QUALITY)):
-            for job_id, job in job_blocks(strip_comments(text)).items():
-                images = re.findall(r"(?m)^    runs-on:\s*([^\n]+)$", job)
-                self.assertEqual(images, ["ubuntu-24.04"], (label, job_id))
+            self.assertEqual(runner_problems(text), [], label)
 
     def test_controller_never_executes_candidate_code_or_installs_dependencies(self):
         """Verify controller never executes candidate code or installs dependencies."""
@@ -171,8 +163,46 @@ def job_blocks(text: str) -> dict:
 
 
 def step_blocks(job: str) -> list[str]:
-    """Split a workflow job into individual named or action-based step blocks."""
-    return re.split(r"(?m)^      - (?=(?:name|uses):)", job)[1:]
+    """Split a job's steps on EVERY six-space list-step start, whatever key the step begins with.
+
+    Nested lists are deeper than six spaces and stay inside their step; list items before `steps:` are not steps.
+    """
+    marker = "\n    steps:\n"
+    steps = job.split(marker, 1)[1] if marker in job else ""
+    return [block for block in re.split(r"(?m)^(?=      - )", steps) if block.startswith("      - ")]
+
+
+CHECKOUT_USES = re.compile(r"(?m)^(?:      - |        )uses:\s*actions/checkout@(\S+)")
+PINNED_CHECKOUT = re.compile(r"(?m)^(?:      - |        )uses: actions/checkout@[0-9a-f]{40}(?:[ \t]+#.*)?$")
+
+
+def checkout_problems(text: str, trusted_main: bool = False, hardened: bool = True) -> list[str]:
+    """Report every job without exactly one checkout; when hardened, it must be SHA-pinned and credential-free (of main, if trusted_main).
+
+    The pre-existing quality-gate workflow is not ours to change here, so it is checked with hardened=False (count only)."""
+    problems = []
+    for job_id, job in job_blocks(strip_comments(text)).items():
+        checkouts = [step for step in step_blocks(job) if CHECKOUT_USES.search(step)]
+        if len(checkouts) != 1:
+            problems.append(f"{job_id}: {len(checkouts)} checkout steps")
+        for step in checkouts if hardened else []:
+            if not PINNED_CHECKOUT.search(step):
+                problems.append(f"{job_id}: checkout is not pinned to a full commit SHA")
+            if not re.search(r"(?m)^          persist-credentials: false\s*$", step):
+                problems.append(f"{job_id}: checkout persists credentials")
+            if trusted_main and not re.search(r"(?m)^          ref: main\s*$", step):
+                problems.append(f"{job_id}: checkout is not of trusted main")
+    return problems
+
+
+def runner_problems(text: str, image: str = "ubuntu-24.04") -> list[str]:
+    """Report every job whose runner is not exactly the pinned image."""
+    problems = []
+    for job_id, job in job_blocks(strip_comments(text)).items():
+        images = re.findall(r"(?m)^    runs-on:\s*([^\n]+)$", job)
+        if images != [image]:
+            problems.append(f"{job_id}: runner {images}")
+    return problems
 
 
 def workflow_hardening_problems(text: str, profile: str) -> list[str]:
@@ -424,20 +454,71 @@ class QualityGateIntegrityTests(unittest.TestCase):
             self.assertNotEqual(mutated, original, "mutation must actually change the fixture")
             self.assertTrue(workflow_hardening_problems(mutated, profile), profile)
 
-    def test_extra_checkout_and_runner_drift_are_detected_per_job(self):
-        """Verify a second checkout and a runner change cannot hide behind another safe job."""
-        original = strip_comments(CONTROLLER)
-        jobs = job_blocks(original)
-        for job_id, job in jobs.items():
-            self.assertEqual(len([step for step in step_blocks(job) if "actions/checkout@" in step]), 1, job_id)
-        mutated = original.replace("    runs-on: ubuntu-24.04", "    runs-on: ubuntu-22.04", 1)
-        self.assertNotEqual(mutated, original)
-        image_sets = [
-            re.findall(r"(?m)^    runs-on:\s*([^\n]+)$", job)
-            for job in job_blocks(mutated).values()
-        ]
-        self.assertIn(["ubuntu-22.04"], image_sets)
-        self.assertNotEqual(image_sets, [["ubuntu-24.04"]] * len(image_sets))
+    def test_live_workflows_pass_the_checkout_and_runner_invariants(self):
+        """Verify the real invariant checkers accept every shipped workflow (positive coverage)."""
+        self.assertEqual(checkout_problems(CONTROLLER, trusted_main=True), [])
+        self.assertEqual(checkout_problems(UNIT_CI), [])
+        self.assertEqual(checkout_problems(QUALITY, hardened=False), [])  # pre-existing workflow: one checkout, no pin demanded
+        for label, text in (("controller", CONTROLLER), ("unit", UNIT_CI), ("quality", QUALITY)):
+            self.assertEqual(runner_problems(text), [], label)
+
+    def test_every_injected_second_checkout_is_rejected(self):
+        """Verify a second checkout is rejected whichever key starts its step, including a mutable tag."""
+        sha = "11d5960a326750d5838078e36cf38b85af677262"
+        variants = {
+            "id": f"      - id: sneaky\n        uses: actions/checkout@{sha}\n        with:\n          persist-credentials: false\n",
+            "env": f"      - env:\n          X: '1'\n        uses: actions/checkout@{sha}\n        with:\n          persist-credentials: false\n",
+            "run": f"      - run: echo hi\n        uses: actions/checkout@{sha}\n        with:\n          persist-credentials: false\n",
+            "uses": f"      - uses: actions/checkout@{sha}\n        with:\n          persist-credentials: false\n",
+            "name": f"      - name: again\n        uses: actions/checkout@{sha}\n        with:\n          persist-credentials: false\n",
+        }
+        for label, text in (("unit", UNIT_CI), ("controller", CONTROLLER), ("quality", QUALITY)):
+            stripped = strip_comments(text)
+            first_job = next(iter(job_blocks(stripped)))
+            for variant, step in variants.items():
+                mutated = stripped.replace("    steps:\n", "    steps:\n" + step, 1)
+                self.assertNotEqual(mutated, stripped)
+                found = checkout_problems(mutated, trusted_main=(label == "controller"), hardened=(label != "quality"))
+                self.assertTrue(any("checkout steps" in problem for problem in found), (label, variant, first_job, found))
+
+    def test_mutable_unpinned_and_credential_persisting_checkouts_are_rejected(self):
+        """Verify a mutable tag, a short SHA, persisted credentials and a non-main ref are each rejected on their own."""
+        sha = "11d5960a326750d5838078e36cf38b85af677262"
+        for label, mutated, trusted in (
+            ("mutable tag", UNIT_CI.replace(f"actions/checkout@{sha} # v4", "actions/checkout@v4", 1), False),
+            ("branch ref", UNIT_CI.replace(f"actions/checkout@{sha} # v4", "actions/checkout@main", 1), False),
+            ("short sha", UNIT_CI.replace(sha, sha[:12], 1), False),
+            ("persisted credentials", UNIT_CI.replace("persist-credentials: false", "persist-credentials: true", 1), False),
+            ("credentials omitted", UNIT_CI.replace("        with:\n          persist-credentials: false\n", "", 1), False),
+            ("not main", CONTROLLER.replace("ref: main", "ref: dev", 1), True),
+        ):
+            original = UNIT_CI if not trusted else CONTROLLER
+            self.assertNotEqual(mutated, original, label)
+            self.assertTrue(checkout_problems(mutated, trusted_main=trusted), label)
+
+    def test_pinned_checkout_with_a_trailing_version_comment_is_accepted(self):
+        """Verify a pinned SHA with a benign trailing version comment stays valid, with and without the comment."""
+        self.assertEqual(checkout_problems(UNIT_CI), [])
+        self.assertEqual(checkout_problems(UNIT_CI.replace(" # v4", "", 1)), [])
+
+    def test_nested_lists_stay_inside_their_step(self):
+        """Verify deeper list items are not mistaken for steps, so a checkout cannot hide in or behind one."""
+        text = "name: x\n\njobs:\n  a:\n    runs-on: ubuntu-24.04\n    needs:\n      - other\n    steps:\n      - name: x\n        with:\n          paths:\n            - one\n            - two\n        run: echo\n      - id: y\n        run: echo\n"
+        blocks = step_blocks(job_blocks(text)["a"])
+        self.assertEqual(len(blocks), 2)
+        self.assertIn("            - two", blocks[0])
+
+    def test_every_runner_drift_is_rejected(self):
+        """Verify a changed, missing, duplicated or unpinned runner is rejected in any job."""
+        for label, text in (("controller", CONTROLLER), ("unit", UNIT_CI), ("quality", QUALITY)):
+            stripped = strip_comments(text)
+            for replacement in ("    runs-on: ubuntu-22.04", "    runs-on: ubuntu-latest", "    runs-on: self-hosted",
+                                "    runs-on: [ubuntu-24.04]", ""):
+                mutated = stripped.replace("    runs-on: ubuntu-24.04", replacement, 1)
+                self.assertNotEqual(mutated, stripped)
+                self.assertTrue(runner_problems(mutated), (label, replacement))
+            doubled = stripped.replace("    runs-on: ubuntu-24.04", "    runs-on: ubuntu-24.04\n    runs-on: ubuntu-22.04", 1)
+            self.assertTrue(runner_problems(doubled), label)
 
 
 class CiLaneDriftTests(unittest.TestCase):

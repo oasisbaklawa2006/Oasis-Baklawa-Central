@@ -87,6 +87,10 @@ SENSITIVE_PREFIXES = (
     "src/lib/finance", "src/lib/order-authority/", "src/lib/execution-authority/", "src/lib/stock-authority/",
     "src/lib/inventory-authority/", "src/lib/dispatch", "src/lib/macro-order-dispatch/", "src/lib/auth/",
     "src/lib/roleNormalization", "src/lib/point79Wallet",
+    # The live Supabase auth client (createClient, session persistence, token storage) and the UI route-access boundary
+    # (route guards and role/module route access). A change here can weaken every sign-in or authorisation check.
+    "src/integrations/supabase/", "src/components/ProtectedRoute", "src/components/AdminRouteGuard",
+    "src/components/AdminModuleRoute", "src/lib/appverse/routeAccess", "src/lib/appverse/routeModuleAccess",
 )
 SENSITIVE_FILES = {
     "package.json", "package-lock.json", "bun.lock", "bun.lockb", "deno.lock", "vercel.json",
