@@ -7,6 +7,15 @@ import BuyerApp, { BuyerAccessRequest } from "./BuyerApp";
 
 const buyerMock = vi.hoisted(() => ({
   submit: vi.fn(),
+  checkoutQuote: vi.fn(),
+  submitQuoted: vi.fn(),
+  quote: {
+    draft_id: "draft-1",
+    lines: [{ product_id: "product-1", sku: "SKU-1", product_name: "Pista Baklawa", quantity: 2, selling_price: 6250, currency: "INR", uom: "carton", gst_rate: 5, tax_inclusive: false }],
+    sales_order_value: 13125,
+    advance_required: 3937.5,
+    fingerprint: "0123456789abcdef0123456789abcdef",
+  },
   clearCheckoutKey: vi.fn(),
   getCheckoutKey: vi.fn(() => "checkout-key"),
   company: vi.fn(),
@@ -106,6 +115,8 @@ vi.mock("@/lib/customerApp/customerAppClient", () => ({
     removeLine: buyerMock.removeLine,
     clearDraft: buyerMock.clearDraft,
     submit: buyerMock.submit,
+    checkoutQuote: buyerMock.checkoutQuote,
+    submitQuoted: buyerMock.submitQuoted,
     orders: buyerMock.orders,
     items: buyerMock.items,
     tickets: buyerMock.tickets,
@@ -154,6 +165,8 @@ vi.mock("@/integrations/supabase/client", () => ({
 
 beforeEach(() => {
   buyerMock.submit.mockResolvedValue([buyerMock.order]);
+  buyerMock.checkoutQuote.mockResolvedValue(buyerMock.quote);
+  buyerMock.submitQuoted.mockResolvedValue([buyerMock.order]);
   buyerMock.clearCheckoutKey.mockImplementation(() => undefined);
   buyerMock.clearGeneralQueryKey.mockImplementation(() => undefined);
   buyerMock.company.mockResolvedValue([{
@@ -326,28 +339,73 @@ describe("Buyer App governed commercial handoff", () => {
     expect(screen.getByRole("button", { name: "Submit order" })).toBeDisabled();
   });
 
-  it("submits the selected requested dispatch date through the idempotent Core checkout", async () => {
+  const approveQuotation = async () => {
+    fireEvent.click(await screen.findByLabelText(/I accept this quotation/));
+  };
+
+  it("shows Core's GST-inclusive quotation and keeps submit disabled until the Buyer accepts it", async () => {
+    render(<MemoryRouter initialEntries={["/buyer/cart"]}><BuyerApp /></MemoryRouter>);
+
+    expect(await screen.findByText("Final quotation from Core")).toBeTruthy();
+    const quotation = screen.getByLabelText("Final quotation");
+    expect(quotation.textContent).toContain("Taxable value");
+    expect(quotation.textContent).toContain("Total (GST inclusive)");
+    expect(quotation.textContent).toContain("Advance required");
+    expect(screen.getByRole("button", { name: "Submit order" })).toBeDisabled();
+    await approveQuotation();
+    expect(screen.getByRole("button", { name: "Submit order" })).not.toBeDisabled();
+    expect(buyerMock.submitQuoted).not.toHaveBeenCalled();
+  });
+
+  it("submits the selected requested dispatch date through the approved, idempotent quoted checkout", async () => {
     render(<MemoryRouter initialEntries={["/buyer/cart"]}><BuyerApp /></MemoryRouter>);
 
     const dateInput = await screen.findByLabelText(/Requested dispatch date/);
     fireEvent.change(dateInput, { target: { value: "2026-09-10" } });
+    await approveQuotation();
     fireEvent.click(screen.getByRole("button", { name: "Submit order" }));
 
-    await waitFor(() => expect(buyerMock.submit).toHaveBeenCalledWith("checkout-key", "2026-09-10"));
+    await waitFor(() => expect(buyerMock.submitQuoted).toHaveBeenCalledWith("checkout-key", buyerMock.quote.fingerprint, "2026-09-10"));
+    expect(buyerMock.submit).not.toHaveBeenCalled();
     expect(buyerMock.clearCheckoutKey).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps the same checkout idempotency key available after a failed submit", async () => {
-    buyerMock.submit.mockRejectedValueOnce(new Error("network unavailable")).mockResolvedValueOnce([buyerMock.order]);
+  it("keeps the same checkout idempotency key available after a failed submit and requires a fresh approval", async () => {
+    buyerMock.submitQuoted.mockRejectedValueOnce(new Error("network unavailable")).mockResolvedValueOnce([buyerMock.order]);
     render(<MemoryRouter initialEntries={["/buyer/cart"]}><BuyerApp /></MemoryRouter>);
 
-    const submitOrder = await screen.findByRole("button", { name: "Submit order" });
-    fireEvent.click(submitOrder);
-    await waitFor(() => expect(buyerMock.submit).toHaveBeenCalledTimes(1));
+    await approveQuotation();
+    fireEvent.click(await screen.findByRole("button", { name: "Submit order" }));
+    await waitFor(() => expect(buyerMock.submitQuoted).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Submit order" })).toBeDisabled());
+    await approveQuotation();
     fireEvent.click(screen.getByRole("button", { name: "Submit order" }));
-    await waitFor(() => expect(buyerMock.submit).toHaveBeenCalledTimes(2));
-    expect(buyerMock.submit).toHaveBeenNthCalledWith(1, "checkout-key", undefined);
-    expect(buyerMock.submit).toHaveBeenNthCalledWith(2, "checkout-key", undefined);
+    await waitFor(() => expect(buyerMock.submitQuoted).toHaveBeenCalledTimes(2));
+    expect(buyerMock.submitQuoted).toHaveBeenNthCalledWith(1, "checkout-key", buyerMock.quote.fingerprint, undefined);
+    expect(buyerMock.submitQuoted).toHaveBeenNthCalledWith(2, "checkout-key", buyerMock.quote.fingerprint, undefined);
+  });
+
+  it("detects a changed quotation, refreshes it and requires the Buyer to approve again", async () => {
+    const { BuyerQuoteChangedError } = await import("@/lib/customerApp/buyerCheckoutQuote");
+    buyerMock.submitQuoted.mockRejectedValueOnce(new BuyerQuoteChangedError());
+    render(<MemoryRouter initialEntries={["/buyer/cart"]}><BuyerApp /></MemoryRouter>);
+
+    await approveQuotation();
+    fireEvent.click(await screen.findByRole("button", { name: "Submit order" }));
+    await waitFor(() => expect(toastMock.error).toHaveBeenCalledWith("Your quotation changed. Review the updated totals and approve again."));
+    await waitFor(() => expect(buyerMock.checkoutQuote).toHaveBeenCalledTimes(2));
+    expect((screen.getByLabelText(/I accept this quotation/) as HTMLInputElement).checked).toBe(false);
+    expect(screen.getByRole("button", { name: "Submit order" })).toBeDisabled();
+  });
+
+  it("blocks submission when Core cannot produce a quotation", async () => {
+    buyerMock.checkoutQuote.mockRejectedValue(new Error("unavailable"));
+    render(<MemoryRouter initialEntries={["/buyer/cart"]}><BuyerApp /></MemoryRouter>);
+
+    expect(await screen.findByText("We could not prepare your quotation. Your order has not been submitted.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Submit order" })).toBeDisabled();
+    expect(buyerMock.submitQuoted).not.toHaveBeenCalled();
+    expect(buyerMock.submit).not.toHaveBeenCalled();
   });
 
   it("renders the exact Core SO identity and commercial order value", async () => {
