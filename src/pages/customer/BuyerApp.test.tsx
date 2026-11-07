@@ -6,7 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import BuyerApp, { BuyerAccessRequest } from "./BuyerApp";
 
 const buyerMock = vi.hoisted(() => ({
-  submit: vi.fn(),
+  submitQuotedOrder: vi.fn(),
+  checkoutQuote: vi.fn(),
   clearCheckoutKey: vi.fn(),
   getCheckoutKey: vi.fn(() => "checkout-key"),
   company: vi.fn(),
@@ -74,6 +75,26 @@ const buyerMock = vi.hoisted(() => ({
     is_active: true,
     visible_in_catalog: true,
   },
+  checkoutQuotePayload: {
+    draft_id: "draft-1",
+    fingerprint: "0123456789abcdef0123456789abcdef",
+    sales_order_value: 13125,
+    advance_required: 5000,
+    lines: [{
+      product_id: "product-1",
+      quantity: 2,
+      selling_price: 6250,
+      currency: "INR",
+      uom: "carton",
+      gst_rate: 5,
+      tax_inclusive: false,
+      sku: "SKU-1",
+      product_name: "Pista Baklawa",
+      minimum_order_quantity: 1,
+      order_increment: 1,
+      min_carton_qty: null,
+    }],
+  },
   price: {
     product_id: "product-1",
     selling_price: 6250,
@@ -93,40 +114,44 @@ const buyerMock = vi.hoisted(() => ({
 
 const toastMock = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
 
-vi.mock("@/lib/customerApp/customerAppClient", () => ({
-  customerAppClient: {
-    company: buyerMock.company,
-    team: buyerMock.team,
-    prices: buyerMock.prices,
-    draft: buyerMock.draft,
-    addLine: buyerMock.addLine,
-    updateLine: buyerMock.updateLine,
-    removeLine: buyerMock.removeLine,
-    clearDraft: buyerMock.clearDraft,
-    submit: buyerMock.submit,
-    orders: buyerMock.orders,
-    items: buyerMock.items,
-    tickets: buyerMock.tickets,
-    commercialFacts: buyerMock.commercialFacts,
-    financeFacts: buyerMock.financeFacts,
-    finalPaymentPiFacts: buyerMock.finalPaymentPiFacts,
-    proformaInvoices: buyerMock.proformaInvoices,
-    documents: buyerMock.documents,
-    statement: buyerMock.statement,
-    favourites: buyerMock.favourites,
-    setFavourite: buyerMock.setFavourite,
-    generalQueries: buyerMock.generalQueries,
-    submitGeneralQuery: buyerMock.submitGeneralQuery,
-    submitApplication: buyerMock.submitApplication,
-    submitTicket: buyerMock.submitTicket,
-  },
-  GENERAL_QUERY_CATEGORIES: ["GENERAL", "CATALOGUE", "ACCOUNT", "DELIVERY", "OTHER"],
-  clearCheckoutIdempotencyKey: buyerMock.clearCheckoutKey,
-  getCheckoutIdempotencyKey: buyerMock.getCheckoutKey,
-  clearGeneralQueryIdempotencyKey: buyerMock.clearGeneralQueryKey,
-  getGeneralQueryIdempotencyKey: buyerMock.getGeneralQueryKey,
-  getLocalDateInputValue: () => "2026-08-31",
-}));
+vi.mock("@/lib/customerApp/customerAppClient", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/customerApp/customerAppClient")>();
+  return {
+    ...actual,
+    customerAppClient: {
+      company: buyerMock.company,
+      team: buyerMock.team,
+      prices: buyerMock.prices,
+      draft: buyerMock.draft,
+      addLine: buyerMock.addLine,
+      updateLine: buyerMock.updateLine,
+      removeLine: buyerMock.removeLine,
+      clearDraft: buyerMock.clearDraft,
+      checkoutQuote: buyerMock.checkoutQuote,
+      submitQuotedOrder: buyerMock.submitQuotedOrder,
+      orders: buyerMock.orders,
+      items: buyerMock.items,
+      tickets: buyerMock.tickets,
+      commercialFacts: buyerMock.commercialFacts,
+      financeFacts: buyerMock.financeFacts,
+      finalPaymentPiFacts: buyerMock.finalPaymentPiFacts,
+      proformaInvoices: buyerMock.proformaInvoices,
+      documents: buyerMock.documents,
+      statement: buyerMock.statement,
+      favourites: buyerMock.favourites,
+      setFavourite: buyerMock.setFavourite,
+      generalQueries: buyerMock.generalQueries,
+      submitGeneralQuery: buyerMock.submitGeneralQuery,
+      submitApplication: buyerMock.submitApplication,
+      submitTicket: buyerMock.submitTicket,
+    },
+    clearCheckoutIdempotencyKey: buyerMock.clearCheckoutKey,
+    getCheckoutIdempotencyKey: buyerMock.getCheckoutKey,
+    clearGeneralQueryIdempotencyKey: buyerMock.clearGeneralQueryKey,
+    getGeneralQueryIdempotencyKey: buyerMock.getGeneralQueryKey,
+    getLocalDateInputValue: () => "2026-08-31",
+  };
+});
 
 vi.mock("@/hooks/useAuth", () => ({
   useAuth: () => ({ logout: vi.fn() }),
@@ -153,8 +178,21 @@ vi.mock("@/integrations/supabase/client", () => ({
   },
 }));
 
+async function approveCheckoutQuote() {
+  await waitFor(() => expect(buyerMock.checkoutQuote).toHaveBeenCalled());
+  fireEvent.click(await screen.findByRole("checkbox", { name: /I approve this Core quotation/i }));
+}
+
 beforeEach(() => {
-  buyerMock.submit.mockResolvedValue([buyerMock.order]);
+  buyerMock.checkoutQuote.mockResolvedValue(buyerMock.checkoutQuotePayload);
+  buyerMock.submitQuotedOrder.mockResolvedValue([{
+    order_id: "order-1",
+    order_number: "SO2026/08-0001",
+    sales_order_value: 13125,
+    advance_required: 5000,
+    draft_id: "draft-1",
+    is_duplicate_submission: false,
+  }]);
   buyerMock.clearCheckoutKey.mockImplementation(() => undefined);
   buyerMock.clearGeneralQueryKey.mockImplementation(() => undefined);
   buyerMock.company.mockResolvedValue([{
@@ -229,7 +267,7 @@ describe("Buyer App governed commercial handoff", () => {
 
     fireEvent.click(await screen.findByRole("link", { name: "Open customer support" }));
     expect(await screen.findByRole("heading", { name: "Support" })).toBeTruthy();
-    expect(buyerMock.submit).not.toHaveBeenCalled();
+    expect(buyerMock.submitQuotedOrder).not.toHaveBeenCalled();
   });
 
   it("filters the approved catalogue by product name and keeps Core pricing visible", async () => {
@@ -319,35 +357,51 @@ describe("Buyer App governed commercial handoff", () => {
     render(<MemoryRouter initialEntries={["/buyer/cart"]}><BuyerApp /></MemoryRouter>);
 
     expect((await screen.findAllByText("SKU SKU-1 · carton")).length).toBe(2);
-    expect(screen.getAllByText(/line preview/).every((element) => element.textContent?.includes("₹12,500"))).toBe(true);
+    expect(screen.getAllByText(/Quotation line pending from Core/).length).toBeGreaterThan(0);
     expect(screen.getByText("Review your quantities before submitting")).toBeTruthy();
     expect(screen.getByText("Minimum order is 1 carton.")).toBeTruthy();
     expect(screen.getByText("Review the quantity and carton requirements before submitting.")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Submit order" })).toBeDisabled();
   });
 
-  it("submits the selected requested dispatch date through the idempotent Core checkout", async () => {
+  it("submits the selected requested dispatch date through the quoted Core checkout", async () => {
     render(<MemoryRouter initialEntries={["/buyer/cart"]}><BuyerApp /></MemoryRouter>);
 
     const dateInput = await screen.findByLabelText(/Requested dispatch date/);
     fireEvent.change(dateInput, { target: { value: "2026-09-10" } });
-    fireEvent.click(screen.getByRole("button", { name: "Submit order" }));
+    await approveCheckoutQuote();
+    fireEvent.click(screen.getByRole("button", { name: "Submit approved quotation" }));
 
-    await waitFor(() => expect(buyerMock.submit).toHaveBeenCalledWith("checkout-key", "2026-09-10"));
+    await waitFor(() => expect(buyerMock.submitQuotedOrder).toHaveBeenCalledWith(
+      "checkout-key",
+      buyerMock.checkoutQuotePayload.fingerprint,
+      "2026-09-10",
+    ));
     expect(buyerMock.clearCheckoutKey).toHaveBeenCalledTimes(1);
   });
 
   it("keeps the same checkout idempotency key available after a failed submit", async () => {
-    buyerMock.submit.mockRejectedValueOnce(new Error("network unavailable")).mockResolvedValueOnce([buyerMock.order]);
+    buyerMock.submitQuotedOrder
+      .mockRejectedValueOnce(new Error("network unavailable"))
+      .mockResolvedValueOnce([{
+        order_id: "order-1",
+        order_number: "SO2026/08-0001",
+        sales_order_value: 13125,
+        advance_required: 5000,
+        draft_id: "draft-1",
+        is_duplicate_submission: false,
+      }]);
     render(<MemoryRouter initialEntries={["/buyer/cart"]}><BuyerApp /></MemoryRouter>);
 
-    const submitOrder = await screen.findByRole("button", { name: "Submit order" });
+    await approveCheckoutQuote();
+    const submitOrder = await screen.findByRole("button", { name: "Submit approved quotation" });
     fireEvent.click(submitOrder);
-    await waitFor(() => expect(buyerMock.submit).toHaveBeenCalledTimes(1));
-    fireEvent.click(screen.getByRole("button", { name: "Submit order" }));
-    await waitFor(() => expect(buyerMock.submit).toHaveBeenCalledTimes(2));
-    expect(buyerMock.submit).toHaveBeenNthCalledWith(1, "checkout-key", undefined);
-    expect(buyerMock.submit).toHaveBeenNthCalledWith(2, "checkout-key", undefined);
+    await waitFor(() => expect(buyerMock.submitQuotedOrder).toHaveBeenCalledTimes(1));
+    await approveCheckoutQuote();
+    fireEvent.click(screen.getByRole("button", { name: "Submit approved quotation" }));
+    await waitFor(() => expect(buyerMock.submitQuotedOrder).toHaveBeenCalledTimes(2));
+    expect(buyerMock.submitQuotedOrder).toHaveBeenNthCalledWith(1, "checkout-key", buyerMock.checkoutQuotePayload.fingerprint, undefined);
+    expect(buyerMock.submitQuotedOrder).toHaveBeenNthCalledWith(2, "checkout-key", buyerMock.checkoutQuotePayload.fingerprint, undefined);
   });
 
   it("renders the exact Core SO identity and commercial order value", async () => {
@@ -565,7 +619,7 @@ describe("Buyer App governed commercial handoff", () => {
       message: "Can you confirm the next delivery window?",
       category: "GENERAL",
     });
-    expect(buyerMock.submit).not.toHaveBeenCalled();
+    expect(buyerMock.submitQuotedOrder).not.toHaveBeenCalled();
   });
 
   it("shows an empty order state without leaking another company’s data", async () => {
@@ -639,7 +693,7 @@ describe("Buyer App governed commercial handoff", () => {
     fireEvent.change(screen.getByLabelText("What happened?"), { target: { value: "The outer carton arrived damaged." } });
     fireEvent.click(screen.getByRole("button", { name: "Submit ticket" }));
     await waitFor(() => expect(buyerMock.submitTicket).toHaveBeenCalledWith("order-1", "Damaged goods", "The outer carton arrived damaged."));
-    expect(buyerMock.submit).not.toHaveBeenCalled();
+    expect(buyerMock.submitQuotedOrder).not.toHaveBeenCalled();
   });
 
   it("keeps raw support backend errors out of customer copy", async () => {
@@ -839,7 +893,7 @@ describe("Buyer App governed commercial handoff", () => {
 
     const submitTicket = await screen.findByRole("button", { name: "Submit ticket" });
     expect(submitTicket).toBeDisabled();
-    expect(buyerMock.submit).not.toHaveBeenCalled();
+    expect(buyerMock.submitQuotedOrder).not.toHaveBeenCalled();
     expect(buyerMock.submitTicket).not.toHaveBeenCalled();
   });
 });

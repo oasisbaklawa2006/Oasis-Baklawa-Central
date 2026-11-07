@@ -9,7 +9,10 @@ import {
   normalizeBuyerFinanceFacts,
   normalizeBuyerFinalPaymentPiFacts,
   normalizeBuyerGeneralQuery,
+  normalizeBuyerCheckoutQuote,
   normalizeBuyerStatement,
+  draftCartMatchesCheckoutQuote,
+  isCheckoutQuoteFingerprint,
 } from "./customerAppClient";
 
 describe("customer checkout idempotency", () => {
@@ -155,6 +158,47 @@ describe("customer checkout idempotency", () => {
       internal_queue_id: "must-not-escape",
     })).toMatchObject({ query_id: "query-1", category: "GENERAL", status: "SUBMITTED" });
     expect(normalizeBuyerGeneralQuery({ query_id: "query-1", subject: "", message: "" })).toBeNull();
+  });
+
+  it("normalizes authoritative checkout quotes and matches draft lines", () => {
+    const quote = normalizeBuyerCheckoutQuote({
+      draft_id: "draft-1",
+      fingerprint: "0123456789abcdef0123456789abcdef",
+      sales_order_value: 13125,
+      advance_required: 5000,
+      lines: [{
+        product_id: "product-1",
+        quantity: 2,
+        selling_price: 6250,
+        currency: "INR",
+        uom: "carton",
+        gst_rate: 5,
+        tax_inclusive: false,
+        sku: "SKU-1",
+        product_name: "Pista Baklawa",
+        minimum_order_quantity: 1,
+        order_increment: 1,
+        min_carton_qty: null,
+      }],
+    });
+    expect(quote).toMatchObject({ draft_id: "draft-1", sales_order_value: 13125 });
+    expect(isCheckoutQuoteFingerprint(quote?.fingerprint ?? "")).toBe(true);
+    expect(draftCartMatchesCheckoutQuote([{
+      draft_id: "draft-1",
+      company_id: "company-1",
+      status: "active",
+      readiness_status: "ready",
+      readiness_issues: [],
+      line_id: "line-1",
+      product_id: "product-1",
+      quantity: 2,
+      unit_price_snapshot: 6250,
+      currency_snapshot: "INR",
+      uom_snapshot: "carton",
+      sku_snapshot: "SKU-1",
+      product_name_snapshot: "Pista Baklawa",
+    }], quote!)).toBe(true);
+    expect(normalizeBuyerCheckoutQuote({ draft_id: "draft-1", fingerprint: "not-a-hash" })).toBeNull();
   });
 
   it("omits unsafe final-payment links from the customer-safe projection", () => {

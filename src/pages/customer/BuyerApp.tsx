@@ -26,6 +26,7 @@ import type { Database, Json } from "@/integrations/supabase/database.types";
 import { useAuth } from "@/hooks/useAuth";
 import {
   customerAppClient,
+  draftCartMatchesCheckoutQuote,
   clearCheckoutIdempotencyKey,
   clearGeneralQueryIdempotencyKey,
   GENERAL_QUERY_CATEGORIES,
@@ -45,6 +46,7 @@ import {
   type BuyerProformaInvoiceFacts,
   type BuyerStatement,
   type BuyerTeamMember,
+  type BuyerCheckoutQuote,
   type BuyerTicket,
 } from "@/lib/customerApp/customerAppClient";
 import {
@@ -594,17 +596,24 @@ function ProductDetail({ data, productId }: { data: ReturnType<typeof useBuyerDa
   );
 }
 
-/** Maintains the editable draft and submits it through the idempotent Core RPC. */
+/** Maintains the editable draft and submits only through Core's quoted checkout contract. */
 function Cart({ data }: { data: ReturnType<typeof useBuyerData> }) {
   const navigate = useNavigate();
   const [submitting, setSubmitting] = useState(false);
   const [requestedDispatchDate, setRequestedDispatchDate] = useState("");
+  const [quote, setQuote] = useState<BuyerCheckoutQuote | null>(null);
+  const [quoteLoading, setQuoteLoading] = useState(false);
+  const [quoteStale, setQuoteStale] = useState(false);
+  const [quoteApproved, setQuoteApproved] = useState(false);
+  const [isOnline, setIsOnline] = useState(() => (typeof navigator !== "undefined" ? navigator.onLine : true));
+  const quoteRequestRef = useRef(0);
   const productById = useMemo(() => new Map(data.products.map((product) => [product.id, product])), [data.products]);
   const priceById = useMemo(() => new Map(data.prices.map((price) => [price.product_id, price])), [data.prices]);
   const lines = data.draft.filter((line): line is BuyerDraftLine & { line_id: string; product_id: string } => Boolean(line.line_id && line.product_id));
-  const previewValues = lines.map((line) => line.unit_price_snapshot ?? priceById.get(line.product_id)?.selling_price);
-  const hasCompletePreview = previewValues.every((value) => typeof value === "number" && Number.isFinite(value));
-  const total = hasCompletePreview ? lines.reduce((sum, line) => sum + Number(line.quantity || 0) * Number(line.unit_price_snapshot ?? priceById.get(line.product_id)?.selling_price), 0) : null;
+  const cartRevision = useMemo(() => lines
+    .map((line) => `${line.draft_id}:${line.line_id}:${line.product_id}:${line.quantity}`)
+    .sort()
+    .join("|"), [lines]);
   const readinessMessages = Array.from(new Set(data.draft
     .filter((line) => line.readiness_status !== "ready")
     .flatMap((line) => {
@@ -616,19 +625,80 @@ function Cart({ data }: { data: ReturnType<typeof useBuyerData> }) {
       );
     })));
   const canSubmit = lines.length > 0 && data.draft.every((line) => line.readiness_status === "ready");
+  const quoteLineByProduct = useMemo(() => new Map((quote?.lines ?? []).map((line) => [line.product_id, line])), [quote]);
+  const quoteAligned = Boolean(quote && quoteApproved && !quoteStale && isOnline);
+
+  useEffect(() => {
+    const handleOnline = () => { setIsOnline(true); };
+    const handleOffline = () => {
+      setIsOnline(false);
+      setQuote(null);
+      setQuoteApproved(false);
+      setQuoteStale(true);
+    };
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
+
+  const loadQuote = useCallback(async () => {
+    if (!canSubmit || !isOnline) {
+      setQuote(null);
+      setQuoteApproved(false);
+      return;
+    }
+    const requestId = quoteRequestRef.current + 1;
+    quoteRequestRef.current = requestId;
+    setQuoteLoading(true);
+    setQuoteStale(false);
+    try {
+      const nextQuote = await customerAppClient.checkoutQuote();
+      if (quoteRequestRef.current !== requestId) return;
+      if (!draftCartMatchesCheckoutQuote(data.draft, nextQuote)) {
+        setQuote(null);
+        setQuoteApproved(false);
+        setQuoteStale(true);
+        return;
+      }
+      setQuote(nextQuote);
+      setQuoteApproved(false);
+    } catch {
+      if (quoteRequestRef.current !== requestId) return;
+      setQuote(null);
+      setQuoteApproved(false);
+      setQuoteStale(true);
+    } finally {
+      if (quoteRequestRef.current === requestId) setQuoteLoading(false);
+    }
+  }, [canSubmit, data.draft, isOnline]);
+
+  useEffect(() => {
+    setQuoteApproved(false);
+    void loadQuote();
+  }, [cartRevision, canSubmit, isOnline, loadQuote]);
+
   const mutate = async (action: () => Promise<unknown>) => {
     try {
       await action();
       await data.refresh();
+      setQuoteApproved(false);
+      setQuoteStale(true);
     } catch {
       toast.error(BUYER_CART_UPDATE_ERROR);
     }
   };
   const submit = async () => {
-    if (!canSubmit || submitting) return;
+    if (!canSubmit || submitting || !quote || !quoteApproved || quoteStale || !isOnline) return;
     setSubmitting(true);
     try {
-      const result = await customerAppClient.submit(getCheckoutIdempotencyKey(), requestedDispatchDate || undefined);
+      const result = await customerAppClient.submitQuotedOrder(
+        getCheckoutIdempotencyKey(),
+        quote.fingerprint,
+        requestedDispatchDate || undefined,
+      );
       const row = result?.[0];
       if (!row) throw new Error("Checkout returned no order");
       clearCheckoutIdempotencyKey();
@@ -636,11 +706,21 @@ function Cart({ data }: { data: ReturnType<typeof useBuyerData> }) {
       await data.refresh();
       navigate(`/buyer/orders/${row.order_id}`);
     } catch {
+      setQuoteApproved(false);
+      setQuoteStale(true);
+      await loadQuote();
       toast.error(BUYER_ORDER_SUBMIT_ERROR);
     } finally {
       setSubmitting(false);
     }
   };
+  const submitDisabled = submitting
+    || !canSubmit
+    || !quote
+    || !quoteApproved
+    || quoteStale
+    || quoteLoading
+    || !isOnline;
   return (
     <section className="space-y-5" aria-labelledby="cart-heading">
       <div className="flex items-start justify-between gap-4"><div><p className="text-sm text-muted-foreground">Review before submission</p><h1 id="cart-heading" className="font-display text-3xl font-semibold">Your cart</h1></div><button type="button" onClick={() => { void mutate(() => customerAppClient.clearDraft()); }} disabled={lines.length === 0} className="min-h-11 text-xs text-muted-foreground disabled:opacity-50">Clear cart</button></div>
@@ -651,11 +731,49 @@ function Cart({ data }: { data: ReturnType<typeof useBuyerData> }) {
             const price = priceById.get(line.product_id);
             const minimum = positiveNumber(price?.minimum_order_quantity);
             const increment = positiveNumber(price?.order_increment);
-            const unitPrice = line.unit_price_snapshot ?? price?.selling_price;
-            const lineTotal = typeof unitPrice === "number" ? Number(line.quantity || 0) * unitPrice : null;
-            return <div key={line.line_id} className="flex items-center gap-3 rounded-xl border bg-card p-3 shadow-[var(--card-shadow)]"><div className="h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-muted"><BuyerProductImage src={product?.image_url || null} alt={line.product_name_snapshot || productTitle(product)} compact /></div><div className="min-w-0 flex-1"><p className="truncate font-semibold">{line.product_name_snapshot || productTitle(product)}</p><p className="text-xs text-muted-foreground">SKU {line.sku_snapshot || product?.sku || "pending"} · {line.uom_snapshot || price?.uom || "unit"}</p><p className="text-xs text-muted-foreground">{money(unitPrice)} each · line preview {lineTotal === null ? "Not available" : money(lineTotal)}</p><p className="text-[11px] text-muted-foreground">Minimum {minimum}; increments of {increment}</p></div><div className="flex items-center gap-1"><button type="button" aria-label={`Decrease ${line.product_name_snapshot || "item"} quantity`} onClick={() => { void mutate(() => customerAppClient.updateLine(line.line_id, Math.max(minimum, Number(line.quantity || 1) - increment))); }} className="rounded-lg border p-2"><Minus size={14} aria-hidden /></button><span className="w-8 text-center text-sm" aria-live="polite">{line.quantity}</span><button type="button" aria-label={`Increase ${line.product_name_snapshot || "item"} quantity`} onClick={() => { void mutate(() => customerAppClient.updateLine(line.line_id, Number(line.quantity || 1) + increment)); }} className="rounded-lg border p-2"><Plus size={14} aria-hidden /></button><button type="button" aria-label={`Remove ${line.product_name_snapshot || "item"}`} onClick={() => { void mutate(() => customerAppClient.removeLine(line.line_id)); }} className="rounded-lg p-2 text-destructive"><Trash2 size={16} aria-hidden /></button></div></div>;
+            const quotedLine = quoteLineByProduct.get(line.product_id);
+            return <div key={line.line_id} className="flex items-center gap-3 rounded-xl border bg-card p-3 shadow-[var(--card-shadow)]"><div className="h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-muted"><BuyerProductImage src={product?.image_url || null} alt={line.product_name_snapshot || productTitle(product)} compact /></div><div className="min-w-0 flex-1"><p className="truncate font-semibold">{line.product_name_snapshot || productTitle(product)}</p><p className="text-xs text-muted-foreground">SKU {line.sku_snapshot || product?.sku || "pending"} · {line.uom_snapshot || price?.uom || "unit"}</p><p className="text-xs text-muted-foreground">{quotedLine ? `${money(quotedLine.selling_price)} each · GST ${quotedLine.gst_rate}%${quotedLine.tax_inclusive ? " incl." : " excl."}` : "Quotation line pending from Core"}</p><p className="text-[11px] text-muted-foreground">Minimum {minimum}; increments of {increment}</p></div><div className="flex items-center gap-1"><button type="button" aria-label={`Decrease ${line.product_name_snapshot || "item"} quantity`} onClick={() => { void mutate(() => customerAppClient.updateLine(line.line_id, Math.max(minimum, Number(line.quantity || 1) - increment))); }} className="rounded-lg border p-2"><Minus size={14} aria-hidden /></button><span className="w-8 text-center text-sm" aria-live="polite">{line.quantity}</span><button type="button" aria-label={`Increase ${line.product_name_snapshot || "item"} quantity`} onClick={() => { void mutate(() => customerAppClient.updateLine(line.line_id, Number(line.quantity || 1) + increment)); }} className="rounded-lg border p-2"><Plus size={14} aria-hidden /></button><button type="button" aria-label={`Remove ${line.product_name_snapshot || "item"}`} onClick={() => { void mutate(() => customerAppClient.removeLine(line.line_id)); }} className="rounded-lg border p-2 text-destructive"><Trash2 size={16} aria-hidden /></button></div></div>;
           })}</div>
-          <div className="rounded-2xl border bg-card p-5 shadow-[var(--card-shadow)]"><div className="flex justify-between text-sm"><span>Subtotal preview</span><strong>{total === null ? "Available after review" : money(total)}</strong></div><p className="mt-2 text-xs text-muted-foreground">This is a Core-provided line-price preview. Final tax, charges and the approved advance are resolved by Core at submission.</p>{!canSubmit && <div className="mt-4 rounded-xl bg-destructive/10 p-3 text-sm text-destructive"><p className="font-semibold">Review your quantities before submitting</p><ul className="mt-1 list-disc pl-5">{readinessMessages.length > 0 ? readinessMessages.map((message) => <li key={message}>{message}</li>) : <li>Review the quantity and carton requirements before submitting.</li>}</ul></div>}<label className="mt-4 block text-sm font-medium" htmlFor="buyer-requested-dispatch-date">Requested dispatch date <span className="font-normal text-muted-foreground">(optional)</span><input id="buyer-requested-dispatch-date" type="date" value={requestedDispatchDate} min={getLocalDateInputValue()} onChange={(event) => { setRequestedDispatchDate(event.target.value); }} className="mt-1 w-full rounded-xl border bg-background px-3 py-3 text-sm" /></label><p className="mt-2 text-xs text-muted-foreground">Core validates and preserves this request on the governed order.</p><button type="button" disabled={submitting || !canSubmit} onClick={() => { void submit(); }} className="mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary py-3 font-bold text-primary-foreground disabled:opacity-50">{submitting && <Loader2 size={16} className="animate-spin" aria-hidden />}{submitting ? "Submitting…" : "Submit order"}</button></div>
+          <div className="rounded-2xl border bg-card p-5 shadow-[var(--card-shadow)]">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold">Core quotation (GST-inclusive)</p>
+                <p className="mt-1 text-xs text-muted-foreground">Tax-inclusive totals and advance are calculated only by Core. Your explicit approval is required before submission.</p>
+              </div>
+              <button type="button" disabled={quoteLoading || !canSubmit || !isOnline} onClick={() => { void loadQuote(); }} className="inline-flex min-h-10 items-center gap-1 rounded-lg border px-3 text-xs font-semibold disabled:opacity-50">
+                <RefreshCw size={14} className={quoteLoading ? "animate-spin" : ""} aria-hidden />
+                Refresh quote
+              </button>
+            </div>
+            {quoteLoading && <p className="mt-3 text-sm text-muted-foreground" aria-live="polite">Loading Core quotation…</p>}
+            {!quoteLoading && quote && (
+              <div className="mt-3 space-y-2 text-sm">
+                <div className="flex justify-between"><span>Sales order value (incl. GST)</span><strong>{money(quote.sales_order_value)}</strong></div>
+                <div className="flex justify-between"><span>Required advance</span><strong>{money(quote.advance_required)}</strong></div>
+                <p className="text-[11px] text-muted-foreground">Quote fingerprint {quote.fingerprint.slice(0, 8)}…{quote.fingerprint.slice(-4)}</p>
+              </div>
+            )}
+            {!quoteLoading && !quote && (
+              <div className="mt-3 rounded-xl bg-destructive/10 p-3 text-sm text-destructive">
+                <p className="font-semibold">Checkout is unavailable until Core returns a valid quotation.</p>
+                <p className="mt-1 text-xs">{!isOnline ? "You are offline. Reconnect to refresh the quotation." : "Refresh the quote or review cart readiness, then try again."}</p>
+              </div>
+            )}
+            {!canSubmit && <div className="mt-4 rounded-xl bg-destructive/10 p-3 text-sm text-destructive"><p className="font-semibold">Review your quantities before submitting</p><ul className="mt-1 list-disc pl-5">{readinessMessages.length > 0 ? readinessMessages.map((message) => <li key={message}>{message}</li>) : <li>Review the quantity and carton requirements before submitting.</li>}</ul></div>}
+            <label className="mt-4 flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={quoteApproved}
+                disabled={!quote || quoteStale || quoteLoading || !isOnline}
+                onChange={(event) => { setQuoteApproved(event.target.checked); }}
+              />
+              <span>I approve this Core quotation, including the GST-inclusive total and required advance, for the current cart.</span>
+            </label>
+            <label className="mt-4 block text-sm font-medium" htmlFor="buyer-requested-dispatch-date">Requested dispatch date <span className="font-normal text-muted-foreground">(optional)</span><input id="buyer-requested-dispatch-date" type="date" value={requestedDispatchDate} min={getLocalDateInputValue()} onChange={(event) => { setRequestedDispatchDate(event.target.value); }} className="mt-1 w-full rounded-xl border bg-background px-3 py-3 text-sm" /></label>
+            <p className="mt-2 text-xs text-muted-foreground">Core validates and preserves this request on the governed order.</p>
+            <button type="button" disabled={submitDisabled} onClick={() => { void submit(); }} className="mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary py-3 font-bold text-primary-foreground disabled:opacity-50">{submitting && <Loader2 size={16} className="animate-spin" aria-hidden />}{submitting ? "Submitting…" : quoteAligned ? "Submit approved quotation" : "Submit order"}</button>
+          </div>
         </>
       )}
     </section>
