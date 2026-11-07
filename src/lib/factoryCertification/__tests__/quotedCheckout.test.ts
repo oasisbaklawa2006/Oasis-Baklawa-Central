@@ -1,7 +1,6 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-// @ts-expect-error plain ESM helper used by the Factory certification scripts
 import { submitQuotedCheckout } from "../../../../scripts/factory-certification/quoted-checkout.mjs";
 
 const FP = "0123456789abcdef0123456789abcdef";
