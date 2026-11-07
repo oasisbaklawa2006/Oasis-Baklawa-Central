@@ -97,7 +97,7 @@ export function buildProbeOutcome(input: {
     // Contract/signature discovery cannot establish whether any business RPC ran.
     // The dress-rehearsal ledger independently attributes actual calls versus
     // fixture-only observations; never promote those observations to RPC proof.
-    detail = `Contract present on production-certified Core pin ${POINT100_CORE_PRODUCTION_VERIFIED_SHA}; capability probe did not execute this stage or certify its journey`;
+    detail = "Contract signature resolved on the probed backend; capability probe did not execute this stage or certify its journey, and does not verify the backend production revision";
   }
 
   const contractReady =
