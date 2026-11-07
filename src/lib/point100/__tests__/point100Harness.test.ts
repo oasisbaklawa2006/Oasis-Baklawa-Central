@@ -62,6 +62,16 @@ describe("point100 Buyer financial-consent invariants", () => {
   });
 });
 
+describe("point100 certification evidence attribution", () => {
+  it("reports Buyer golden order fixture probes without pretending quoted RPC calls executed", () => {
+    const source = readFileSync(resolve(__dirname, "../../../../tests/point100/dress-rehearsal.cert.spec.ts"), "utf8");
+    expect(source).toMatch(/recordStage\(stages, "buyer_catalogue_intent", null, "ADMIN"/);
+    expect(source).toMatch(/recordStage\(stages, "buyer_quotation_so", null, "ADMIN"/);
+    expect(source).toContain("`fixture check: ${intent.detail}`");
+    expect(source).toContain("`fixture check: ${so.detail}`");
+  });
+});
+
 describe("point100 contract bindings", () => {
   it("keeps the final dispatch RPC canonical and permits overrides only in disposable-bootstrap mode", () => {
     const binding = bindingByKey("production_release");
