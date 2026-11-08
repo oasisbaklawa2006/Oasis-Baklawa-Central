@@ -358,7 +358,8 @@ class ScopeTests(GateTestCase):
         """Verify each lane requires only what its workflow triggers on."""
         factory = gate.relevant_checks({"scripts/factory-certification/seed.mjs"})
         self.assertIn("Disposable Factory certification", factory)
-        self.assertNotIn("Point100 production-bound software rehearsal", factory)  # that workflow cannot trigger
+        # Point100's workflow also triggers on shared Factory scripts (main 39a8594c), so it is required too.
+        self.assertIn("Point100 production-bound software rehearsal", factory)
         buyer = gate.relevant_checks({"src/pages/customer/BuyerApp.tsx"})
         self.assertIn("Disposable Buyer golden path certification", buyer)
         self.assertNotIn("Disposable Factory certification", buyer)
