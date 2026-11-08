@@ -175,7 +175,7 @@ def step_blocks(job: str) -> list[str]:
 
 
 # GitHub resolves action owner/repo case-insensitively, so `Actions/Checkout` is still a checkout.
-CHECKOUT_USES = re.compile(r"(?m)^(?:      - |        )uses:\s*(?i:actions/checkout)@(\S+)")
+CHECKOUT_USES = re.compile(r"""(?m)^(?:      - |        )uses:\s*['"]?(?i:actions/checkout)@(\S+)""")
 PINNED_CHECKOUT = re.compile(r"(?m)^(?:      - |        )uses: (?i:actions/checkout)@[0-9a-f]{40}(?:[ \t]+#.*)?$")
 WITH_BLOCK = re.compile(r"(?m)^        with:[ \t]*\n((?:          [^\n]*(?:\n|\Z))*)")
 
@@ -528,6 +528,10 @@ class QualityGateIntegrityTests(unittest.TestCase):
                                   "      - name: Python test suite", 1)
         self.assertNotEqual(doubled, UNIT_CI)
         self.assertTrue(any("2 checkout steps" in p for p in checkout_problems(doubled)))
+        # A quoted `uses:` value is still a checkout and must be counted too.
+        quoted = doubled.replace(f"uses: Actions/Checkout@{sha}", f'uses: "actions/checkout@{sha}"', 1)
+        self.assertNotEqual(quoted, doubled)
+        self.assertTrue(any("2 checkout steps" in p for p in checkout_problems(quoted)))
 
     def test_pinned_checkout_with_a_trailing_version_comment_is_accepted(self):
         """Verify a pinned SHA with a benign trailing version comment stays valid, with and without the comment."""
