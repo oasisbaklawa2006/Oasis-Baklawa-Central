@@ -126,7 +126,7 @@ LANE_TRIGGERS = {
     ),
     "Point100 production-bound software rehearsal": (
         ".github/workflows/point100-certification-ephemeral.yml", "playwright.point100.config.ts",
-        "scripts/point100-certification/**", "src/lib/point100/**", "tests/point100/**",
+        "scripts/point100-certification/**", "scripts/factory-certification/**", "src/lib/point100/**", "tests/point100/**",
         ".appverse/MACRO_POINT100_INTEGRATION_MISSION.md",
     ),
 }
