@@ -23,13 +23,13 @@ export type Point100UpstreamDependency = {
   disposableRehearsalBypass?: boolean;
 };
 
-/** Production-certified Core boundary — current protected production release after final-invoice IST business-date authority #371. */
-export const POINT100_CORE_PRODUCTION_VERIFIED_SHA = "5800f4b84ae72e7fef06d57c11fc22b3117f3c52";
+/** Production-certified Core boundary — Core main 64589943, released to production by protected Production Migration Release run 41361801135 (includes Gate/Dispatch role separation 20261001220000). */
+export const POINT100_CORE_PRODUCTION_VERIFIED_SHA = "645899439fe0a84806238b9114649eb2c3785a75";
 
-export const POINT100_PRODUCTION_MIGRATION_GATE = "oasis-supabase-core#245";
+export const POINT100_PRODUCTION_MIGRATION_GATE = "oasis-supabase-core:production-migration-release:41361801135";
 
 /** GitHub Actions run certifying exact-SHA deploy, semantic parity and production contract smoke for the current protected release. */
-export const POINT100_PRODUCTION_MIGRATION_RUN_ID = "36636198402";
+export const POINT100_PRODUCTION_MIGRATION_RUN_ID = "41361801135";
 
 /** Governed Trace software contracts shipped on Core #259 and consumed by merged Trace #37. */
 export const POINT100_TRACE_SOFTWARE_RPCS = [
@@ -38,7 +38,7 @@ export const POINT100_TRACE_SOFTWARE_RPCS = [
   "trace_allocate_identity_v1",
 ] as const;
 
-/** Canonical Core dispatch-finalize authority delivered by #260 and retained on the current production pin. */
+/** Canonical Core dispatch-finalize authority: delivered by #260, Dispatch-owned and separated from the Security Gate by 20261001220000 (present on the current production pin). */
 export const POINT100_DISPATCH_FINALIZE_RPC = "release_order_to_dispatched_v1";
 
 /** Retained as provenance for capability-matrix compatibility; #260 is merged and production-certified. */

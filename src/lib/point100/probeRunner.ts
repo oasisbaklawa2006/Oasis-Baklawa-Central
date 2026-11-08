@@ -4,7 +4,6 @@ import { resolveBoundContract, bindingByKey } from "./contractBindings";
 import {
   POINT100_CORE_PRODUCTION_VERIFIED_SHA,
   formatUpstreamBlocker,
-  isDisposableRehearsalMode,
   upstreamBlockersForStage,
 } from "./upstreamDependencies";
 
@@ -95,9 +94,10 @@ export function buildProbeOutcome(input: {
     detail = executionDetail ?? "Executable probe passed";
   } else {
     status = "implemented";
-    detail = isDisposableRehearsalMode()
-      ? `Contract present on production-certified Core pin ${POINT100_CORE_PRODUCTION_VERIFIED_SHA}; execution remains pending in this probe context`
-      : `Contract present on production-certified Core pin ${POINT100_CORE_PRODUCTION_VERIFIED_SHA}; full journey execution is certified by the dress-rehearsal stage`;
+    // Contract/signature discovery cannot establish whether any business RPC ran.
+    // The dress-rehearsal ledger independently attributes actual calls versus
+    // fixture-only observations; never promote those observations to RPC proof.
+    detail = "Contract signature resolved on the probed backend; capability probe did not execute this stage or certify its journey, and does not verify the backend production revision";
   }
 
   const contractReady =

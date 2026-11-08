@@ -3,6 +3,8 @@ import type { Database, Json } from "@/integrations/supabase/database.types";
 import { parseGovernedHttpsPaymentLink } from "@/lib/order-authority/governedPaymentLink";
 import { classifyIntegrationError } from "@/lib/integration-contracts";
 
+import type { PublishedProductProjectionRow } from "@/lib/published-products/types";
+
 type PublicFunctions = Database["public"]["Functions"];
 type RpcName = keyof PublicFunctions;
 
@@ -98,6 +100,130 @@ export type BuyerDraftLine = {
   sku_snapshot: string | null;
   product_name_snapshot: string | null;
 };
+
+/** One authoritative Core quote line bound to the active checkout draft. */
+export type BuyerCheckoutQuoteLine = {
+  product_id: string;
+  quantity: number;
+  selling_price: number;
+  currency: string;
+  uom: string;
+  gst_rate: number;
+  tax_inclusive: boolean;
+  sku: string;
+  product_name: string;
+  minimum_order_quantity: number | null;
+  order_increment: number | null;
+  min_carton_qty: number | null;
+};
+
+/** GST-inclusive Core quotation returned by `customer_checkout_quote_v1`. */
+export type BuyerCheckoutQuote = {
+  draft_id: string;
+  lines: BuyerCheckoutQuoteLine[];
+  sales_order_value: number;
+  advance_required: number;
+  fingerprint: string;
+};
+
+const CHECKOUT_QUOTE_FINGERPRINT_PATTERN = /^[0-9a-f]{32}$/;
+
+function finitePositiveNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : null;
+}
+
+function finiteNonNegativeNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : null;
+}
+
+function nullableFiniteNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function nonEmptyString(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
+/** Validates the Core md5 fingerprint format required for quoted submit. */
+export function isCheckoutQuoteFingerprint(value: string): boolean {
+  return CHECKOUT_QUOTE_FINGERPRINT_PATTERN.test(value);
+}
+
+function normalizeBuyerCheckoutQuoteLine(value: unknown): BuyerCheckoutQuoteLine | null {
+  if (!isRecord(value)) return null;
+  const productId = nonEmptyString(value.product_id);
+  const quantity = finitePositiveNumber(value.quantity);
+  const sellingPrice = finitePositiveNumber(value.selling_price);
+  const currency = nonEmptyString(value.currency);
+  const uom = nonEmptyString(value.uom);
+  const gstRate = finiteNonNegativeNumber(value.gst_rate);
+  const sku = nonEmptyString(value.sku);
+  const productName = nonEmptyString(value.product_name);
+  // The Buyer web payment summary is rendered in rupees. Fail closed rather
+  // than misrepresent a foreign-currency commercial quote as an INR amount.
+  if (!productId || quantity === null || sellingPrice === null || currency !== "INR" ||
+      !uom || gstRate === null || gstRate > 100 || !sku || !productName) {
+    return null;
+  }
+  if (typeof value.tax_inclusive !== "boolean") return null;
+  return {
+    product_id: productId,
+    quantity,
+    selling_price: sellingPrice,
+    currency,
+    uom,
+    gst_rate: gstRate,
+    tax_inclusive: value.tax_inclusive,
+    sku,
+    product_name: productName,
+    minimum_order_quantity: nullableFiniteNumber(value.minimum_order_quantity),
+    order_increment: nullableFiniteNumber(value.order_increment),
+    min_carton_qty: nullableFiniteNumber(value.min_carton_qty),
+  };
+}
+
+/** Normalizes Core's authoritative checkout quote payload without local price maths. */
+export function normalizeBuyerCheckoutQuote(value: unknown): BuyerCheckoutQuote | null {
+  if (!isRecord(value)) return null;
+  const draftId = nonEmptyString(value.draft_id);
+  const fingerprint = nonEmptyString(value.fingerprint);
+  const salesOrderValue = finitePositiveNumber(value.sales_order_value);
+  const advanceRequired = finitePositiveNumber(value.advance_required);
+  if (!draftId || !fingerprint || !isCheckoutQuoteFingerprint(fingerprint) ||
+      salesOrderValue === null || advanceRequired === null || advanceRequired > salesOrderValue) {
+    return null;
+  }
+  if (!Array.isArray(value.lines) || value.lines.length === 0) return null;
+  const lines = value.lines
+    .map(normalizeBuyerCheckoutQuoteLine)
+    .filter((line): line is BuyerCheckoutQuoteLine => Boolean(line));
+  if (lines.length !== value.lines.length) return null;
+  const sorted = [...lines].sort((a, b) => a.product_id.localeCompare(b.product_id));
+  if (sorted.some((line, index) => index > 0 && line.product_id === sorted[index - 1].product_id)) return null;
+  return {
+    draft_id: draftId,
+    lines: sorted,
+    sales_order_value: salesOrderValue,
+    advance_required: advanceRequired,
+    fingerprint,
+  };
+}
+
+/** Ensures the quote's draft and line product/qty set still matches the editable cart. */
+export function draftCartMatchesCheckoutQuote(draftLines: BuyerDraftLine[], quote: BuyerCheckoutQuote): boolean {
+  if (quote.draft_id !== draftLines.find((line) => line.draft_id)?.draft_id) return false;
+  const cartLines = draftLines
+    .filter((line): line is BuyerDraftLine & { product_id: string; quantity: number } => (
+      Boolean(line.product_id) && typeof line.quantity === "number" && line.quantity > 0
+    ))
+    .map((line) => ({ product_id: line.product_id, quantity: line.quantity }))
+    .sort((a, b) => a.product_id.localeCompare(b.product_id));
+  if (cartLines.length !== quote.lines.length) return false;
+  return cartLines.every((cartLine, index) => (
+    cartLine.product_id === quote.lines[index]?.product_id
+    && cartLine.quantity === quote.lines[index]?.quantity
+  ));
+}
 
 export type BuyerOrder = {
   order_id: string;
@@ -396,19 +522,78 @@ export function normalizeBuyerGeneralQuery(value: unknown): BuyerGeneralQuery | 
   };
 }
 
+/**
+ * Buyer catalogue product, derived from Core's customer-safe `published_products_v1()` publication projection.
+ * Buyers cannot read `public.products` directly (Core limits that table to internal staff), so the catalogue must
+ * come from the governed projection; prices come separately from `buyer_product_prices_v1()`.
+ */
+export type BuyerCatalogueProduct = {
+  id: string;
+  name: string | null;
+  sku: string | null;
+  description: string | null;
+  image_url: string | null;
+  category: string | null;
+  sub_category: string | null;
+  is_active: boolean;
+  visible_in_catalog: boolean;
+};
+
+export function toBuyerCatalogueProduct(row: PublishedProductProjectionRow): BuyerCatalogueProduct {
+  return {
+    id: row.product_id,
+    name: row.product_name,
+    sku: row.sku,
+    description: row.long_description ?? row.short_description,
+    image_url: row.hero_image_url,
+    category: row.category,
+    sub_category: row.subcategory,
+    // The projection only returns active, visible, catalogue-ready products.
+    is_active: true,
+    visible_in_catalog: true,
+  };
+}
+
+type PublishedProductsRpcClient = {
+  rpc: (fn: "published_products_v1") => Promise<{ data: PublishedProductProjectionRow[] | null; error: { message: string } | null }>;
+};
+
+async function publishedProducts(): Promise<BuyerCatalogueProduct[]> {
+  // Local narrow cast: the generated Database type predates this already-deployed Core RPC.
+  const result = await (supabase as unknown as PublishedProductsRpcClient).rpc("published_products_v1");
+  if (result.error) {
+    classifyCustomerRpcFailure(result.error);
+    throw new Error(CUSTOMER_SAFE_REQUEST_ERROR);
+  }
+  return (result.data ?? []).map(toBuyerCatalogueProduct);
+}
+
 export const customerAppClient = {
   company: () => rpc("customer_company_v1"),
   team: () => rpc("customer_team_v1"),
   prices: () => rpc("buyer_product_prices_v1"),
+  products: () => publishedProducts(),
   draft: () => rpc("get_customer_order_draft_v1"),
   addLine: (productId: string, quantity: number) => rpc("add_customer_order_draft_line_v1", { p_product_id: productId, p_quantity: quantity }),
   updateLine: (lineId: string, quantity: number) => rpc("update_customer_order_draft_line_v1", { p_line_id: lineId, p_quantity: quantity }),
   removeLine: (lineId: string) => rpc("remove_customer_order_draft_line_v1", { p_line_id: lineId }),
   clearDraft: () => rpc("clear_customer_order_draft_v1"),
-  submit: (idempotencyKey: string, requestedDispatchDate?: string) => rpc("submit_customer_order_v1", {
-    p_idempotency_key: idempotencyKey,
-    p_requested_dispatch_date: requestedDispatchDate || null,
-  }),
+  checkoutQuote: async () => {
+    const raw = await rpc("customer_checkout_quote_v1");
+    const quote = normalizeBuyerCheckoutQuote(raw);
+    if (!quote) throw new Error(CUSTOMER_SAFE_REQUEST_ERROR);
+    return quote;
+  },
+  submitQuotedOrder: (idempotencyKey: string, quoteFingerprint: string, requestedDispatchDate?: string) => {
+    if (!isCheckoutQuoteFingerprint(quoteFingerprint)) {
+      throw new Error(CUSTOMER_SAFE_REQUEST_ERROR);
+    }
+    return rpc("submit_customer_order_quoted_v1", {
+      p_idempotency_key: idempotencyKey,
+      p_quote_fingerprint: quoteFingerprint,
+      p_requested_dispatch_date: requestedDispatchDate || null,
+    });
+  },
   orders: () => rpc("customer_order_status_v1"),
   items: () => rpc("customer_order_items_v1"),
   commercialFacts: () => rpc("customer_sales_order_commercial_facts_v1"),
@@ -463,32 +648,35 @@ export const customerAppClient = {
   }),
 };
 
-let fallbackCheckoutKey: string | null = null;
+/** Each company + active Core draft has an independent durable retry scope. */
+function checkoutIdempotencyStorageKey(draftId: string, companyId: string): string {
+  if (!draftId?.trim() || !companyId?.trim()) throw new Error(CUSTOMER_SAFE_REQUEST_ERROR);
+  return `oasis_buyer_checkout_idempotency:${companyId}:${draftId}`;
+}
 
 /**
- * Returns the stable browser-session key used to make checkout retries
- * idempotent when the first response is lost or a buyer double-clicks.
+ * Persist one retry key per company and draft before any financial submission.
+ * Never fall back to an ephemeral key when storage fails: a lost response
+ * could otherwise create a second order after a refresh or account switch.
  */
-export function getCheckoutIdempotencyKey(): string {
-  const key = "oasis_buyer_checkout_idempotency";
+export function getCheckoutIdempotencyKey(draftId: string, companyId: string): string {
+  const storageKey = checkoutIdempotencyStorageKey(draftId, companyId);
   try {
-    const existing = sessionStorage.getItem(key);
+    const existing = sessionStorage.getItem(storageKey);
     if (existing) return existing;
     const generated = crypto.randomUUID();
-    sessionStorage.setItem(key, generated);
+    sessionStorage.setItem(storageKey, generated);
+    if (sessionStorage.getItem(storageKey) !== generated) throw new Error("Persisted key not readable");
     return generated;
   } catch {
-    // Private browsing/storage-disabled clients still retain one in-memory key
-    // for lost-response retries during this page lifetime.
-    fallbackCheckoutKey ??= crypto.randomUUID();
-    return fallbackCheckoutKey;
+    throw new Error(CUSTOMER_SAFE_REQUEST_ERROR);
   }
 }
 
-/** Clears the checkout retry key after Core has acknowledged the submission. */
-export function clearCheckoutIdempotencyKey() {
-  fallbackCheckoutKey = null;
-  try { sessionStorage.removeItem("oasis_buyer_checkout_idempotency"); } catch { /* storage disabled */ }
+/** Clear only the acknowledged draft's retry key after Core returns a Sales Order. */
+export function clearCheckoutIdempotencyKey(draftId: string, companyId: string): void {
+  const storageKey = checkoutIdempotencyStorageKey(draftId, companyId);
+  try { sessionStorage.removeItem(storageKey); } catch { /* best-effort cleanup after Core success */ }
 }
 
 /** Formats a Date for an HTML date input using the browser's local calendar. */

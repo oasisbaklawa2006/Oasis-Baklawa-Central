@@ -31,7 +31,7 @@ env:
 jobs:
   dispatch-rls-cert:
     name: Production Dispatch RLS characterization (read-only probes)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - name: Assert trusted default-branch dispatch (fail closed before credentials)
