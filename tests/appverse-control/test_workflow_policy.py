@@ -174,8 +174,16 @@ def step_blocks(job: str) -> list[str]:
     return [block for block in re.split(r"(?m)^(?=      - )", steps) if block.startswith("      - ")]
 
 
-CHECKOUT_USES = re.compile(r"(?m)^(?:      - |        )uses:\s*actions/checkout@(\S+)")
-PINNED_CHECKOUT = re.compile(r"(?m)^(?:      - |        )uses: actions/checkout@[0-9a-f]{40}(?:[ \t]+#.*)?$")
+# GitHub resolves action owner/repo case-insensitively, so `Actions/Checkout` is still a checkout.
+CHECKOUT_USES = re.compile(r"(?m)^(?:      - |        )uses:\s*(?i:actions/checkout)@(\S+)")
+PINNED_CHECKOUT = re.compile(r"(?m)^(?:      - |        )uses: (?i:actions/checkout)@[0-9a-f]{40}(?:[ \t]+#.*)?$")
+WITH_BLOCK = re.compile(r"(?m)^        with:[ \t]*\n((?:          [^\n]*(?:\n|\Z))*)")
+
+
+def with_block(step: str) -> str:
+    """The step's own `with:` mapping only; values under `env:` or elsewhere must never satisfy checkout assertions."""
+    match = WITH_BLOCK.search(step)
+    return match.group(1) if match else ""
 
 
 def checkout_problems(text: str, trusted_main: bool = False, hardened: bool = True) -> list[str]:
@@ -190,9 +198,9 @@ def checkout_problems(text: str, trusted_main: bool = False, hardened: bool = Tr
         for step in checkouts if hardened else []:
             if not PINNED_CHECKOUT.search(step):
                 problems.append(f"{job_id}: checkout is not pinned to a full commit SHA")
-            if not re.search(r"(?m)^          persist-credentials: false\s*$", step):
+            if not re.search(r"(?m)^          persist-credentials: false\s*$", with_block(step)):
                 problems.append(f"{job_id}: checkout persists credentials")
-            if trusted_main and not re.search(r"(?m)^          ref: main\s*$", step):
+            if trusted_main and not re.search(r"(?m)^          ref: main\s*$", with_block(step)):
                 problems.append(f"{job_id}: checkout is not of trusted main")
     return problems
 
@@ -500,6 +508,27 @@ class QualityGateIntegrityTests(unittest.TestCase):
             self.assertNotEqual(mutated, original, label)
             self.assertTrue(checkout_problems(mutated, trusted_main=trusted), label)
 
+    def test_checkout_assertions_read_only_the_with_block_and_ignore_case(self):
+        """Verify env-block look-alikes cannot satisfy checkout assertions and case variants are still counted."""
+        self.assertIsNotNone(PINNED_UNIT_CHECKOUT, "the unit workflow checkout must be pinned to a full SHA")
+        sha = PINNED_UNIT_CHECKOUT.group(1)
+        # persist-credentials moved out of `with:` into `env:` (same indentation) must still be rejected.
+        moved = UNIT_CI.replace("        with:\n          persist-credentials: false\n",
+                                "        env:\n          persist-credentials: false\n", 1)
+        self.assertNotEqual(moved, UNIT_CI)
+        self.assertTrue(any("persists credentials" in p for p in checkout_problems(moved)))
+        # ref: main only under env: must not satisfy the trusted-main assertion.
+        decoy = CONTROLLER.replace("          ref: main\n", "", 1)
+        self.assertNotEqual(decoy, CONTROLLER)
+        decoy = decoy.replace("        with:\n", "        env:\n          ref: main\n        with:\n", 1)
+        self.assertTrue(any("not of trusted main" in p for p in checkout_problems(decoy, trusted_main=True)))
+        # A case variant is still a checkout (GitHub resolves owner/repo case-insensitively): counted twice -> rejected.
+        doubled = UNIT_CI.replace("      - name: Python test suite",
+                                  f"      - uses: Actions/Checkout@{sha}\n        with:\n          persist-credentials: false\n"
+                                  "      - name: Python test suite", 1)
+        self.assertNotEqual(doubled, UNIT_CI)
+        self.assertTrue(any("2 checkout steps" in p for p in checkout_problems(doubled)))
+
     def test_pinned_checkout_with_a_trailing_version_comment_is_accepted(self):
         """Verify a pinned SHA with a benign trailing version comment stays valid, with and without the comment."""
         self.assertIsNotNone(PINNED_UNIT_CHECKOUT, "the unit workflow checkout must be pinned to a full SHA")
@@ -537,6 +566,7 @@ class CiLaneDriftTests(unittest.TestCase):
     LANE_WORKFLOWS = {
         "Disposable Buyer golden path certification": "buyer-golden-path-certification.yml",
         "Disposable Factory certification": "factory-certification-ephemeral.yml",
+        "Appverse gate unit tests": "appverse-merge-gate-ci.yml",
         "Point100 production-bound software rehearsal": "point100-certification-ephemeral.yml",
     }
 

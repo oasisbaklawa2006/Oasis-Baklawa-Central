@@ -124,6 +124,10 @@ LANE_TRIGGERS = {
         "src/lib/__tests__/factoryCertification*.test.ts", "src/lib/__tests__/factoryOperations*.test.ts",
         "tests/factory-operations-*.cert.spec.ts", "tests/factory-certification/**",
     ),
+    "Appverse gate unit tests": (
+        ".github/workflows/**", ".github/CODEOWNERS", "scripts/appverse-control/**",
+        "tests/appverse-control/**", "docs/appverse-control/**",
+    ),
     "Point100 production-bound software rehearsal": (
         ".github/workflows/point100-certification-ephemeral.yml", "playwright.point100.config.ts",
         "scripts/point100-certification/**", "scripts/factory-certification/**", "src/lib/point100/**", "tests/point100/**",
