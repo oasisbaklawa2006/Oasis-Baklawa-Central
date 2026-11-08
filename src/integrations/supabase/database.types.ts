@@ -19,6 +19,10 @@ type CustomerAppFunctions = {
   remove_customer_order_draft_line_v1: { Args: { p_line_id: string }; Returns: { draft_id: string; readiness_status: string; readiness_issues: Json }[] }
   clear_customer_order_draft_v1: { Args: never; Returns: { draft_id: string; readiness_status: string; readiness_issues: Json }[] }
   submit_customer_order_v1: { Args: { p_idempotency_key: string; p_requested_dispatch_date?: string | null }; Returns: { order_id: string; order_number: string; sales_order_value: number; advance_required: number; draft_id: string; is_duplicate_submission: boolean }[] }
+  // Governed Core checkout RPCs, owned by oasis-supabase-core; this local
+  // typed extension is retained only until canonical Supabase type refresh.
+  customer_checkout_quote_v1: { Args: never; Returns: Json }
+  submit_customer_order_quoted_v1: { Args: { p_idempotency_key: string; p_quote_fingerprint: string; p_requested_dispatch_date?: string | null }; Returns: { order_id: string; order_number: string; sales_order_value: number; advance_required: number; draft_id: string; is_duplicate_submission: boolean }[] }
   customer_order_status_v1: { Args: never; Returns: { order_id: string; order_number: string; customer_stage: string; payment_stage: string; order_value: number | null; total_weight_kg: number | null; requested_dispatch_date: string | null; promised_dispatch_date: string | null; tracking_number: string | null; courier_name: string | null; created_at: string; updated_at: string }[] }
   customer_order_items_v1: { Args: never; Returns: { order_id: string; item_id: string; product_id: string; sku: string | null; product_name: string | null; quantity: number; pack_size: string | null; weight_kg: number | null; packed_quantity: number | null }[] }
   customer_sales_order_commercial_facts_v1: { Args: never; Returns: { order_id: string; order_number: string; commercial_version_id: string; commercial_version_number: number; frozen_sales_order_value: number; requested_dispatch_date: string | null; promised_dispatch_date: string | null; commercial_status: string; finance_status: string; created_at: string; updated_at: string }[] }

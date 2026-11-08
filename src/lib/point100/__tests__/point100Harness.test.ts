@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { buildCapabilityMatrix, summarizeCapabilityMatrix } from "../capabilityStatus";
 import { POINT100_LIFECYCLE_STAGES, POINT100_NEGATIVE_PATHS, stagesForNegativePath } from "../lifecycleStages";
@@ -34,6 +36,62 @@ describe("point100 lifecycle stages", () => {
       expect(stagesForNegativePath(negative.id).length).toBeGreaterThan(0);
     }
   });
+});
+
+describe("point100 Buyer financial-consent invariants", () => {
+  it("binds the executable Buyer stage to Core quotation and quoted-only submission", () => {
+    const stage = POINT100_LIFECYCLE_STAGES.find((candidate) => candidate.id === "buyer_quotation_so");
+    expect(stage).toBeDefined();
+    expect(stage!.coreRpcs).toEqual(["customer_checkout_quote_v1", "submit_customer_order_quoted_v1"]);
+    expect(stage!.centralBindings).toContain("customerAppClient.checkoutQuote");
+    expect(stage!.centralBindings).toContain("customerAppClient.submitQuotedOrder");
+    expect(stage!.centralBindings).not.toContain("customerAppClient.submitOrder");
+    expect(bindingByKey("buyer_checkout_quote")?.canonical).toBe("customer_checkout_quote_v1");
+    expect(bindingByKey("buyer_submit_order")?.canonical).toBe("submit_customer_order_quoted_v1");
+    expect(resolvedRpcForStage(stage!)).toEqual(["submit_customer_order_quoted_v1", "customer_checkout_quote_v1"]);
+  });
+
+  it("never mistakes an obsolete web direct-order writer for the certified Buyer checkout", () => {
+    const source = readFileSync(resolve(__dirname, "../../customerApp/customerAppClient.ts"), "utf8");
+    const route = readFileSync(resolve(__dirname, "../../../pages/customer/BuyerApp.tsx"), "utf8");
+    expect(source).toContain("checkoutQuote: async");
+    expect(source).toContain("submitQuotedOrder:");
+    expect(source).not.toMatch(/rpc\(["']submit_customer_order_v1["']/);
+    expect(route).toContain("customerAppClient.submitQuotedOrder(");
+    expect(route).not.toMatch(/customerAppClient\.submit\(/);
+  });
+});
+
+describe("point100 certification evidence attribution", () => {
+  it("reports Buyer golden order fixture probes without pretending quoted RPC calls executed", () => {
+    const source = readFileSync(resolve(__dirname, "../../../../tests/point100/dress-rehearsal.cert.spec.ts"), "utf8");
+    expect(source).toMatch(/recordStage\(stages, "buyer_catalogue_intent", null, "ADMIN"/);
+    expect(source).toMatch(/recordStage\(stages, "buyer_quotation_so", null, "ADMIN"/);
+    expect(source).toContain("`fixture check: ${intent.detail}`");
+    expect(source).toContain("`fixture check: ${so.detail}`");
+  });
+  it("marks unexecuted Buyer capability records as contract-only, including the serialized matrix", () => {
+    for (const stageId of ["buyer_catalogue_intent", "buyer_quotation_so"]) {
+      const stage = POINT100_LIFECYCLE_STAGES.find((candidate) => candidate.id === stageId)!;
+      const outcome = buildProbeOutcome({
+        stage,
+        rpcResults: stage.coreRpcs.map((rpc) => ({ rpc, exists: true, detail: "signature resolved" })),
+        centralBindingsPresent: true,
+        missingFixtureKeys: [],
+        executed: false,
+      });
+      expect(outcome.status).toBe("implemented");
+      expect(outcome.detail).toContain("Contract signature resolved on the probed backend");
+      expect(outcome.detail).toContain("capability probe did not execute this stage");
+      expect(outcome.detail).not.toContain(POINT100_CORE_PRODUCTION_VERIFIED_SHA);
+      expect(outcome.detail).not.toContain("full journey execution is certified");
+      const ledger = buildCapabilityMatrix([outcome], "disposable-local-core");
+      const serialized = JSON.stringify(ledger);
+      expect(serialized).toContain("capability probe did not execute this stage");
+      expect(serialized).not.toContain("full journey execution is certified");
+    }
+  });
+
 });
 
 describe("point100 contract bindings", () => {
@@ -201,19 +259,32 @@ describe("point100 probe runner", () => {
 
   it("embeds current Core/#245 provenance in capability matrix", () => {
     const originalSha = process.env.POINT100_CORE_VERIFIED_SHA;
-    process.env.POINT100_CORE_VERIFIED_SHA = POINT100_CORE_PRODUCTION_VERIFIED_SHA;
-    const matrix = buildCapabilityMatrix([], "test-env");
-    expect(matrix.certification_mode).toBe("disposable_synthetic");
-    expect(matrix.inventory_production_verified).toBe(true);
-    expect(matrix.dispatch_production_verified).toBe(true);
-    expect(matrix.pending_core_recert_pr).toBeNull();
-    expect(matrix.core_verified_sha).toBe(POINT100_CORE_PRODUCTION_VERIFIED_SHA);
-    expect(matrix.production_migration_gate).toBe(POINT100_PRODUCTION_MIGRATION_GATE);
-    expect(matrix.production_migration_run_id).toBe(POINT100_PRODUCTION_MIGRATION_RUN_ID);
-    expect(resolveProductionMigrationRunId()).toBe(POINT100_PRODUCTION_MIGRATION_RUN_ID);
-    expect(POINT100_CORE_PENDING_DISPATCH_PR).toBe("#260");
-    if (originalSha === undefined) delete process.env.POINT100_CORE_VERIFIED_SHA;
-    else process.env.POINT100_CORE_VERIFIED_SHA = originalSha;
+    const originalRunId = process.env.POINT100_PRODUCTION_MIGRATION_RUN_ID;
+    try {
+      process.env.POINT100_CORE_VERIFIED_SHA = POINT100_CORE_PRODUCTION_VERIFIED_SHA;
+      // The workflow can provide another successful protected release run for the same SHA.
+      // A default-value assertion must not inherit that legitimate environment override.
+      delete process.env.POINT100_PRODUCTION_MIGRATION_RUN_ID;
+      const matrix = buildCapabilityMatrix([], "test-env");
+      expect(matrix.certification_mode).toBe("disposable_synthetic");
+      expect(matrix.inventory_production_verified).toBe(true);
+      expect(matrix.dispatch_production_verified).toBe(true);
+      expect(matrix.pending_core_recert_pr).toBeNull();
+      expect(matrix.core_verified_sha).toBe(POINT100_CORE_PRODUCTION_VERIFIED_SHA);
+      expect(matrix.production_migration_gate).toBe(POINT100_PRODUCTION_MIGRATION_GATE);
+      expect(matrix.production_migration_run_id).toBe(POINT100_PRODUCTION_MIGRATION_RUN_ID);
+      expect(resolveProductionMigrationRunId()).toBe(POINT100_PRODUCTION_MIGRATION_RUN_ID);
+      expect(POINT100_CORE_PENDING_DISPATCH_PR).toBe("#260");
+
+      process.env.POINT100_PRODUCTION_MIGRATION_RUN_ID = "123456789";
+      expect(resolveProductionMigrationRunId()).toBe("123456789");
+      expect(buildCapabilityMatrix([], "test-env").production_migration_run_id).toBe("123456789");
+    } finally {
+      if (originalSha === undefined) delete process.env.POINT100_CORE_VERIFIED_SHA;
+      else process.env.POINT100_CORE_VERIFIED_SHA = originalSha;
+      if (originalRunId === undefined) delete process.env.POINT100_PRODUCTION_MIGRATION_RUN_ID;
+      else process.env.POINT100_PRODUCTION_MIGRATION_RUN_ID = originalRunId;
+    }
   });
 
   it("binds #556 canonical dispatch workflow routes in Central census", () => {

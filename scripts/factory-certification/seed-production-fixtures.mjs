@@ -14,6 +14,7 @@ import {
   createLocalSupabaseAdminClient,
   runLocalPostgresRoleStatement,
 } from "./local-supabase-client.mjs";
+import { submitQuotedCheckout } from "./quoted-checkout.mjs";
 
 const baseUrl = process.env.FACTORY_CERT_SUPABASE_URL?.trim();
 const serviceRoleKey = process.env.FACTORY_CERT_LOCAL_SERVICE_ROLE_KEY?.trim();
@@ -145,7 +146,7 @@ assertNoSupabaseError(buyerProfileError, "Golden-order buyer public.profiles ups
 // The test deliberately uses stable ids so every downstream custody assertion
 // can identify the same order/item without seeding a business-transition row.
 // We therefore alter only the UUID defaults in this disposable database for
-// the duration of the governed checkout. Core's submit_customer_order_v1 still
+// the duration of the governed checkout. Core's quoted checkout (submit_customer_order_quoted_v1) still
 // performs the actual INSERT under its private creation scope, numbering,
 // snapshot, pricing, MOQ and idempotency authority. Defaults are restored in a
 // finally block before any Factory transition executes.
@@ -166,11 +167,7 @@ try {
   if (!Array.isArray(draftLineRows) || draftLineRows.length !== 1 || draftLineRows[0]?.readiness_status !== "ready") {
     throw new Error(`Golden-order Buyer draft did not become ready: ${JSON.stringify(draftLineRows)}`);
   }
-  const { data, error: checkoutError } = await buyerClient.rpc("submit_customer_order_v1", {
-    p_idempotency_key: "factory-cert-golden-order-checkout-v1", p_requested_dispatch_date: null,
-  });
-  assertNoSupabaseError(checkoutError, "Golden-order governed Buyer checkout failed");
-  checkoutRows = data;
+  checkoutRows = await submitQuotedCheckout(buyerClient, { idempotencyKey: "factory-cert-golden-order-checkout-v1", label: "Golden-order" });
   await buyerClient.auth.signOut();
 } finally {
   runLocalPostgresRoleStatement(localDbUrl,
@@ -297,12 +294,7 @@ try {
   if (!Array.isArray(point37DraftLineRows) || point37DraftLineRows.length !== 1 || point37DraftLineRows[0]?.readiness_status !== "ready") {
     throw new Error(`Point-37 Buyer draft did not become ready: ${JSON.stringify(point37DraftLineRows)}`);
   }
-  const { data, error: point37CheckoutError } = await point37BuyerClient.rpc("submit_customer_order_v1", {
-    p_idempotency_key: "factory-cert-point37-order-checkout-v1",
-    p_requested_dispatch_date: null,
-  });
-  assertNoSupabaseError(point37CheckoutError, "Point-37 governed Buyer checkout failed");
-  point37CheckoutRows = data;
+  point37CheckoutRows = await submitQuotedCheckout(point37BuyerClient, { idempotencyKey: "factory-cert-point37-order-checkout-v1", label: "Point-37" });
   await point37BuyerClient.auth.signOut();
 } finally {
   runLocalPostgresRoleStatement(localDbUrl,
@@ -436,72 +428,12 @@ await appendFile(
 );
 console.log(`Point-37 confirmed-order fixture ready: ${point37CheckoutRows[0].order_number} @ confirmed`);
 
-// Disposable cert bootstrap only: Core main has no release_order_to_dispatched_v1 yet.
-// Point-38 Golden Pipeline finalize must use a governed SECURITY DEFINER RPC because
-// trg_protect_order_authority_fields rejects authenticated orders.status PATCH.
-runLocalPostgresRoleStatement(localDbUrl,
-  `CREATE OR REPLACE FUNCTION public.release_order_to_dispatched_v1(
-  p_order_id uuid,
-  p_tracking_number text DEFAULT NULL,
-  p_courier_name text DEFAULT NULL,
-  p_finalize_reason text DEFAULT NULL,
-  p_correlation_id text DEFAULT NULL
-) RETURNS jsonb
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public, pg_temp
-AS $$
-DECLARE
-  v public.orders%ROWTYPE;
-BEGIN
-  PERFORM public.assert_order_transition_role('gate_release');
-  SELECT * INTO v FROM public.orders WHERE id = p_order_id FOR UPDATE;
-  IF NOT FOUND THEN
-    RETURN jsonb_build_object('ok', false, 'blockers', jsonb_build_array(jsonb_build_object('code', 'not_found')));
-  END IF;
-  IF v.status IN ('dispatched', 'in_transit', 'delivered') THEN
-    RETURN jsonb_build_object(
-      'ok', true,
-      'order_id', p_order_id,
-      'previous_status', v.status,
-      'new_status', v.status,
-      'already_applied', true
-    );
-  END IF;
-  IF v.status NOT IN ('cleared_for_dispatch', 'ready_for_dispatch') THEN
-    RETURN jsonb_build_object(
-      'ok', false,
-      'blockers', jsonb_build_array(jsonb_build_object('code', 'invalid_status', 'status', v.status))
-    );
-  END IF;
-  UPDATE public.orders
-     SET status = 'dispatched',
-         tracking_number = COALESCE(NULLIF(BTRIM(p_tracking_number), ''), tracking_number),
-         courier_name = COALESCE(NULLIF(BTRIM(p_courier_name), ''), courier_name)
-   WHERE id = p_order_id;
-  INSERT INTO public.order_status_history(order_id, old_status, new_status, changed_by)
-  VALUES (p_order_id, v.status, 'dispatched', auth.uid());
-  INSERT INTO public.audit_logs(action_type, module_name, entity_name, entity_id, actor_id, risk_level, new_value)
-  VALUES (
-    'ORDER_RELEASED_TO_DISPATCHED',
-    'Dispatch',
-    'orders',
-    p_order_id::text,
-    auth.uid(),
-    'high',
-    jsonb_build_object('finalize_reason', p_finalize_reason, 'correlation_id', p_correlation_id)
-  );
-  RETURN jsonb_build_object(
-    'ok', true,
-    'order_id', p_order_id,
-    'previous_status', v.status,
-    'new_status', 'dispatched',
-    'already_applied', false
-  );
-END $$;
-REVOKE ALL ON FUNCTION public.release_order_to_dispatched_v1(uuid, text, text, text, text) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.release_order_to_dispatched_v1(uuid, text, text, text, text) TO authenticated, service_role;`,
-  "Point-38 release_order_to_dispatched_v1 disposable cert RPC bootstrap");
+// No release_order_to_dispatched_v1 shim is installed any more. Core ships the governed Dispatch-owned RPC
+// (20260908020000, separated from the independent Security Gate by 20261001220000). A shim that re-created it
+// after Core's migrations with the old 'gate_release' (Security Gate) check overwrote Core's authority: Dispatch
+// finalization was unreachable in the Factory lane and the Point100 lane had to re-apply an OLDER Core migration
+// to undo it. The Point-38 order's governed upstream chain (Finance receipt/invoice/clearance, Gate decision and
+// immutable dispatch proof) is built by start-ephemeral.sh through real Core RPCs, not seeded here.
 
 // ---- Point-38 fixture: disposable cleared_for_dispatch order for Golden Pipeline / governance-board certification ----
 // Separate from FACT-E2E golden order and Point-37 production-release order.
@@ -562,12 +494,7 @@ try {
   if (!Array.isArray(point38DraftLineRows) || point38DraftLineRows.length !== 1 || point38DraftLineRows[0]?.readiness_status !== "ready") {
     throw new Error(`Point-38 Buyer draft did not become ready: ${JSON.stringify(point38DraftLineRows)}`);
   }
-  const { data, error: point38CheckoutError } = await point38BuyerClient.rpc("submit_customer_order_v1", {
-    p_idempotency_key: "factory-cert-point38-order-checkout-v1",
-    p_requested_dispatch_date: null,
-  });
-  assertNoSupabaseError(point38CheckoutError, "Point-38 governed Buyer checkout failed");
-  point38CheckoutRows = data;
+  point38CheckoutRows = await submitQuotedCheckout(point38BuyerClient, { idempotencyKey: "factory-cert-point38-order-checkout-v1", label: "Point-38" });
   await point38BuyerClient.auth.signOut();
 } finally {
   runLocalPostgresRoleStatement(localDbUrl,

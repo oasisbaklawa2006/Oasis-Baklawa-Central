@@ -105,7 +105,7 @@ export const POINT100_UPSTREAM_DEPENDENCIES: readonly Point100UpstreamDependency
     pr: "#260",
     state: "merged",
     affectedStageIds: ["dispatch_consignment", "order_complete"],
-    blockerDetail: "Core #260 release_order_to_dispatched_v1 retained on production pin #245.",
+    blockerDetail: "Core #260 release_order_to_dispatched_v1, role-separated by 20261001220000 (Dispatch finalizes; the independent Security Gate only releases), present on the current production pin 64589943.",
     failClosedStatus: "implemented",
   },
   {
@@ -211,7 +211,7 @@ export const POINT100_UPSTREAM_DEPENDENCIES: readonly Point100UpstreamDependency
       "customer_dispatch_proof",
       "order_complete",
     ],
-    blockerDetail: "Protected Production Migration Release #245 / run 36636198402 on Core SHA 5800f4b8, including final-invoice IST business-date authority #371.",
+    blockerDetail: "Protected Production Migration Release run 41361801135 on Core SHA 64589943 (Gate/Dispatch role separation 20261001220000 included).",
     failClosedStatus: "implemented",
   },
   {
