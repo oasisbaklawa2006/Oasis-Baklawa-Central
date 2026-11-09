@@ -4,7 +4,7 @@ const { rpc } = vi.hoisted(() => ({ rpc: vi.fn() }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc } }));
 
 import { recordB2bDispatchGateScan, releaseB2bCartonAtDispatchGate } from "@/lib/order-authority/gateExitAuthorityClient";
-import { escapeGateBarcodeIlikeLiteral, gateScanCorrelationId } from "@/utils/gateScanEvidence";
+import { escapeGateBarcodeIlikeLiteral, gateScanCorrelationId, matchUniqueCaseInsensitiveGateCarton } from "@/utils/gateScanEvidence";
 
 beforeEach(() => rpc.mockReset());
 
@@ -75,5 +75,14 @@ describe("Case-insensitive literal Gate barcode lookup", () => {
     expect(escapeGateBarcodeIlikeLiteral("CTN_1%Z")).toBe("CTN\\_1\\%Z");
     expect(escapeGateBarcodeIlikeLiteral("CTN*1")).toBe("CTN\\*1");
     expect(escapeGateBarcodeIlikeLiteral("CTN\\1")).toBe("CTN\\\\1");
+  });
+  it("accepts exactly one case-insensitive match and rejects wrong or ambiguous cartons", () => {
+    const a = { id: "a", carton_code: "CTN-001" };
+    const b = { id: "b", carton_code: "ctn-001" };
+    expect(matchUniqueCaseInsensitiveGateCarton([a], "ctn-001")).toBe(a);
+    expect(matchUniqueCaseInsensitiveGateCarton([a], "other")).toBeNull();
+    expect(matchUniqueCaseInsensitiveGateCarton([], "CTN-001")).toBeNull();
+    expect(matchUniqueCaseInsensitiveGateCarton(null, "CTN-001")).toBeNull();
+    expect(matchUniqueCaseInsensitiveGateCarton([a, b], "CTN-001")).toBeNull();
   });
 });
