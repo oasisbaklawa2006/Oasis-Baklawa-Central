@@ -64,7 +64,9 @@ describe("Finance Exit surface authority guard", () => {
     const page = source("src/pages/admin/AdminB2bSecurityGate.tsx");
     expect(page).toContain('.from("b2b_dispatch_cartons")');
     expect(page).toContain("releaseB2bCartonAtDispatchGate");
-    expect(page).toContain('from("operational_scan_records")');
+    expect(page).toContain("recordB2bDispatchGateScan");
+    expect(page).toContain("scan.scanId");
+    expect(page).not.toContain('.from("operational_scan_records")');
     expect(page).toContain("recordDispatchProof");
     expect(page).toContain("getFinanceExitFacts");
     expect(page).toContain("final invoice date");
@@ -82,14 +84,20 @@ describe("Finance Exit surface authority guard", () => {
     ]) expect(page).not.toContain(forbidden);
   });
 
-  it("B2B gate treats operational scan evidence as immutable", () => {
+  it("B2B gate obtains authoritative immutable evidence from Core before release", () => {
     const page = source("src/pages/admin/AdminB2bSecurityGate.tsx");
-    const scanStart = page.indexOf('.from("operational_scan_records")');
+    const client = source("src/lib/order-authority/gateExitAuthorityClient.ts");
+    const scanStart = page.indexOf("await recordB2bDispatchGateScan(");
+    const releaseStart = page.indexOf("await releaseB2bCartonAtDispatchGate(");
     expect(scanStart).toBeGreaterThan(-1);
-    expect(page).toContain("GATE_SCAN_PRE_RELEASE_STATUS");
+    expect(releaseStart).toBeGreaterThan(scanStart);
+    expect(page).toContain("gateScanCorrelationId(carton.id, barcode.toLowerCase())");
+    expect(page).toContain("scan.scanId");
+    expect(page).not.toContain('.from("operational_scan_records")');
     expect(page).not.toContain("GATE_SCAN_POST_RELEASE_STATUS");
     expect(page).not.toContain("GATE_SCAN_RELEASE_DENIED_STATUS");
-    expect(page).not.toMatch(/from\("operational_scan_records"\)[\s\S]{0,160}\.update\(/);
+    expect(client).toContain('supabase.rpc("record_b2b_dispatch_gate_scan_v1"');
+    expect(client).not.toContain('.from("operational_scan_records")');
     expect(page).toContain("b2b_dispatch_gate_decisions");
   });
 
