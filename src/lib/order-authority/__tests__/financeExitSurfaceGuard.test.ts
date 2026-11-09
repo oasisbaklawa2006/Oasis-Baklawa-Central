@@ -124,6 +124,22 @@ describe("Finance Exit surface authority guard", () => {
     expect(governedBlock).not.toContain('.update({ verification_status: "verified" })');
   });
 
+  it("Point100 Playwright dispatch tail enforces carton-ready and governed Gate scan after Core #507", () => {
+    const tail = source("tests/point100/canonicalDispatchTail.ts");
+    const ready = tail.indexOf('dispatchReady.rpc("mark_b2b_dispatch_carton_ready_to_load_v1"');
+    const governed = tail.indexOf('gate.rpc("record_b2b_dispatch_gate_scan_v1"');
+    const release = tail.indexOf('gate.rpc("release_b2b_dispatch_carton_at_gate_v1"');
+    expect(ready).toBeGreaterThan(-1);
+    expect(governed).toBeGreaterThan(ready);
+    expect(release).toBeGreaterThan(governed);
+    expect(tail).toContain('process.env.POINT100_CORE_VERIFIED_SHA === "645899439fe0a84806238b9114649eb2c3785a75"');
+    expect(tail).toContain('process.env.POINT100_DISPATCH_PRODUCTION_VERIFIED === "true"');
+    expect(tail).toContain("POINT100_PRE507_LEGACY_FIXTURE_ONLY");
+    const newCorePath = tail.slice(tail.indexOf('  } else {\n    const { data: authoritativeScan'), release);
+    expect(newCorePath).toContain('gate.rpc("record_b2b_dispatch_gate_scan_v1"');
+    expect(newCorePath).not.toContain('.from("operational_scan_records")');
+  });
+
   it("Finance DPL receipt client accepts no browser DPL snapshot, lines or carton IDs", () => {
     const client = source("src/lib/order-authority/financeExitAuthorityClient.ts");
     const start = client.indexOf("export async function receiveSubmittedB2bDpls");
