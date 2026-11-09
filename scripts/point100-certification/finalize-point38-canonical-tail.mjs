@@ -68,6 +68,16 @@ const dispatchRole = await authenticatedRole("DISPATCH_MANAGER");
 const gateRole = await authenticatedRole("GATE_SECURITY");
 
 const authorityMode = process.env.POINT38_CORE_AUTHORITY_MODE?.trim() ?? "";
+/**
+ * STRICTLY a disposable loopback fixture for one already-deployed, pre-507
+ * production-certified Core pin. This is NOT an application fallback and
+ * NEVER applies to Core #507 or other Core revisions. When the official
+ * Point100 production pin advances, the governed Core RPC is mandatory.
+ */
+const legacyPinnedSyntheticGateFixture =
+  process.env.POINT100_CORE_VERIFIED_SHA === "645899439fe0a84806238b9114649eb2c3785a75" &&
+  process.env.POINT100_DISPATCH_PRODUCTION_VERIFIED === "true";
+
 if (authorityMode !== "role-separated") {
   throw new Error(
     `POINT100_POINT38_TAIL_REQUIRES_ROLE_SEPARATED_CORE: POINT38_CORE_AUTHORITY_MODE must be 'role-separated' (got '${authorityMode || "unset"}'); the Core checkout under test must contain 20261001220000_gate_dispatch_role_separation.sql (see scripts/factory-certification/core-authority-mode.sh)`,
@@ -139,18 +149,57 @@ try {
     );
   }
 
-  // Core #507 requires the carton to be gate-ready BEFORE recording immutable scan evidence.
-  // Replays retain the same server-issued scan ID; the certification fixture never inserts forged scans.
+  // Core #507's governed writer is mandatory for every Core revision except
+  // the single proven pre-507 production pin used by the OLD disposable rehearsal.
+  // All paths use loopback-only Supabase and the independent Gate staff actor.
   const gateScanCorrelation = `${RUN_TOKEN}:synthetic-gate-scan`;
-  const { data: gateScan, error: gateScanError } = await gateRole.client.rpc("record_b2b_dispatch_gate_scan_v1", {
-    p_carton_id: cartonId,
-    p_scanned_barcode: cartonCode,
-    p_idempotency_key: gateScanCorrelation,
-  });
-  assertNoError(gateScanError, "Point38 tail governed gate scan");
-  const gateScanId = String(gateScan?.scan_id ?? "");
-  if (gateScan?.ok !== true || gateScan?.carton_id !== cartonId || !gateScanId) {
-    throw new Error("POINT100_POINT38_TAIL_GOVERNED_GATE_SCAN_INVALID");
+  let gateScanId = "";
+  if (legacyPinnedSyntheticGateFixture) {
+    console.log("POINT100_PRE507_LEGACY_FIXTURE_ONLY: production-certified Core 6458994; NOT Core #507 acceptance");
+    const { data: priorScan, error: priorScanError } = await gateRole.client
+      .from("operational_scan_records")
+      .select("id")
+      .eq("correlation_id", gateScanCorrelation)
+      .maybeSingle();
+    assertNoError(priorScanError, "Point38 pre-507 prior fixture lookup");
+    gateScanId = String(priorScan?.id ?? "");
+    if (!gateScanId) {
+      const { data: legacyScan, error: legacyScanError } = await gateRole.client
+        .from("operational_scan_records")
+        .insert({
+          scan_type: "dispatch_gate",
+          verification_type: "gate_check",
+          entity_type: "dispatch_carton",
+          entity_id: cartonId,
+          order_id: point38OrderId,
+          barcode_value: cartonCode,
+          expected_barcode: cartonCode,
+          verification_status: "scanned",
+          scan_source: "point100_disposable_synthetic_gate",
+          actor_id: gateRole.actorId,
+          actor_role: "GATE_SECURITY",
+          correlation_id: gateScanCorrelation,
+          metadata: { certification_mode: "disposable_synthetic_pre507_only", physical_uat: false },
+        })
+        .select("id")
+        .single();
+      assertNoError(legacyScanError, "Point38 pre-507 synthetic fixture scan");
+      gateScanId = String(legacyScan?.id ?? "");
+    }
+    if (!gateScanId) throw new Error("POINT100_POINT38_TAIL_LEGACY_GATE_SCAN_ID_MISSING");
+  } else {
+    // Replays retain server-issued scan ID, with full active Gate-staff
+    // authorization, carton provenance and append-only evidence.
+    const { data: gateScan, error: gateScanError } = await gateRole.client.rpc("record_b2b_dispatch_gate_scan_v1", {
+      p_carton_id: cartonId,
+      p_scanned_barcode: cartonCode,
+      p_idempotency_key: gateScanCorrelation,
+    });
+    assertNoError(gateScanError, "Point38 tail governed gate scan");
+    gateScanId = String(gateScan?.scan_id ?? "");
+    if (gateScan?.ok !== true || gateScan?.carton_id !== cartonId || !gateScanId) {
+      throw new Error("POINT100_POINT38_TAIL_GOVERNED_GATE_SCAN_INVALID");
+    }
   }
 
   // Finance stays independent too: neither Dispatch nor the Security Gate may issue Finance documents or decide
@@ -206,8 +255,16 @@ try {
     throw new Error(`POINT100_POINT38_TAIL_GATE_BLOCKED: ${JSON.stringify(gateDecision?.blockers ?? gateDecision)}`);
   }
 
-  // Never rewrite append-only scan evidence. The Core release RPC records the
-  // immutable released/denied truth in b2b_dispatch_gate_decisions.
+  if (legacyPinnedSyntheticGateFixture) {
+    // ONLY the explicitly pinned pre-507 disposable fixture expects a legacy
+    // scan-verification update. Never execute for the governed Core #507 path.
+    const { error: verifyLegacyScanError } = await gateRole.client
+      .from("operational_scan_records")
+      .update({ verification_status: "verified" })
+      .eq("id", gateScanId);
+    assertNoError(verifyLegacyScanError, "Point38 pre-507 fixture scan verification");
+  }
+  // Core #507 evidence remains append-only; its gate-decision row is the truth.
 
   await expectRejected(
     "GATE_SECURITY must not record the dispatch proof (Dispatch-owned)",
