@@ -33,7 +33,7 @@ jobs:
       POINT100_ALLOW_LOCAL_RESET: 'true'
       POINT100_ALLOW_DISPOSABLE_BOOTSTRAP: 'false'
       POINT100_DISPATCH_PRODUCTION_VERIFIED: 'false'
-      POINT100_CORE_VERIFIED_SHA: df4a60169185cdd43959f0d6eb2e79486558f0a8
+      POINT100_CORE_VERIFIED_SHA: 8828de538657f0407017d3564ab88aa7f1283608
 
     steps:
       - name: Checkout Central candidate
@@ -45,7 +45,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: oasisbaklawa2006/oasis-supabase-core
-          ref: df4a60169185cdd43959f0d6eb2e79486558f0a8
+          ref: 8828de538657f0407017d3564ab88aa7f1283608
           path: oasis-supabase-core
           persist-credentials: false
 
