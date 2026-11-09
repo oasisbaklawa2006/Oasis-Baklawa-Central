@@ -14,7 +14,7 @@ import {
   assessDispatchCustomerCommunicationEligibility,
   recordGovernedCustomerDispatchCommunication,
 } from "@/lib/order-authority/dispatchCustomerCommunicationClient";
-import { gateScanCorrelationId } from "@/utils/gateScanEvidence";
+import { escapeGateBarcodeIlikeLiteral, gateScanCorrelationId } from "@/utils/gateScanEvidence";
 
 type ScreenState = "idle" | "success" | "error" | "duplicate";
 type HistoryRow = { id: string; barcode: string; consignment: string; status: ScreenState; message: string; scannedAt: Date };
@@ -87,11 +87,29 @@ const AdminB2bSecurityGate = () => {
     setInput("");
     setProcessing(true);
     try {
-      const { data: carton, error: cartonError } = await supabase
+      // Fast indexed exact lookup for normal scanners; recover safely if
+      // barcode letter case differs. Core performs case-insensitive validation.
+      const { data: exactCarton, error: exactError } = await supabase
         .from("b2b_dispatch_cartons")
         .select("id,carton_code,status,consignment_id")
         .eq("carton_code", barcode)
         .maybeSingle();
+      let carton = exactCarton;
+      let cartonError = exactError;
+      if (!carton && !cartonError) {
+        // Escape wildcard metacharacters and reject ambiguous/non-exact matches.
+        // Never authorize the first arbitrary result of an ILIKE pattern.
+        const { data: caseInsensitiveCartons, error: caseInsensitiveError } = await supabase
+          .from("b2b_dispatch_cartons")
+          .select("id,carton_code,status,consignment_id")
+          .ilike("carton_code", escapeGateBarcodeIlikeLiteral(barcode))
+          .limit(2);
+        cartonError = caseInsensitiveError;
+        if (caseInsensitiveCartons?.length === 1
+            && caseInsensitiveCartons[0].carton_code.toLowerCase() === barcode.toLowerCase()) {
+          carton = caseInsensitiveCartons[0];
+        }
+      }
       if (cartonError || !carton) {
         setState("error");
         setMessage(`INVALID B2B CARTON: ${barcode}`);
