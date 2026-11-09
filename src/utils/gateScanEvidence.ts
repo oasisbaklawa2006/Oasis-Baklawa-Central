@@ -9,3 +9,8 @@ export const GATE_SCAN_PRE_RELEASE_STATUS = "scanned" as const;
 export const GATE_SCAN_POST_RELEASE_STATUS = "verified" as const;
 
 export const GATE_SCAN_RELEASE_DENIED_STATUS = "rejected" as const;
+
+/** Escape ILIKE wildcard syntax so scanner data remains an exact literal barcode. */
+export function escapeGateBarcodeIlikeLiteral(barcode: string): string {
+  return barcode.replace(/[\\%_*]/g, "\\$&");
+}
