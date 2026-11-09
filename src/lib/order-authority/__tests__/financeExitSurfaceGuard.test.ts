@@ -105,6 +105,20 @@ describe("Finance Exit surface authority guard", () => {
     expect(page).toContain("b2b_dispatch_gate_decisions");
   });
 
+  it("Point38 synthetic Gate certification records governed evidence only after carton readiness", () => {
+    const script = source("scripts/point100-certification/finalize-point38-canonical-tail.mjs");
+    const ready = script.indexOf('"mark_b2b_dispatch_carton_ready_to_load_v1"');
+    const scan = script.indexOf('await gateRole.client.rpc("record_b2b_dispatch_gate_scan_v1"');
+    const release = script.indexOf('await gateRole.client.rpc("release_b2b_dispatch_carton_at_gate_v1"');
+    expect(ready).toBeGreaterThan(-1);
+    expect(scan).toBeGreaterThan(ready);
+    expect(release).toBeGreaterThan(scan);
+    expect(script).toContain("p_idempotency_key: gateScanCorrelation");
+    expect(script).toContain("gateScan?.carton_id !== cartonId");
+    expect(script).not.toContain('.from("operational_scan_records")');
+    expect(script).not.toContain('.update({ verification_status: "verified" })');
+  });
+
   it("Finance DPL receipt client accepts no browser DPL snapshot, lines or carton IDs", () => {
     const client = source("src/lib/order-authority/financeExitAuthorityClient.ts");
     const start = client.indexOf("export async function receiveSubmittedB2bDpls");
