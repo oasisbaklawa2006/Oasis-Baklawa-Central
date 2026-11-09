@@ -115,8 +115,13 @@ describe("Finance Exit surface authority guard", () => {
     expect(release).toBeGreaterThan(scan);
     expect(script).toContain("p_idempotency_key: gateScanCorrelation");
     expect(script).toContain("gateScan?.carton_id !== cartonId");
-    expect(script).not.toContain('.from("operational_scan_records")');
-    expect(script).not.toContain('.update({ verification_status: "verified" })');
+    expect(script).toContain('process.env.POINT100_CORE_VERIFIED_SHA === "645899439fe0a84806238b9114649eb2c3785a75"');
+    expect(script).toContain('process.env.POINT100_DISPATCH_PRODUCTION_VERIFIED === "true"');
+    expect(script).toContain("POINT100_PRE507_LEGACY_FIXTURE_ONLY");
+    const governedBlock = script.slice(script.indexOf("  } else {\n    // Replays"), script.indexOf("  // Finance stays independent"));
+    expect(governedBlock).toContain('gateRole.client.rpc("record_b2b_dispatch_gate_scan_v1"');
+    expect(governedBlock).not.toContain('.from("operational_scan_records")');
+    expect(governedBlock).not.toContain('.update({ verification_status: "verified" })');
   });
 
   it("Finance DPL receipt client accepts no browser DPL snapshot, lines or carton IDs", () => {
