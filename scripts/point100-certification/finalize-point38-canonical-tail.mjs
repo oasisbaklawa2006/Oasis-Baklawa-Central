@@ -116,40 +116,6 @@ try {
   const cartonCode = String(cartons?.[0]?.carton_code ?? "").trim();
   if (!cartonId || !cartonCode) throw new Error("POINT100_POINT38_TAIL_CARTON_MISSING");
 
-  const gateScanCorrelation = `${RUN_TOKEN}:synthetic-gate-scan`;
-  const { data: priorScan, error: priorScanError } = await gateRole.client
-    .from("operational_scan_records")
-    .select("id")
-    .eq("correlation_id", gateScanCorrelation)
-    .maybeSingle();
-  assertNoError(priorScanError, "Point38 tail prior gate scan lookup");
-
-  let gateScanId = String(priorScan?.id ?? "");
-  if (!gateScanId) {
-    const { data: gateScan, error: gateScanError } = await gateRole.client
-      .from("operational_scan_records")
-      .insert({
-        scan_type: "dispatch_gate",
-        verification_type: "gate_check",
-        entity_type: "dispatch_carton",
-        entity_id: cartonId,
-        order_id: point38OrderId,
-        barcode_value: cartonCode,
-        expected_barcode: cartonCode,
-        verification_status: "scanned",
-        scan_source: "point100_disposable_synthetic_gate",
-        actor_id: gateRole.actorId,
-        actor_role: "GATE_SECURITY",
-        correlation_id: gateScanCorrelation,
-        metadata: { certification_mode: "disposable_synthetic", physical_uat: false },
-      })
-      .select("id")
-      .single();
-    assertNoError(gateScanError, "Point38 tail synthetic gate scan");
-    gateScanId = String(gateScan?.id ?? "");
-  }
-  if (!gateScanId) throw new Error("POINT100_POINT38_TAIL_GATE_SCAN_ID_MISSING");
-
   // #366 closed the historical locked -> ready_to_load authority gap.
   // Use the canonical authenticated Core RPC; Point100 must never manufacture
   // gate-ready carton state with direct SQL.
@@ -171,6 +137,20 @@ try {
     throw new Error(
       `POINT100_POINT38_TAIL_CARTON_NOT_GATE_READY: status=${String(readyCarton?.status ?? "unknown")}`,
     );
+  }
+
+  // Core #507 requires the carton to be gate-ready BEFORE recording immutable scan evidence.
+  // Replays retain the same server-issued scan ID; the certification fixture never inserts forged scans.
+  const gateScanCorrelation = `${RUN_TOKEN}:synthetic-gate-scan`;
+  const { data: gateScan, error: gateScanError } = await gateRole.client.rpc("record_b2b_dispatch_gate_scan_v1", {
+    p_carton_id: cartonId,
+    p_scanned_barcode: cartonCode,
+    p_idempotency_key: gateScanCorrelation,
+  });
+  assertNoError(gateScanError, "Point38 tail governed gate scan");
+  const gateScanId = String(gateScan?.scan_id ?? "");
+  if (gateScan?.ok !== true || gateScan?.carton_id !== cartonId || !gateScanId) {
+    throw new Error("POINT100_POINT38_TAIL_GOVERNED_GATE_SCAN_INVALID");
   }
 
   // Finance stays independent too: neither Dispatch nor the Security Gate may issue Finance documents or decide
@@ -226,11 +206,8 @@ try {
     throw new Error(`POINT100_POINT38_TAIL_GATE_BLOCKED: ${JSON.stringify(gateDecision?.blockers ?? gateDecision)}`);
   }
 
-  const { error: verifyScanError } = await gateRole.client
-    .from("operational_scan_records")
-    .update({ verification_status: "verified" })
-    .eq("id", gateScanId);
-  assertNoError(verifyScanError, "Point38 tail gate evidence verification");
+  // Never rewrite append-only scan evidence. The Core release RPC records the
+  // immutable released/denied truth in b2b_dispatch_gate_decisions.
 
   await expectRejected(
     "GATE_SECURITY must not record the dispatch proof (Dispatch-owned)",
