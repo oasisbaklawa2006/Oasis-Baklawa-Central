@@ -4,7 +4,7 @@ const { rpc } = vi.hoisted(() => ({ rpc: vi.fn() }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc } }));
 
 import { recordB2bDispatchGateScan, releaseB2bCartonAtDispatchGate } from "@/lib/order-authority/gateExitAuthorityClient";
-import { gateScanCorrelationId } from "@/utils/gateScanEvidence";
+import { escapeGateBarcodeIlikeLiteral, gateScanCorrelationId } from "@/utils/gateScanEvidence";
 
 beforeEach(() => rpc.mockReset());
 
@@ -65,5 +65,15 @@ describe("Core #507 governed B2B Gate scan contract", () => {
     expect(rpc).toHaveBeenCalledWith("release_b2b_dispatch_carton_at_gate_v1", {
       p_carton_id: "carton-1", p_scan_evidence_id: "scan-1",
     });
+  });
+});
+
+
+describe("Case-insensitive literal Gate barcode lookup", () => {
+  it("escapes LIKE wildcards and backslashes without changing normal carton identifiers", () => {
+    expect(escapeGateBarcodeIlikeLiteral("CTN-001")).toBe("CTN-001");
+    expect(escapeGateBarcodeIlikeLiteral("CTN_1%Z")).toBe("CTN\\_1\\%Z");
+    expect(escapeGateBarcodeIlikeLiteral("CTN*1")).toBe("CTN\\*1");
+    expect(escapeGateBarcodeIlikeLiteral("CTN\\1")).toBe("CTN\\\\1");
   });
 });
