@@ -3,7 +3,7 @@ import { Loader2, ScanLine, ShieldAlert, ShieldCheck, Truck } from "lucide-react
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { releaseB2bCartonAtDispatchGate } from "@/lib/order-authority/gateExitAuthorityClient";
+import { recordB2bDispatchGateScan, releaseB2bCartonAtDispatchGate } from "@/lib/order-authority/gateExitAuthorityClient";
 import {
   getFinanceExitFacts,
   recordDispatchProof,
@@ -14,10 +14,7 @@ import {
   assessDispatchCustomerCommunicationEligibility,
   recordGovernedCustomerDispatchCommunication,
 } from "@/lib/order-authority/dispatchCustomerCommunicationClient";
-import {
-  GATE_SCAN_PRE_RELEASE_STATUS,
-  gateScanCorrelationId,
-} from "@/utils/gateScanEvidence";
+import { gateScanCorrelationId } from "@/utils/gateScanEvidence";
 
 type ScreenState = "idle" | "success" | "error" | "duplicate";
 type HistoryRow = { id: string; barcode: string; consignment: string; status: ScreenState; message: string; scannedAt: Date };
@@ -41,7 +38,7 @@ const deadlineLabel = (value: string | null) => {
 };
 
 const AdminB2bSecurityGate = () => {
-  const { user, role } = useAuth();
+  const { user } = useAuth();
   const [input, setInput] = useState("");
   const [processing, setProcessing] = useState(false);
   const [dispatchProofProcessing, setDispatchProofProcessing] = useState(false);
@@ -119,28 +116,11 @@ const AdminB2bSecurityGate = () => {
         return;
       }
 
-      const correlationId = gateScanCorrelationId(carton.id, barcode);
-      const { data: scan, error: scanError } = await supabase
-        .from("operational_scan_records")
-        .insert({
-          scan_type: "dispatch_gate",
-          verification_type: "gate_check",
-          entity_type: "dispatch_carton",
-          entity_id: carton.id,
-          order_id: consignment.order_id,
-          barcode_value: barcode,
-          expected_barcode: carton.carton_code,
-          verification_status: GATE_SCAN_PRE_RELEASE_STATUS,
-          scan_source: "admin_b2b_security_gate",
-          actor_id: user?.id ?? null,
-          actor_role: role ?? null,
-          correlation_id: correlationId,
-        })
-        .select("id")
-        .single();
-      if (scanError || !scan?.id) throw new Error(scanError?.message || "Could not freeze gate scan evidence");
-
-      const result = await releaseB2bCartonAtDispatchGate(carton.id, scan.id);
+      // Stable, case-insensitive retry key; Core derives actor/order/provenance.
+      // Fail closed if the governed RPC is unavailable; never fall back to direct insert.
+      const idempotencyKey = gateScanCorrelationId(carton.id, barcode.toLowerCase());
+      const scan = await recordB2bDispatchGateScan(carton.id, barcode, idempotencyKey);
+      const result = await releaseB2bCartonAtDispatchGate(carton.id, scan.scanId);
       if (!result.ok) {
         const blockerText = result.blockers.map((blocker) => blocker.message || blocker.code).join("; ") || "Gate release denied";
         // operational_scan_records is immutable evidence. The authoritative
