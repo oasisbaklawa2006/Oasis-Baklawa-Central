@@ -1,0 +1,180 @@
+{
+  "schema_version": "point0-1.1",
+  "as_of_ist": "2026-11-05",
+  "stage": "E0",
+  "agent_runner": "NOT_VERIFIED",
+  "source_of_truth": "APPVERSE_MISSION_CONTROL.md + appverse-control/state.json + issue #437",
+  "progress_scoring_rule": "Three separately evidenced scores: Build, Testing, Certification. Combined=(Build+Testing+Certification)/3 only if all three are verified against audited denominators; combined is NOT launch authorization.",
+  "percentages": {
+    "programme_build": null,
+    "programme_testing": null,
+    "programme_certification": null,
+    "programme_combined": null
+  },
+  "apps": [
+    {
+      "id": "core",
+      "name": "Supabase Core",
+      "head": "645899439fe0a84806238b9114649eb2c3785a75",
+      "open_prs": 7,
+      "build_pct": null,
+      "certification_pct": null,
+      "testing_pct": null,
+      "combined_pct": null
+    },
+    {
+      "id": "central",
+      "name": "Central",
+      "head": "4f80f1444b854e2ac2eb4dd9b7d00d7b21d5af13",
+      "open_prs": 7,
+      "build_pct": null,
+      "certification_pct": null,
+      "testing_pct": null,
+      "combined_pct": null
+    },
+    {
+      "id": "studio",
+      "name": "AI Studio",
+      "head": "abeec87d9ca83ec91e78ba94ad554113d1d4c6e1",
+      "open_prs": 7,
+      "build_pct": null,
+      "certification_pct": null,
+      "testing_pct": null,
+      "combined_pct": null
+    },
+    {
+      "id": "buyer",
+      "name": "Buyer Expo",
+      "head": "e5096cfa37049743a3c3d768948943c03b10612b",
+      "open_prs": 7,
+      "build_pct": null,
+      "certification_pct": null,
+      "testing_pct": null,
+      "combined_pct": null
+    },
+    {
+      "id": "trace",
+      "name": "Trace",
+      "head": "e9d9647b7537e7a85591b93666e28a500a0c708c",
+      "open_prs": 0,
+      "build_pct": null,
+      "certification_pct": null,
+      "testing_pct": null,
+      "combined_pct": null
+    },
+    {
+      "id": "website",
+      "name": "Website",
+      "head": "98a2750a42df57494b1cbf136b43d9f957617739",
+      "git_remote": "NOT_VERIFIED",
+      "build_pct": null,
+      "certification_pct": null,
+      "testing_pct": null,
+      "combined_pct": null
+    },
+    {
+      "id": "whatsapp",
+      "name": "WhatsApp shared",
+      "head": null,
+      "build_pct": null,
+      "certification_pct": null,
+      "testing_pct": null,
+      "combined_pct": null
+    }
+  ],
+  "stages": [
+    {
+      "id": "E0",
+      "status": "IN_PROGRESS",
+      "build_pct": null,
+      "testing_pct": null,
+      "certification_pct": null,
+      "combined_pct": null
+    },
+    {
+      "id": "E1",
+      "status": "LOCKED",
+      "build_pct": null,
+      "testing_pct": null,
+      "certification_pct": null,
+      "combined_pct": null
+    },
+    {
+      "id": "E2",
+      "status": "LOCKED",
+      "build_pct": null,
+      "testing_pct": null,
+      "certification_pct": null,
+      "combined_pct": null
+    },
+    {
+      "id": "E3",
+      "status": "LOCKED",
+      "build_pct": null,
+      "testing_pct": null,
+      "certification_pct": null,
+      "combined_pct": null
+    },
+    {
+      "id": "E4",
+      "status": "LOCKED",
+      "build_pct": null,
+      "testing_pct": null,
+      "certification_pct": null,
+      "combined_pct": null
+    },
+    {
+      "id": "E5",
+      "status": "LOCKED",
+      "build_pct": null,
+      "testing_pct": null,
+      "certification_pct": null,
+      "combined_pct": null
+    },
+    {
+      "id": "E6",
+      "status": "LOCKED",
+      "build_pct": null,
+      "testing_pct": null,
+      "certification_pct": null,
+      "combined_pct": null
+    },
+    {
+      "id": "E7",
+      "status": "LOCKED",
+      "build_pct": null,
+      "testing_pct": null,
+      "certification_pct": null,
+      "combined_pct": null
+    },
+    {
+      "id": "E8",
+      "status": "LOCKED",
+      "build_pct": null,
+      "testing_pct": null,
+      "certification_pct": null,
+      "combined_pct": null
+    }
+  ],
+  "blockers": [
+    "website_git_remote_unverified",
+    "weighted_1_100_denominator_unverified",
+    "claude_code_runner_unverified",
+    "mission_control_generated_evidence_missing__root_cause_confirmed__draft_fix_643_pending_review"
+  ],
+  "score_contract": {
+    "build": "Weighted accepted features and source/tests proven at pinned SHA",
+    "testing": "Weighted functional, integration, auth/persistence, positive and negative tests proven on pinned environments",
+    "certification": "Independent formal security, real-device/provider, operational UAT and protected release acceptance",
+    "combined": "Arithmetic mean of Build, Testing and Certification (equal 1/3 weights), rendered only if all three have valid 0..100 scores and complete denominator verification",
+    "unknown": "Unverified score must remain null; a missing denominator is not 0%, nor 100%",
+    "programme_aggregation": "Weighted unique 1–100 controls once across app ownership; no double-counting Core and WhatsApp",
+    "go_gate": "GO/NO-GO remains separately governed and cannot be derived from combined percentage"
+  },
+  "open_prs_total": 28,
+  "last_e0_update_ist": "2026-11-05",
+  "point0_prs": [
+    "Central#642 docs/dashboard contract",
+    "Central#643 live evidence staged-diff repair (draft)"
+  ]
+}
