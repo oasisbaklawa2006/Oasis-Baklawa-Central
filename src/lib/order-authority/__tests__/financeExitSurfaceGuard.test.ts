@@ -91,10 +91,9 @@ describe("Finance Exit surface authority guard", () => {
     const releaseStart = page.indexOf("await releaseB2bCartonAtDispatchGate(");
     expect(scanStart).toBeGreaterThan(-1);
     expect(releaseStart).toBeGreaterThan(scanStart);
-    expect(page).toContain('.eq("carton_code", barcode)');
     expect(page).toContain('.ilike("carton_code", escapeGateBarcodeIlikeLiteral(barcode))');
-    expect(page).toContain("caseInsensitiveCartons?.length === 1");
-    expect(page).toContain("caseInsensitiveCartons[0].carton_code.toLowerCase() === barcode.toLowerCase()");
+    expect(page).toContain("matchUniqueCaseInsensitiveGateCarton(matchingCartons, barcode)");
+    expect(page).not.toContain('.eq("carton_code", barcode)');
     expect(page).toContain("gateScanCorrelationId(carton.id, barcode.toLowerCase())");
     expect(page).toContain("scan.scanId");
     expect(page).not.toContain('.from("operational_scan_records")');
