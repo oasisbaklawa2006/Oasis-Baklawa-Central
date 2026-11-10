@@ -182,6 +182,33 @@ describe("map extracted draft", () => {
     expect(resolved.source).toBe("ai");
   });
 
+  it("does not invent quantity 1 when AI left quantity unknown", () => {
+    const missingQty: ExtractedDraftOrder = {
+      ...extractedFixture,
+      lineItems: [
+        {
+          ...extractedFixture.lineItems[0],
+          rawQuantity: null,
+          normalizedQuantity: null,
+          quantityBand: "needs_clarification",
+        },
+      ],
+      readiness: {
+        ...extractedFixture.readiness,
+        dimensions: extractedFixture.readiness.dimensions.map((d) =>
+          d.dimension === "quantity"
+            ? { ...d, score: 0, status: "missing", explanation: "No qty" }
+            : d,
+        ),
+      },
+    };
+    const resolved = resolveOperatorQuantity(0, missingQty, {});
+    expect(resolved.quantity).toBe(0);
+    const lines = buildDraftLineInserts("draft-1", missingQty, {});
+    expect(lines[0].raw_quantity).toBeNull();
+    expect(lines[0].operator_quantity).toBe(0);
+  });
+
   it("persists operator-edited quantity in draft line inserts (not stale AI qty)", () => {
     const lines = buildDraftLineInserts("draft-1", extractedFixture, { 0: 12 });
     expect(lines[0].operator_quantity).toBe(12);
