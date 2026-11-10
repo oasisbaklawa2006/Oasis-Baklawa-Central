@@ -63,6 +63,20 @@ Execution remains repository-local. This ASM does not authorize one repository/t
 
 Canonical assignment record: [`docs/APPVERSE_ASM_OASIS_CONNECT_2026-09-20.md`](docs/APPVERSE_ASM_OASIS_CONNECT_2026-09-20.md).
 
+## Routed repository work item — ASM-BUYER-CARTON-MOQ-01
+
+Mission Control registers the bounded cross-repository work item **Buyer Carton MOQ — Mandatory Full-Carton Checkout Enforcement** (registration candidate; effective on merge).
+
+- **ASM-ID:** `ASM-BUYER-CARTON-MOQ-01`
+- **THREAD-ID:** `buyer-carton-moq-20261031`
+- **CONTROL REPOSITORY:** `oasisbaklawa2006/Oasis-Baklawa-Central`
+- **IMPLEMENTATION REPOSITORIES:** `oasisbaklawa2006/oasis-supabase-core`, `oasisbaklawa2006/oasis-baklawa`
+- **MISSION:** every accepted customer order consists of complete, compatible shipping cartons (888×4, 666×6, RTC1×10 and future governed configurations) while each SKU keeps its established primary-container Sales Order rules.
+- **DEPENDENCIES:** Core order path (`submit_customer_order_v1`, `submit_customer_order_quoted_v1`, `customer_checkout_quote_v1`, `customer_validate_order_quantity_v1`); Operations-approved packing master data; linked nodes `BUYER-APP-RECERT` and `CORE-CARTON-MOQ`.
+- **STOP CONDITION:** Core and Buyer are exact-head certified within repository authority and the master-data readiness report is clean; activation is separately authorised with evidence. No production migration, deployment or activation is authorised by this registration.
+
+Execution remains repository-local; Core owns validation, Buyer owns presentation. Canonical assignment record: [`docs/APPVERSE_ASM_BUYER_CARTON_MOQ_2026-10-31.md`](docs/APPVERSE_ASM_BUYER_CARTON_MOQ_2026-10-31.md).
+
 ## Production change safety gate
 
 Mission Control may inspect, route, branch, test, compare and prepare non-production governance changes. It must **not** use programme-control authority to bypass the owning repository's production controls.
