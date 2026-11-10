@@ -461,6 +461,15 @@ async function deliver(
   return { delivered: false, channel: null, tried };
 }
 
+/**
+ * The public MSG91 widget callback is the only currently certified endpoint
+ * mode. Legacy send modes accept arbitrary recipients and must not reach the
+ * provider fallback ladder without a separately reviewed authorization model.
+ */
+function legacyOutboundModeBlocked(mode: unknown): boolean {
+  return mode === "login_otp" || mode === "order_received";
+}
+
 // ---- HTTP handler ---------------------------------------------------------
 
 serve(async (req) => {
@@ -472,6 +481,15 @@ serve(async (req) => {
       return new Response(JSON.stringify({ ok: false, error: "mode is required" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // Fail closed before any provider send, database write or OTP generation.
+    // Legacy clients must migrate through an authenticated notification path.
+    if (legacyOutboundModeBlocked(body.mode)) {
+      return new Response(
+        JSON.stringify({ ok: false, error: "legacy_mode_disabled" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
 
     if (body.mode === "verify_widget") {
