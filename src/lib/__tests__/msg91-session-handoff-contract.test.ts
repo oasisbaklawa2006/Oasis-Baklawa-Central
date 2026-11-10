@@ -148,7 +148,9 @@ describe("msg91-otp legacy outbound mode fail-closed guard", () => {
     const end = source.indexOf("\n}", start);
     expect(start).toBeGreaterThan(-1);
     expect(end).toBeGreaterThan(start);
-    const functionSource = source.slice(start, end + 2);
+    const functionSource = source.slice(start, end + 2)
+      .replace("mode: unknown", "mode")
+      .replace("): boolean", ")");
     const blocked = new Function(
       `${functionSource}\nreturn legacyOutboundModeBlocked;`,
     )() as (mode: unknown) => boolean;
