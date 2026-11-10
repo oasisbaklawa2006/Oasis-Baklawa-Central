@@ -142,6 +142,44 @@ describe("msg91-otp / provider response privacy", () => {
   });
 });
 
+describe("msg91-otp legacy outbound mode fail-closed guard", () => {
+  it("denies both unauthenticated outbound modes without blocking verified widget exchange", () => {
+    const start = source.indexOf("function legacyOutboundModeBlocked(mode: unknown)");
+    const end = source.indexOf("\n}", start);
+    expect(start).toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(start);
+    const functionSource = source.slice(start, end + 2);
+    const blocked = new Function(
+      `${functionSource}\nreturn legacyOutboundModeBlocked;`,
+    )() as (mode: unknown) => boolean;
+
+    expect(blocked("login_otp")).toBe(true);
+    expect(blocked("order_received")).toBe(true);
+    expect(blocked("verify_widget")).toBe(false);
+    expect(blocked(null)).toBe(false);
+    expect(blocked("unknown")).toBe(false);
+  });
+
+  it("returns a denial before provider send, OTP generation or widget processing", () => {
+    const handler = source.indexOf("serve(async (req) =>");
+    const deny = source.indexOf("if (legacyOutboundModeBlocked(body.mode))", handler);
+    const widget = source.indexOf('if (body.mode === "verify_widget")', handler);
+    const legacy = source.indexOf('if (body.mode === "login_otp")', handler);
+    expect(handler).toBeGreaterThan(-1);
+    expect(deny).toBeGreaterThan(handler);
+    expect(widget).toBeGreaterThan(deny);
+    expect(legacy).toBeGreaterThan(widget);
+
+    const beforeDeny = source.slice(handler, deny);
+    expect(beforeDeny).not.toContain("await deliver(");
+    expect(beforeDeny).not.toContain("await verifyAccessToken(");
+    const responseGuard = source.slice(deny, widget);
+    expect(responseGuard).toContain('error: "legacy_mode_disabled"');
+    expect(responseGuard).toMatch(/status:\s*403/);
+    expect(responseGuard).not.toContain("await deliver(");
+  });
+});
+
 describe("BuyerLogin / MSG91 token_hash session handoff", () => {
   it("calls verifyOtp with token_hash only so mint email cannot mismatch Auth user", () => {
     const start = buyerLogin.indexOf("const verifiedProviderSession");
