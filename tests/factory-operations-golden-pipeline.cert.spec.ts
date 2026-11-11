@@ -118,17 +118,31 @@ async function clickWizardPrimaryCta(page: Page): Promise<string> {
   return label;
 }
 
-async function waitWizardStageAdvance(page: Page, prevCta: string, timeoutMs = 90_000) {
-  await expect
-    .poll(
-      async () => {
-        const sticky = page.locator("div.fixed.bottom-0 button").last();
-        const text = ((await sticky.textContent()) ?? "").trim();
-        return text !== prevCta && !text.includes("Working");
-      },
-      { timeout: timeoutMs },
-    )
-    .toBeTruthy();
+async function waitWizardStageAdvance(
+  page: Page,
+  prevCta: string,
+  timeoutMs = 90_000,
+  diagnostics?: () => Promise<string> | string,
+) {
+  try {
+    await expect
+      .poll(
+        async () => {
+          const sticky = page.locator("div.fixed.bottom-0 button").last();
+          const text = ((await sticky.textContent()) ?? "").trim();
+          return text !== prevCta && !text.includes("Working");
+        },
+        { timeout: timeoutMs },
+      )
+      .toBeTruthy();
+  } catch (error) {
+    // Evidence capture only: surface what the backend/UI actually said, so a stalled stage is
+    // diagnosable from the job log without the (separately uploaded) Playwright artifacts.
+    const extra = diagnostics ? await Promise.resolve(diagnostics()).catch((e) => `diagnostics failed: ${String(e)}`) : "";
+    throw new Error(
+      `WIZARD_STAGE_DID_NOT_ADVANCE prevCta=${JSON.stringify(prevCta)} after ${timeoutMs}ms\n${extra}\n${String(error)}`,
+    );
+  }
 }
 
 test.describe.configure({ mode: "serial" });
@@ -146,6 +160,30 @@ test("POINT-38 :: Golden Pipeline governance-board order status E2E", async ({ p
 
   const rpcCalls: Array<{ fn: string }> = [];
   const patchCalls: string[] = [];
+  const rpcResponses: Array<{ fn: string; status: number; body: string }> = [];
+  page.on("response", (res) => {
+    const req = res.request();
+    if (req.method() === "POST" && /\/rest\/v1\/rpc\//.test(res.url())) {
+      const fn = decodeURIComponent(res.url().split("/rpc/")[1]?.split("?")[0] ?? "");
+      void res
+        .text()
+        .then((body) => rpcResponses.push({ fn, status: res.status(), body: body.slice(0, 600) }))
+        .catch(() => undefined);
+    }
+  });
+  const describeStall = async () => {
+    const toasts = await page
+      .locator('[data-sonner-toast], [role="status"], [role="alert"]')
+      .allTextContents()
+      .catch(() => [] as string[]);
+    const release = rpcResponses.filter((r) => r.fn === "release_order_to_dispatched_v1").slice(-3);
+    const lastNonOk = rpcResponses.filter((r) => r.status >= 400).slice(-5);
+    return [
+      `visible_toasts=${JSON.stringify(toasts.map((t) => t.trim()).filter(Boolean).slice(0, 5))}`,
+      `release_order_to_dispatched_v1_responses=${JSON.stringify(release)}`,
+      `last_non_2xx_rpc_responses=${JSON.stringify(lastNonOk)}`,
+    ].join("\n");
+  };
   page.on("request", (req) => {
     if (req.method() === "POST" && /\/rest\/v1\/rpc\//.test(req.url())) {
       const fn = decodeURIComponent(req.url().split("/rpc/")[1]?.split("?")[0] ?? "");
@@ -277,7 +315,7 @@ test("POINT-38 :: Golden Pipeline governance-board order status E2E", async ({ p
   // ---- Governance: dispatch finalization → dispatched status truth ----
   await test.step("governance: dispatch finalization sets orders.status=dispatched", async () => {
     const prev = await clickWizardPrimaryCta(page);
-    await waitWizardStageAdvance(page, prev, 90_000);
+    await waitWizardStageAdvance(page, prev, 90_000, describeStall);
 
     const { client } = await createAuthenticatedCertificationClient(page);
     await expect

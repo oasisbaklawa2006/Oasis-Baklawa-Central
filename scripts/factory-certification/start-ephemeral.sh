@@ -108,6 +108,24 @@ export FACTORY_CERT_CREDENTIAL_FILE="${CREDENTIAL_FILE}"
 node "$(dirname "$0")/create-test-identities.mjs"
 node "$(dirname "$0")/seed-production-fixtures.mjs"
 
+# Point-38 governed upstream chain (default on). Dispatch finalization in Core requires immutable upstream
+# evidence: Finance DPL receipt, final invoice, active DISPATCH clearance, an independent Security Gate decision
+# and a frozen dispatch proof. They are produced here through real Core RPCs, as the independent roles, by the
+# same scripts the Point100 lane uses. The Dispatch Manager's finalization is deliberately left to the UI test
+# (tests/factory-operations-golden-pipeline.cert.spec.ts), which exercises Core's real
+# release_order_to_dispatched_v1. Set FACTORY_CERT_P38_GOVERNED_CHAIN=false to skip (the Point100 lane does).
+if [[ "${FACTORY_CERT_P38_GOVERNED_CHAIN:-true}" == "true" ]]; then
+  P100_SCRIPTS="$(cd "$(dirname "$0")/../point100-certification" && pwd)"
+  # shellcheck disable=SC1091
+  source "$(dirname "$0")/core-authority-mode.sh"
+  POINT38_CORE_AUTHORITY_MODE="$(core_authority_mode "${CORE_REPO}")"
+  export POINT38_CORE_AUTHORITY_MODE
+  node "${P100_SCRIPTS}/ensure-point38-admin-auth.mjs"
+  node "${P100_SCRIPTS}/ensure-point38-pi-issued.mjs"
+  node "${P100_SCRIPTS}/prepare-point38-canonical-exit.mjs"
+  POINT38_TAIL_STOP_BEFORE_FINALIZE=true node "${P100_SCRIPTS}/finalize-point38-canonical-tail.mjs"
+fi
+
 cat <<EOF
 Factory certification local backend is ready.
 
