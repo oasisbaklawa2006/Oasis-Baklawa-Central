@@ -398,32 +398,75 @@ async function executeGateTailForTail(
   cartonCode: string,
   runSuffix: string,
   gateSecurity: ReturnType<typeof credentialsForRoleOrSkip>,
+  dispatchManager: ReturnType<typeof credentialsForRoleOrSkip>,
 ) {
+  // The Core gate writer requires the canonical ready_to_load transition.
+  // The Dispatch Manager, never the Security Gate, owns this operation.
+  await switchRole(page, dispatchManager);
+  const { client: dispatchReady } = await createAuthenticatedCertificationClient(page);
+  const { data: preGateCarton, error: preGateError } = await dispatchReady
+    .from("b2b_dispatch_cartons")
+    .select("current_version,status")
+    .eq("id", cartonId)
+    .single();
+  expect(preGateError, preGateError?.message).toBeNull();
+  if (preGateCarton?.status === "locked") {
+    const { data: ready, error: readyError } = await dispatchReady.rpc("mark_b2b_dispatch_carton_ready_to_load_v1", {
+      p_carton_id: cartonId,
+      p_expected_version: preGateCarton.current_version,
+      p_correlation_id: `point100-${runSuffix}-ready-to-load`,
+    });
+    expect(readyError, readyError?.message).toBeNull();
+    expect(["ready_to_load", "loaded", "handed_over"]).toContain((ready as JsonObject | null)?.status);
+  } else {
+    expect(["ready_to_load", "loaded", "handed_over"]).toContain(preGateCarton?.status);
+  }
+
   await switchRole(page, gateSecurity);
   const { client: gate } = await createAuthenticatedCertificationClient(page);
-  const gateActorId = requireString((await gate.auth.getUser()).data.user?.id, "GATE_SECURITY actor id");
+  // The ONLY pre-507 synthetic fixture path is tied to a verified, old Core
+  // production pin. No application/runtime fallback to raw evidence exists.
+  const legacyPinnedSyntheticGateFixture =
+    process.env.POINT100_CORE_VERIFIED_SHA === "645899439fe0a84806238b9114649eb2c3785a75" &&
+    process.env.POINT100_DISPATCH_PRODUCTION_VERIFIED === "true";
   const gateScanCorrelation = `point100-${runSuffix}-synthetic-gate-scan`;
-  const { data: gateScan, error: gateScanError } = await gate
-    .from("operational_scan_records")
-    .insert({
-      scan_type: "dispatch_gate",
-      verification_type: "gate_check",
-      entity_type: "dispatch_carton",
-      entity_id: cartonId,
-      order_id: orderId,
-      barcode_value: cartonCode,
-      expected_barcode: cartonCode,
-      verification_status: "scanned",
-      scan_source: "point100_disposable_synthetic_gate",
-      actor_id: gateActorId,
-      actor_role: "GATE_SECURITY",
-      correlation_id: gateScanCorrelation,
-      metadata: { certification_mode: "disposable_synthetic", physical_uat: false },
-    })
-    .select("id")
-    .single();
-  expect(gateScanError, gateScanError?.message).toBeNull();
-  const gateScanId = requireString(gateScan?.id, "gate scan evidence id");
+  let gateScanId: string;
+  if (legacyPinnedSyntheticGateFixture) {
+    console.log("POINT100_PRE507_LEGACY_FIXTURE_ONLY: not Core #507 UAT");
+    const gateActorId = requireString((await gate.auth.getUser()).data.user?.id, "GATE_SECURITY actor id");
+    const { data: legacyScan, error: legacyScanError } = await gate
+      .from("operational_scan_records")
+      .insert({
+        scan_type: "dispatch_gate",
+        verification_type: "gate_check",
+        entity_type: "dispatch_carton",
+        entity_id: cartonId,
+        order_id: orderId,
+        barcode_value: cartonCode,
+        expected_barcode: cartonCode,
+        verification_status: "scanned",
+        scan_source: "point100_disposable_synthetic_gate",
+        actor_id: gateActorId,
+        actor_role: "GATE_SECURITY",
+        correlation_id: gateScanCorrelation,
+        metadata: { certification_mode: "disposable_synthetic_pre507_only", physical_uat: false },
+      })
+      .select("id")
+      .single();
+    expect(legacyScanError, legacyScanError?.message).toBeNull();
+    gateScanId = requireString(legacyScan?.id, "pre-507 synthetic gate scan id");
+  } else {
+    const { data: authoritativeScan, error: scanError } = await gate.rpc("record_b2b_dispatch_gate_scan_v1", {
+      p_carton_id: cartonId,
+      p_scanned_barcode: cartonCode,
+      p_idempotency_key: gateScanCorrelation,
+    });
+    expect(scanError, scanError?.message).toBeNull();
+    const result = firstRow(authoritativeScan);
+    expect(result.ok).toBe(true);
+    expect(result.carton_id).toBe(cartonId);
+    gateScanId = requireString(result.scan_id, "Core #507 governed gate scan evidence id");
+  }
   const { data: gateDecisionData, error: gateDecisionError } = await gate.rpc("release_b2b_dispatch_carton_at_gate_v1", {
     p_carton_id: cartonId,
     p_scan_evidence_id: gateScanId,
@@ -431,16 +474,26 @@ async function executeGateTailForTail(
   expect(gateDecisionError, gateDecisionError?.message).toBeNull();
   const gateDecision = gateDecisionData as { ok?: boolean; blockers?: unknown } | null;
   expect(gateDecision?.ok, `gate blockers=${JSON.stringify(gateDecision?.blockers ?? [])}`).toBe(true);
-  const { error: gateVerifyError } = await gate
-    .from("operational_scan_records")
-    .update({ verification_status: "verified" })
-    .eq("id", gateScanId);
-  expect(gateVerifyError, gateVerifyError?.message).toBeNull();
+  if (legacyPinnedSyntheticGateFixture) {
+    // This legacy update is ONLY for the one production-certified pre-507
+    // disposable fixture. Core #507 authoritative scan evidence is immutable.
+    const { error: verifyLegacyError } = await gate
+      .from("operational_scan_records")
+      .update({ verification_status: "verified" })
+      .eq("id", gateScanId);
+    expect(verifyLegacyError, verifyLegacyError?.message).toBeNull();
+  }
+
+  // Core's role separation (20261001220000): the independent Security Gate only releases the carton. The
+  // immutable dispatch proof and the order finalization belong to Dispatch, so continue as the Dispatch Manager.
+  await switchRole(page, dispatchManager);
+  const { client: dispatch } = await createAuthenticatedCertificationClient(page);
+  const dispatchActorId = requireString((await dispatch.auth.getUser()).data.user?.id, "DISPATCH_MANAGER actor id");
 
   const dispatchedAt = new Date().toISOString();
   const trackingReference = `P100-TRK-${runSuffix}`.slice(0, 96);
   const proofIdentity = `point100-${runSuffix}-dispatch-proof`;
-  const { data: proofData, error: proofError } = await gate.rpc("record_dispatch_proof_packet_v1", {
+  const { data: proofData, error: proofError } = await dispatch.rpc("record_dispatch_proof_packet_v1", {
     p_order_id: orderId,
     p_transport_snapshot: {
       transporter: "POINT100 SYNTHETIC CARRIER",
@@ -455,12 +508,12 @@ async function executeGateTailForTail(
     p_dispatched_at: dispatchedAt,
     p_correlation_id: proofIdentity,
     p_idempotency_key: proofIdentity,
-    p_actor_id: gateActorId,
+    p_actor_id: dispatchActorId,
   });
   expect(proofError, proofError?.message).toBeNull();
   const dispatchProofId = requireString(firstRow(proofData).dispatch_proof_id, "dispatch proof id");
 
-  const { data: finalizeData, error: finalizeError } = await gate.rpc("release_order_to_dispatched_v1", {
+  const { data: finalizeData, error: finalizeError } = await dispatch.rpc("release_order_to_dispatched_v1", {
     p_order_id: orderId,
     p_tracking_number: trackingReference,
     p_courier_name: "POINT100 SYNTHETIC CARRIER",
@@ -472,7 +525,7 @@ async function executeGateTailForTail(
   expect(finalize?.ok, `dispatch finalization blockers=${JSON.stringify(finalize?.blockers ?? [])}`).toBe(true);
   expect(finalize?.new_status).toBe("dispatched");
 
-  const { data: finalFactsData, error: finalFactsError } = await gate.rpc("get_finance_exit_facts_v1", { p_order_id: orderId });
+  const { data: finalFactsData, error: finalFactsError } = await dispatch.rpc("get_finance_exit_facts_v1", { p_order_id: orderId });
   expect(finalFactsError, finalFactsError?.message).toBeNull();
   const finalFacts = firstRow(finalFactsData);
   const finalOrderStatus = requireString(finalFacts.order_status, "final order status");
@@ -545,6 +598,7 @@ export async function executeCanonicalDispatchTail(input: {
     custody.cartonCode,
     runSuffix,
     gateSecurity,
+    dispatchManager,
   );
 
   return {

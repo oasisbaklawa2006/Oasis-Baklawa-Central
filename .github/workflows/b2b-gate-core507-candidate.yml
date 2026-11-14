@@ -1,0 +1,121 @@
+name: B2B Gate Core507-Central669 Disposable Contract
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/b2b-gate-core507-candidate.yml'
+      - 'src/pages/admin/AdminB2bSecurityGate.tsx'
+      - 'src/utils/gateScanEvidence.ts'
+      - 'src/lib/order-authority/**'
+      - 'src/integrations/supabase/types.ts'
+      - 'scripts/point100-certification/**'
+      - 'tests/point100/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: b2b-gate-core507-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  disposable-core507-gate-contract:
+    name: Isolated Core #507 governed Gate journey (no production)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      POINT100_CORE_REPO: ${{ github.workspace }}/oasis-supabase-core
+      FACTORY_CERT_CORE_REPO: ${{ github.workspace }}/oasis-supabase-core
+      FACTORY_CERT_ALLOW_LOCAL_RESET: 'true'
+      FACTORY_CERT_CREDENTIAL_FILE: /tmp/oasis-factory-certification.env
+      POINT100_ALLOW_LOCAL_RESET: 'true'
+      POINT100_ALLOW_DISPOSABLE_BOOTSTRAP: 'false'
+      POINT100_DISPATCH_PRODUCTION_VERIFIED: 'false'
+      POINT100_CORE_VERIFIED_SHA: 5f171265ca5520e375de35261b761f7747f8d607
+
+    steps:
+      - name: Checkout Central candidate
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Checkout exact Core #507 candidate
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: oasisbaklawa2006/oasis-supabase-core
+          ref: 5f171265ca5520e375de35261b761f7747f8d607
+          path: oasis-supabase-core
+          persist-credentials: false
+
+      - name: Fail closed on stale candidates or production certification confusion
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C "${POINT100_CORE_REPO}" rev-parse HEAD)" = "${POINT100_CORE_VERIFIED_SHA}"
+          test -f "${POINT100_CORE_REPO}/supabase/migrations/20261109101000_b2b_gate_scan_evidence_authority.sql"
+          test "${POINT100_DISPATCH_PRODUCTION_VERIFIED}" = "false"
+          test "${POINT100_ALLOW_DISPOSABLE_BOOTSTRAP}" = "false"
+          bash -n scripts/point100-certification/start-ephemeral.sh
+          bash -n scripts/point100-certification/stop-ephemeral.sh
+
+      - name: Set up Core-compatible pinned Supabase CLI
+        uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520
+        with:
+          version: 2.110.0
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install Central dependencies
+        run: npm ci
+
+      - name: Central governed Gate caller and Point100 guard regressions
+        run: npm run test -- src/lib/order-authority/__tests__/gateExitAuthorityClient.test.ts src/lib/order-authority/__tests__/financeExitSurfaceGuard.test.ts
+
+      - name: Execute disposable authenticated Gate and dispatch lifecycle against Core #507
+        env:
+          SUPABASE_INTERNAL_IMAGE_REGISTRY: ghcr.io
+        run: bash scripts/point100-certification/start-ephemeral.sh
+
+      - name: Verify authoritative scan and released Gate decision in disposable database
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v psql >/dev/null
+          pushd "${POINT100_CORE_REPO}" >/dev/null
+          supabase status -o env > "${RUNNER_TEMP}/b2b-gate-candidate-env"
+          popd >/dev/null
+          # shellcheck disable=SC1090
+          source "${RUNNER_TEMP}/b2b-gate-candidate-env"
+          : "${DB_URL:?No disposable database connection}"
+          verdict="$(psql "${DB_URL}" -At -v ON_ERROR_STOP=1 -c "
+            SELECT CASE WHEN EXISTS (
+              SELECT 1
+              FROM public.operational_scan_records s
+              JOIN public.b2b_dispatch_gate_decisions d ON d.scan_evidence_id = s.id
+              JOIN public.b2b_dispatch_cartons c ON c.id = s.entity_id
+              WHERE s.scan_source = 'B2B_GATE_SCAN_V1'
+                AND s.metadata->>'authority' = 'B2B_GATE_SCAN_V1'
+                AND s.entity_type = 'b2b_dispatch_carton'
+                AND s.scan_type = 'dispatch_gate'
+                AND d.decision = 'released'
+                AND d.carton_id = c.id
+                AND c.status = 'handed_over'
+            ) THEN 'PASS' ELSE 'FAIL' END;
+          ")"
+          test "${verdict}" = "PASS"
+          echo "CORE507_CENTRAL669_DISPOSABLE_GATE_RELEASE: PASS (synthetic software-only evidence)"
+          echo "This is not physical scanner UAT or production release certification."
+
+      - name: Stop disposable backend
+        if: always()
+        shell: bash
+        run: |
+          if [[ -d "${POINT100_CORE_REPO}" ]]; then
+            bash scripts/point100-certification/stop-ephemeral.sh
+          fi
