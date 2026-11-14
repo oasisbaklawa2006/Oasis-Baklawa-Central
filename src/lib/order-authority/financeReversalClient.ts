@@ -19,6 +19,8 @@ export type FinanceReversalFailureCode =
   | "aal2_required"
   | "maker_checker_denied"
   | "stale_snapshot"
+  | "unsupported_scope"
+  | "request_superseded"
   | "idempotency_conflict"
   | "request_already_open"
   | "already_decided"
@@ -42,6 +44,8 @@ export class FinanceReversalError extends Error {
 const CODE_BY_MARKER: Array<[RegExp, FinanceReversalFailureCode]> = [
   [/FINANCE_REVERSAL_MAKER_CHECKER/, "maker_checker_denied"],
   [/FINANCE_REVERSAL_SNAPSHOT_STALE/, "stale_snapshot"],
+  [/FINANCE_REVERSAL_SCOPE_SNAPSHOT_UNAVAILABLE/, "unsupported_scope"],
+  [/FINANCE_REVERSAL_REQUEST_SUPERSEDED/, "request_superseded"],
   [/FINANCE_CLEARANCE_AAL2_REQUIRED/, "aal2_required"],
   [/finance authority required|FINANCE_CLEARANCE_ACTOR_REQUIRED/, "not_finance_actor"],
   [/FINANCE_REVERSAL_IDEMPOTENCY_CONFLICT/, "idempotency_conflict"],
@@ -104,12 +108,24 @@ async function call(client: RpcClient, fn: (typeof FINANCE_TWO_STEP_REVERSAL_COR
 
 export type FinanceReversalStep = { eventId: string; decision: string; replayed: boolean };
 
+/** Treat structurally invalid server results as failures, never as successful financial operations. */
+function financeStep(row: Record<string, unknown>, eventKey: string, replayKey: string, decisions: readonly string[]): FinanceReversalStep {
+  const eventId = row[eventKey];
+  const decision = row.decision;
+  const replayed = row[replayKey];
+  if (typeof eventId !== "string" || !eventId.trim() || typeof decision !== "string" ||
+    !decisions.includes(decision) || typeof replayed !== "boolean") {
+    throw new FinanceReversalError("unavailable", "Core returned an invalid Finance reversal result");
+  }
+  return { eventId, decision, replayed };
+}
+
 export async function requestFinanceReversalV1(
   input: { targetEventId: string; ctx: FinanceReversalContext },
   client: RpcClient = supabase as unknown as RpcClient,
 ): Promise<FinanceReversalStep> {
   const row = await call(client, "request_finance_reversal_v1", { p_event_id: required(input.targetEventId, "target event"), ...baseArgs(input.ctx) });
-  return { eventId: String(row.request_event_id ?? ""), decision: String(row.decision ?? ""), replayed: row.already_requested === true };
+  return financeStep(row, "request_event_id", "already_requested", ["PENDING"]);
 }
 
 export async function decideFinanceReversalV1(
@@ -117,7 +133,7 @@ export async function decideFinanceReversalV1(
   client: RpcClient = supabase as unknown as RpcClient,
 ): Promise<FinanceReversalStep> {
   const row = await call(client, "decide_finance_reversal_v1", { p_request_event_id: required(input.requestEventId, "request event"), p_approve: input.approve, ...baseArgs(input.ctx) });
-  return { eventId: String(row.approval_event_id ?? ""), decision: String(row.decision ?? ""), replayed: row.already_decided === true };
+  return financeStep(row, "approval_event_id", "already_decided", ["APPROVED", "REJECTED"]);
 }
 
 export async function completeFinanceReversalV1(
@@ -125,7 +141,7 @@ export async function completeFinanceReversalV1(
   client: RpcClient = supabase as unknown as RpcClient,
 ): Promise<FinanceReversalStep> {
   const row = await call(client, "complete_finance_reversal_v1", { p_request_event_id: required(input.requestEventId, "request event"), ...baseArgs(input.ctx) });
-  return { eventId: String(row.control_event_id ?? ""), decision: String(row.decision ?? ""), replayed: row.already_reversed === true };
+  return financeStep(row, "control_event_id", "already_reversed", ["REVERSED"]);
 }
 
 export type FinanceControlEventRow = { id: string; control_kind: string; decision: string; prior_event_id: string | null; actor_id?: string | null; approver_id?: string | null };
