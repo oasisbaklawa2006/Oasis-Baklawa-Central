@@ -57,7 +57,7 @@ describe("two-step Finance reversal client", () => {
     ["request", [], "missing"],
     ["decision", [{ approval_event_id: "app-1", decision: "PENDING", already_decided: false }], "decision"],
     ["completion", [{ control_event_id: "rev-1", decision: "APPROVED", already_reversed: false }], "decision"],
-  ])("fails closed for malformed %s Core result (%s)", async (step, data) => {
+  ])("fails closed for malformed %s Core result (%s)", async (step, data, _failureKind) => {
     const client = okClient(data);
     const invoke = step === "request"
       ? requestFinanceReversalV1({ targetEventId: "evt-1", ctx }, client)
