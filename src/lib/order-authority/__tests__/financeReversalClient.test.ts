@@ -31,6 +31,8 @@ describe("two-step Finance reversal client", () => {
   it.each([
     ["FINANCE_REVERSAL_MAKER_CHECKER", "maker_checker_denied"],
     ["FINANCE_REVERSAL_SNAPSHOT_STALE: financial position changed since the request", "stale_snapshot"],
+    ["FINANCE_REVERSAL_SCOPE_SNAPSHOT_UNAVAILABLE", "unsupported_scope"],
+    ["FINANCE_REVERSAL_REQUEST_SUPERSEDED", "request_superseded"],
     ["FINANCE_CLEARANCE_AAL2_REQUIRED", "aal2_required"],
     ["finance authority required", "not_finance_actor"],
     ["FINANCE_REVERSAL_IDEMPOTENCY_CONFLICT", "idempotency_conflict"],
@@ -46,6 +48,24 @@ describe("two-step Finance reversal client", () => {
     await expect(requestFinanceReversalV1({ targetEventId: "evt-1", ctx }, client)).rejects.toMatchObject({ name: "FinanceReversalError", code });
     expect(client.rpc).toHaveBeenCalledTimes(1);
     expect(classifyFinanceReversalFailure({ message }).code).toBe(code);
+  });
+
+  it.each([
+    ["request", [{ request_event_id: "", decision: "PENDING", already_requested: false }], "request"],
+    ["request", [{ request_event_id: "req-1", decision: "REVERSED", already_requested: false }], "decision"],
+    ["request", [{ request_event_id: "req-1", decision: "PENDING", already_requested: "false" }], "replayed"],
+    ["request", [], "missing"],
+    ["decision", [{ approval_event_id: "app-1", decision: "PENDING", already_decided: false }], "decision"],
+    ["completion", [{ control_event_id: "rev-1", decision: "APPROVED", already_reversed: false }], "decision"],
+  ])("fails closed for malformed %s Core result (%s)", async (step, data) => {
+    const client = okClient(data);
+    const invoke = step === "request"
+      ? requestFinanceReversalV1({ targetEventId: "evt-1", ctx }, client)
+      : step === "decision"
+        ? decideFinanceReversalV1({ requestEventId: "req-1", approve: true, ctx }, client)
+        : completeFinanceReversalV1({ requestEventId: "req-1", ctx }, client);
+    await expect(invoke).rejects.toMatchObject({ name: "FinanceReversalError", code: "unavailable" });
+    expect(client.rpc).toHaveBeenCalledTimes(1);
   });
 
   it("refuses blank evidence before calling Core", async () => {
