@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { sendWhatsAppMessage } from "@/utils/whatsapp";
@@ -124,6 +124,11 @@ export default function SuggestedOrdersTab({ activeCompanies }: Props) {
   const [clarifyTarget, setClarifyTarget] = useState<SuggestedOrder | null>(null);
   const [clarifyMessage, setClarifyMessage] = useState("");
   const [clarifying, setClarifying] = useState(false);
+  // Volatile protection only. Cross-session safety requires Core event keys.
+  const [nonRetryableClarifications, setNonRetryableClarifications] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const clarificationInFlight = useRef(false);
 
   const fetchRows = useCallback(async () => {
     setLoading(true);
@@ -201,6 +206,8 @@ export default function SuggestedOrdersTab({ activeCompanies }: Props) {
         return;
       }
 
+      // Once accepted, a failed local status update must not license a resend.
+      setNonRetryableClarifications((previous) => new Set(previous).add(clarifyTarget.id));
       const { error: updateError } = await supabase
         .from("suggested_orders")
         .update({
@@ -258,6 +265,10 @@ export default function SuggestedOrdersTab({ activeCompanies }: Props) {
 
   /* ─── Open clarification dialog ─── */
   const openClarify = (row: SuggestedOrder) => {
+    if (nonRetryableClarifications.has(row.id)) {
+      toast.warning("This message may already be accepted. Reconcile its provider status before another send.");
+      return;
+    }
     const items = parseItems(row.extracted_items);
     setClarifyTarget(row);
     setClarifyMessage(buildClarificationTemplate(row, items));
@@ -265,7 +276,12 @@ export default function SuggestedOrdersTab({ activeCompanies }: Props) {
 
   /* ─── Send clarification (operator-confirmed) ─── */
   const handleSendClarification = async () => {
-    if (!clarifyTarget) return;
+    if (
+      !clarifyTarget ||
+      clarificationInFlight.current ||
+      nonRetryableClarifications.has(clarifyTarget.id)
+    ) return;
+    clarificationInFlight.current = true;
     setClarifying(true);
     try {
       const result = await sendWhatsAppMessage({
@@ -276,6 +292,7 @@ export default function SuggestedOrdersTab({ activeCompanies }: Props) {
 
       if (!result.success) {
         if (result.acceptanceUnknown) {
+          setNonRetryableClarifications((previous) => new Set(previous).add(clarifyTarget.id));
           toast.warning(
             "WhatsApp acceptance is unconfirmed. Do not resend until the provider timeline is reconciled.",
           );
@@ -307,6 +324,7 @@ export default function SuggestedOrdersTab({ activeCompanies }: Props) {
     } catch (e: unknown) {
       toast.error((e instanceof Error ? e.message : null) ?? "Send failed");
     } finally {
+      clarificationInFlight.current = false;
       setClarifying(false);
     }
   };
@@ -632,7 +650,8 @@ export default function SuggestedOrdersTab({ activeCompanies }: Props) {
             </Button>
             <Button
               onClick={handleSendClarification}
-              disabled={clarifying || !clarifyMessage.trim()}
+              disabled={clarifying || !clarifyMessage.trim() ||
+                nonRetryableClarifications.has(clarifyTarget?.id ?? "")}
               className="gap-1.5"
             >
               {clarifying ? (
