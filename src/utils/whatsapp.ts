@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import { classifyWhatsAppSendResult } from "@/lib/wa-governance/whatsappSendResult";
+import { classifyWhatsAppSendResult, type WhatsAppSendResult } from "@/lib/wa-governance/whatsappSendResult";
 
 const PORTAL_URL = import.meta.env.VITE_B2B_PORTAL_URL || "https://b2b.oasisbaklawa.com";
 const CTA_FOOTER = `\n\nPlease login to your B2B Portal to track your 10-point artisan journey:\n${PORTAL_URL}`;
@@ -12,7 +12,7 @@ export const sendWhatsAppMessage = async (params: {
   message: string;
   companyId?: string;
   orderId?: string;
-}) => {
+}): Promise<WhatsAppSendResult> => {
   const { data, error } = await supabase.functions.invoke("send-whatsapp", {
     body: {
       to: params.to,
