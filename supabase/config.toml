@@ -4,7 +4,7 @@ project_id = "tcxvcatsqqertcnycuop"
 verify_jwt = false
 
 [functions.whatsapp-otp]
-verify_jwt = false
+verify_jwt = true
 
 [functions.public-order-tracking]
 verify_jwt = false
