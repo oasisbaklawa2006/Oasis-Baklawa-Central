@@ -1,8 +1,9 @@
 import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const orderPageSource = readFileSync(
-  new URL("../../../pages/admin/OrderManagement.tsx", import.meta.url),
+  join(import.meta.dirname, "../../../pages/admin/OrderManagement.tsx"),
   "utf8",
 );
 
