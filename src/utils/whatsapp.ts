@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { classifyWhatsAppSendResult } from "@/lib/wa-governance/whatsappSendResult";
 
 const PORTAL_URL = import.meta.env.VITE_B2B_PORTAL_URL || "https://b2b.oasisbaklawa.com";
 const CTA_FOOTER = `\n\nPlease login to your B2B Portal to track your 10-point artisan journey:\n${PORTAL_URL}`;
@@ -26,7 +27,9 @@ export const sendWhatsAppMessage = async (params: {
     return { success: false, error: error.message };
   }
 
-  return { success: true, data };
+  // A fulfilled HTTP request is not evidence of provider acceptance.
+  // Preserve unknown acceptance so operators do not blindly resend.
+  return classifyWhatsAppSendResult(data);
 };
 
 /**
