@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { MessageSquare, Phone, Building2, Edit2, CheckCircle, Package, Search, ArrowRight, AlertTriangle, Trash2, UserCog, Ban, Sparkles } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -25,7 +26,7 @@ interface DraftOrderInfo {
 interface HistoryMessage {
   id: string;
   phone_number: string | null;
-  raw_payload: any;
+  raw_payload: unknown;
   created_at: string;
   processed: boolean | null;
 }
@@ -34,6 +35,18 @@ interface ActiveCompany { id: string; business_name: string; }
 interface EmployeeUser { id: string; full_name: string | null; email: string | null; role: string | null; phone: string | null; }
 interface ProductLite { id: string; name: string; }
 interface AliasRow { alias_text: string; product_id: string; canonical_name: string; }
+type CompanyUpdate = Database["public"]["Tables"]["companies"]["Update"];
+type OrderUpdate = Database["public"]["Tables"]["orders"]["Update"];
+type WebhookUpdate = Database["public"]["Tables"]["debug_webhooks"]["Update"];
+type UserUpdate = Database["public"]["Tables"]["users"]["Update"];
+interface OrderItemLite {
+  order_id: string;
+  quantity: number;
+  products?: { name?: string | null } | { name?: string | null }[] | null;
+}
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
 
 interface ParsedLine {
   line_id: string;          // local row id
@@ -98,9 +111,12 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
       const map: Record<string, DraftOrderInfo[]> = {};
       orders.forEach((o) => {
         if (!map[o.company_id!]) map[o.company_id!] = [];
-        const orderItems = (items ?? [])
-          .filter((i: any) => i.order_id === o.id)
-          .map((i: any) => ({ product_name: i.products?.name || "Unknown SKU", quantity: i.quantity }));
+        const orderItems = ((items ?? []) as unknown as OrderItemLite[])
+          .filter((i) => i.order_id === o.id)
+          .map((i) => ({
+            product_name: (Array.isArray(i.products) ? i.products[0]?.name : i.products?.name) || "Unknown SKU",
+            quantity: i.quantity,
+          }));
         map[o.company_id!].push({ order_id: o.id, items: orderItems });
       });
       setDraftOrders(map);
@@ -179,12 +195,13 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
       .limit(1)
       .maybeSingle();
 
-    const raw = ((data as any)?.extracted_items as any[]) ?? [];
-    const lines: ParsedLine[] = raw.map((it: any, idx: number) => {
+    const suggested = (data as { extracted_items?: unknown } | null)?.extracted_items;
+    const raw = Array.isArray(suggested) ? suggested.filter(isRecord) : [];
+    const lines: ParsedLine[] = raw.map((it, idx: number) => {
       const aiName = String(it?.product_name ?? "");
       const productId = resolveProductId(aiName, prods, alias);
       const qty = it?.quantity;
-      const unit = (it?.unit ?? "").toString().toLowerCase();
+      const unit = String(it?.unit ?? "").toLowerCase();
       const validUnits = ["kg", "gm", "pcs", "box", "carton"];
       return {
         line_id: `ln-${idx}`,
@@ -193,7 +210,7 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
         product_id: productId,
         quantity: qty == null || !Number.isFinite(Number(qty)) ? "" : String(qty),
         unit: (validUnits.includes(unit) ? unit : "") as ParsedLine["unit"],
-        notes: it?.notes ?? null,
+        notes: it?.notes == null ? null : String(it.notes),
         approved: false,
       };
     });
@@ -219,12 +236,16 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
     setHistoryScanned(true);
   };
 
-  const extractText = (payload: any): string => {
+  const extractText = (payload: unknown): string => {
     if (!payload) return "";
-    const msg = payload?.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
-    if (msg?.text?.body) return msg.text.body;
+    const entry = isRecord(payload) && Array.isArray(payload.entry) ? payload.entry[0] : null;
+    const change = isRecord(entry) && Array.isArray(entry.changes) ? entry.changes[0] : null;
+    const value = isRecord(change) ? change.value : null;
+    const msg = isRecord(value) && Array.isArray(value.messages) ? value.messages[0] : null;
+    const body = isRecord(msg) && isRecord(msg.text) ? msg.text.body : null;
+    if (typeof body === "string") return body;
     if (typeof payload === "string") return payload.slice(0, 200);
-    const str = JSON.stringify(payload);
+    const str = JSON.stringify(payload) ?? "";
     const textMatch = str.match(/"body"\s*:\s*"([^"]+)"/);
     if (textMatch) return textMatch[1];
     return str.slice(0, 150);
@@ -256,11 +277,11 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
       // === SPAM / OTHER ===
       if (entityCategory === "other") {
         const { error: rejErr } = await supabase
-          .from("companies").update({ status: "rejected" } as any).eq("id", editingCompany.id);
+          .from("companies").update({ status: "rejected" } as CompanyUpdate).eq("id", editingCompany.id);
         if (rejErr) throw rejErr;
         if (webhookIds.length > 0) {
           await supabase.from("debug_webhooks")
-            .update({ processed: true, discard_reason: "spam_or_other" } as any).in("id", webhookIds);
+            .update({ processed: true, discard_reason: "spam_or_other" } as WebhookUpdate).in("id", webhookIds);
         }
         toast.success(`Lead archived as Spam/Other. ${webhookIds.length} message(s) discarded.`);
         setSaving(false); setEditingCompany(null); onRefresh(); return;
@@ -269,10 +290,10 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
       // === LINK to existing client ===
       if (entityCategory === "client" && actionType === "link") {
         if (!selectedExistingId) { toast.error("Select a client to link"); setSaving(false); return; }
-        await supabase.from("companies").update({ phone: formattedPhone } as any).eq("id", selectedExistingId);
-        await supabase.from("orders").update({ company_id: selectedExistingId } as any).eq("company_id", editingCompany.id);
-        if (webhookIds.length > 0) await supabase.from("debug_webhooks").update({ processed: true } as any).in("id", webhookIds);
-        await supabase.from("companies").update({ status: "merged" } as any).eq("id", editingCompany.id);
+        await supabase.from("companies").update({ phone: formattedPhone } as CompanyUpdate).eq("id", selectedExistingId);
+        await supabase.from("orders").update({ company_id: selectedExistingId } as OrderUpdate).eq("company_id", editingCompany.id);
+        if (webhookIds.length > 0) await supabase.from("debug_webhooks").update({ processed: true } as WebhookUpdate).in("id", webhookIds);
+        await supabase.from("companies").update({ status: "merged" } as CompanyUpdate).eq("id", editingCompany.id);
         toast.success(`Linked to existing client. ${webhookIds.length} message(s) attached.`);
         setSaving(false); setEditingCompany(null); onRefresh(); return;
       }
@@ -284,15 +305,18 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
         if (!emp) { toast.error("Employee not found"); setSaving(false); return; }
         if (emp.phone && emp.phone.trim().length > 0 && emp.phone !== formattedPhone) {
           const { data: cur } = await supabase.from("users").select("secondary_phones").eq("id", emp.id).maybeSingle();
-          const arr = (cur as any)?.secondary_phones ?? [];
+          const phoneList = (cur as { secondary_phones?: unknown } | null)?.secondary_phones;
+          const arr = Array.isArray(phoneList)
+            ? phoneList.filter((phone): phone is string => typeof phone === "string")
+            : [];
           if (!arr.includes(formattedPhone)) {
-            await supabase.from("users").update({ secondary_phones: [...arr, formattedPhone] } as any).eq("id", emp.id);
+            await supabase.from("users").update({ secondary_phones: [...arr, formattedPhone] } as UserUpdate).eq("id", emp.id);
           }
         } else {
-          await supabase.from("users").update({ phone: formattedPhone } as any).eq("id", emp.id);
+          await supabase.from("users").update({ phone: formattedPhone } as UserUpdate).eq("id", emp.id);
         }
-        if (webhookIds.length > 0) await supabase.from("debug_webhooks").update({ processed: true, discard_reason: "employee_sender" } as any).in("id", webhookIds);
-        await supabase.from("companies").update({ status: "rejected" } as any).eq("id", editingCompany.id);
+        if (webhookIds.length > 0) await supabase.from("debug_webhooks").update({ processed: true, discard_reason: "employee_sender" } as WebhookUpdate).in("id", webhookIds);
+        await supabase.from("companies").update({ status: "rejected" } as CompanyUpdate).eq("id", editingCompany.id);
         toast.success(`Phone linked to ${emp.full_name || emp.email}. ${webhookIds.length} message(s) tagged.`);
         setSaving(false); setEditingCompany(null); onRefresh(); return;
       }
@@ -375,8 +399,8 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
         "WhatsApp not sent: recipient consent and protected notification authority are pending.",
       );
       setSaving(false); setEditingCompany(null); onRefresh();
-    } catch (e: any) {
-      toast.error("Operation failed: " + (e?.message || "Unknown error"));
+    } catch (e: unknown) {
+      toast.error("Operation failed: " + (e instanceof Error ? e.message : "Unknown error"));
       setSaving(false);
     }
   };
@@ -447,7 +471,7 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
                   <button
                     onClick={async () => {
                       if (!confirm(`Reject lead "${c.business_name}"? It will be hidden from the queue (record kept in DB).`)) return;
-                      const { error } = await supabase.from("companies").update({ status: "rejected" } as any).eq("id", c.id);
+                      const { error } = await supabase.from("companies").update({ status: "rejected" } as CompanyUpdate).eq("id", c.id);
                       if (error) { toast.error("Failed to reject lead"); return; }
                       toast.success("Lead rejected & hidden");
                       onRefresh();
@@ -518,7 +542,7 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
                   { val: "client", label: "Client", icon: Building2 },
                   { val: "employee", label: "Employee", icon: UserCog },
                   { val: "other", label: "Spam/Other", icon: Ban },
-                ] as { val: EntityCategory; label: string; icon: any }[]).map((opt) => {
+                ] as { val: EntityCategory; label: string; icon: LucideIcon }[]).map((opt) => {
                   const Icon = opt.icon;
                   const active = entityCategory === opt.val;
                   return (
