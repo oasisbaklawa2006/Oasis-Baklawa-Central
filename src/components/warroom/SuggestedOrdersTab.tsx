@@ -206,8 +206,6 @@ export default function SuggestedOrdersTab({ activeCompanies }: Props) {
         return;
       }
 
-      // Once accepted, a failed local status update must not license a resend.
-      setNonRetryableClarifications((previous) => new Set(previous).add(clarifyTarget.id));
       const { error: updateError } = await supabase
         .from("suggested_orders")
         .update({
@@ -301,6 +299,10 @@ export default function SuggestedOrdersTab({ activeCompanies }: Props) {
         toast.error("WhatsApp send failed: " + result.error);
         return;
       }
+
+      // Provider acceptance is terminal for this UI session even if the following
+      // suggestion-status update fails. Cross-session dedupe remains Core-owned.
+      setNonRetryableClarifications((previous) => new Set(previous).add(clarifyTarget.id));
 
       const { error: updateError } = await supabase
         .from("suggested_orders")
