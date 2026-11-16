@@ -314,9 +314,6 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
         };
       });
 
-      const portalUrl = "https://b2b.oasisbaklawa.com/login";
-      const waMessage = `Salaam! Your order has been received and is being processed. Login here to track: ${portalUrl}`;
-
       // activate_company is intentionally false — the company must go through the formal
       // approval queue in Client Governance before gaining active status and portal access.
       const { data, error } = await supabase.functions.invoke("admin-create-draft", {
@@ -332,8 +329,8 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
             fssai_number: form.fssai_number || null,
             registered_address: form.registered_address || null,
           },
-          send_whatsapp_to: clientPhone.length >= 10 ? clientPhone : null,
-          whatsapp_message: clientPhone.length >= 10 ? waMessage : null,
+          // Outbound WhatsApp is a distinct protected Core command. Never
+          // infer recipient authority from the shadow-client phone field.
         },
       });
 
@@ -373,6 +370,9 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
 
       toast.success(
         `Draft SO #${data.order_id.slice(0, 8).toUpperCase()} created with ${skuItems.length} verified line(s). ${form.business_name} is now queued for governance approval in Client Governance.`,
+      );
+      toast.warning(
+        "WhatsApp not sent: recipient consent and protected notification authority are pending.",
       );
       setSaving(false); setEditingCompany(null); onRefresh();
     } catch (e: any) {
