@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyWhatsAppSendResult } from "../whatsappSendResult";
+import { classifyWhatsAppInvocationError, classifyWhatsAppSendResult } from "../whatsappSendResult";
 
 describe("WA-100 Central consumer response truth", () => {
   it("accepts an explicit Core provider acceptance without claiming delivery", () => {
@@ -29,6 +29,35 @@ describe("WA-100 Central consumer response truth", () => {
     })).toMatchObject({ success: false, acceptanceUnknown: true });
   });
 
+  it("rejects bare success without provider message ID and prohibits replay", () => {
+    expect(classifyWhatsAppSendResult({
+      success: true,
+      provider: "click2api",
+    })).toMatchObject({
+      success: false,
+      acceptanceUnknown: true,
+      error: "ACCEPTANCE_UNKNOWN",
+    });
+  });
+
+  it("treats an explicit acceptance-unknown error as ambiguous even without a flag", () => {
+    expect(classifyWhatsAppSendResult({
+      success: false,
+      error: "ACCEPTANCE_UNKNOWN",
+    })).toMatchObject({ success: false, acceptanceUnknown: true });
+  });
+
+  it.each([new Error("Failed to fetch"), null, { name: "FunctionsHttpError" }])(
+    "treats Edge Function invocation errors as ambiguous (%s)",
+    (error) => {
+      expect(classifyWhatsAppInvocationError(error)).toEqual({
+        success: false,
+        acceptanceUnknown: true,
+        error: "ACCEPTANCE_UNKNOWN",
+      });
+    },
+  );
+
   it("preserves explicit provider rejection", () => {
     expect(classifyWhatsAppSendResult({
       success: false,
@@ -44,6 +73,7 @@ describe("WA-100 Central consumer response truth", () => {
     (body) => {
       expect(classifyWhatsAppSendResult(body)).toMatchObject({
         success: false,
+        acceptanceUnknown: true,
         error: "INVALID_SEND_RESPONSE",
       });
     },
@@ -51,6 +81,6 @@ describe("WA-100 Central consumer response truth", () => {
 
   it("fails closed on successful-looking HTTP body without explicit accepted result", () => {
     expect(classifyWhatsAppSendResult({ provider: "click2api" }))
-      .toMatchObject({ success: false, error: "SEND_NOT_CONFIRMED" });
+      .toMatchObject({ success: false, acceptanceUnknown: true, error: "SEND_NOT_CONFIRMED" });
   });
 });
