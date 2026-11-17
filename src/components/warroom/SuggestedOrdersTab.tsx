@@ -323,8 +323,13 @@ export default function SuggestedOrdersTab({ activeCompanies }: Props) {
       toast.success("Clarification accepted by WhatsApp provider; delivery is not yet confirmed.");
       setRows((prev) => prev.filter((r) => r.id !== clarifyTarget.id));
       setClarifyTarget(null);
-    } catch (e: unknown) {
-      toast.error((e instanceof Error ? e.message : null) ?? "Send failed");
+    } catch (_e: unknown) {
+      // A request may have left this browser before an unexpected exception.
+      // Fail closed rather than creating a duplicate operator-originated send.
+      setNonRetryableClarifications((previous) => new Set(previous).add(clarifyTarget.id));
+      toast.warning(
+        "WhatsApp acceptance is unconfirmed. Do not resend until the provider timeline is reconciled.",
+      );
     } finally {
       clarificationInFlight.current = false;
       setClarifying(false);
