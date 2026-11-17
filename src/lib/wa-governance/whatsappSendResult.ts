@@ -14,7 +14,11 @@ export type WhatsAppSendResult = {
 
 export function classifyWhatsAppSendResult(data: unknown): WhatsAppSendResult {
   if (!data || typeof data !== "object" || Array.isArray(data)) {
-    return { success: false, error: "INVALID_SEND_RESPONSE", data };
+    return {
+      success: false,
+      acceptanceUnknown: true,
+      error: "INVALID_SEND_RESPONSE",
+    };
   }
 
   const response = data as Record<string, unknown>;
@@ -29,14 +33,28 @@ export function classifyWhatsAppSendResult(data: unknown): WhatsAppSendResult {
   }
 
   if (response.success === true) {
-    return { success: true, data };
+    // Core accepts a send only when the provider supplies a durable message ID.
+    // An unverified "success" flag must never license another send.
+    if (typeof response.messageId === "string" && response.messageId.trim()) {
+      return { success: true, data };
+    }
+    return { success: false, acceptanceUnknown: true, error: "ACCEPTANCE_UNKNOWN" };
   }
 
-  return {
-    success: false,
-    error: typeof response.error === "string" && response.error.trim()
-      ? response.error
-      : "SEND_NOT_CONFIRMED",
-    data,
-  };
+  if (response.success === false && typeof response.error === "string" &&
+      response.error.trim()) {
+    // Explicit Core rejection is distinguishable from an ambiguous transport result.
+    return { success: false, error: response.error, data };
+  }
+
+  return { success: false, acceptanceUnknown: true, error: "SEND_NOT_CONFIRMED" };
+}
+
+/**
+ * A failed invocation does not prove the provider refused the send: the
+ * network may have failed after acceptance or while serializing a response.
+ * Never make an automatic second attempt without server-side reconciliation.
+ */
+export function classifyWhatsAppInvocationError(_error: unknown): WhatsAppSendResult {
+  return { success: false, acceptanceUnknown: true, error: "ACCEPTANCE_UNKNOWN" };
 }
