@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import { classifyWhatsAppSendResult, type WhatsAppSendResult } from "@/lib/wa-governance/whatsappSendResult";
+import { classifyWhatsAppInvocationError, classifyWhatsAppSendResult, type WhatsAppSendResult } from "@/lib/wa-governance/whatsappSendResult";
 
 const PORTAL_URL = import.meta.env.VITE_B2B_PORTAL_URL || "https://b2b.oasisbaklawa.com";
 const CTA_FOOTER = `\n\nPlease login to your B2B Portal to track your 10-point artisan journey:\n${PORTAL_URL}`;
@@ -13,23 +13,28 @@ export const sendWhatsAppMessage = async (params: {
   companyId?: string;
   orderId?: string;
 }): Promise<WhatsAppSendResult> => {
-  const { data, error } = await supabase.functions.invoke("send-whatsapp", {
-    body: {
-      to: params.to,
-      message: params.message,
-      company_id: params.companyId || null,
-      order_id: params.orderId || null,
-    },
-  });
+  try {
+    const { data, error } = await supabase.functions.invoke("send-whatsapp", {
+      body: {
+        to: params.to,
+        message: params.message,
+        company_id: params.companyId || null,
+        order_id: params.orderId || null,
+      },
+    });
 
-  if (error) {
-    console.error("[WhatsApp] Send failed:", error.message);
-    return { success: false, error: error.message };
+    if (error) {
+      // The transport may have failed after provider acceptance.
+      // Do not expose a retry path until Core/provider reconciliation proves safety.
+      console.warn("[WhatsApp] Invocation failed; delivery acceptance is unknown.");
+      return classifyWhatsAppInvocationError(error);
+    }
+
+    return classifyWhatsAppSendResult(data);
+  } catch (error: unknown) {
+    console.warn("[WhatsApp] Invocation interrupted; provider acceptance unconfirmed.");
+    return classifyWhatsAppInvocationError(error);
   }
-
-  // A fulfilled HTTP request is not evidence of provider acceptance.
-  // Preserve unknown acceptance so operators do not blindly resend.
-  return classifyWhatsAppSendResult(data);
 };
 
 /**
