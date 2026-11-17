@@ -23,7 +23,7 @@ export function classifyWhatsAppSendResult(data: unknown): WhatsAppSendResult {
 
   const response = data as Record<string, unknown>;
 
-  if (response.acceptance_unknown === true) {
+  if (response.acceptance_unknown === true || response.error === "ACCEPTANCE_UNKNOWN") {
     return {
       success: false,
       acceptanceUnknown: true,
