@@ -62,6 +62,7 @@ const SalesPerformanceHub = lazy(() => import("./pages/admin/SalesPerformanceHub
 const AdminNotifications = lazy(() => import("./pages/admin/AdminNotifications.tsx"));
 const AdminMerchandising = lazy(() => import("./pages/admin/AdminMerchandising.tsx"));
 const AdminCatalogueSyncStatus = lazy(() => import("./pages/admin/AdminCatalogueSyncStatus.tsx"));
+const AdminGiftingEnquiries = lazy(() => import("./pages/admin/AdminGiftingEnquiries.tsx"));
 const ApprovalInbox = lazy(() => import("./pages/admin/ApprovalInbox.tsx"));
 const OrderManagement = lazy(() => import("./pages/admin/OrderManagement.tsx"));
 const FactoryTVModule = lazy(() => import("./components/FactoryTVModule.tsx"));
@@ -338,6 +339,7 @@ const App = () => (
                     <Route path="display-management" element={<DisplayManagement />} />
                     <Route path="merchandising" element={<AdminMerchandising />} />
                     <Route path="catalogue-sync" element={<AdminCatalogueSyncStatus />} />
+                    <Route path="gifting-enquiries" element={<AdminGiftingEnquiries />} />
                     <Route path="catalogue-approvals" element={<ApprovalInbox />} />
                     <Route path="order-management" element={<OrderManagement />} />
                     <Route
