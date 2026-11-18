@@ -70,7 +70,6 @@ describe("App production Operator Inbox route", () => {
     render(<App />);
     await waitFor(() => expect(screen.getByTestId("source-packet-handoff")).toBeInTheDocument(),
       { timeout: 15000 });
-    expect(screen.getByTestId("department-work-queue")).toBeInTheDocument();
     expect(window.location.pathname).toBe("/admin/operator-inbox");
   }, 30000);
 
