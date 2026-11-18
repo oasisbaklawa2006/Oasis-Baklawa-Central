@@ -1,5 +1,4 @@
 import { useEffect, useState, useCallback, useRef } from "react";
-import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { sendWhatsAppMessage } from "@/utils/whatsapp";
@@ -528,13 +527,9 @@ export default function SuggestedOrdersTab({ activeCompanies }: Props) {
                 {/* Primary buttons */}
                 {!isRejectOpen && (
                   <div className="flex items-center gap-2 flex-wrap">
-                    <Link
-                      to="/admin/operator-inbox"
-                      title="Confirm the customer and order lines against a verified WhatsApp conversation. This suggestion stays open for follow-up."
-                      className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
-                    >
-                      <CheckCircle2 size={11} /> Review in Operator Inbox
-                    </Link>
+                    {/* The retired War Room cannot open this handoff. The live
+                        Operator Inbox has a read-only sender/packet lookup that
+                        requires explicit packet selection before draft review. */}
 
                     {/* Request Clarification */}
                     <button
