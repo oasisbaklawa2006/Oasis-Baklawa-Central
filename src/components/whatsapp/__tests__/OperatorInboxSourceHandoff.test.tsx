@@ -74,7 +74,7 @@ describe("governed Operator Inbox source handoff", () => {
       }),
     };
     vi.mocked(supabase.from).mockImplementation((table) =>
-      (table === "whatsapp_contacts" ? contacts : packets) as unknown as ReturnType<typeof supabase.from>,
+      (String(table) === "whatsapp_contacts" ? contacts : packets) as unknown as ReturnType<typeof supabase.from>,
     );
     const results = await findOperatorInboxSourcePackets("phone", "9876543210");
     expect(contacts.in).toHaveBeenCalledWith("phone_number", expect.arrayContaining(["+919876543210"]));
