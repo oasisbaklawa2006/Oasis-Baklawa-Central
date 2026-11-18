@@ -160,7 +160,7 @@ export function OperatorInboxSourceHandoff() {
               maxLength={160}
               required
               value={source}
-              onChange={(event) => setSource(event.target.value)}
+              onChange={(event) => { setSource(event.target.value); }}
               className="h-9 rounded border border-gray-300 bg-white px-2 text-sm"
               placeholder={kind === "provider" ? "wamid…" : "+91…"}
             />
