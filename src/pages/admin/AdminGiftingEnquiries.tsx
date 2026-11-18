@@ -1,9 +1,15 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -32,36 +38,55 @@ const STATUS_LABEL: Record<GiftingEnquiryStatus, string> = {
   spam: "Spam",
 };
 
-const errorKind = (error: unknown) => (error instanceof GiftingQueueError ? error.kind : "unavailable");
+const errorKind = (error: unknown) =>
+  error instanceof GiftingQueueError ? error.kind : "unavailable";
+
+const PAGE_SIZE = 50;
 
 export default function AdminGiftingEnquiries({ client }: Props = {}) {
   const rpc = client ?? defaultGiftingQueueClient();
   const [filter, setFilter] = useState<GiftingEnquiryStatus | null>("received");
+  const [offset, setOffset] = useState(0);
+  const [reloadKey, setReloadKey] = useState(0);
   const [rows, setRows] = useState<GiftingEnquiry[] | null>(null);
-  const [failure, setFailure] = useState<"forbidden" | "unavailable" | null>(null);
+  const [failure, setFailure] = useState<"forbidden" | "unavailable" | null>(
+    null,
+  );
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  // One effect owns loading. It reads the *current* filter/offset when it starts, and the cleanup
+  // invalidates the request so a slower, obsolete response can never replace the visible view.
+  useEffect(() => {
+    let current = true;
     setRows(null);
     setFailure(null);
-    try {
-      setRows(await listGiftingEnquiries(rpc, { status: filter }));
-    } catch (error) {
-      setFailure(errorKind(error) === "forbidden" ? "forbidden" : "unavailable");
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter]);
+    listGiftingEnquiries(rpc, { status: filter, limit: PAGE_SIZE, offset })
+      .then((result) => {
+        if (current) setRows(result);
+      })
+      .catch((error) => {
+        if (current)
+          setFailure(
+            errorKind(error) === "forbidden" ? "forbidden" : "unavailable",
+          );
+      });
+    return () => {
+      current = false;
+    };
+  }, [rpc, filter, offset, reloadKey]);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const selectFilter = (next: GiftingEnquiryStatus | null) => {
+    setFilter(next);
+    setOffset(0);
+  };
+  const reload = () => setReloadKey((key) => key + 1);
 
   const change = async (row: GiftingEnquiry, status: GiftingEnquiryStatus) => {
     setBusyId(row.id);
     try {
       await setGiftingEnquiryStatus(rpc, row.id, status);
       toast.success(`Marked ${STATUS_LABEL[status].toLowerCase()}`);
-      await load();
+      reload(); // reloads whatever view is active now, not the one captured when the change began
     } catch (error) {
       toast.error(
         errorKind(error) === "forbidden"
@@ -79,17 +104,22 @@ export default function AdminGiftingEnquiries({ client }: Props = {}) {
         <CardHeader>
           <CardTitle>Gifting enquiries</CardTitle>
           <CardDescription>
-            Contact, corporate, wedding and partnership enquiries received from the Gifting website. Contains
-            personal data: administrators only. Marketing-only sign-ups never appear here.
+            Contact, corporate, wedding and partnership enquiries received from
+            the Gifting website. Contains personal data: administrators only.
+            Marketing-only sign-ups never appear here.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Filter by status">
+          <div
+            className="flex flex-wrap items-center gap-2"
+            role="group"
+            aria-label="Filter by status"
+          >
             <Button
               size="sm"
               variant={filter === null ? "default" : "outline"}
               aria-pressed={filter === null}
-              onClick={() => setFilter(null)}
+              onClick={() => selectFilter(null)}
             >
               All
             </Button>
@@ -99,12 +129,17 @@ export default function AdminGiftingEnquiries({ client }: Props = {}) {
                 size="sm"
                 variant={filter === status ? "default" : "outline"}
                 aria-pressed={filter === status}
-                onClick={() => setFilter(status)}
+                onClick={() => selectFilter(status)}
               >
                 {STATUS_LABEL[status]}
               </Button>
             ))}
-            <Button size="sm" variant="ghost" onClick={() => void load()} aria-label="Refresh">
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={reload}
+              aria-label="Refresh"
+            >
               <RefreshCw className="h-4 w-4" />
             </Button>
           </div>
@@ -116,16 +151,21 @@ export default function AdminGiftingEnquiries({ client }: Props = {}) {
           ) : failure === "unavailable" ? (
             <div role="alert" className="space-y-2 text-sm">
               <p>The enquiry queue is unavailable right now.</p>
-              <Button size="sm" variant="outline" onClick={() => void load()}>
+              <Button size="sm" variant="outline" onClick={reload}>
                 Try again
               </Button>
             </div>
           ) : rows === null ? (
-            <p className="flex items-center gap-2 text-sm text-muted-foreground" role="status">
+            <p
+              className="flex items-center gap-2 text-sm text-muted-foreground"
+              role="status"
+            >
               <Loader2 className="h-4 w-4 animate-spin" /> Loading enquiries…
             </p>
           ) : rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No enquiries in this view.</p>
+            <p className="text-sm text-muted-foreground">
+              No enquiries in this view.
+            </p>
           ) : (
             <Table>
               <TableHeader>
@@ -143,7 +183,9 @@ export default function AdminGiftingEnquiries({ client }: Props = {}) {
                   <TableRow key={row.id}>
                     <TableCell className="whitespace-nowrap text-xs">
                       {new Date(row.firstReceivedAt).toLocaleString()}
-                      {row.receiptCount > 1 ? ` · ${row.receiptCount} deliveries` : ""}
+                      {row.receiptCount > 1
+                        ? ` · ${row.receiptCount} deliveries`
+                        : ""}
                     </TableCell>
                     <TableCell className="capitalize">{row.kind}</TableCell>
                     <TableCell className="text-sm">
@@ -151,17 +193,28 @@ export default function AdminGiftingEnquiries({ client }: Props = {}) {
                       {row.company ? <div>{row.company}</div> : null}
                       {row.email ? <div>{row.email}</div> : null}
                       {row.phone ? <div>{row.phone}</div> : null}
-                      <Badge variant={row.marketingConsent ? "default" : "outline"} className="mt-1">
-                        {row.marketingConsent ? "Marketing consent" : "No marketing consent"}
+                      <Badge
+                        variant={row.marketingConsent ? "default" : "outline"}
+                        className="mt-1"
+                      >
+                        {row.marketingConsent
+                          ? "Marketing consent"
+                          : "No marketing consent"}
                       </Badge>
                     </TableCell>
-                    <TableCell className="max-w-sm whitespace-pre-wrap text-sm">{row.message ?? "—"}</TableCell>
+                    <TableCell className="max-w-sm whitespace-pre-wrap text-sm">
+                      {row.message ?? "—"}
+                    </TableCell>
                     <TableCell>
-                      <Badge variant="secondary">{STATUS_LABEL[row.status]}</Badge>
+                      <Badge variant="secondary">
+                        {STATUS_LABEL[row.status]}
+                      </Badge>
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-1">
-                        {GIFTING_ENQUIRY_STATUSES.filter((status) => status !== row.status).map((status) => (
+                        {GIFTING_ENQUIRY_STATUSES.filter(
+                          (status) => status !== row.status,
+                        ).map((status) => (
                           <Button
                             key={status}
                             size="sm"
@@ -180,6 +233,38 @@ export default function AdminGiftingEnquiries({ client }: Props = {}) {
               </TableBody>
             </Table>
           )}
+
+          {rows !== null &&
+          failure === null &&
+          (offset > 0 || rows.length === PAGE_SIZE) ? (
+            <div
+              className="flex items-center gap-2"
+              role="navigation"
+              aria-label="Pagination"
+            >
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={offset === 0}
+                onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
+              >
+                Previous
+              </Button>
+              <span className="text-xs text-muted-foreground">
+                {rows.length === 0
+                  ? `Page ${offset / PAGE_SIZE + 1}`
+                  : `Showing ${offset + 1}–${offset + rows.length}`}
+              </span>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={rows.length < PAGE_SIZE}
+                onClick={() => setOffset(offset + PAGE_SIZE)}
+              >
+                Next
+              </Button>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
     </div>
