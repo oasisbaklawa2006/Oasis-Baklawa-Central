@@ -295,7 +295,16 @@ function to91(raw: string): string {
 }
 
 function genOtp(): string {
-  return String(Math.floor(100000 + Math.random() * 900000));
+  // Rejection sampling avoids modulo bias while preserving the legacy 6-digit format.
+  const bytes = new Uint32Array(1);
+  const range = 900000;
+  const limit = Math.floor(0x100000000 / range) * range;
+  let value: number;
+  do {
+    crypto.getRandomValues(bytes);
+    value = bytes[0];
+  } while (value >= limit);
+  return String(100000 + (value % range));
 }
 
 function firstString(...values: unknown[]): string | null {
@@ -366,17 +375,12 @@ async function verifyAccessToken(accessToken: string): Promise<{ ok: boolean; ra
       body: JSON.stringify({ authkey: AUTH_KEY, "access-token": accessToken }),
     });
     const raw = (await res.json().catch(() => ({}))) as UnknownRecord;
-    console.log("[msg91-otp] verifyAccessToken response", JSON.stringify({
-      ok: res.ok,
-      status: res.status,
-      authKey: maskSecret(AUTH_KEY),
-      accessToken: maskSecret(accessToken),
-      raw,
-    }));
     const ok = res.ok && (raw.type === "success");
+    // Never log the provider response: it can contain verified identity and token data.
+    console.log("[msg91-otp] verifyAccessToken result", JSON.stringify({ ok, status: res.status }));
     return { ok, raw };
   } catch (e) {
-    console.error("[msg91] verifyAccessToken failed:", e);
+    console.error("[msg91] verifyAccessToken failed:", e instanceof Error ? e.name : "unknown");
     return { ok: false, raw: { error: e instanceof Error ? e.message : "unknown" } };
   }
 }
@@ -475,11 +479,7 @@ serve(async (req) => {
     }
 
     if (body.mode === "verify_widget") {
-      console.log("[msg91-otp] verify_widget request", JSON.stringify({
-        mode: body.mode,
-        accessToken: maskSecret(body.accessToken ?? null),
-        phone: maskSecret(body.phone ?? null),
-      }));
+      console.log("[msg91-otp] verify_widget request received");
       if (!body.accessToken) {
         return new Response(JSON.stringify({ ok: false, error: "accessToken required" }), {
           status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -569,17 +569,13 @@ serve(async (req) => {
 
       const mint = await mintMagicTokenHash(authRef.email);
       if ("error" in mint) {
-        console.error("[msg91-otp] verify_widget mint failure", JSON.stringify({ user_id: authRef.userId, error: mint.error }));
+        console.error("[msg91-otp] verify_widget mint failure", mint.error);
         return fail(mint.error, 502);
       }
 
-      console.log("[msg91-otp] verify_widget response", JSON.stringify({
-        ok: true,
-        type: "success",
-        user_id: authRef.userId,
+      console.log("[msg91-otp] verify_widget completed", JSON.stringify({
         is_new: isNew,
         approved_b2b_pending_claim: approvedB2bPendingClaim,
-        token_hash: maskSecret(mint.tokenHash),
       }));
       return new Response(
         JSON.stringify({
