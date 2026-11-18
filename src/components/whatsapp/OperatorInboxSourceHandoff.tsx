@@ -61,10 +61,12 @@ export async function findOperatorInboxSourcePackets(
     }));
   }
 
+  // Validate before constructing any query; malformed input must not touch customer data.
+  const candidates = phoneVariants(source);
   const { data: contacts, error: contactError } = await supabase
     .from("whatsapp_contacts")
     .select("id,phone_number,customer_name")
-    .in("phone_number", phoneVariants(source))
+    .in("phone_number", candidates)
     .limit(MAX_MATCHES);
   if (contactError) throw contactError;
   if (!contacts?.length) return [];
