@@ -11,9 +11,8 @@ import {
   type FinanceExitFacts,
 } from "@/lib/order-authority/financeExitAuthorityClient";
 import {
-  DispatchCustomerCommunicationError,
   assessDispatchCustomerCommunicationEligibility,
-  getDispatchCustomerCommunicationSessionStatus,
+  DISPATCH_WHATSAPP_COMMISSIONED,
   recordGovernedCustomerDispatchCommunication,
 } from "@/lib/order-authority/dispatchCustomerCommunicationClient";
 import { escapeGateBarcodeIlikeLiteral, gateScanCorrelationId, matchUniqueCaseInsensitiveGateCarton } from "@/utils/gateScanEvidence";
@@ -206,12 +205,15 @@ const AdminB2bSecurityGate = () => {
       : { bg: "bg-slate-950", text: "text-slate-300", Icon: ScanLine, title: "SCAN B2B CARTON" };
 
   const sendCustomerDispatchCommunication = async () => {
+    if (!DISPATCH_WHATSAPP_COMMISSIONED) {
+      toast.warning("Customer WhatsApp not sent: recipient and durable receipt authority are pending.");
+      return;
+    }
     if (!user?.id) {
       toast.error("Authenticated gate actor required");
       return;
     }
     const orderId = evidenceOrder();
-    if (getDispatchCustomerCommunicationSessionStatus(orderId)) return;
     setCustomerCommProcessing(true);
     try {
       const result = await recordGovernedCustomerDispatchCommunication({
@@ -225,19 +227,14 @@ const AdminB2bSecurityGate = () => {
           : "Governed customer dispatch communication sent",
       );
     } catch (error) {
-      if (error instanceof DispatchCustomerCommunicationError && error.acceptanceUnknown) {
-        toast.warning(error.message);
-      } else {
-        toast.error(error instanceof Error ? error.message : "Customer dispatch communication failed");
-      }
+      toast.error(error instanceof Error ? error.message : "Customer dispatch communication failed");
     } finally {
       setCustomerCommProcessing(false);
     }
   };
 
   const communicationEligibility = assessDispatchCustomerCommunicationEligibility(handoffFacts);
-  const dispatchCommunicationSessionStatus = getDispatchCustomerCommunicationSessionStatus(evidenceOrderId);
-  const roadCredentialsRequired = transportMode === "ROAD";
+   const roadCredentialsRequired = transportMode === "ROAD";
   const vehicleRequired = roadCredentialsRequired || transportMode === "CUSTOMER_PICKUP";
 
   return (
@@ -303,26 +300,20 @@ const AdminB2bSecurityGate = () => {
               <p className="mt-2 text-slate-300">Invoice: {handoffFacts.invoiceNumber ?? "—"} · {handoffFacts.invoiceDate ?? "—"}</p>
               <p className="mt-1 text-slate-300">Ticket deadline: {deadlineLabel(handoffFacts.complaintDeadline)}</p>
               <p className="mt-1 text-slate-300">Window: {handoffFacts.complaintWindowOpen ? "OPEN" : "EXPIRED"}</p>
-              {customerCommComplete || dispatchCommunicationSessionStatus === "accepted" ? (
+              {customerCommComplete ? (
                 <p className="mt-2 text-emerald-300">Governed customer dispatch communication recorded. Complaint window remains anchored to final invoice date.</p>
-              ) : dispatchCommunicationSessionStatus === "acceptance_unknown" ? (
-                <p role="status" className="mt-2 text-amber-300">
-                  WhatsApp acceptance is unconfirmed. Do not resend until the provider timeline is reconciled.
-                </p>
-              ) : dispatchCommunicationSessionStatus === "in_flight" ? (
-                <p role="status" className="mt-2 text-amber-300">
-                  Customer dispatch communication is still in progress. Do not start another send.
-                </p>
               ) : (
                 <>
                   <p className="mt-2 text-amber-300">
-                    {communicationEligibility.reason ?? "Send governed dispatch notification to open the customer communication thread."}
+                    {!DISPATCH_WHATSAPP_COMMISSIONED
+                      ? "WhatsApp dispatch notice not sent: recipient consent, durable receipt and protected release are pending. Physical gate proof remains independently valid."
+                      : (communicationEligibility.reason ?? "Send governed dispatch notification to open the customer communication thread.")}
                   </p>
                   <button
                     type="button"
                     data-testid="macro-security-gate-customer-comm"
                     onClick={() => { void sendCustomerDispatchCommunication(); }}
-                    disabled={customerCommProcessing || !!dispatchCommunicationSessionStatus || !communicationEligibility.eligible}
+                    disabled={customerCommProcessing || !communicationEligibility.eligible || !DISPATCH_WHATSAPP_COMMISSIONED}
                     className="mt-3 w-full rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold disabled:opacity-50"
                   >
                     {customerCommProcessing && <Loader2 className="mr-2 inline h-4 w-4 animate-spin" />}
