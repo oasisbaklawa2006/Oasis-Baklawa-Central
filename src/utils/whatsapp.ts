@@ -24,8 +24,15 @@ export const sendWhatsAppMessage = async (params: {
     });
 
     if (error) {
-      // The transport may have failed after provider acceptance.
-      // Do not expose a retry path until Core/provider reconciliation proves safety.
+      const response = (error as { context?: unknown }).context;
+      if (response instanceof Response) {
+        try {
+          const result = classifyWhatsAppSendResult(await response.clone().json());
+          if (!result.success && !result.acceptanceUnknown) return result;
+        } catch {
+          // An unreadable error response cannot establish provider rejection.
+        }
+      }
       console.warn("[WhatsApp] Invocation failed; delivery acceptance is unknown.");
       return await classifyWhatsAppInvocationError(error);
     }
