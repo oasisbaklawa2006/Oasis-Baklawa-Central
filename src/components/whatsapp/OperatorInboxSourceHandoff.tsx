@@ -1,4 +1,4 @@
-import { useRef, useState, type FormEvent } from "react";
+import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchPacketById } from "@/components/whatsapp/operatorInboxPacketsLoader";
@@ -99,6 +99,10 @@ export function OperatorInboxSourceHandoff() {
   const [busy, setBusy] = useState(false);
   const request = useRef(0);
 
+  const changeSource = (event: ChangeEvent<HTMLInputElement>) => {
+    setSource(event.target.value);
+  };
+
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const sequence = ++request.current;
@@ -160,9 +164,7 @@ export function OperatorInboxSourceHandoff() {
               maxLength={160}
               required
               value={source}
-              onChange={(event) => {
-                setSource(event.target.value);
-              }}
+              onChange={changeSource}
               className="h-9 rounded border border-gray-300 bg-white px-2 text-sm"
               placeholder={kind === "provider" ? "wamid…" : "+91…"}
             />
