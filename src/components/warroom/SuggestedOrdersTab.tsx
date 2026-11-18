@@ -105,6 +105,18 @@ function buildClarificationTemplate(row: SuggestedOrder, items: ExtractedItem[])
   ].join("\n");
 }
 
+/* ─── session guard ─── */
+
+// Module-scoped so a blocked clarification stays blocked after this tab unmounts
+// (e.g. navigating to /admin/operator-inbox and back). Cleared on full page reload.
+// Volatile UI-session protection only; cross-session safety requires Core event keys.
+const sessionBlockedClarifications = new Set<string>();
+
+function blockClarificationForSession(id: string): Set<string> {
+  sessionBlockedClarifications.add(id);
+  return new Set(sessionBlockedClarifications);
+}
+
 /* ─── component ─── */
 
 export default function SuggestedOrdersTab({ activeCompanies }: Props) {
@@ -126,7 +138,7 @@ export default function SuggestedOrdersTab({ activeCompanies }: Props) {
   const [clarifying, setClarifying] = useState(false);
   // Volatile protection only. Cross-session safety requires Core event keys.
   const [nonRetryableClarifications, setNonRetryableClarifications] = useState<Set<string>>(
-    () => new Set(),
+    () => new Set(sessionBlockedClarifications),
   );
   const clarificationInFlight = useRef(false);
 
@@ -213,7 +225,7 @@ export default function SuggestedOrdersTab({ activeCompanies }: Props) {
 
       if (!result.success) {
         if (result.acceptanceUnknown) {
-          setNonRetryableClarifications((previous) => new Set(previous).add(clarifyTarget.id));
+          setNonRetryableClarifications(() => blockClarificationForSession(clarifyTarget.id));
           toast.warning(
             "WhatsApp acceptance is unconfirmed. Do not resend until the provider timeline is reconciled.",
           );
@@ -225,7 +237,7 @@ export default function SuggestedOrdersTab({ activeCompanies }: Props) {
 
       // Provider acceptance is terminal for this UI session even if the following
       // suggestion-status update fails. Cross-session dedupe remains Core-owned.
-      setNonRetryableClarifications((previous) => new Set(previous).add(clarifyTarget.id));
+      setNonRetryableClarifications(() => blockClarificationForSession(clarifyTarget.id));
 
       const { error: updateError } = await supabase
         .from("suggested_orders")
@@ -249,7 +261,7 @@ export default function SuggestedOrdersTab({ activeCompanies }: Props) {
     } catch (_e: unknown) {
       // A request may have left this browser before an unexpected exception.
       // Fail closed rather than creating a duplicate operator-originated send.
-      setNonRetryableClarifications((previous) => new Set(previous).add(clarifyTarget.id));
+      setNonRetryableClarifications(() => blockClarificationForSession(clarifyTarget.id));
       toast.warning(
         "WhatsApp acceptance is unconfirmed. Do not resend until the provider timeline is reconciled.",
       );

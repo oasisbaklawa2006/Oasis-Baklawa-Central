@@ -28,4 +28,11 @@ describe("WA-3 executable ambiguity guards", () => {
     expect(source).not.toMatch(/admin-create-draft|createSalesOrderDraft|create_sales_order_draft_atomic/);
     expect(source).not.toMatch(/quantity\s*:\s*[^,\n]*\?\?\s*1\b/);
   });
+
+  it("keeps accepted/unknown clarification sends blocked across tab remounts", () => {
+    // Module-scoped set survives unmount (Operator Inbox round trip); component state alone does not.
+    expect(suggested).toMatch(/^const sessionBlockedClarifications = new Set<string>\(\);/m);
+    expect(suggested).toContain("useState<Set<string>>(\n    () => new Set(sessionBlockedClarifications),");
+    expect(suggested).not.toContain("new Set(previous).add(clarifyTarget.id)");
+  });
 });
