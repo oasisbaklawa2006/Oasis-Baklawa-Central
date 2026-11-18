@@ -101,6 +101,7 @@ describe("governed Operator Inbox source handoff", () => {
     });
 
     render(<MemoryRouter><OperatorInboxSourceHandoff /></MemoryRouter>);
+    fireEvent.click(screen.getByText("Find a conversation without a department task"));
     fireEvent.change(screen.getByRole("textbox", { name: "Exact provider message ID" }), {
       target: { value: "wamid.test.123" },
     });
