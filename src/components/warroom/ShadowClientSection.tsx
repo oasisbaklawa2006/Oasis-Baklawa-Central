@@ -252,8 +252,8 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
       toast.info("No sales-order draft was created. No WhatsApp message was sent.");
       setSaving(false); setEditingCompany(null); onRefresh();
     } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : isRecord(e) && typeof e.message === "string" ? e.message : "Unknown error";
-      toast.error("Operation failed: " + message);
+      const message = isRecord(e) && typeof e.message === "string" ? e.message.trim() : "";
+      toast.error("Operation failed: " + (message || "Unknown error"));
       setSaving(false);
     }
   };

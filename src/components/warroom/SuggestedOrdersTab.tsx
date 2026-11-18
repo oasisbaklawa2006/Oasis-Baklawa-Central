@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react";
+import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { sendWhatsAppMessage } from "@/utils/whatsapp";
@@ -113,7 +114,6 @@ export default function SuggestedOrdersTab({ activeCompanies }: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   // Promote state
-  const [promoting, setPromoting] = useState<string | null>(null);
 
   // Reject state
   const [rejectTarget, setRejectTarget] = useState<string | null>(null);
@@ -154,83 +154,6 @@ export default function SuggestedOrdersTab({ activeCompanies }: Props) {
       if (next.has(id)) { next.delete(id); } else { next.add(id); }
       return next;
     });
-
-  /* ─── Promote to Draft SO ─── */
-  const handlePromote = async (row: SuggestedOrder) => {
-    if (!row.matched_company_id) {
-      toast.error("No matched client. Triage this sender in Shadow Leads first.");
-      return;
-    }
-
-    // Governance gate: company must be active
-    // Governance gate: matched_company_id must appear in the activeCompanies list
-    // (CMDWarRoom only fetches companies with status='active'). If not found, the
-    // company is not yet active — it may be pending_approval or shadow.
-    const company = activeCompanies.find((c) => c.id === row.matched_company_id);
-    if (!company) {
-      toast.error(
-        "Cannot create Draft SO. The matched client is not active. Complete approval in Client Governance first.",
-      );
-      return;
-    }
-
-    setPromoting(row.id);
-    try {
-      const items = parseItems(row.extracted_items);
-      if (items.length === 0) {
-        toast.error("Clarification required: no complete order lines were extracted.");
-        return;
-      }
-      const unresolved = items.filter((item) => item.quantity == null || item.quantity <= 0 || !item.unit);
-      if (unresolved.length > 0) {
-        toast.error("Clarification required: confirm quantity and unit for every item before creating a draft.");
-        return;
-      }
-      const skuItems = items.map((i) => ({
-        name: i.product_name,
-        quantity: i.quantity,
-        unit: i.unit,
-        confidence: row.ai_confidence ?? 0.5,
-      }));
-
-      const { data, error } = await supabase.functions.invoke("admin-create-draft", {
-        body: {
-          company_id: row.matched_company_id,
-          sku_items: skuItems,
-          activate_company: false,
-        },
-      });
-
-      if (error || !data?.ok) {
-        toast.error("Draft SO failed: " + (data?.error || error?.message || "Unknown error"));
-        return;
-      }
-
-      const { error: updateError } = await supabase
-        .from("suggested_orders")
-        .update({
-          status: "confirmed",
-          promoted_order_id: data.order_id,
-          reviewed_at: new Date().toISOString(),
-          reviewed_by: user?.id ?? null,
-        } as Parameters<ReturnType<typeof supabase.from>["update"]>[0])
-        .eq("id", row.id);
-
-      if (updateError) {
-        toast.error("Draft SO was created but updating the suggestion failed: " + updateError.message);
-        return;
-      }
-
-      toast.success(
-        `Draft SO #${data.order_id.slice(0, 8).toUpperCase()} created. Review in Live Battlefield.`,
-      );
-      setRows((prev) => prev.filter((r) => r.id !== row.id));
-    } catch (e: unknown) {
-      toast.error((e instanceof Error ? e.message : null) ?? "Promote failed");
-    } finally {
-      setPromoting(null);
-    }
-  };
 
   /* ─── Reject ─── */
   const handleReject = async (row: SuggestedOrder) => {
@@ -562,26 +485,13 @@ export default function SuggestedOrdersTab({ activeCompanies }: Props) {
                 {/* Primary buttons */}
                 {!isRejectOpen && (
                   <div className="flex items-center gap-2 flex-wrap">
-                    {/* Promote */}
-                    <button
-                      onClick={() => handlePromote(row)}
-                      disabled={promoting === row.id}
-                      title={
-                        !row.matched_company_id
-                          ? "No matched client — triage in Shadow Leads first"
-                          : !matchedCompany
-                          ? "Client not yet active — approve in Client Governance first"
-                          : "Create Draft SO in Live Battlefield"
-                      }
-                      className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                    <Link
+                      to="/admin/operator-inbox"
+                      title="Confirm the customer and order lines against a verified WhatsApp conversation. This suggestion stays open for follow-up."
+                      className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
                     >
-                      {promoting === row.id ? (
-                        <Loader2 size={11} className="animate-spin" />
-                      ) : (
-                        <CheckCircle2 size={11} />
-                      )}
-                      Promote to Draft SO
-                    </button>
+                      <CheckCircle2 size={11} /> Review in Operator Inbox
+                    </Link>
 
                     {/* Request Clarification */}
                     <button

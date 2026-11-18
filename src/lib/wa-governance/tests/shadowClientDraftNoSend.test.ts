@@ -78,6 +78,7 @@ describe("WA-100 Shadow Client approval and draft handoff", () => {
     await openTriage();
     expect(screen.getByRole("link", { name: "Operator Inbox" })).toHaveAttribute("href", "/admin/operator-inbox");
     expect(screen.getByText(/confirm the customer and order lines/)).toHaveTextContent("If only debug history is available");
+    vi.mocked(supabase.from).mockClear();
     fireEvent.click(screen.getByRole("button", { name: "Queue Client for Approval" }));
 
     expect(supabase.rpc).toHaveBeenCalledExactlyOnceWith("queue_whatsapp_shadow_client_for_approval_v1", {
@@ -94,13 +95,14 @@ describe("WA-100 Shadow Client approval and draft handoff", () => {
     expect(toast.error).not.toHaveBeenCalled();
     expect(onRefresh).toHaveBeenCalledOnce();
     expect(supabase.functions.invoke).not.toHaveBeenCalled();
-    expect(supabase.from).not.toHaveBeenCalledWith("whatsapp_message");
+    expect(supabase.from).not.toHaveBeenCalled();
   });
 
   it.each([
     { error: new Error("Update failed"), message: "Update failed" },
     { error: { message: "Permission denied" }, message: "Permission denied" },
-    { error: { message: "" }, message: "" },
+    { error: { message: "" }, message: "Unknown error" },
+    { error: { message: "  " }, message: "Unknown error" },
     { error: { message: 42 }, message: "Unknown error" },
     { error: {}, message: "Unknown error" },
     { error: "Unexpected response", message: "Unknown error" },
