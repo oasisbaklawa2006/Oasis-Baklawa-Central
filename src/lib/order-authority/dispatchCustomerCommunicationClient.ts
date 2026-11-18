@@ -3,10 +3,19 @@ import { sendDispatchAlert } from "@/utils/whatsapp";
 import { getFinanceExitFacts, type FinanceExitFacts } from "./financeExitAuthorityClient";
 
 export class DispatchCustomerCommunicationError extends Error {
-  constructor(message: string) {
+  constructor(message: string, readonly acceptanceUnknown = false) {
     super(message);
     this.name = "DispatchCustomerCommunicationError";
   }
+}
+
+type DispatchCommunicationSessionStatus = "in_flight" | "accepted" | "acceptance_unknown";
+const dispatchCommunicationSession = new Map<string, DispatchCommunicationSessionStatus>();
+
+export function getDispatchCustomerCommunicationSessionStatus(
+  orderId: string,
+): DispatchCommunicationSessionStatus | null {
+  return dispatchCommunicationSession.get(orderId) ?? null;
 }
 
 export type DispatchCustomerCommunicationEligibility = {
@@ -115,8 +124,8 @@ export async function recordGovernedCustomerDispatchCommunication(input: {
     throw new DispatchCustomerCommunicationError(eligibility.reason ?? "Dispatch communication is not eligible");
   }
 
-  const alreadyRecorded = await hasExistingDispatchCommunication(facts.companyId, orderId);
-  if (alreadyRecorded) {
+  const sessionStatus = dispatchCommunicationSession.get(orderId);
+  if (sessionStatus === "accepted") {
     return {
       success: true,
       orderId,
@@ -126,27 +135,72 @@ export async function recordGovernedCustomerDispatchCommunication(input: {
       alreadyRecorded: true,
     };
   }
-
-  const contact = await loadCompanyContact(orderId);
-  const result = await sendDispatchAlert({
-    phone: contact.phone,
-    companyId: contact.companyId,
-    companyName: contact.companyName,
-    orderId,
-    trackingNumber: input.trackingNumber?.trim() || undefined,
-    invoiceUrl: input.invoiceUrl?.trim() || undefined,
-  });
-
-  if (!result.success) {
-    throw new DispatchCustomerCommunicationError(result.error ?? "WhatsApp dispatch communication failed");
+  if (sessionStatus) {
+    throw new DispatchCustomerCommunicationError(
+      sessionStatus === "acceptance_unknown"
+        ? "WhatsApp acceptance is unconfirmed. Do not retry until the provider timeline is reconciled."
+        : "A WhatsApp dispatch request is already in progress. Do not start another send.",
+      true,
+    );
   }
 
-  return {
-    success: true,
-    orderId,
-    companyId: contact.companyId,
-    complaintWindowOpen: facts.complaintWindowOpen,
-    complaintDeadline: facts.complaintDeadline,
-    alreadyRecorded: false,
-  };
+  dispatchCommunicationSession.set(orderId, "in_flight");
+  try {
+    const alreadyRecorded = await hasExistingDispatchCommunication(facts.companyId, orderId);
+    if (alreadyRecorded) {
+      dispatchCommunicationSession.set(orderId, "accepted");
+      return {
+        success: true,
+        orderId,
+        companyId: facts.companyId,
+        complaintWindowOpen: facts.complaintWindowOpen,
+        complaintDeadline: facts.complaintDeadline,
+        alreadyRecorded: true,
+      };
+    }
+
+    const contact = await loadCompanyContact(orderId);
+    let result: Awaited<ReturnType<typeof sendDispatchAlert>>;
+    try {
+      result = await sendDispatchAlert({
+        phone: contact.phone,
+        companyId: contact.companyId,
+        companyName: contact.companyName,
+        orderId,
+        trackingNumber: input.trackingNumber?.trim() || undefined,
+        invoiceUrl: input.invoiceUrl?.trim() || undefined,
+      });
+    } catch {
+      dispatchCommunicationSession.set(orderId, "acceptance_unknown");
+      throw new DispatchCustomerCommunicationError(
+        "WhatsApp acceptance is unconfirmed. Do not retry until the provider timeline is reconciled.",
+        true,
+      );
+    }
+
+    if (!result.success) {
+      if (result.acceptanceUnknown) {
+        dispatchCommunicationSession.set(orderId, "acceptance_unknown");
+        throw new DispatchCustomerCommunicationError(
+          "WhatsApp acceptance is unconfirmed. Do not retry until the provider timeline is reconciled.",
+          true,
+        );
+      }
+      throw new DispatchCustomerCommunicationError(result.error ?? "WhatsApp dispatch communication failed");
+    }
+
+    dispatchCommunicationSession.set(orderId, "accepted");
+    return {
+      success: true,
+      orderId,
+      companyId: contact.companyId,
+      complaintWindowOpen: facts.complaintWindowOpen,
+      complaintDeadline: facts.complaintDeadline,
+      alreadyRecorded: false,
+    };
+  } finally {
+    if (dispatchCommunicationSession.get(orderId) === "in_flight") {
+      dispatchCommunicationSession.delete(orderId);
+    }
+  }
 }

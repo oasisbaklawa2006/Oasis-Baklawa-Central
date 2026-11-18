@@ -55,6 +55,21 @@ export function classifyWhatsAppSendResult(data: unknown): WhatsAppSendResult {
  * network may have failed after acceptance or while serializing a response.
  * Never make an automatic second attempt without server-side reconciliation.
  */
-export function classifyWhatsAppInvocationError(_error: unknown): WhatsAppSendResult {
+export async function classifyWhatsAppInvocationError(error: unknown): Promise<WhatsAppSendResult> {
+  const context = error && typeof error === "object"
+    ? (error as { context?: unknown }).context
+    : undefined;
+
+  if (context && typeof context === "object" &&
+      typeof (context as { clone?: unknown }).clone === "function") {
+    try {
+      const body = await (context as Response).clone().json();
+      const result = classifyWhatsAppSendResult(body);
+      if (!result.success && !result.acceptanceUnknown && result.error) return result;
+    } catch {
+      // An unreadable or malformed error body cannot establish provider rejection.
+    }
+  }
+
   return { success: false, acceptanceUnknown: true, error: "ACCEPTANCE_UNKNOWN" };
 }

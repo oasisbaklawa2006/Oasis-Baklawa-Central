@@ -108,6 +108,35 @@ describe("governed Operator Inbox source handoff", () => {
     fireEvent.click(screen.getByRole("button", { name: "Find packets" }));
     await waitFor(() => expect(screen.getByRole("link", { name: "Review this packet" }))
       .toHaveAttribute("href", `/admin/operator-inbox?packet=${PACKET}`));
+    fireEvent.change(screen.getByRole("textbox", { name: "Exact provider message ID" }), {
+      target: { value: "wamid.test.other" },
+    });
+    expect(screen.queryByRole("link", { name: "Review this packet" })).not.toBeInTheDocument();
+  });
+
+  it("discards an outstanding lookup after the source text changes", async () => {
+    let resolveLookup: ((value: { data: { packet_id: string }[]; error: null }) => void) | undefined;
+    const query = {
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      limit: vi.fn(() => new Promise<{ data: { packet_id: string }[]; error: null }>((resolve) => {
+        resolveLookup = resolve;
+      })),
+    };
+    vi.mocked(supabase.from).mockReturnValue(query as unknown as ReturnType<typeof supabase.from>);
+
+    render(<MemoryRouter><OperatorInboxSourceHandoff /></MemoryRouter>);
+    fireEvent.click(screen.getByText("Find a conversation without a department task"));
+    const sourceInput = screen.getByRole("textbox", { name: "Exact provider message ID" });
+    fireEvent.change(sourceInput, { target: { value: "wamid.source-a" } });
+    fireEvent.click(screen.getByRole("button", { name: "Find packets" }));
+    await waitFor(() => expect(query.limit).toHaveBeenCalledOnce());
+    fireEvent.change(sourceInput, { target: { value: "wamid.source-b" } });
+    resolveLookup?.({ data: [{ packet_id: PACKET }], error: null });
+
+    await waitFor(() => expect(fetchPacketById).toHaveBeenCalledWith(PACKET));
+    expect(screen.queryByRole("link", { name: "Review this packet" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Find packets" })).toBeEnabled();
   });
 
   it("fails closed for invalid phone input and does not query customer data", async () => {

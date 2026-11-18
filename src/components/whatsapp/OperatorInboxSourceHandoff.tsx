@@ -100,7 +100,12 @@ export function OperatorInboxSourceHandoff() {
   const request = useRef(0);
 
   const changeSource = (event: ChangeEvent<HTMLInputElement>) => {
+    request.current++;
     setSource(event.target.value);
+    setResults([]);
+    setError(null);
+    setSearched(false);
+    setBusy(false);
   };
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {

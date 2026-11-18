@@ -49,14 +49,46 @@ describe("WA-100 Central consumer response truth", () => {
 
   it.each([new Error("Failed to fetch"), null, { name: "FunctionsHttpError" }])(
     "treats Edge Function invocation errors as ambiguous (%s)",
-    (error) => {
-      expect(classifyWhatsAppInvocationError(error)).toEqual({
+    async (error) => {
+      await expect(classifyWhatsAppInvocationError(error)).resolves.toEqual({
         success: false,
         acceptanceUnknown: true,
         error: "ACCEPTANCE_UNKNOWN",
       });
     },
   );
+
+  it("preserves an explicit rejection from a FunctionsHttpError response body", async () => {
+    const error = Object.assign(new Error("Edge Function returned a non-2xx status code"), {
+      name: "FunctionsHttpError",
+      context: new Response(JSON.stringify({
+        success: false,
+        error: "PROVIDER_MESSAGE_REJECTED",
+      }), { status: 422, headers: { "Content-Type": "application/json" } }),
+    });
+
+    await expect(classifyWhatsAppInvocationError(error)).resolves.toMatchObject({
+      success: false,
+      error: "PROVIDER_MESSAGE_REJECTED",
+    });
+  });
+
+  it("keeps an acceptance-unknown FunctionsHttpError body non-retryable", async () => {
+    const error = Object.assign(new Error("Edge Function returned a non-2xx status code"), {
+      name: "FunctionsHttpError",
+      context: new Response(JSON.stringify({
+        success: false,
+        acceptance_unknown: true,
+        error: "ACCEPTANCE_UNKNOWN",
+      }), { status: 502, headers: { "Content-Type": "application/json" } }),
+    });
+
+    await expect(classifyWhatsAppInvocationError(error)).resolves.toMatchObject({
+      success: false,
+      acceptanceUnknown: true,
+      error: "ACCEPTANCE_UNKNOWN",
+    });
+  });
 
   it("preserves explicit provider rejection", () => {
     expect(classifyWhatsAppSendResult({
