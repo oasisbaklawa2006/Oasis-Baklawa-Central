@@ -111,6 +111,8 @@ function buildClarificationTemplate(row: SuggestedOrder, items: ExtractedItem[])
 // (e.g. navigating to /admin/operator-inbox and back). Cleared on full page reload.
 // Volatile UI-session protection only; cross-session safety requires Core event keys.
 const sessionBlockedClarifications = new Set<string>();
+// Confirmed provider acceptance permits status-only recovery, never a resend.
+const sessionAcceptedClarifications = new Set<string>();
 
 function blockClarificationForSession(id: string): Set<string> {
   sessionBlockedClarifications.add(id);
@@ -198,8 +200,8 @@ export default function SuggestedOrdersTab({ activeCompanies }: Props) {
 
   /* ─── Open clarification dialog ─── */
   const openClarify = (row: SuggestedOrder) => {
-    if (nonRetryableClarifications.has(row.id)) {
-      toast.warning("This message may already be accepted. Reconcile its provider status before another send.");
+    if (nonRetryableClarifications.has(row.id) && !sessionAcceptedClarifications.has(row.id)) {
+      toast.warning("WhatsApp acceptance is unconfirmed. Reconcile the provider timeline before any resend.");
       return;
     }
     const items = parseItems(row.extracted_items);
@@ -207,16 +209,51 @@ export default function SuggestedOrdersTab({ activeCompanies }: Props) {
     setClarifyMessage(buildClarificationTemplate(row, items));
   };
 
+  // Retry only the local status transition after a confirmed provider acceptance.
+  const persistAcceptedClarification = async (target: SuggestedOrder) => {
+    try {
+      const { error: updateError } = await supabase
+        .from("suggested_orders")
+        .update({
+          status: "needs_clarification",
+          reviewed_at: new Date().toISOString(),
+          reviewed_by: user?.id ?? null,
+        } as Parameters<ReturnType<typeof supabase.from>["update"]>[0])
+        .eq("id", target.id);
+
+      if (updateError) {
+        toast.error("Provider accepted the message, but saving the suggestion failed: " +
+          updateError.message + ". Retry the status update only; do not resend.");
+        return;
+      }
+
+      toast.success("Provider accepted the clarification; suggestion updated. Delivery is not yet confirmed.");
+      setRows((prev) => prev.filter((r) => r.id !== target.id));
+      setClarifyTarget((current) => current?.id === target.id ? null : current);
+    } catch (error: unknown) {
+      const reason = error instanceof Error ? error.message : "Unknown error";
+      toast.error("Provider accepted the message, but saving the suggestion failed: " +
+        reason + ". Retry the status update only; do not resend.");
+    }
+  };
+
   /* ─── Send clarification (operator-confirmed) ─── */
   const handleSendClarification = async () => {
     if (
       !clarifyTarget ||
       clarificationInFlight.current ||
-      nonRetryableClarifications.has(clarifyTarget.id)
+      (nonRetryableClarifications.has(clarifyTarget.id) &&
+        !sessionAcceptedClarifications.has(clarifyTarget.id))
     ) return;
     clarificationInFlight.current = true;
     setClarifying(true);
     try {
+      if (sessionAcceptedClarifications.has(clarifyTarget.id)) {
+        // Confirmed acceptance: retry the status update without another send.
+        await persistAcceptedClarification(clarifyTarget);
+        return;
+      }
+
       const result = await sendWhatsAppMessage({
         to: clarifyTarget.sender_phone,
         message: clarifyMessage,
@@ -235,29 +272,10 @@ export default function SuggestedOrdersTab({ activeCompanies }: Props) {
         return;
       }
 
-      // Provider acceptance is terminal for this UI session even if the following
-      // suggestion-status update fails. Cross-session dedupe remains Core-owned.
+      // Preserve confirmed acceptance even when the local status update fails.
+      sessionAcceptedClarifications.add(clarifyTarget.id);
       setNonRetryableClarifications(() => blockClarificationForSession(clarifyTarget.id));
-
-      const { error: updateError } = await supabase
-        .from("suggested_orders")
-        .update({
-          status: "needs_clarification",
-          reviewed_at: new Date().toISOString(),
-          reviewed_by: user?.id ?? null,
-        } as Parameters<ReturnType<typeof supabase.from>["update"]>[0])
-        .eq("id", clarifyTarget.id);
-
-      if (updateError) {
-        toast.error(
-          "Message was sent but updating the suggestion failed: " + updateError.message,
-        );
-        return;
-      }
-
-      toast.success("Clarification accepted by WhatsApp provider; delivery is not yet confirmed.");
-      setRows((prev) => prev.filter((r) => r.id !== clarifyTarget.id));
-      setClarifyTarget(null);
+      await persistAcceptedClarification(clarifyTarget);
     } catch (_e: unknown) {
       // A request may have left this browser before an unexpected exception.
       // Fail closed rather than creating a duplicate operator-originated send.
@@ -510,7 +528,7 @@ export default function SuggestedOrdersTab({ activeCompanies }: Props) {
                       onClick={() => openClarify(row)}
                       className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-md border border-border text-foreground hover:bg-muted transition-colors"
                     >
-                      <MessageSquare size={11} /> Request Clarification
+                      <MessageSquare size={11} /> {sessionAcceptedClarifications.has(row.id) ? "Retry status update only" : "Request Clarification"}
                     </button>
 
                     {/* Reject */}
@@ -552,19 +570,24 @@ export default function SuggestedOrdersTab({ activeCompanies }: Props) {
               {/* Editable message */}
               <div className="space-y-1.5">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                  Message — review and edit before sending
+                  {clarifyTarget && sessionAcceptedClarifications.has(clarifyTarget.id)
+                    ? "Previously accepted message — sending disabled"
+                    : "Message — review and edit before sending"}
                 </p>
                 <textarea
                   rows={10}
                   value={clarifyMessage}
                   onChange={(e) => setClarifyMessage(e.target.value)}
+                  disabled={!!clarifyTarget && sessionAcceptedClarifications.has(clarifyTarget.id)}
                   className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground leading-relaxed resize-none focus:outline-none focus:ring-1 focus:ring-ring"
                 />
               </div>
 
               <p className="text-[10px] text-muted-foreground">
-                This message will be sent via WhatsApp and logged to the client interaction timeline.
-                The suggestion will be marked <span className="font-semibold">Needs Clarification</span> and removed from this queue.
+                {clarifyTarget && sessionAcceptedClarifications.has(clarifyTarget.id)
+                  ? "Provider acceptance is already confirmed. This action retries only the suggestion status update; it never sends another WhatsApp message."
+                  : <>This message will be sent via WhatsApp and logged to the client interaction timeline.
+                      The suggestion will be marked <span className="font-semibold">Needs Clarification</span> and removed from this queue.</>}
               </p>
             </div>
           )}
@@ -579,8 +602,10 @@ export default function SuggestedOrdersTab({ activeCompanies }: Props) {
             </Button>
             <Button
               onClick={handleSendClarification}
-              disabled={clarifying || !clarifyMessage.trim() ||
-                nonRetryableClarifications.has(clarifyTarget?.id ?? "")}
+              disabled={clarifying ||
+                (!sessionAcceptedClarifications.has(clarifyTarget?.id ?? "") && !clarifyMessage.trim()) ||
+                (nonRetryableClarifications.has(clarifyTarget?.id ?? "") &&
+                  !sessionAcceptedClarifications.has(clarifyTarget?.id ?? ""))}
               className="gap-1.5"
             >
               {clarifying ? (
@@ -588,7 +613,7 @@ export default function SuggestedOrdersTab({ activeCompanies }: Props) {
               ) : (
                 <MessageSquare size={14} />
               )}
-              Confirm & Send
+              {sessionAcceptedClarifications.has(clarifyTarget?.id ?? "") ? "Retry status update only" : "Confirm & Send"}
             </Button>
           </DialogFooter>
         </DialogContent>
