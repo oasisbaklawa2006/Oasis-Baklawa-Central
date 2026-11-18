@@ -1,8 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
-import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
-import { AlertCircle, RefreshCw, MessageSquare, Send, FileText, Mic, Image as ImageIcon, Package, Trash2, AlertTriangle, Tag } from "lucide-react";
+import { AlertCircle, RefreshCw, MessageSquare, Send, FileText, Mic, Image as ImageIcon, Trash2, AlertTriangle, Tag } from "lucide-react";
 import { toast } from "sonner";
 import { parseBanyanMessage } from "@/lib/banyan-parser";
 import { useScopedRealtimeSubscription } from "@/hooks/useScopedRealtimeSubscription";
@@ -549,13 +548,9 @@ export default function RawIntelligenceTab() {
                   <><Trash2 size={12} /> Mark as Waste</>
                 )}
               </button>
-              <Link
-                to="/admin/operator-inbox"
-                title="Use a verified WhatsApp conversation to create a draft. Debug-only entries stay open for follow-up."
-                className="flex items-center gap-1.5 text-xs font-medium text-primary hover:text-primary/80 transition-colors px-3 py-1.5 rounded-md border border-primary/20 hover:bg-primary/5"
-              >
-                <Package size={12} /> Review in Operator Inbox
-              </Link>
+              {/* This legacy War Room tab is retired; its old Inbox link was
+                  unreachable. The mounted Operator Inbox now provides governed
+                  provider-message and sender-phone packet lookup directly. */}
                 </div>
               );
             })()}
