@@ -64,7 +64,9 @@ describe("Finance Exit surface authority guard", () => {
     const page = source("src/pages/admin/AdminB2bSecurityGate.tsx");
     expect(page).toContain('.from("b2b_dispatch_cartons")');
     expect(page).toContain("releaseB2bCartonAtDispatchGate");
-    expect(page).toContain('from("operational_scan_records")');
+    expect(page).toContain("recordB2bDispatchGateScan");
+    expect(page).toContain("scan.scanId");
+    expect(page).not.toContain('.from("operational_scan_records")');
     expect(page).toContain("recordDispatchProof");
     expect(page).toContain("getFinanceExitFacts");
     expect(page).toContain("final invoice date");
@@ -82,15 +84,59 @@ describe("Finance Exit surface authority guard", () => {
     ]) expect(page).not.toContain(forbidden);
   });
 
-  it("B2B gate treats operational scan evidence as immutable", () => {
+  it("B2B gate obtains authoritative immutable evidence from Core before release", () => {
     const page = source("src/pages/admin/AdminB2bSecurityGate.tsx");
-    const scanStart = page.indexOf('.from("operational_scan_records")');
+    const client = source("src/lib/order-authority/gateExitAuthorityClient.ts");
+    const scanStart = page.indexOf("await recordB2bDispatchGateScan(");
+    const releaseStart = page.indexOf("await releaseB2bCartonAtDispatchGate(");
     expect(scanStart).toBeGreaterThan(-1);
-    expect(page).toContain("GATE_SCAN_PRE_RELEASE_STATUS");
+    expect(releaseStart).toBeGreaterThan(scanStart);
+    expect(page).toContain('.ilike("carton_code", escapeGateBarcodeIlikeLiteral(barcode))');
+    expect(page).toContain("matchUniqueCaseInsensitiveGateCarton(matchingCartons, barcode)");
+    expect(page).not.toContain('.eq("carton_code", barcode)');
+    expect(page).toContain("gateScanCorrelationId(carton.id, barcode.toLowerCase())");
+    expect(page).toContain("scan.scanId");
+    expect(page).not.toContain('.from("operational_scan_records")');
     expect(page).not.toContain("GATE_SCAN_POST_RELEASE_STATUS");
     expect(page).not.toContain("GATE_SCAN_RELEASE_DENIED_STATUS");
-    expect(page).not.toMatch(/from\("operational_scan_records"\)[\s\S]{0,160}\.update\(/);
+    expect(client).toContain('supabase.rpc("record_b2b_dispatch_gate_scan_v1"');
+    expect(client).not.toContain('.from("operational_scan_records")');
     expect(page).toContain("b2b_dispatch_gate_decisions");
+  });
+
+  it("Point38 synthetic Gate certification records governed evidence only after carton readiness", () => {
+    const script = source("scripts/point100-certification/finalize-point38-canonical-tail.mjs");
+    const ready = script.indexOf('"mark_b2b_dispatch_carton_ready_to_load_v1"');
+    const scan = script.indexOf('await gateRole.client.rpc("record_b2b_dispatch_gate_scan_v1"');
+    const release = script.indexOf('await gateRole.client.rpc("release_b2b_dispatch_carton_at_gate_v1"');
+    expect(ready).toBeGreaterThan(-1);
+    expect(scan).toBeGreaterThan(ready);
+    expect(release).toBeGreaterThan(scan);
+    expect(script).toContain("p_idempotency_key: gateScanCorrelation");
+    expect(script).toContain("gateScan?.carton_id !== cartonId");
+    expect(script).toContain('process.env.POINT100_CORE_VERIFIED_SHA === "645899439fe0a84806238b9114649eb2c3785a75"');
+    expect(script).toContain('process.env.POINT100_DISPATCH_PRODUCTION_VERIFIED === "true"');
+    expect(script).toContain("POINT100_PRE507_LEGACY_FIXTURE_ONLY");
+    const governedBlock = script.slice(script.indexOf("  } else {\n    // Replays"), script.indexOf("  // Finance stays independent"));
+    expect(governedBlock).toContain('gateRole.client.rpc("record_b2b_dispatch_gate_scan_v1"');
+    expect(governedBlock).not.toContain('.from("operational_scan_records")');
+    expect(governedBlock).not.toContain('.update({ verification_status: "verified" })');
+  });
+
+  it("Point100 Playwright dispatch tail enforces carton-ready and governed Gate scan after Core #507", () => {
+    const tail = source("tests/point100/canonicalDispatchTail.ts");
+    const ready = tail.indexOf('dispatchReady.rpc("mark_b2b_dispatch_carton_ready_to_load_v1"');
+    const governed = tail.indexOf('gate.rpc("record_b2b_dispatch_gate_scan_v1"');
+    const release = tail.indexOf('gate.rpc("release_b2b_dispatch_carton_at_gate_v1"');
+    expect(ready).toBeGreaterThan(-1);
+    expect(governed).toBeGreaterThan(ready);
+    expect(release).toBeGreaterThan(governed);
+    expect(tail).toContain('process.env.POINT100_CORE_VERIFIED_SHA === "645899439fe0a84806238b9114649eb2c3785a75"');
+    expect(tail).toContain('process.env.POINT100_DISPATCH_PRODUCTION_VERIFIED === "true"');
+    expect(tail).toContain("POINT100_PRE507_LEGACY_FIXTURE_ONLY");
+    const newCorePath = tail.slice(tail.indexOf('  } else {\n    const { data: authoritativeScan'), release);
+    expect(newCorePath).toContain('gate.rpc("record_b2b_dispatch_gate_scan_v1"');
+    expect(newCorePath).not.toContain('.from("operational_scan_records")');
   });
 
   it("Finance DPL receipt client accepts no browser DPL snapshot, lines or carton IDs", () => {

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import {
   assessDispatchCustomerCommunicationEligibility,
+  DISPATCH_WHATSAPP_COMMISSIONED,
   recordGovernedCustomerDispatchCommunication,
 } from "../dispatchCustomerCommunicationClient";
 import type { FinanceExitFacts } from "../financeExitAuthorityClient";
@@ -74,48 +75,30 @@ describe("dispatchCustomerCommunicationClient", () => {
     expect(result.reason).toContain("Complaint window");
   });
 
-  it("records governed dispatch communication via WhatsApp edge function", async () => {
+  it("keeps physical eligibility separate from outbound WhatsApp commissioning", () => {
+    expect(assessDispatchCustomerCommunicationEligibility(baseFacts).eligible).toBe(true);
+    expect(DISPATCH_WHATSAPP_COMMISSIONED).toBe(false);
+  });
+
+  it("refuses a verified dispatch until Core recipient/receipt authority is commissioned", async () => {
     vi.mocked(getFinanceExitFacts).mockResolvedValue(baseFacts);
 
-    const fromMock = vi.fn((table: string) => {
-      if (table === "client_interactions") {
-        return {
-          select: () => ({
-            eq: () => ({
-              ilike: () => ({
-                ilike: () => ({
-                  limit: async () => ({ data: [], error: null }),
-                }),
-              }),
-            }),
-          }),
-        };
-      }
-      if (table === "orders") {
-        return {
-          select: () => ({
-            eq: () => ({
-              single: async () => ({
-                data: {
-                  company_id: "company-1",
-                  company: { id: "company-1", business_name: "Acme Foods", phone: "919876543210" },
-                },
-                error: null,
-              }),
-            }),
-          }),
-        };
-      }
-      return { select: () => ({ eq: () => ({ single: async () => ({ data: null, error: null }) }) }) };
-    });
-    vi.mocked(supabase.from).mockImplementation(fromMock as unknown as typeof supabase.from);
-    vi.mocked(sendDispatchAlert).mockResolvedValue({ success: true, data: { ok: true } });
+    await expect(
+      recordGovernedCustomerDispatchCommunication({ orderId: "order-1" }),
+    ).rejects.toThrow("Customer WhatsApp not sent");
+    expect(sendDispatchAlert).not.toHaveBeenCalled();
+    expect(supabase.from).not.toHaveBeenCalled();
+    expect(supabase.functions.invoke).not.toHaveBeenCalled();
+  });
 
-    const result = await recordGovernedCustomerDispatchCommunication({ orderId: "order-1" });
-    expect(result.success).toBe(true);
-    expect(result.complaintWindowOpen).toBe(true);
-    expect(sendDispatchAlert).toHaveBeenCalledWith(
-      expect.objectContaining({ orderId: "order-1", companyId: "company-1" }),
-    );
+  it("refuses missing dispatch proof without attempting messaging", async () => {
+    vi.mocked(getFinanceExitFacts).mockResolvedValue({
+      ...baseFacts,
+      dispatchProofId: null,
+    });
+    await expect(
+      recordGovernedCustomerDispatchCommunication({ orderId: "order-1" }),
+    ).rejects.toThrow("dispatch proof");
+    expect(sendDispatchAlert).not.toHaveBeenCalled();
   });
 });

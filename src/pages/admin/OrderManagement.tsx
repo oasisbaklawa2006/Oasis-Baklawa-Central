@@ -271,33 +271,12 @@ const OrderManagement = () => {
     if (creditFastTracked && effectiveNext === "in_production") {
       try {
         await releaseOrderToInProduction(orderId, "on_credit");
-        if (currentOrder?.company_id) {
-          const { data: comp } = await supabase
-            .from("companies")
-            .select("business_name, phone")
-            .eq("id", currentOrder.company_id)
-            .maybeSingle();
-          const orderRef = formatSalesOrderLabel({
-            id: orderId,
-            order_number: currentOrder?.order_number,
-          });
-          const phone = (comp as { phone?: string } | null)?.phone;
-          const businessName = (comp as { business_name?: string } | null)?.business_name || "Valued Customer";
-          if (phone) {
-            await supabase.functions.invoke("send-whatsapp", {
-              body: {
-                to: phone,
-                message:
-                  `Dear ${businessName},\n\n` +
-                  `Thank you for your order ${orderRef}. As a valued credit-account partner, your order has been confirmed and moved directly into production.\n\n` +
-                  `Track your 10-point artisan journey on the B2B portal.\n\n` +
-                  `— Team Oasis Baklawa`,
-                company_id: currentOrder.company_id,
-                order_id: orderId,
-              },
-            }).catch(() => {});
-          }
-        }
+        // Do not infer a WhatsApp recipient from companies.phone.
+        // This governed transition must not create a retryable provider call
+        // until recipient consent and Core command idempotency are certified.
+        toast.warning(
+          "WhatsApp not sent: recipient authorization and protected sending are pending.",
+        );
         toast.success("Credit customer fast-tracked to production");
         setActionLoading(null);
         fetchOrders();
@@ -321,34 +300,13 @@ const OrderManagement = () => {
     if (effectiveNext === "awaiting_advance" && currentOrder?.status === "submitted") {
       try {
         await confirmPrepaidOrderAwaitingAdvance(orderId);
-        if (currentOrder.company_id) {
-          const { data: comp } = await supabase
-            .from("companies")
-            .select("business_name, phone")
-            .eq("id", currentOrder.company_id)
-            .maybeSingle();
-          const orderRef = formatSalesOrderLabel({
-            id: orderId,
-            order_number: currentOrder?.order_number,
-          });
-          const phone = (comp as { phone?: string } | null)?.phone;
-          const businessName = (comp as { business_name?: string } | null)?.business_name || "Valued Customer";
-          if (phone) {
-            await supabase.functions.invoke("send-whatsapp", {
-              body: {
-                to: phone,
-                message:
-                  `Dear ${businessName},\n\n` +
-                  `Your order ${orderRef} has been confirmed and is awaiting advance payment.\n\n` +
-                  `Please remit the advance via UPI / NEFT / RTGS to the bank details shared by your Sales Executive, or reply to this message for assistance.\n\n` +
-                  `Once payment is verified, your order will move into production.\n\n` +
-                  `— Team Oasis Baklawa`,
-                company_id: currentOrder.company_id,
-                order_id: orderId,
-              },
-            }).catch(() => {});
-          }
-        }
+        // Order transition is authoritative; a generic company phone is not
+        // WhatsApp recipient authorization. Do not send or imply a queue.
+        // Governed Core command identity, consent, templates and retry proof
+        // are prerequisites to reintroducing a notification.
+        toast.warning(
+          "WhatsApp not sent: recipient authorization and protected sending are pending.",
+        );
         toast.success("Order confirmed — awaiting advance payment");
         setActionLoading(null);
         fetchOrders();

@@ -406,6 +406,10 @@ type FinanceExitFunctions = {
     };
     Returns: Json;
   };
+  record_b2b_dispatch_gate_scan_v1: {
+    Args: { p_carton_id: string; p_scanned_barcode: string; p_idempotency_key: string };
+    Returns: Json;
+  };
   release_b2b_dispatch_carton_at_gate_v1: {
     Args: { p_carton_id: string; p_scan_evidence_id: string };
     Returns: Json;
