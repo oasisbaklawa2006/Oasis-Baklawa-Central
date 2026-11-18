@@ -2,6 +2,9 @@ name: Playwright Visual Audit
 on:
   workflow_dispatch: 
 
+permissions:
+  contents: read
+
 jobs:
   test:
     timeout-minutes: 10
