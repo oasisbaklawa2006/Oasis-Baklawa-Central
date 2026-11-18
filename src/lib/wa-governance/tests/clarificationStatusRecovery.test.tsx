@@ -80,6 +80,37 @@ describe("WA-100 accepted clarification status-only recovery", () => {
     expect(sendWhatsAppMessage).toHaveBeenCalledTimes(1);
   });
 
+  it("blocks a second send when a tab remounts before the first provider result", async () => {
+    const gate: { resolve?: (result: { success: false; acceptanceUnknown: true; error: string }) => void } = {};
+    vi.mocked(sendWhatsAppMessage).mockImplementation(() => new Promise((resolve) => {
+      gate.resolve = resolve;
+    }));
+    vi.mocked(supabase.from).mockImplementation(() => ({
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      order: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockResolvedValue({ data: [{ ...sampleRow, id: "remount-before-result-id" }], error: null }),
+      update: vi.fn(() => ({ eq: statusUpdate })),
+    }) as unknown as ReturnType<typeof supabase.from>);
+
+    showSuggestions();
+    fireEvent.click(await screen.findByRole("button", { name: "Request Clarification" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm & Send" }));
+    await waitFor(() => expect(sendWhatsAppMessage).toHaveBeenCalledTimes(1));
+
+    cleanup();
+    showSuggestions();
+    fireEvent.click(await screen.findByRole("button", { name: "Request Clarification" }));
+    expect(toast.warning).toHaveBeenCalledWith(expect.stringContaining("still in progress"));
+    expect(sendWhatsAppMessage).toHaveBeenCalledTimes(1);
+
+    gate.resolve?.({ success: false, acceptanceUnknown: true, error: "ACCEPTANCE_UNKNOWN" });
+    await waitFor(() => expect(toast.warning).toHaveBeenCalledWith(expect.stringContaining("acceptance is unconfirmed")));
+    fireEvent.click(screen.getByRole("button", { name: "Request Clarification" }));
+    expect(sendWhatsAppMessage).toHaveBeenCalledTimes(1);
+    expect(statusUpdate).not.toHaveBeenCalled();
+  });
+
   it("does not allow a status-only recovery when provider acceptance was unknown", async () => {
     statusUpdate.mockResolvedValue({ error: null });
     vi.mocked(sendWhatsAppMessage).mockResolvedValue({
