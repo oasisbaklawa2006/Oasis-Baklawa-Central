@@ -1,11 +1,11 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
-import { MessageSquare, Phone, Building2, Edit2, CheckCircle, Package, Search, ArrowRight, AlertTriangle, Trash2, UserCog, Ban, Sparkles } from "lucide-react";
+import { MessageSquare, Phone, Building2, Edit2, CheckCircle, Package, Search, ArrowRight, AlertTriangle, Trash2, UserCog, Ban } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 
 interface ShadowCompany {
@@ -33,8 +33,6 @@ interface HistoryMessage {
 
 interface ActiveCompany { id: string; business_name: string; }
 interface EmployeeUser { id: string; full_name: string | null; email: string | null; role: string | null; phone: string | null; }
-interface ProductLite { id: string; name: string; }
-interface AliasRow { alias_text: string; product_id: string; canonical_name: string; }
 type CompanyUpdate = Database["public"]["Tables"]["companies"]["Update"];
 type OrderUpdate = Database["public"]["Tables"]["orders"]["Update"];
 type WebhookUpdate = Database["public"]["Tables"]["debug_webhooks"]["Update"];
@@ -46,17 +44,6 @@ interface OrderItemLite {
 }
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
-}
-
-interface ParsedLine {
-  line_id: string;          // local row id
-  raw_source: string;
-  ai_product_name: string;
-  product_id: string | null; // resolved/selected
-  quantity: string;          // editable string
-  unit: "kg" | "gm" | "pcs" | "box" | "carton" | "";
-  notes: string | null;
-  approved: boolean;
 }
 
 interface Props {
@@ -82,12 +69,6 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
   const [selectedExistingId, setSelectedExistingId] = useState<string>("");
   const [activeCompanies, setActiveCompanies] = useState<ActiveCompany[]>([]);
   const [employees, setEmployees] = useState<EmployeeUser[]>([]);
-
-  // === NEW: Parsed line verification state ===
-  const [products, setProducts] = useState<ProductLite[]>([]);
-  const [aliases, setAliases] = useState<AliasRow[]>([]);
-  const [parsedOrderItems, setParsedOrderItems] = useState<ParsedLine[]>([]);
-  const [loadingParsed, setLoadingParsed] = useState(false);
 
   useEffect(() => {
     if (companies.length === 0) return;
@@ -134,19 +115,6 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
     return raw.replace(/\D/g, "");
   };
 
-  // ===== Resolve AI product_name → catalogue product via alias / fuzzy match =====
-  const resolveProductId = (aiName: string, prods: ProductLite[], alias: AliasRow[]): string | null => {
-    const t = (aiName || "").toLowerCase().trim();
-    if (!t) return null;
-    const aliasHit = alias.find((a) => a.alias_text.toLowerCase().trim() === t);
-    if (aliasHit) return aliasHit.product_id;
-    const exact = prods.find((p) => p.name.toLowerCase().trim() === t);
-    if (exact) return exact.id;
-    const contains = prods.find((p) => p.name.toLowerCase().includes(t) || t.includes(p.name.toLowerCase()));
-    if (contains) return contains.id;
-    return null;
-  };
-
   const openEdit = async (c: ShadowCompany) => {
     setEditingCompany(c);
     setHistoryMessages([]);
@@ -154,7 +122,6 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
     setEntityCategory("client");
     setActionType("create");
     setSelectedExistingId("");
-    setParsedOrderItems([]);
     setForm({
       business_name: c.business_name.replace(" (WhatsApp)", ""),
       gst_number: c.gst_number?.startsWith("WA:") ? "" : c.gst_number || "",
@@ -162,60 +129,13 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
       registered_address: c.registered_address || "",
     });
 
-    const [{ data: comps }, { data: users }, { data: prods }, { data: als }] = await Promise.all([
+    const [{ data: comps }, { data: users }] = await Promise.all([
       supabase.from("companies").select("id, business_name").eq("status", "active").order("business_name").limit(500),
       supabase.from("users").select("id, full_name, email, role, phone").not("role", "is", null).order("full_name").limit(500),
-      supabase.from("products").select("id, name").order("name").limit(2000),
-      supabase.from("product_aliases").select("alias_text, product_id, canonical_name").limit(2000),
     ]);
     setActiveCompanies((comps as ActiveCompany[]) ?? []);
     setEmployees((users as EmployeeUser[]) ?? []);
-    const productList = (prods as ProductLite[]) ?? [];
-    const aliasList = (als as AliasRow[]) ?? [];
-    setProducts(productList);
-    setAliases(aliasList);
-
-    // Load latest AI-parsed suggestion for this sender
-    await loadParsedItems(c, productList, aliasList);
     await scanHistory(c);
-  };
-
-  const loadParsedItems = async (c: ShadowCompany, prods: ProductLite[], alias: AliasRow[]) => {
-    setLoadingParsed(true);
-    const digits = extractPhoneDigits(c);
-    if (!digits || digits.length < 10) { setLoadingParsed(false); return; }
-    const last10 = digits.slice(-10);
-
-    const { data } = await supabase
-      .from("suggested_orders")
-      .select("id, extracted_items, ai_confidence, created_at")
-      .ilike("sender_phone", `%${last10}%`)
-      .eq("status", "pending_review")
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    const suggested = (data as { extracted_items?: unknown } | null)?.extracted_items;
-    const raw = Array.isArray(suggested) ? suggested.filter(isRecord) : [];
-    const lines: ParsedLine[] = raw.map((it, idx: number) => {
-      const aiName = String(it?.product_name ?? "");
-      const productId = resolveProductId(aiName, prods, alias);
-      const qty = it?.quantity;
-      const unit = String(it?.unit ?? "").toLowerCase();
-      const validUnits = ["kg", "gm", "pcs", "box", "carton"];
-      return {
-        line_id: `ln-${idx}`,
-        raw_source: String(it?.raw_source ?? it?.notes ?? aiName ?? ""),
-        ai_product_name: aiName,
-        product_id: productId,
-        quantity: qty == null || !Number.isFinite(Number(qty)) ? "" : String(qty),
-        unit: (validUnits.includes(unit) ? unit : "") as ParsedLine["unit"],
-        notes: it?.notes == null ? null : String(it.notes),
-        approved: false,
-      };
-    });
-    setParsedOrderItems(lines);
-    setLoadingParsed(false);
   };
 
   const scanHistory = async (c: ShadowCompany) => {
@@ -250,18 +170,6 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
     if (textMatch) return textMatch[1];
     return str.slice(0, 150);
   };
-
-  const updateLine = (line_id: string, patch: Partial<ParsedLine>) => {
-    setParsedOrderItems((arr) => arr.map((l) => (l.line_id === line_id ? { ...l, ...patch } : l)));
-  };
-
-  const approvedLines = useMemo(() => parsedOrderItems.filter((l) => l.approved), [parsedOrderItems]);
-
-  // Validate approved lines have product + qty>0 + unit
-  const approvedValid = approvedLines.length > 0 && approvedLines.every((l) => {
-    const q = Number(l.quantity);
-    return l.product_id && Number.isFinite(q) && q > 0 && l.unit;
-  });
 
   const handleConfirm = async () => {
     if (!editingCompany) return;
@@ -326,78 +234,22 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
         setSaving(false); return;
       }
 
-      // === CLIENT + CREATE: draft SO only — governance approval required before activation ===
-      // Build sku_items from APPROVED lines only.
-      const skuItems = approvedLines.map((l) => {
-        const productName = products.find((p) => p.id === l.product_id)?.name ?? l.ai_product_name;
-        return {
-          name: productName,
-          quantity: Number(l.quantity),
-          unit: l.unit || null,
-          confidence: 1, // human-approved
-        };
-      });
-
-      // activate_company is intentionally false — the company must go through the formal
-      // approval queue in Client Governance before gaining active status and portal access.
-      const { data, error } = await supabase.functions.invoke("admin-create-draft", {
-        body: {
-          company_id: editingCompany.id,
-          sku_items: skuItems,
-          sku_names: [],
-          webhook_ids: webhookIds,
-          activate_company: false,
-          company_update: {
-            business_name: form.business_name,
-            gst_number: form.gst_number || null,
-            fssai_number: form.fssai_number || null,
-            registered_address: form.registered_address || null,
-          },
-          // Outbound WhatsApp is a distinct protected Core command. Never
-          // infer recipient authority from the shadow-client phone field.
+      const { data: applicationId, error } = await supabase.rpc(
+        "queue_whatsapp_shadow_client_for_approval_v1",
+        {
+          p_company_id: editingCompany.id,
+          p_business_name: form.business_name,
+          p_gst_number: form.gst_number || null,
+          p_fssai_number: form.fssai_number || null,
+          p_registered_address: form.registered_address || null,
         },
-      });
-
-      if (error || !data?.ok) {
-        toast.error("Draft SO failed: " + (data?.error || error?.message || "Unknown error"));
-        setSaving(false); return;
+      );
+      if (error || !applicationId) {
+        throw new Error(error?.message || "Client Governance did not return an application ID.");
       }
 
-      // Update the company profile fields and mark as pending_approval so it
-      // leaves the shadow queue and enters the Client Governance approval queue.
-      const companyPatch: Database["public"]["Tables"]["companies"]["Update"] = {
-        business_name: form.business_name,
-        gst_number: form.gst_number || null,
-        fssai_number: form.fssai_number || null,
-        registered_address: form.registered_address || null,
-        phone: formattedPhone || null,
-        status: "pending_approval",
-      };
-      const { error: companyErr } = await supabase.from("companies").update(companyPatch).eq("id", editingCompany.id);
-
-      if (companyErr) console.error("[ShadowClientSection] company update failed:", companyErr.message);
-
-      // Create a b2b_applications row so this client appears in the formal approval
-      // queue in Client Governance. Admin must assign a slab and approve before the
-      // client gains portal access.
-      const newApplication: Database["public"]["Tables"]["b2b_applications"]["Insert"] = {
-        business_name: form.business_name,
-        gst_number: form.gst_number || null,
-        contact_phone: formattedPhone || null,
-        registered_address: form.registered_address || null,
-        status: "pending",
-        admin_notes: "War Room WhatsApp triage — pending governance approval",
-      };
-      const { error: appErr } = await supabase.from("b2b_applications").insert(newApplication);
-
-      if (appErr) console.error("[ShadowClientSection] b2b_applications insert failed:", appErr.message);
-
-      toast.success(
-        `Draft SO #${data.order_id.slice(0, 8).toUpperCase()} created with ${skuItems.length} verified line(s). ${form.business_name} is now queued for governance approval in Client Governance.`,
-      );
-      toast.warning(
-        "WhatsApp not sent: recipient consent and protected notification authority are pending.",
-      );
+      toast.success("Client queued for approval in Client Governance.");
+      toast.info("No sales-order draft was created. No WhatsApp message was sent.");
       setSaving(false); setEditingCompany(null); onRefresh();
     } catch (e: unknown) {
       toast.error("Operation failed: " + (e instanceof Error ? e.message : "Unknown error"));
@@ -414,10 +266,7 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
     if (entityCategory === "other") return false;
     if (actionType === "link") return !selectedExistingId;
     if (entityCategory === "employee" && actionType === "create") return true;
-    // client + create → require business name AND ≥1 approved valid line (unless no parsed items at all)
-    if (!form.business_name.trim()) return true;
-    if (parsedOrderItems.length > 0 && !approvedValid) return true;
-    return false;
+    return !form.business_name.trim();
   })();
 
   const submitLabel = saving
@@ -426,7 +275,7 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
       ? `🗑 Archive as Spam${historyMessages.length > 0 ? ` (discard ${historyMessages.length})` : ""}`
       : actionType === "link"
         ? `🔗 Link & Attach${historyMessages.length > 0 ? ` ${historyMessages.length} msg(s)` : ""}`
-        : `📋 Create Draft SO + Queue for Approval (${approvedLines.length} verified)`;
+        : "Queue Client for Approval";
 
   return (
     <>
@@ -639,102 +488,15 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
             {/* CREATE NEW CLIENT */}
             {entityCategory === "client" && actionType === "create" && (
               <>
-                {/* === AI VERIFICATION TABLE === */}
-                <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-xs font-bold text-primary flex items-center gap-1.5">
-                      <Sparkles size={12} /> AI-Parsed Order — Human Verification Required
-                    </p>
-                    <span className="text-[10px] font-bold text-primary">
-                      {approvedLines.length}/{parsedOrderItems.length} approved
-                    </span>
-                  </div>
-
-                  {loadingParsed && (
-                    <div className="text-[11px] text-muted-foreground py-3 text-center">Loading AI extraction…</div>
-                  )}
-
-                  {!loadingParsed && parsedOrderItems.length === 0 && (
-                    <div className="text-[11px] text-muted-foreground py-3 text-center italic">
-                      No AI extraction available for this sender yet. You can still activate the client; SO will be empty.
-                    </div>
-                  )}
-
-                  {!loadingParsed && parsedOrderItems.length > 0 && (
-                    <div className="overflow-x-auto -mx-1">
-                      <table className="w-full text-[11px]">
-                        <thead>
-                          <tr className="text-[10px] uppercase tracking-wider text-muted-foreground border-b border-border">
-                            <th className="px-1 py-1.5 text-left w-8">✓</th>
-                            <th className="px-1 py-1.5 text-left">Raw Source</th>
-                            <th className="px-1 py-1.5 text-left">Product (SKU)</th>
-                            <th className="px-1 py-1.5 text-left w-20">Qty</th>
-                            <th className="px-1 py-1.5 text-left w-20">Unit</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {parsedOrderItems.map((l) => {
-                            const ambiguous = !l.product_id || !l.quantity || !l.unit;
-                            return (
-                              <tr key={l.line_id} className={`border-b border-border/50 ${l.approved ? "bg-emerald-500/5" : ambiguous ? "bg-destructive/5" : ""}`}>
-                                <td className="px-1 py-1.5 align-top">
-                                  <Checkbox
-                                    checked={l.approved}
-                                    onCheckedChange={(v) => updateLine(l.line_id, { approved: !!v })}
-                                  />
-                                </td>
-                                <td className="px-1 py-1.5 align-top max-w-[140px]">
-                                  <p className="font-mono text-[10px] text-foreground truncate" title={l.raw_source}>{l.raw_source || "—"}</p>
-                                  <p className="text-[9px] text-muted-foreground italic truncate">AI: {l.ai_product_name}</p>
-                                </td>
-                                <td className="px-1 py-1.5 align-top">
-                                  <select
-                                    value={l.product_id ?? ""}
-                                    onChange={(e) => updateLine(l.line_id, { product_id: e.target.value || null })}
-                                    className="w-full h-8 rounded-md border border-border bg-background px-1.5 text-[11px] focus:ring-1 focus:ring-primary focus:outline-none"
-                                  >
-                                    <option value="">— Select SKU —</option>
-                                    {products.map((p) => (<option key={p.id} value={p.id}>{p.name}</option>))}
-                                  </select>
-                                </td>
-                                <td className="px-1 py-1.5 align-top">
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    step="0.01"
-                                    value={l.quantity}
-                                    onChange={(e) => updateLine(l.line_id, { quantity: e.target.value })}
-                                    placeholder="0"
-                                    className="w-full h-8 rounded-md border border-border bg-background px-1.5 text-[11px] tabular-nums focus:ring-1 focus:ring-primary focus:outline-none"
-                                  />
-                                </td>
-                                <td className="px-1 py-1.5 align-top">
-                                  <select
-                                    value={l.unit}
-                                    onChange={(e) => updateLine(l.line_id, { unit: e.target.value as ParsedLine["unit"] })}
-                                    className="w-full h-8 rounded-md border border-border bg-background px-1.5 text-[11px] focus:ring-1 focus:ring-primary focus:outline-none"
-                                  >
-                                    <option value="">—</option>
-                                    <option value="kg">kg</option>
-                                    <option value="gm">gm</option>
-                                    <option value="pcs">pcs</option>
-                                    <option value="box">box</option>
-                                    <option value="carton">carton</option>
-                                  </select>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                      {parsedOrderItems.length > 0 && !approvedValid && (
-                        <p className="text-[10px] text-destructive mt-2 flex items-center gap-1">
-                          <AlertTriangle size={10} /> Approve at least one line. Each approved line needs a SKU, qty &gt; 0, and a unit.
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </div>
+                <p className="text-xs text-muted-foreground">
+                  Queue the client for approval here. To create a sales-order draft, open the
+                  verified conversation and confirm the customer and order lines in{" "}
+                  <Link className="text-primary underline" to="/admin/operator-inbox">
+                    Operator Inbox
+                  </Link>
+                  . If only debug history is available, leave it for follow-up until a verified
+                  WhatsApp packet is available.
+                </p>
 
                 {editingDrafts.length > 0 && (
                   <div className="rounded-lg border border-border bg-muted/30 p-3">

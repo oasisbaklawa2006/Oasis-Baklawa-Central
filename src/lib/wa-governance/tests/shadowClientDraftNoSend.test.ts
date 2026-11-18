@@ -7,23 +7,25 @@ const source = readFileSync(
   "utf8",
 );
 
-describe("WA-100 Shadow Client draft recipient safety", () => {
-  it("preserves the authorized draft creation call", () => {
-    expect(source).toContain('supabase.functions.invoke("admin-create-draft"');
-    expect(source).toContain("company_id: editingCompany.id");
-    expect(source).toContain("sku_items: skuItems");
+describe("WA-100 Shadow Client approval and draft handoff", () => {
+  it("queues the selected company and checks the returned governance application ID", () => {
+    expect(source).toContain('"queue_whatsapp_shadow_client_for_approval_v1"');
+    expect(source).toContain("p_company_id: editingCompany.id");
+    expect(source).toContain("if (error || !applicationId)");
+    expect(source).toContain("Client queued for approval in Client Governance.");
   });
 
-  it("never sends the shadow client's arbitrary phone to a legacy WhatsApp endpoint", () => {
+  it("hands verified conversations to Operator Inbox without calling the legacy writer or sender", () => {
+    expect(source).toContain('to="/admin/operator-inbox"');
+    expect(source).toContain("confirm the customer and order lines");
+    expect(source).not.toContain("admin-create-draft");
     expect(source).not.toContain("send_whatsapp_to");
     expect(source).not.toContain("whatsapp_message");
     expect(source).not.toContain('supabase.functions.invoke("send-whatsapp"');
   });
 
-  it("states that WhatsApp was not sent, separately from draft success", () => {
-    expect(source).toContain(
-      "WhatsApp not sent: recipient consent and protected notification authority are pending.",
-    );
-    expect(source).toContain("is now queued for governance approval");
+  it("reports client approval independently from draft creation and WhatsApp", () => {
+    expect(source).toContain("No sales-order draft was created. No WhatsApp message was sent.");
+    expect(source).toContain("If only debug history is available");
   });
 });

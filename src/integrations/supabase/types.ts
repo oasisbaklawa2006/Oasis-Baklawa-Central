@@ -336,6 +336,19 @@ type OperationalScanRecordsTable = {
   Relationships: [];
 };
 
+type WhatsAppGovernanceFunctions = {
+  queue_whatsapp_shadow_client_for_approval_v1: {
+    Args: {
+      p_company_id: string;
+      p_business_name: string;
+      p_gst_number: string | null;
+      p_fssai_number: string | null;
+      p_registered_address: string | null;
+    };
+    Returns: string;
+  };
+};
+
 type FinanceExitFunctions = {
   get_finance_exit_facts_v1: {
     Args: { p_order_id: string };
@@ -426,6 +439,6 @@ export type Database = Omit<GeneratedDatabase, "public"> & {
       whatsapp_message_packets: WhatsappMessagePacketsTable;
       whatsapp_messages: WhatsappMessagesTable;
     };
-    Functions: GeneratedDatabase["public"]["Functions"] & FinanceExitFunctions;
+    Functions: GeneratedDatabase["public"]["Functions"] & FinanceExitFunctions & WhatsAppGovernanceFunctions;
   };
 };
