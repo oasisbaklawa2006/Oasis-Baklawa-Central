@@ -46,7 +46,7 @@ vi.mock("@/integrations/supabase/client", () => {
   query.order = () => query;
   query.limit = () => query;
   query.maybeSingle = () => Promise.resolve({ data: null, error: null });
-  query.then = (resolve: (value: { data: unknown[]; error: null }) => void) => resolve({ data: [], error: null });
+  query.then = (resolve: (value: { data: unknown[]; error: null }) => void) => { resolve({ data: [], error: null }); };
   return {
     supabase: {
       from: () => query,
