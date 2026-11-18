@@ -1,21 +1,10 @@
-import { supabase } from "@/integrations/supabase/client";
-import { sendDispatchAlert } from "@/utils/whatsapp";
 import { getFinanceExitFacts, type FinanceExitFacts } from "./financeExitAuthorityClient";
 
 export class DispatchCustomerCommunicationError extends Error {
-  constructor(message: string, readonly acceptanceUnknown = false) {
+  constructor(message: string) {
     super(message);
     this.name = "DispatchCustomerCommunicationError";
   }
-}
-
-type DispatchCommunicationSessionStatus = "in_flight" | "accepted" | "acceptance_unknown";
-const dispatchCommunicationSession = new Map<string, DispatchCommunicationSessionStatus>();
-
-export function getDispatchCustomerCommunicationSessionStatus(
-  orderId: string,
-): DispatchCommunicationSessionStatus | null {
-  return dispatchCommunicationSession.get(orderId) ?? null;
 }
 
 export type DispatchCustomerCommunicationEligibility = {
@@ -69,48 +58,13 @@ export function assessDispatchCustomerCommunicationEligibility(
   return { eligible: true, reason: null, facts };
 }
 
-async function loadCompanyContact(orderId: string): Promise<{ companyId: string; companyName: string; phone: string }> {
-  const { data: order, error: orderError } = await supabase
-    .from("orders")
-    .select("company_id, company:companies(id, business_name, phone)")
-    .eq("id", orderId)
-    .single();
-  if (orderError || !order?.company_id) {
-    throw new DispatchCustomerCommunicationError("Order company lineage is missing");
-  }
-
-  const company = Array.isArray(order.company) ? order.company[0] : order.company;
-  const companyName =
-    company && typeof company === "object" && "business_name" in company
-      ? String((company as { business_name?: string }).business_name ?? "Customer")
-      : "Customer";
-  const phone =
-    company && typeof company === "object" && "phone" in company
-      ? String((company as { phone?: string | null }).phone ?? "").trim()
-      : "";
-  if (phone.length < 10) {
-    throw new DispatchCustomerCommunicationError("Company contact phone is missing or invalid for dispatch communication");
-  }
-
-  return { companyId: order.company_id, companyName, phone };
-}
-
-function orderReferenceToken(orderId: string): string {
-  return orderId.slice(0, 8).toUpperCase();
-}
-
-async function hasExistingDispatchCommunication(companyId: string, orderId: string): Promise<boolean> {
-  const token = orderReferenceToken(orderId);
-  const { data, error } = await supabase
-    .from("client_interactions")
-    .select("id")
-    .eq("company_id", companyId)
-    .ilike("notes", `%${token}%`)
-    .ilike("notes", "%dispatched your order%")
-    .limit(1);
-  if (error) return false;
-  return (data?.length ?? 0) > 0;
-}
+/**
+ * Customer dispatch WhatsApp is not commissioned until Core owns an immutable
+ * dispatch-proof command receipt and verifies recipient authority, consent,
+ * provider template and callback status. This is intentionally not a browser
+ * feature flag: the UI cannot independently authorize external messaging.
+ */
+export const DISPATCH_WHATSAPP_COMMISSIONED = false as boolean;
 
 export async function recordGovernedCustomerDispatchCommunication(input: {
   orderId: string;
@@ -120,87 +74,17 @@ export async function recordGovernedCustomerDispatchCommunication(input: {
   const orderId = required(input.orderId, "order id");
   const facts = await getFinanceExitFacts(orderId);
   const eligibility = assessDispatchCustomerCommunicationEligibility(facts);
-  if (!eligibility.eligible || !eligibility.facts) {
-    throw new DispatchCustomerCommunicationError(eligibility.reason ?? "Dispatch communication is not eligible");
-  }
-
-  const sessionStatus = dispatchCommunicationSession.get(orderId);
-  if (sessionStatus === "accepted") {
-    return {
-      success: true,
-      orderId,
-      companyId: facts.companyId,
-      complaintWindowOpen: facts.complaintWindowOpen,
-      complaintDeadline: facts.complaintDeadline,
-      alreadyRecorded: true,
-    };
-  }
-  if (sessionStatus) {
+  if (!eligibility.eligible) {
     throw new DispatchCustomerCommunicationError(
-      sessionStatus === "acceptance_unknown"
-        ? "WhatsApp acceptance is unconfirmed. Do not retry until the provider timeline is reconciled."
-        : "A WhatsApp dispatch request is already in progress. Do not start another send.",
-      true,
+      eligibility.reason ?? "Dispatch communication is not eligible",
     );
   }
 
-  dispatchCommunicationSession.set(orderId, "in_flight");
-  try {
-    const alreadyRecorded = await hasExistingDispatchCommunication(facts.companyId, orderId);
-    if (alreadyRecorded) {
-      dispatchCommunicationSession.set(orderId, "accepted");
-      return {
-        success: true,
-        orderId,
-        companyId: facts.companyId,
-        complaintWindowOpen: facts.complaintWindowOpen,
-        complaintDeadline: facts.complaintDeadline,
-        alreadyRecorded: true,
-      };
-    }
-
-    const contact = await loadCompanyContact(orderId);
-    let result: Awaited<ReturnType<typeof sendDispatchAlert>>;
-    try {
-      result = await sendDispatchAlert({
-        phone: contact.phone,
-        companyId: contact.companyId,
-        companyName: contact.companyName,
-        orderId,
-        trackingNumber: input.trackingNumber?.trim() || undefined,
-        invoiceUrl: input.invoiceUrl?.trim() || undefined,
-      });
-    } catch {
-      dispatchCommunicationSession.set(orderId, "acceptance_unknown");
-      throw new DispatchCustomerCommunicationError(
-        "WhatsApp acceptance is unconfirmed. Do not retry until the provider timeline is reconciled.",
-        true,
-      );
-    }
-
-    if (!result.success) {
-      if (result.acceptanceUnknown) {
-        dispatchCommunicationSession.set(orderId, "acceptance_unknown");
-        throw new DispatchCustomerCommunicationError(
-          "WhatsApp acceptance is unconfirmed. Do not retry until the provider timeline is reconciled.",
-          true,
-        );
-      }
-      throw new DispatchCustomerCommunicationError(result.error ?? "WhatsApp dispatch communication failed");
-    }
-
-    dispatchCommunicationSession.set(orderId, "accepted");
-    return {
-      success: true,
-      orderId,
-      companyId: contact.companyId,
-      complaintWindowOpen: facts.complaintWindowOpen,
-      complaintDeadline: facts.complaintDeadline,
-      alreadyRecorded: false,
-    };
-  } finally {
-    if (dispatchCommunicationSession.get(orderId) === "in_flight") {
-      dispatchCommunicationSession.delete(orderId);
-    }
-  }
+  // This function must not resume an automatic provider send using
+  // companies.phone or client_interactions.notes as a dedupe surrogate.
+  // Before commissioning, implement a protected Core-owned durable command
+  // keyed to immutable dispatchProofId and authenticated recipient approval.
+  throw new DispatchCustomerCommunicationError(
+    "Customer WhatsApp not sent: governed recipient and durable dispatch receipt are pending",
+  );
 }
