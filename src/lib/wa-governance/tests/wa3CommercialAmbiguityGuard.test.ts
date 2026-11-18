@@ -1,11 +1,8 @@
-import fs from "node:fs";
-import path from "node:path";
 import { describe, expect, it } from "vitest";
-
-const webhook = fs.readFileSync(path.resolve(process.cwd(), "supabase/functions/whatsapp-webhook/index.ts"), "utf8");
-const suggested = fs.readFileSync(path.resolve(process.cwd(), "src/components/warroom/SuggestedOrdersTab.tsx"), "utf8");
-
-const raw = fs.readFileSync(path.resolve(process.cwd(), "src/components/warroom/RawIntelligenceTab.tsx"), "utf8");
+// Static ?raw imports: no runtime filesystem/path construction (Codacy File Access rule).
+import webhook from "../../../../supabase/functions/whatsapp-webhook/index.ts?raw";
+import suggested from "../../../components/warroom/SuggestedOrdersTab.tsx?raw";
+import raw from "../../../components/warroom/RawIntelligenceTab.tsx?raw";
 
 describe("WA-3 executable ambiguity guards", () => {
   it("keeps quantity interpretation out of the capture-only webhook", () => {
