@@ -113,10 +113,11 @@ function buildClarificationTemplate(row: SuggestedOrder, items: ExtractedItem[])
 const sessionBlockedClarifications = new Set<string>();
 // Confirmed provider acceptance permits status-only recovery, never a resend.
 const sessionAcceptedClarifications = new Set<string>();
+// Shared across tab remounts while a provider request is pending.
+const sessionInFlightClarifications = new Set<string>();
 
-function blockClarificationForSession(id: string): Set<string> {
+function blockClarificationForSession(id: string): void {
   sessionBlockedClarifications.add(id);
-  return new Set(sessionBlockedClarifications);
 }
 
 /* ─── component ─── */
@@ -200,7 +201,11 @@ export default function SuggestedOrdersTab({ activeCompanies }: Props) {
 
   /* ─── Open clarification dialog ─── */
   const openClarify = (row: SuggestedOrder) => {
-    if (nonRetryableClarifications.has(row.id) && !sessionAcceptedClarifications.has(row.id)) {
+    if (sessionInFlightClarifications.has(row.id)) {
+      toast.warning("A clarification request is still in progress. Do not send it again.");
+      return;
+    }
+    if (sessionBlockedClarifications.has(row.id) && !sessionAcceptedClarifications.has(row.id)) {
       toast.warning("WhatsApp acceptance is unconfirmed. Reconcile the provider timeline before any resend.");
       return;
     }
@@ -242,9 +247,13 @@ export default function SuggestedOrdersTab({ activeCompanies }: Props) {
     if (
       !clarifyTarget ||
       clarificationInFlight.current ||
-      (nonRetryableClarifications.has(clarifyTarget.id) &&
+      sessionInFlightClarifications.has(clarifyTarget.id) ||
+      (sessionBlockedClarifications.has(clarifyTarget.id) &&
         !sessionAcceptedClarifications.has(clarifyTarget.id))
     ) return;
+    // Reserve the suggestion before the first await. This protects a new
+    // component mounted while an earlier request is still in progress.
+    sessionInFlightClarifications.add(clarifyTarget.id);
     clarificationInFlight.current = true;
     setClarifying(true);
     try {
@@ -262,7 +271,8 @@ export default function SuggestedOrdersTab({ activeCompanies }: Props) {
 
       if (!result.success) {
         if (result.acceptanceUnknown) {
-          setNonRetryableClarifications(() => blockClarificationForSession(clarifyTarget.id));
+          blockClarificationForSession(clarifyTarget.id);
+          setNonRetryableClarifications(new Set(sessionBlockedClarifications));
           toast.warning(
             "WhatsApp acceptance is unconfirmed. Do not resend until the provider timeline is reconciled.",
           );
@@ -274,16 +284,19 @@ export default function SuggestedOrdersTab({ activeCompanies }: Props) {
 
       // Preserve confirmed acceptance even when the local status update fails.
       sessionAcceptedClarifications.add(clarifyTarget.id);
-      setNonRetryableClarifications(() => blockClarificationForSession(clarifyTarget.id));
+      blockClarificationForSession(clarifyTarget.id);
+          setNonRetryableClarifications(new Set(sessionBlockedClarifications));
       await persistAcceptedClarification(clarifyTarget);
     } catch (_e: unknown) {
       // A request may have left this browser before an unexpected exception.
       // Fail closed rather than creating a duplicate operator-originated send.
-      setNonRetryableClarifications(() => blockClarificationForSession(clarifyTarget.id));
+      blockClarificationForSession(clarifyTarget.id);
+          setNonRetryableClarifications(new Set(sessionBlockedClarifications));
       toast.warning(
         "WhatsApp acceptance is unconfirmed. Do not resend until the provider timeline is reconciled.",
       );
     } finally {
+      sessionInFlightClarifications.delete(clarifyTarget.id);
       clarificationInFlight.current = false;
       setClarifying(false);
     }
