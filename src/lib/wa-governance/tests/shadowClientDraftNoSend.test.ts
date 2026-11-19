@@ -116,4 +116,28 @@ describe("WA-100 Shadow Client approval and draft handoff", () => {
     expect(toast.success).not.toHaveBeenCalled();
     expect(onRefresh).not.toHaveBeenCalled();
   });
+
+  it("blocks existing-client linking and preserves orders and source receipts", async () => {
+    await openTriage();
+    const linkButton = screen.getByRole("button", { name: /Link to Existing/ });
+    expect(linkButton).toBeDisabled();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Existing-client linking is suspended until a governed Core identity reconciliation operation is certified.",
+    );
+
+    // Switching away from employee linking cannot keep the unsafe client link action.
+    fireEvent.click(screen.getByRole("button", { name: "Employee" }));
+    expect(linkButton).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Client" }));
+    expect(linkButton).toBeDisabled();
+
+    vi.mocked(supabase.from).mockClear();
+    fireEvent.click(linkButton);
+    expect(supabase.from).not.toHaveBeenCalled();
+    expect(supabase.rpc).not.toHaveBeenCalled();
+    expect(toast.success).not.toHaveBeenCalled();
+    expect(onRefresh).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Queue Client for Approval" })).toBeEnabled();
+  });
+
 });
