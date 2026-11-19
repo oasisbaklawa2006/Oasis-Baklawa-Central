@@ -282,7 +282,8 @@ describe("AdminGiftingEnquiries", () => {
     });
     await waitFor(() =>
       expect(
-        rpc.mock.calls.filter(([fn]) => fn === "gifting_enquiry_queue_list_v1").length,
+        rpc.mock.calls.filter(([fn]) => fn === "gifting_enquiry_queue_list_v1")
+          .length,
       ).toBeGreaterThan(listCallsBefore),
     );
     await waitFor(() =>
