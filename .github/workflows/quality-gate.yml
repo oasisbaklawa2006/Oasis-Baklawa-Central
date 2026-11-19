@@ -11,6 +11,9 @@ concurrency:
   group: release-quality-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   quality-gate:
     name: Typecheck, unit test, production build, and Playwright smoke
