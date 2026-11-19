@@ -267,6 +267,11 @@ describe("AdminGiftingEnquiries", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Spam" }));
     expect(await screen.findByText("Spam Sender")).toBeTruthy();
+    // The Spam list request has already completed. Count list calls now so the assertion below can only be
+    // satisfied by a NEW list request issued after the mutation finishes (a dropped reload must fail this test).
+    const listCallsBefore = rpc.mock.calls.filter(
+      ([fn]) => fn === "gifting_enquiry_queue_list_v1",
+    ).length;
     finishChange({
       data: {
         id: "22222222-2222-2222-2222-222222222222",
@@ -275,6 +280,11 @@ describe("AdminGiftingEnquiries", () => {
       },
       error: null,
     });
+    await waitFor(() =>
+      expect(
+        rpc.mock.calls.filter(([fn]) => fn === "gifting_enquiry_queue_list_v1").length,
+      ).toBeGreaterThan(listCallsBefore),
+    );
     await waitFor(() =>
       expect(rpc).toHaveBeenLastCalledWith("gifting_enquiry_queue_list_v1", {
         p_status: "spam",
