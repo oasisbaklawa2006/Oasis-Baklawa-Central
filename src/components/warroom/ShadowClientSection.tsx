@@ -34,7 +34,6 @@ interface HistoryMessage {
 interface ActiveCompany { id: string; business_name: string; }
 interface EmployeeUser { id: string; full_name: string | null; email: string | null; role: string | null; phone: string | null; }
 type CompanyUpdate = Database["public"]["Tables"]["companies"]["Update"];
-type OrderUpdate = Database["public"]["Tables"]["orders"]["Update"];
 type WebhookUpdate = Database["public"]["Tables"]["debug_webhooks"]["Update"];
 type UserUpdate = Database["public"]["Tables"]["users"]["Update"];
 interface OrderItemLite {
@@ -195,15 +194,12 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
         setSaving(false); setEditingCompany(null); onRefresh(); return;
       }
 
-      // === LINK to existing client ===
+      // Existing-client identity/order reconciliation must be transactional and
+      // authorized in Core. Fail closed until that contract is available.
       if (entityCategory === "client" && actionType === "link") {
-        if (!selectedExistingId) { toast.error("Select a client to link"); setSaving(false); return; }
-        await supabase.from("companies").update({ phone: formattedPhone } as CompanyUpdate).eq("id", selectedExistingId);
-        await supabase.from("orders").update({ company_id: selectedExistingId } as OrderUpdate).eq("company_id", editingCompany.id);
-        if (webhookIds.length > 0) await supabase.from("debug_webhooks").update({ processed: true } as WebhookUpdate).in("id", webhookIds);
-        await supabase.from("companies").update({ status: "merged" } as CompanyUpdate).eq("id", editingCompany.id);
-        toast.success(`Linked to existing client. ${webhookIds.length} message(s) attached.`);
-        setSaving(false); setEditingCompany(null); onRefresh(); return;
+        toast.error("Existing-client linking is suspended until governed Core reconciliation is available.");
+        setSaving(false);
+        return;
       }
 
       // === LINK to existing employee ===
@@ -399,7 +395,7 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
                     <button
                       key={opt.val}
                       type="button"
-                      onClick={() => { setEntityCategory(opt.val); setSelectedExistingId(""); if (opt.val === "employee") setActionType("link"); }}
+                      onClick={() => { setEntityCategory(opt.val); setSelectedExistingId(""); if (opt.val === "employee") setActionType("link"); else if (opt.val === "client") setActionType("create"); }}
                       className={`flex flex-col items-center gap-1 py-2.5 rounded-lg border text-xs font-semibold transition-all ${
                         active
                           ? "border-primary bg-primary/10 text-primary"
@@ -422,7 +418,8 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
                   <button
                     type="button"
                     onClick={() => setActionType("link")}
-                    className={`py-2 rounded-lg border text-xs font-semibold transition-all ${
+                    disabled={entityCategory === "client"}
+                    className={`py-2 rounded-lg border text-xs font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
                       actionType === "link" ? "border-primary bg-primary/10 text-primary" : "border-border bg-background text-muted-foreground hover:border-primary/40"
                     }`}
                   >🔗 Link to Existing</button>
@@ -437,6 +434,11 @@ export default function ShadowClientSection({ companies, onRefresh }: Props) {
                 </div>
                 {entityCategory === "employee" && (
                   <p className="text-[10px] text-muted-foreground mt-1">New employees must be created from Admin → Users.</p>
+                )}
+                {entityCategory === "client" && (
+                  <p className="text-[10px] text-muted-foreground mt-1" role="status">
+                    Existing-client linking is suspended until a governed Core identity reconciliation operation is certified. Existing orders and source messages are left unchanged.
+                  </p>
                 )}
               </div>
             )}
