@@ -47,7 +47,7 @@ async function readAssemblyJobs(db: UntypedDb, limit: number): Promise<AssemblyJ
     .order("updated_at", { ascending: false })
     .limit(limit);
   if (error) {
-    if (error.message.includes("does not exist")) return [];
+    // Missing canonical Core authority is a failure, never an empty operational queue.
     throw new Error(`b2b_assembly_jobs read failed: ${error.message}`);
   }
   return (data ?? []) as AssemblyJobRow[];
@@ -61,7 +61,7 @@ async function readOpenReservations(db: UntypedDb, limit: number): Promise<Reser
     .order("updated_at", { ascending: false })
     .limit(limit);
   if (error) {
-    if (error.message.includes("does not exist")) return [];
+    // Missing canonical Core authority is a failure, never an empty operational queue.
     throw new Error(`inventory_reservations read failed: ${error.message}`);
   }
   return (data ?? []) as ReservationRow[];
@@ -75,7 +75,7 @@ async function readOpenConsignments(db: UntypedDb, limit: number): Promise<Dispa
     .order("updated_at", { ascending: false })
     .limit(limit);
   if (error) {
-    if (error.message.includes("does not exist")) return [];
+    // Missing canonical Core authority is a failure, never an empty operational queue.
     throw new Error(`b2b_dispatch_consignments read failed: ${error.message}`);
   }
   return (data ?? []) as DispatchConsignmentRow[];
@@ -89,7 +89,7 @@ async function readOpenProcurementRequirements(db: UntypedDb, limit: number): Pr
     .order("updated_at", { ascending: false })
     .limit(limit);
   if (error) {
-    if (error.message.includes("does not exist")) return [];
+    // Missing canonical Core authority is a failure, never an empty operational queue.
     throw new Error(`b2b_procurement_requirements read failed: ${error.message}`);
   }
   return (data ?? []) as ProcurementRequirementRow[];
