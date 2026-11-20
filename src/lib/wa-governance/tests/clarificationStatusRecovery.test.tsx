@@ -71,7 +71,7 @@ describe("WA-100 accepted clarification status-only recovery", () => {
     fireEvent.click(screen.getByRole("button", { name: "Confirm & Send" }));
 
     await waitFor(() => expect(statusUpdate).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("Retry the status update only")));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("Retry only after reconciliation")));
     expect(sendWhatsAppMessage).toHaveBeenCalledTimes(1);
 
     cleanup();
