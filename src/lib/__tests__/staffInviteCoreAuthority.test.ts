@@ -44,7 +44,7 @@ describe("Core-governed employee invitation", () => {
   it("does not equate role provisioning with verified invitation delivery or activation", () => {
     expect(ui).toContain("Email delivery");
     expect(ui).toContain("have not been independently confirmed");
-    expect(ui).toContain("Existing");
+    expect(ui).toContain("For an existing");
     expect(ui).toContain("staff profile process");
   });
 });
