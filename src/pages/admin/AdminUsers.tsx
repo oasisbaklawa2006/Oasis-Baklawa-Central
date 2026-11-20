@@ -67,29 +67,6 @@ const DEPARTMENTS = [
   "Ready Goods Store",
 ];
 
-const DEFAULT_MODULE_MAP: Record<string, string[]> = {
-  super_admin: [...MODULES],
-  admin: [...MODULES],
-  finance_head: ["Finance", "Orders", "Audit"],
-  finance_exec: ["Finance", "Orders"],
-  operations_manager: ["Production", "Assembly", "Packing", "Dispatch", "Orders"],
-  dispatch_manager: ["Dispatch", "Packing", "Orders"],
-  dispatch_incharge: ["Dispatch", "Packing"],
-  security_control: ["Dispatch"],
-  store_incharge: ["Production", "Orders"],
-  hod_arabic: ["Production", "Orders"],
-  hod_fusion: ["Production", "Orders"],
-  hod_chocolate: ["Production", "Orders"],
-  hod_bakery: ["Production", "Orders"],
-  hod_nuts: ["Production", "Orders"],
-  hod_assembly: ["Assembly", "Packing"],
-  sales_executive: ["Orders", "Client Governance", "Product Catalog"],
-  production_manager: ["Production", "Assembly", "Orders"],
-  support_executive: ["Support", "Orders"],
-  b2b_buyer: ["Orders", "Product Catalog"],
-  customer_user: [],
-};
-
 const INVITE_STATUS_LABELS: Record<string, { label: string; color: string }> = {
   invited: { label: "Invited", color: "bg-amber-100 text-amber-700" },
   active: { label: "Active", color: "bg-green-100 text-green-700" },
@@ -177,8 +154,6 @@ const AdminUsers = () => {
   }, [fetchData]);
 
   const permsByModule = (mod: string) => allPermissions.filter((p) => p.module_name === mod);
-  const getPermIdsForModules = (mods: string[]) =>
-    allPermissions.filter((p) => mods.includes(p.module_name)).map((p) => p.id);
   const getRolePermIds = (roleId: string) =>
     rolePermMap
       .filter((m) => m.role_id === roleId)
