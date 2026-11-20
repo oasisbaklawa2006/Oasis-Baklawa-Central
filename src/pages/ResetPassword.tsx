@@ -6,6 +6,9 @@ import { useNavigate } from "react-router-dom";
 
 const ResetPassword = () => {
   const navigate = useNavigate();
+  // The query flag affects copy only; Supabase Auth session authority is
+  // required by updateUser regardless of whether this was an invite/reset.
+  const isStaffInvitation = new URLSearchParams(window.location.search).get("invite") === "1";
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [loading, setLoading] = useState(false);
@@ -27,7 +30,7 @@ const ResetPassword = () => {
     } else {
       setDone(true);
       toast.success("Password updated successfully!");
-      setTimeout(() => navigate("/login", { replace: true }), 2000);
+      setTimeout(() => navigate("/staff/login?manual_auth=true", { replace: true }), 2000);
     }
     setLoading(false);
   };
@@ -37,8 +40,8 @@ const ResetPassword = () => {
       <div className="w-full max-w-sm bg-card border border-border rounded-2xl p-8 shadow-sm space-y-6">
         <div className="text-center">
           <Lock size={32} className="mx-auto text-primary mb-3" />
-          <h1 className="text-xl font-bold text-foreground">Reset Your Password</h1>
-          <p className="text-sm text-muted-foreground mt-1">Enter your new password below.</p>
+          <h1 className="text-xl font-bold text-foreground">{isStaffInvitation ? "Set Your Staff Password" : "Reset Your Password"}</h1>
+          <p className="text-sm text-muted-foreground mt-1">{isStaffInvitation ? "Choose a password to complete your employee invitation." : "Enter your new password below."}</p>
         </div>
 
         {done ? (
