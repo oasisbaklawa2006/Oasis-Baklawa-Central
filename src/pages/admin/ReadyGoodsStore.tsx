@@ -111,6 +111,35 @@ async function callGovernedRpc(fn: string, args: Record<string, unknown>): Promi
 
 const openJobStatuses = new Set(["pending", "accepted", "in_production", "paused"]);
 const activeOrderStatuses = ["approved", "in_production", "manufacturing", "partial_ready"];
+const RGS_ORDER_LINE_PAGE_SIZE = 250;
+
+/**
+ * The RGS intake is backed by canonical order_items and original line IDs,
+ * not a synthetic Factory order ledger. Fetch every active line in stable pages.
+ * A failed later page rejects the whole read (never silently drops shortages).
+ */
+export async function fetchAllRgsFactoryOrderLines(
+  db: typeof operationsDb,
+  pageSize = RGS_ORDER_LINE_PAGE_SIZE,
+): Promise<Demand[]> {
+  if (!Number.isSafeInteger(pageSize) || pageSize < 1 || pageSize > 1000) {
+    throw new Error("Invalid Factory order page size");
+  }
+  const all: Demand[] = [];
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await db.from("order_items")
+      .select("id, order_id, product_id, quantity, actual_packed_qty, production_status, department, order:orders!inner(id, status, created_at, company:companies(business_name)), product:products(id, name, sku, production_department)")
+      .in("order.status", activeOrderStatuses)
+      .order("created_at", { ascending: true, referencedTable: "order" })
+      .order("id", { ascending: true })
+      .range(offset, offset + pageSize - 1);
+    if (error) throw new Error(`Factory order line read failed: ${error.message || "Unknown Core error"}`);
+    if (!Array.isArray(data)) throw new Error("Factory order line read returned invalid data");
+    all.push(...(data as Demand[]));
+    if (data.length < pageSize) return all;
+  }
+}
+
 
 /** RGS is the business-facing alias of the canonical FINISHED_GOODS store. */
 export default function ReadyGoodsStore() {
@@ -134,11 +163,7 @@ export default function ReadyGoodsStore() {
           .select("product_id, sku, store_code, available_for_b2b_qty, reserved_qty, unavailable_qty, updated_at")
           .eq("store_code", "FINISHED_GOODS")
           .order("sku", { ascending: true }),
-        operationsDb.from("order_items")
-          .select("id, order_id, product_id, quantity, actual_packed_qty, production_status, department, order:orders!inner(id, status, created_at, company:companies(business_name)), product:products(id, name, sku, production_department)")
-          .in("order.status", activeOrderStatuses)
-          .order("created_at", { ascending: true, referencedTable: "order" })
-          .limit(500),
+        fetchAllRgsFactoryOrderLines(operationsDb).then((data) => ({ data, error: null })),
         operationsDb.from("production_jobs")
           .select("id, order_item_id, order_id, product_id, department, reservation_id, assigned_qty, produced_qty, batch_number, priority, stage, status, created_at")
           .order("created_at", { ascending: false })
