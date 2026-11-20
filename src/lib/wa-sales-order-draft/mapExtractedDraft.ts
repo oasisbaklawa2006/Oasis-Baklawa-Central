@@ -18,7 +18,10 @@ export function resolveOperatorQuantity(
     return { quantity: operatorLineQuantities[lineIndex], source: "operator_edit" };
   }
   const line = extracted.lineItems.find((item) => item.lineIndex === lineIndex);
-  const quantity = line?.normalizedQuantity ?? line?.rawQuantity ?? 0;
+  const quantity = line?.normalizedQuantity ?? line?.rawQuantity;
+  if (quantity == null) {
+    return { quantity: 0, source: "ai" };
+  }
   return { quantity, source: "ai" };
 }
 
