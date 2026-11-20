@@ -8,7 +8,7 @@ function makeFailingReservationQuery() {
   builder.select = () => builder;
   builder.in = () => builder;
   builder.order = () => builder;
-  builder.limit = () => new Promise((resolve) => {
+  builder.range = () => new Promise((resolve) => {
     setTimeout(() => resolve({ data: null, error: { message: "reservation backend unavailable" } }), 10);
   });
   return builder;
