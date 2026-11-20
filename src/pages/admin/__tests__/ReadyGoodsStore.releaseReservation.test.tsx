@@ -73,6 +73,7 @@ function makeQuery(data: unknown[]) {
   builder.in = () => builder;
   builder.order = () => builder;
   builder.limit = () => resolved;
+  builder.range = (from: number, to: number) => Promise.resolve({ data: data.slice(from, to + 1), error: null });
   builder.maybeSingle = () => Promise.resolve({ data: null, error: null });
   return builder;
 }
