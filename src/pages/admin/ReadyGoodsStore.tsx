@@ -126,6 +126,7 @@ export async function fetchAllRgsFactoryOrderLines(
     throw new Error("Invalid Factory order page size");
   }
   const all: Demand[] = [];
+  const seenLineIds = new Set<string>();
   for (let offset = 0; ; offset += pageSize) {
     const { data, error } = await db.from("order_items")
       .select("id, order_id, product_id, quantity, actual_packed_qty, production_status, department, order:orders!inner(id, status, created_at, company:companies(business_name)), product:products(id, name, sku, production_department)")
@@ -135,7 +136,13 @@ export async function fetchAllRgsFactoryOrderLines(
       .range(offset, offset + pageSize - 1);
     if (error) throw new Error(`Factory order line read failed: ${error.message || "Unknown Core error"}`);
     if (!Array.isArray(data)) throw new Error("Factory order line read returned invalid data");
-    all.push(...(data as Demand[]));
+    for (const row of data as Demand[]) {
+      if (!row || typeof row.id !== "string" || !row.id || seenLineIds.has(row.id)) {
+        throw new Error("Factory intake source changed during pagination; reload required");
+      }
+      seenLineIds.add(row.id);
+      all.push(row);
+    }
     if (data.length < pageSize) return all;
   }
 }
