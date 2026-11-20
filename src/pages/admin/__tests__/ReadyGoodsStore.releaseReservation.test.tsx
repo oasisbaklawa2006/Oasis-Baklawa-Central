@@ -34,6 +34,7 @@ const reservationRow = {
   released_qty: 0,
   reservation_status: "partially_reserved",
   location_code: "FINISHED_GOODS",
+  demand_reference: "order_item:item-1",
   created_at: "2026-08-02T00:00:00.000Z",
 };
 
