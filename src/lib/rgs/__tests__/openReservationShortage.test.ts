@@ -26,6 +26,6 @@ describe("RGS demand coverage after reservation release (Factory F09)", () => {
   it("binds ReadyGoodsStore allocation to the correct coverage helper", () => {
     const src = readFileSync(resolve(__dirname, "../../../pages/admin/ReadyGoodsStore.tsx"), "utf8");
     expect(src).toContain("calculateOpenRgsReservationShortage(reservation)");
-    expect(src).not.toMatch(/- Number\\(reservation\\?\\.released_qty/);
+    expect(src).not.toContain("Number(reservation?.released_qty");
   });
 });
