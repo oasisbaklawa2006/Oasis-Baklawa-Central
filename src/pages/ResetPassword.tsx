@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Loader2, Lock, CheckCircle2 } from "lucide-react";
@@ -16,10 +16,29 @@ const ResetPassword = () => {
   // Once the password is saved, never repeat updateUser merely because
   // sign-out failed. Only the local-session cleanup should be retried.
   const [passwordSaved, setPasswordSaved] = useState(false);
+  const [sessionReplaced, setSessionReplaced] = useState(false);
+  // Supabase Auth's session_id is stable through token refresh. Store only the
+  // temporary session identifier, never its JWT or recovery token.
+  const originalSession = useRef<{ id: string; userId: string } | null>(null);
 
   const finishSignOut = async () => {
     setLoading(true);
     try {
+      const { data: claimsData, error: claimsError } = await supabase.auth.getClaims();
+      if (claimsError || !claimsData?.claims || !originalSession.current) {
+        toast.error("Password saved, but the invitation session could not be verified. Retry sign-out.");
+        return;
+      }
+      if (
+        claimsData.claims.session_id !== originalSession.current.id ||
+        claimsData.claims.sub !== originalSession.current.userId
+      ) {
+        // A different tab or device replaced the invitation session. Do not
+        // sign out the newer session or repeat the saved password update.
+        setSessionReplaced(true);
+        toast.error("Your sign-in session changed. The newer session was left untouched.");
+        return;
+      }
       const { error: signOutError } = await supabase.auth.signOut({ scope: "local" });
       if (signOutError) {
         toast.error("Password saved, but sign-out failed. Retry signing out; do not reset the password again.");
@@ -57,6 +76,22 @@ const ResetPassword = () => {
         toast.error("This invitation or password reset link is invalid or expired. Request a new link from your administrator.");
         return;
       }
+
+      // Check the active session identity independently from the server-verified
+      // user. An auth redirect/query flag alone cannot authorize a password
+      // change. The identifier binds later sign-out retries to this session.
+      const { data: claimsData, error: claimsError } = await supabase.auth.getClaims();
+      const sessionId = claimsData?.claims?.session_id;
+      if (
+        claimsError ||
+        typeof sessionId !== "string" ||
+        !sessionId ||
+        claimsData.claims.sub !== identity.user.id
+      ) {
+        toast.error("This invitation session could not be verified. Request a fresh link.");
+        return;
+      }
+      originalSession.current = { id: sessionId, userId: identity.user.id };
 
       const { error: updateError } = await supabase.auth.updateUser({ password });
       if (updateError) {
@@ -96,16 +131,28 @@ const ResetPassword = () => {
           </div>
         ) : passwordSaved ? (
           <div className="space-y-4" role="status">
-            <p className="text-sm text-foreground font-medium">Your password was saved, but sign-out has not completed.</p>
-            <p className="text-xs text-muted-foreground">Retry sign-out to finish securely. Your password will not be changed again.</p>
-            <button
-              type="button"
-              onClick={() => void finishSignOut()}
-              disabled={loading}
-              className="w-full py-3 bg-primary text-primary-foreground font-bold rounded-xl flex items-center justify-center gap-2 disabled:opacity-50"
-            >
-              {loading ? <Loader2 size={16} className="animate-spin" /> : "Retry sign out"}
-            </button>
+            {sessionReplaced ? (
+              <>
+                <p className="text-sm text-foreground font-medium">Password saved. A different login session is now active.</p>
+                <p className="text-xs text-muted-foreground">
+                  For security, this page will not sign out the newer session or change your password again.
+                  Close this activation page and use your normal staff login when appropriate.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-foreground font-medium">Your password was saved, but sign-out has not completed.</p>
+                <p className="text-xs text-muted-foreground">Retry sign-out for the original invitation session. Your password will not be changed again.</p>
+                <button
+                  type="button"
+                  onClick={() => void finishSignOut()}
+                  disabled={loading}
+                  className="w-full py-3 bg-primary text-primary-foreground font-bold rounded-xl flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {loading ? <Loader2 size={16} className="animate-spin" /> : "Retry sign out"}
+                </button>
+              </>
+            )}
           </div>
         ) : (
           <div className="space-y-4">
