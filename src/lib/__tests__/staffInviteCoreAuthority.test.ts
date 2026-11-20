@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { assertStaffInviteResponse } from "@/lib/staff-invite-response";
 
 const ui = readFileSync("src/pages/admin/AdminUsers.tsx", "utf8");
+const resetPassword = readFileSync("src/pages/ResetPassword.tsx", "utf8");
 const uuid = "b8e73436-3bca-4cf5-a2ed-2b799f87cb51";
 
 describe("Core-governed employee invitation", () => {
@@ -32,6 +33,14 @@ describe("Core-governed employee invitation", () => {
     expect(ui).not.toContain("nf.password");
     expect(ui).not.toContain("Your Oasis Baklawa ERP Login Credentials");
   });
+  it("sends accepted invitations to first-password setup then employee login", () => {
+    expect(resetPassword).toContain('get("invite") === "1"');
+    expect(resetPassword).toContain("Set Your Staff Password");
+    expect(resetPassword).toContain('navigate("/staff/login?manual_auth=true"');
+    expect(resetPassword).toContain("supabase.auth.updateUser({ password })");
+    expect(resetPassword).not.toContain('navigate("/login"');
+  });
+
   it("does not equate role provisioning with verified invitation delivery or activation", () => {
     expect(ui).toContain("Email delivery");
     expect(ui).toContain("have not been independently confirmed");
