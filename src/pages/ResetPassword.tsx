@@ -13,8 +13,30 @@ const ResetPassword = () => {
   const [confirm, setConfirm] = useState("");
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
+  // Once the password is saved, never repeat updateUser merely because
+  // sign-out failed. Only the local-session cleanup should be retried.
+  const [passwordSaved, setPasswordSaved] = useState(false);
+
+  const finishSignOut = async () => {
+    setLoading(true);
+    try {
+      const { error: signOutError } = await supabase.auth.signOut({ scope: "local" });
+      if (signOutError) {
+        toast.error("Password saved, but sign-out failed. Retry signing out; do not reset the password again.");
+        return;
+      }
+      setDone(true);
+      toast.success(isStaffInvite ? "Staff account password set." : "Staff password updated.");
+      setTimeout(() => navigate("/staff/login", { replace: true }), 1500);
+    } catch {
+      toast.error("Password saved, but sign-out could not finish. Retry signing out.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleReset = async () => {
+    if (passwordSaved || loading) return;
     if (password.length < 6) {
       toast.error("Password must be at least 6 characters.");
       return;
@@ -42,16 +64,12 @@ const ResetPassword = () => {
         return;
       }
 
-      setDone(true);
+      // The password is committed. A subsequent error must not allow a
+      // second password update or mislead the user about their session.
+      setPasswordSaved(true);
       // End the temporary invitation/recovery session before directing staff
       // to the normal employee sign-in entry (not the Buyer login).
-      const { error: signOutError } = await supabase.auth.signOut({ scope: "local" });
-      if (signOutError) {
-        toast.error("Password saved, but automatic sign-out failed. Sign out before logging in.");
-        return;
-      }
-      toast.success(isStaffInvite ? "Staff account password set." : "Staff password updated.");
-      setTimeout(() => navigate("/staff/login", { replace: true }), 1500);
+      await finishSignOut();
     } catch {
       toast.error("Password setup could not be completed. Please request a new link.");
     } finally {
@@ -75,6 +93,19 @@ const ResetPassword = () => {
             <CheckCircle2 size={40} className="mx-auto text-green-500" />
             <p className="font-bold text-foreground">{isStaffInvite ? "Staff Account Password Set" : "Password Updated"}</p>
             <p className="text-sm text-muted-foreground">Redirecting to staff login…</p>
+          </div>
+        ) : passwordSaved ? (
+          <div className="space-y-4" role="status">
+            <p className="text-sm text-foreground font-medium">Your password was saved, but sign-out has not completed.</p>
+            <p className="text-xs text-muted-foreground">Retry sign-out to finish securely. Your password will not be changed again.</p>
+            <button
+              type="button"
+              onClick={() => void finishSignOut()}
+              disabled={loading}
+              className="w-full py-3 bg-primary text-primary-foreground font-bold rounded-xl flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              {loading ? <Loader2 size={16} className="animate-spin" /> : "Retry sign out"}
+            </button>
           </div>
         ) : (
           <div className="space-y-4">
