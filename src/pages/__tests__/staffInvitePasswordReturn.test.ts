@@ -14,7 +14,7 @@ describe("WA-100 employee onboarding invitation / password return", () => {
   });
   it("returns employees to the staff entry only after a successful password change", () => {
     expect(reset).toContain("supabase.auth.updateUser({ password })");
-    expect(reset).toContain("supabase.auth.signOut()");
+    expect(reset).toContain('supabase.auth.signOut({ scope: "local" })');
     expect(reset).toContain('navigate("/staff/login", { replace: true })');
     expect(reset).not.toContain('navigate("/login"');
     expect(reset).toContain("Activate Your Staff Account");
