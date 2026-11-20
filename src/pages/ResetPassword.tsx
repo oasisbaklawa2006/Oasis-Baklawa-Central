@@ -45,7 +45,7 @@ const ResetPassword = () => {
       setDone(true);
       // End the temporary invitation/recovery session before directing staff
       // to the normal employee sign-in entry (not the Buyer login).
-      const { error: signOutError } = await supabase.auth.signOut();
+      const { error: signOutError } = await supabase.auth.signOut({ scope: "local" });
       if (signOutError) {
         toast.error("Password saved, but automatic sign-out failed. Sign out before logging in.");
         return;
