@@ -8,11 +8,7 @@
  *
  * This helper is read-only arithmetic; Core remains the sole stock writer.
  */
-export function calculateOpenRgsReservationShortage(reservation: {
-  requested_qty: unknown;
-  reserved_qty: unknown;
-  fulfilled_qty: unknown;
-}): number {
+export function calculateOpenRgsReservationShortage(reservation: Record<string, unknown>): number {
   const numeric = (value: unknown, key: string): number => {
     if (value === null || value === undefined || value === "") {
       throw new Error(`Core RGS reservation missing ${key}`);
