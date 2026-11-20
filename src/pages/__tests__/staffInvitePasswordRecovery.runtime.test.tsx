@@ -7,7 +7,7 @@ import ResetPassword from "@/pages/ResetPassword";
 const { navigate } = vi.hoisted(() => ({ navigate: vi.fn() }));
 vi.mock("react-router-dom", () => ({ useNavigate: () => navigate }));
 vi.mock("@/integrations/supabase/client", () => ({
-  supabase: { auth: { getUser: vi.fn(), updateUser: vi.fn(), signOut: vi.fn() } },
+  supabase: { auth: { getUser: vi.fn(), getClaims: vi.fn(), updateUser: vi.fn(), signOut: vi.fn() } },
 }));
 vi.mock("sonner", () => ({
   toast: { error: vi.fn(), success: vi.fn() },
@@ -28,6 +28,10 @@ beforeEach(() => {
   vi.mocked(supabase.auth.getUser).mockResolvedValue({
     data: { user: { id: "synthetic-wa100-staff" } }, error: null,
   } as never);
+  vi.mocked(supabase.auth.getClaims).mockResolvedValue({
+    data: { claims: { session_id: "qa-original-invitation-session", sub: "synthetic-wa100-staff" } },
+    error: null,
+  } as never);
   vi.mocked(supabase.auth.updateUser).mockResolvedValue({ data: {}, error: null } as never);
   vi.mocked(supabase.auth.signOut).mockResolvedValue({ error: null } as never);
 });
@@ -44,9 +48,24 @@ describe("WA-100 actual password activation and session recovery", () => {
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith(
       expect.stringContaining("invalid or expired"),
     ));
+    expect(supabase.auth.getClaims).not.toHaveBeenCalled();
     expect(supabase.auth.updateUser).not.toHaveBeenCalled();
     expect(supabase.auth.signOut).not.toHaveBeenCalled();
     expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when the invitation session identity cannot be verified", async () => {
+    vi.mocked(supabase.auth.getClaims).mockResolvedValueOnce({
+      data: { claims: { sub: "synthetic-wa100-staff" } },
+      error: null,
+    } as never);
+    render(<ResetPassword />);
+    submitPassword();
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(
+      expect.stringContaining("session could not be verified"),
+    ));
+    expect(supabase.auth.updateUser).not.toHaveBeenCalled();
+    expect(supabase.auth.signOut).not.toHaveBeenCalled();
   });
 
   it("never signs out when the password update was rejected", async () => {
@@ -80,6 +99,64 @@ describe("WA-100 actual password activation and session recovery", () => {
     await waitFor(() => expect(navigate).toHaveBeenCalledWith(
       "/staff/login", { replace: true },
     ), { timeout: 2500 });
+    expect(supabase.auth.updateUser).toHaveBeenCalledTimes(1);
+    expect(supabase.auth.getClaims).toHaveBeenCalledTimes(3);
+  });
+
+  it("does not sign out a newly replaced session when a retry is clicked", async () => {
+    const originalClaims = {
+      data: { claims: { session_id: "qa-original-invitation-session", sub: "synthetic-wa100-staff" } },
+      error: null,
+    };
+    const replacementClaims = {
+      data: { claims: { session_id: "qa-newer-unrelated-session", sub: "synthetic-wa100-staff" } },
+      error: null,
+    };
+    vi.mocked(supabase.auth.getClaims)
+      .mockResolvedValueOnce(originalClaims as never)
+      .mockResolvedValueOnce(originalClaims as never)
+      .mockResolvedValueOnce(replacementClaims as never);
+    vi.mocked(supabase.auth.signOut).mockResolvedValueOnce({
+      error: { message: "Synthetic initial sign-out failure" },
+    } as never);
+
+    render(<ResetPassword />);
+    submitPassword();
+    const retry = await screen.findByRole("button", { name: "Retry sign out" });
+    expect(supabase.auth.signOut).toHaveBeenCalledTimes(1);
+    fireEvent.click(retry);
+    expect(await screen.findByText(/A different login session is now active/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Retry sign out" })).not.toBeInTheDocument();
+    expect(supabase.auth.signOut).toHaveBeenCalledTimes(1);
+    expect(supabase.auth.updateUser).toHaveBeenCalledTimes(1);
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it("does not sign out when retry cannot verify the original session", async () => {
+    const originalClaims = {
+      data: { claims: { session_id: "qa-original-invitation-session", sub: "synthetic-wa100-staff" } },
+      error: null,
+    };
+    vi.mocked(supabase.auth.getClaims)
+      .mockResolvedValueOnce(originalClaims as never)
+      .mockResolvedValueOnce(originalClaims as never)
+      .mockResolvedValueOnce({ data: null, error: { message: "Transient verification failure" } } as never)
+      .mockResolvedValueOnce(originalClaims as never);
+    vi.mocked(supabase.auth.signOut)
+      .mockResolvedValueOnce({ error: { message: "Initial sign-out blocked" } } as never)
+      .mockResolvedValueOnce({ error: null } as never);
+
+    render(<ResetPassword />);
+    submitPassword();
+    const retry = await screen.findByRole("button", { name: "Retry sign out" });
+    fireEvent.click(retry);
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(
+      expect.stringContaining("session could not be verified"),
+    ));
+    expect(supabase.auth.signOut).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "Retry sign out" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Retry sign out" }));
+    await waitFor(() => expect(supabase.auth.signOut).toHaveBeenCalledTimes(2));
     expect(supabase.auth.updateUser).toHaveBeenCalledTimes(1);
   });
 
