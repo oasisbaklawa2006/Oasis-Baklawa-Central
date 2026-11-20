@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { sendWhatsAppMessage } from "@/utils/whatsapp";
@@ -104,6 +104,21 @@ function buildClarificationTemplate(row: SuggestedOrder, items: ExtractedItem[])
   ].join("\n");
 }
 
+/* ─── session guard ─── */
+
+// Module-scoped so a blocked clarification stays blocked after this tab unmounts
+// (e.g. navigating to /admin/operator-inbox and back). Cleared on full page reload.
+// Volatile UI-session protection only; cross-session safety requires Core event keys.
+const sessionBlockedClarifications = new Set<string>();
+// Confirmed provider acceptance permits status-only recovery, never a resend.
+const sessionAcceptedClarifications = new Set<string>();
+// Shared across tab remounts while a provider request is pending.
+const sessionInFlightClarifications = new Set<string>();
+
+function blockClarificationForSession(id: string): void {
+  sessionBlockedClarifications.add(id);
+}
+
 /* ─── component ─── */
 
 export default function SuggestedOrdersTab({ activeCompanies }: Props) {
@@ -113,7 +128,6 @@ export default function SuggestedOrdersTab({ activeCompanies }: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   // Promote state
-  const [promoting, setPromoting] = useState<string | null>(null);
 
   // Reject state
   const [rejectTarget, setRejectTarget] = useState<string | null>(null);
@@ -124,6 +138,11 @@ export default function SuggestedOrdersTab({ activeCompanies }: Props) {
   const [clarifyTarget, setClarifyTarget] = useState<SuggestedOrder | null>(null);
   const [clarifyMessage, setClarifyMessage] = useState("");
   const [clarifying, setClarifying] = useState(false);
+  // Volatile protection only. Cross-session safety requires Core event keys.
+  const [nonRetryableClarifications, setNonRetryableClarifications] = useState<Set<string>>(
+    () => new Set(sessionBlockedClarifications),
+  );
+  const clarificationInFlight = useRef(false);
 
   const fetchRows = useCallback(async () => {
     setLoading(true);
@@ -149,83 +168,6 @@ export default function SuggestedOrdersTab({ activeCompanies }: Props) {
       if (next.has(id)) { next.delete(id); } else { next.add(id); }
       return next;
     });
-
-  /* ─── Promote to Draft SO ─── */
-  const handlePromote = async (row: SuggestedOrder) => {
-    if (!row.matched_company_id) {
-      toast.error("No matched client. Triage this sender in Shadow Leads first.");
-      return;
-    }
-
-    // Governance gate: company must be active
-    // Governance gate: matched_company_id must appear in the activeCompanies list
-    // (CMDWarRoom only fetches companies with status='active'). If not found, the
-    // company is not yet active — it may be pending_approval or shadow.
-    const company = activeCompanies.find((c) => c.id === row.matched_company_id);
-    if (!company) {
-      toast.error(
-        "Cannot create Draft SO. The matched client is not active. Complete approval in Client Governance first.",
-      );
-      return;
-    }
-
-    setPromoting(row.id);
-    try {
-      const items = parseItems(row.extracted_items);
-      if (items.length === 0) {
-        toast.error("Clarification required: no complete order lines were extracted.");
-        return;
-      }
-      const unresolved = items.filter((item) => item.quantity == null || item.quantity <= 0 || !item.unit);
-      if (unresolved.length > 0) {
-        toast.error("Clarification required: confirm quantity and unit for every item before creating a draft.");
-        return;
-      }
-      const skuItems = items.map((i) => ({
-        name: i.product_name,
-        quantity: i.quantity,
-        unit: i.unit,
-        confidence: row.ai_confidence ?? 0.5,
-      }));
-
-      const { data, error } = await supabase.functions.invoke("admin-create-draft", {
-        body: {
-          company_id: row.matched_company_id,
-          sku_items: skuItems,
-          activate_company: false,
-        },
-      });
-
-      if (error || !data?.ok) {
-        toast.error("Draft SO failed: " + (data?.error || error?.message || "Unknown error"));
-        return;
-      }
-
-      const { error: updateError } = await supabase
-        .from("suggested_orders")
-        .update({
-          status: "confirmed",
-          promoted_order_id: data.order_id,
-          reviewed_at: new Date().toISOString(),
-          reviewed_by: user?.id ?? null,
-        } as Parameters<ReturnType<typeof supabase.from>["update"]>[0])
-        .eq("id", row.id);
-
-      if (updateError) {
-        toast.error("Draft SO was created but updating the suggestion failed: " + updateError.message);
-        return;
-      }
-
-      toast.success(
-        `Draft SO #${data.order_id.slice(0, 8).toUpperCase()} created. Review in Live Battlefield.`,
-      );
-      setRows((prev) => prev.filter((r) => r.id !== row.id));
-    } catch (e: unknown) {
-      toast.error((e instanceof Error ? e.message : null) ?? "Promote failed");
-    } finally {
-      setPromoting(null);
-    }
-  };
 
   /* ─── Reject ─── */
   const handleReject = async (row: SuggestedOrder) => {
@@ -258,27 +200,22 @@ export default function SuggestedOrdersTab({ activeCompanies }: Props) {
 
   /* ─── Open clarification dialog ─── */
   const openClarify = (row: SuggestedOrder) => {
+    if (sessionInFlightClarifications.has(row.id)) {
+      toast.warning("A clarification request is still in progress. Do not send it again.");
+      return;
+    }
+    if (sessionBlockedClarifications.has(row.id) && !sessionAcceptedClarifications.has(row.id)) {
+      toast.warning("WhatsApp acceptance is unconfirmed. Reconcile the provider timeline before any resend.");
+      return;
+    }
     const items = parseItems(row.extracted_items);
     setClarifyTarget(row);
     setClarifyMessage(buildClarificationTemplate(row, items));
   };
 
-  /* ─── Send clarification (operator-confirmed) ─── */
-  const handleSendClarification = async () => {
-    if (!clarifyTarget) return;
-    setClarifying(true);
+  // Retry only the local status transition after a confirmed provider acceptance.
+  const persistAcceptedClarification = async (target: SuggestedOrder) => {
     try {
-      const result = await sendWhatsAppMessage({
-        to: clarifyTarget.sender_phone,
-        message: clarifyMessage,
-        companyId: clarifyTarget.matched_company_id ?? undefined,
-      });
-
-      if (!result.success) {
-        toast.error("WhatsApp send failed: " + result.error);
-        return;
-      }
-
       const { error: updateError } = await supabase
         .from("suggested_orders")
         .update({
@@ -286,21 +223,80 @@ export default function SuggestedOrdersTab({ activeCompanies }: Props) {
           reviewed_at: new Date().toISOString(),
           reviewed_by: user?.id ?? null,
         } as Parameters<ReturnType<typeof supabase.from>["update"]>[0])
-        .eq("id", clarifyTarget.id);
+        .eq("id", target.id);
 
       if (updateError) {
-        toast.error(
-          "Message was sent but updating the suggestion failed: " + updateError.message,
-        );
+        toast.error("Provider accepted the message, but saving the suggestion failed: " +
+          updateError.message + ". Retry the status update only; do not resend.");
         return;
       }
 
-      toast.success("Clarification message sent via WhatsApp.");
-      setRows((prev) => prev.filter((r) => r.id !== clarifyTarget.id));
-      setClarifyTarget(null);
-    } catch (e: unknown) {
-      toast.error((e instanceof Error ? e.message : null) ?? "Send failed");
+      toast.success("Provider accepted the clarification; suggestion updated. Delivery is not yet confirmed.");
+      setRows((prev) => prev.filter((r) => r.id !== target.id));
+      setClarifyTarget((current) => current?.id === target.id ? null : current);
+    } catch (error: unknown) {
+      const reason = error instanceof Error ? error.message : "Unknown error";
+      toast.error("Provider accepted the message, but saving the suggestion failed: " +
+        reason + ". Retry the status update only; do not resend.");
+    }
+  };
+
+  /* ─── Send clarification (operator-confirmed) ─── */
+  const handleSendClarification = async () => {
+    if (
+      !clarifyTarget ||
+      clarificationInFlight.current ||
+      sessionInFlightClarifications.has(clarifyTarget.id) ||
+      (sessionBlockedClarifications.has(clarifyTarget.id) &&
+        !sessionAcceptedClarifications.has(clarifyTarget.id))
+    ) return;
+    // Reserve the suggestion before the first await. This protects a new
+    // component mounted while an earlier request is still in progress.
+    sessionInFlightClarifications.add(clarifyTarget.id);
+    clarificationInFlight.current = true;
+    setClarifying(true);
+    try {
+      if (sessionAcceptedClarifications.has(clarifyTarget.id)) {
+        // Confirmed acceptance: retry the status update without another send.
+        await persistAcceptedClarification(clarifyTarget);
+        return;
+      }
+
+      const result = await sendWhatsAppMessage({
+        to: clarifyTarget.sender_phone,
+        message: clarifyMessage,
+        companyId: clarifyTarget.matched_company_id ?? undefined,
+      });
+
+      if (!result.success) {
+        if (result.acceptanceUnknown) {
+          blockClarificationForSession(clarifyTarget.id);
+          setNonRetryableClarifications(new Set(sessionBlockedClarifications));
+          toast.warning(
+            "WhatsApp acceptance is unconfirmed. Do not resend until the provider timeline is reconciled.",
+          );
+          return;
+        }
+        toast.error("WhatsApp send failed: " + result.error);
+        return;
+      }
+
+      // Preserve confirmed acceptance even when the local status update fails.
+      sessionAcceptedClarifications.add(clarifyTarget.id);
+      blockClarificationForSession(clarifyTarget.id);
+          setNonRetryableClarifications(new Set(sessionBlockedClarifications));
+      await persistAcceptedClarification(clarifyTarget);
+    } catch (_e: unknown) {
+      // A request may have left this browser before an unexpected exception.
+      // Fail closed rather than creating a duplicate operator-originated send.
+      blockClarificationForSession(clarifyTarget.id);
+          setNonRetryableClarifications(new Set(sessionBlockedClarifications));
+      toast.warning(
+        "WhatsApp acceptance is unconfirmed. Do not resend until the provider timeline is reconciled.",
+      );
     } finally {
+      sessionInFlightClarifications.delete(clarifyTarget.id);
+      clarificationInFlight.current = false;
       setClarifying(false);
     }
   };
@@ -531,33 +527,16 @@ export default function SuggestedOrdersTab({ activeCompanies }: Props) {
                 {/* Primary buttons */}
                 {!isRejectOpen && (
                   <div className="flex items-center gap-2 flex-wrap">
-                    {/* Promote */}
-                    <button
-                      onClick={() => handlePromote(row)}
-                      disabled={promoting === row.id}
-                      title={
-                        !row.matched_company_id
-                          ? "No matched client — triage in Shadow Leads first"
-                          : !matchedCompany
-                          ? "Client not yet active — approve in Client Governance first"
-                          : "Create Draft SO in Live Battlefield"
-                      }
-                      className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
-                    >
-                      {promoting === row.id ? (
-                        <Loader2 size={11} className="animate-spin" />
-                      ) : (
-                        <CheckCircle2 size={11} />
-                      )}
-                      Promote to Draft SO
-                    </button>
+                    {/* The retired War Room cannot open this handoff. The live
+                        Operator Inbox has a read-only sender/packet lookup that
+                        requires explicit packet selection before draft review. */}
 
                     {/* Request Clarification */}
                     <button
                       onClick={() => openClarify(row)}
                       className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-md border border-border text-foreground hover:bg-muted transition-colors"
                     >
-                      <MessageSquare size={11} /> Request Clarification
+                      <MessageSquare size={11} /> {sessionAcceptedClarifications.has(row.id) ? "Retry status update only" : "Request Clarification"}
                     </button>
 
                     {/* Reject */}
@@ -599,19 +578,24 @@ export default function SuggestedOrdersTab({ activeCompanies }: Props) {
               {/* Editable message */}
               <div className="space-y-1.5">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                  Message — review and edit before sending
+                  {clarifyTarget && sessionAcceptedClarifications.has(clarifyTarget.id)
+                    ? "Previously accepted message — sending disabled"
+                    : "Message — review and edit before sending"}
                 </p>
                 <textarea
                   rows={10}
                   value={clarifyMessage}
                   onChange={(e) => setClarifyMessage(e.target.value)}
+                  disabled={!!clarifyTarget && sessionAcceptedClarifications.has(clarifyTarget.id)}
                   className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground leading-relaxed resize-none focus:outline-none focus:ring-1 focus:ring-ring"
                 />
               </div>
 
               <p className="text-[10px] text-muted-foreground">
-                This message will be sent via WhatsApp and logged to the client interaction timeline.
-                The suggestion will be marked <span className="font-semibold">Needs Clarification</span> and removed from this queue.
+                {clarifyTarget && sessionAcceptedClarifications.has(clarifyTarget.id)
+                  ? "Provider acceptance is already confirmed. This action retries only the suggestion status update; it never sends another WhatsApp message."
+                  : <>This message will be sent via WhatsApp and logged to the client interaction timeline.
+                      The suggestion will be marked <span className="font-semibold">Needs Clarification</span> and removed from this queue.</>}
               </p>
             </div>
           )}
@@ -626,7 +610,10 @@ export default function SuggestedOrdersTab({ activeCompanies }: Props) {
             </Button>
             <Button
               onClick={handleSendClarification}
-              disabled={clarifying || !clarifyMessage.trim()}
+              disabled={clarifying ||
+                (!sessionAcceptedClarifications.has(clarifyTarget?.id ?? "") && !clarifyMessage.trim()) ||
+                (nonRetryableClarifications.has(clarifyTarget?.id ?? "") &&
+                  !sessionAcceptedClarifications.has(clarifyTarget?.id ?? ""))}
               className="gap-1.5"
             >
               {clarifying ? (
@@ -634,7 +621,7 @@ export default function SuggestedOrdersTab({ activeCompanies }: Props) {
               ) : (
                 <MessageSquare size={14} />
               )}
-              Confirm & Send
+              {sessionAcceptedClarifications.has(clarifyTarget?.id ?? "") ? "Retry status update only" : "Confirm & Send"}
             </Button>
           </DialogFooter>
         </DialogContent>
