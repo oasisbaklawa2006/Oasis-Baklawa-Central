@@ -111,7 +111,7 @@ function buildClarificationTemplate(row: SuggestedOrder, items: ExtractedItem[])
 // Volatile UI-session protection only; cross-session safety requires Core event keys.
 const sessionBlockedClarifications = new Set<string>();
 // Confirmed provider acceptance permits status-only recovery, never a resend.
-const sessionAcceptedClarifications = new Set<string>();
+const sessionAcceptedClarifications = new Map<string, string>();
 // Shared across tab remounts while a provider request is pending.
 const sessionInFlightClarifications = new Set<string>();
 
@@ -210,24 +210,33 @@ export default function SuggestedOrdersTab({ activeCompanies }: Props) {
     }
     const items = parseItems(row.extracted_items);
     setClarifyTarget(row);
-    setClarifyMessage(buildClarificationTemplate(row, items));
+    setClarifyMessage(sessionAcceptedClarifications.get(row.id) ?? buildClarificationTemplate(row, items));
   };
 
   // Retry only the local status transition after a confirmed provider acceptance.
   const persistAcceptedClarification = async (target: SuggestedOrder) => {
     try {
-      const { error: updateError } = await supabase
+      // Only a still-pending suggestion may transition. RLS alone does not
+      // protect against an intervening operator decision.
+      const { data: updatedRows, error: updateError } = await supabase
         .from("suggested_orders")
         .update({
           status: "needs_clarification",
           reviewed_at: new Date().toISOString(),
           reviewed_by: user?.id ?? null,
         } as Parameters<ReturnType<typeof supabase.from>["update"]>[0])
-        .eq("id", target.id);
+        .eq("id", target.id)
+        .eq("status", "pending_review")
+        .select("id, status");
 
-      if (updateError) {
+      // PostgREST can return HTTP 2xx with zero rows updated. Never tell an
+      // operator it succeeded unless the expected transition was returned.
+      if (updateError || !updatedRows?.some(
+        (row) => row.id === target.id && row.status === "needs_clarification"
+      )) {
         toast.error("Provider accepted the message, but saving the suggestion failed: " +
-          updateError.message + ". Retry the status update only; do not resend.");
+          (updateError?.message ?? "The suggestion was already changed or is unavailable") +
+          ". Retry only after reconciliation; do not resend.");
         return;
       }
 
@@ -262,9 +271,13 @@ export default function SuggestedOrdersTab({ activeCompanies }: Props) {
         return;
       }
 
+      // Capture the exact outbound text before crossing the async provider
+      // boundary. Recovery always shows this accepted text, not a regenerated
+      // or subsequently edited template.
+      const submittedMessage = clarifyMessage;
       const result = await sendWhatsAppMessage({
         to: clarifyTarget.sender_phone,
-        message: clarifyMessage,
+        message: submittedMessage,
         companyId: clarifyTarget.matched_company_id ?? undefined,
       });
 
@@ -282,7 +295,7 @@ export default function SuggestedOrdersTab({ activeCompanies }: Props) {
       }
 
       // Preserve confirmed acceptance even when the local status update fails.
-      sessionAcceptedClarifications.add(clarifyTarget.id);
+      sessionAcceptedClarifications.set(clarifyTarget.id, submittedMessage);
       blockClarificationForSession(clarifyTarget.id);
           setNonRetryableClarifications(new Set(sessionBlockedClarifications));
       await persistAcceptedClarification(clarifyTarget);
@@ -555,7 +568,7 @@ export default function SuggestedOrdersTab({ activeCompanies }: Props) {
       </div>
 
       {/* ─── Request Clarification Dialog ─── */}
-      <Dialog open={!!clarifyTarget} onOpenChange={(open) => { if (!open) setClarifyTarget(null); }}>
+      <Dialog open={!!clarifyTarget} onOpenChange={(open) => { if (!open && !clarifying) setClarifyTarget(null); }}>
         <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base">
@@ -586,7 +599,7 @@ export default function SuggestedOrdersTab({ activeCompanies }: Props) {
                   rows={10}
                   value={clarifyMessage}
                   onChange={(e) => setClarifyMessage(e.target.value)}
-                  disabled={!!clarifyTarget && sessionAcceptedClarifications.has(clarifyTarget.id)}
+                  disabled={clarifying || (!!clarifyTarget && sessionAcceptedClarifications.has(clarifyTarget.id))}
                   className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground leading-relaxed resize-none focus:outline-none focus:ring-1 focus:ring-ring"
                 />
               </div>
