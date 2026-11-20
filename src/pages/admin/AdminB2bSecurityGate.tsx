@@ -205,6 +205,10 @@ const AdminB2bSecurityGate = () => {
       : { bg: "bg-slate-950", text: "text-slate-300", Icon: ScanLine, title: "SCAN B2B CARTON" };
 
   const sendCustomerDispatchCommunication = async () => {
+    if (!DISPATCH_WHATSAPP_COMMISSIONED) {
+      toast.warning("Customer WhatsApp not sent: recipient and durable receipt authority are pending.");
+      return;
+    }
     if (!user?.id) {
       toast.error("Authenticated gate actor required");
       return;
@@ -230,7 +234,7 @@ const AdminB2bSecurityGate = () => {
   };
 
   const communicationEligibility = assessDispatchCustomerCommunicationEligibility(handoffFacts);
-  const roadCredentialsRequired = transportMode === "ROAD";
+   const roadCredentialsRequired = transportMode === "ROAD";
   const vehicleRequired = roadCredentialsRequired || transportMode === "CUSTOMER_PICKUP";
 
   return (
