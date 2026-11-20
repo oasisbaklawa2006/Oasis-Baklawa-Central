@@ -89,6 +89,15 @@ describe("WA-100 accepted clarification status-only recovery", () => {
   it("keeps the exact accepted text, fails closed on zero rows and never resends on status recovery", async () => {
     statusUpdate.mockResolvedValue({ data: [], error: null });
     vi.mocked(sendWhatsAppMessage).mockResolvedValue({ success: true });
+    // Use a distinct identity: the module-scoped accepted-message map deliberately
+    // survives remount and must not bleed across unrelated test scenarios.
+    vi.mocked(supabase.from).mockImplementation(() => ({
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      order: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockResolvedValue({ data: [{ ...sampleRow, id: "accepted-text-recovery-test-id" }], error: null }),
+      update: vi.fn(() => ({ eq: updateEq, select: updateSelect })),
+    }) as unknown as ReturnType<typeof supabase.from>);
 
     showSuggestions();
     fireEvent.click(await screen.findByRole("button", { name: "Request Clarification" }));
