@@ -14,6 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 
 const nonB2bDemandSources = ["pna", "outlet", "internal"] as const;
 const PRODUCT_ID_QUERY_CHUNK_SIZE = 100;
+const RESERVATION_PAGE_SIZE = 500;
 
 // inventory_reservations is not yet present in Central's generated Database
 // snapshot. Keep the temporary boundary ONLY for that relation; products is
@@ -64,6 +65,30 @@ export function calculateOpenReservationShortage(reservation: ReservationCoverag
 }
 
 /**
+ * Load every open reservation in deterministic pages. Supabase/PostgREST
+ * returns at most the configured API row cap for a single query. Without
+ * pagination, the demand planner silently loses shortages past that cap.
+ * A failed later page must reject the entire snapshot, never show a partial
+ * success/zero-shortage state. This remains SELECT-only; Core RPCs own writes.
+ */
+export async function readAllOpenRgsReservations(client: typeof reservationDb): Promise<Omit<Reservation, "product">[]> {
+  const all: Omit<Reservation, "product">[] = [];
+  for (let offset = 0; ; offset += RESERVATION_PAGE_SIZE) {
+    const { data, error } = await client
+      .from("inventory_reservations")
+      .select("id, product_id, sku, requested_qty, reserved_qty, fulfilled_qty, released_qty, reservation_status")
+      .in("reservation_status", ["pending", "partially_reserved"])
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true })
+      .range(offset, offset + RESERVATION_PAGE_SIZE - 1);
+    if (error) throw new Error(error.message ?? "Could not read RGS reservations");
+    if (!Array.isArray(data)) throw new Error("RGS reservations response is invalid");
+    all.push(...(data as Omit<Reservation, "product">[]));
+    if (data.length < RESERVATION_PAGE_SIZE) return all;
+  }
+}
+
+/**
  * RGS PC capability #6 (Production Demand Planner): a standalone SKU-wise
  * consolidated view of open RGS shortages, rather than routing shortage per
  * demand row inline (as ReadyGoodsStore.tsx still does for a single
@@ -88,19 +113,15 @@ export default function RgsProductionDemandPlanner() {
     // 'products' in the schema cache". Fetch reservations and products as
     // two plain queries and join them client-side instead of adding an FK
     // solely to satisfy PostgREST's embedding.
-    const { data: reservationRows, error: loadError } = await reservationDb
-      .from("inventory_reservations")
-      .select("id, product_id, sku, requested_qty, reserved_qty, fulfilled_qty, released_qty, reservation_status")
-      .in("reservation_status", ["pending", "partially_reserved"])
-      .order("created_at", { ascending: true })
-      .limit(1000);
-    if (loadError) {
-      setError(loadError.message ?? "Unexpected demand planner error");
+    let rows: Omit<Reservation, "product">[];
+    try {
+      rows = await readAllOpenRgsReservations(reservationDb);
+    } catch (readError) {
+      setError(readError instanceof Error ? readError.message : "Unexpected demand planner error");
       setReservations([]);
       setLoading(false);
       return;
     }
-    const rows = (reservationRows ?? []) as Omit<Reservation, "product">[];
     const productIds = Array.from(new Set(rows.map((r) => r.product_id))).filter(Boolean);
     let productMap = new Map<string, Pick<DemandProduct, "name" | "production_department">>();
     if (productIds.length > 0) {
