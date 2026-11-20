@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/hooks/useAuth";
 import type { Database } from "@/integrations/supabase/types";
-import { generateTempPassword } from "@/lib/security/temporaryPassword";
+import { assertStaffInviteResponse } from "@/lib/staff-invite-response";
 
 /* ─── types ─── */
 type UserRow = Database["public"]["Tables"]["users"]["Row"] & {
@@ -127,10 +127,8 @@ const AdminUsers = () => {
   const [savingRole, setSavingRole] = useState(false);
 
   const [showCredentialsModal, setShowCredentialsModal] = useState(false);
-  const [createdCredentials, setCreatedCredentials] = useState<{
-    name: string;
+  const [invitedEmployee, setInvitedEmployee] = useState<{
     email: string;
-    password: string;
     role: string;
   } | null>(null);
 
@@ -140,23 +138,11 @@ const AdminUsers = () => {
   const [nf, setNf] = useState({
     name: "",
     email: "",
-    mobile: "",
-    secondary_mobile: "",
     dept: "none",
     designation: "",
     role: "none",
-    password: "",
-    status: "invited" as string,
-    is_sales_executive: false,
-    commission_rate: 0,
   });
   const [selectedPermIds, setSelectedPermIds] = useState<string[]>([]);
-
-  const formatPlusPhone = (raw: string) => {
-    const digits = (raw || "").replace(/[^\d]/g, "");
-    if (!digits) return "";
-    return `+${digits}`;
-  };
 
   const fetchData = useCallback(
     async (opts?: { silent?: boolean }) => {
@@ -190,13 +176,6 @@ const AdminUsers = () => {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
-
-  // Auto-gen password when modal opens
-  useEffect(() => {
-    if (showModal && !nf.password) {
-      setNf((prev) => ({ ...prev, password: generateTempPassword() }));
-    }
-  }, [showModal, nf.password]);
 
   const permsByModule = (mod: string) => allPermissions.filter((p) => p.module_name === mod);
   const getPermIdsForModules = (mods: string[]) =>
@@ -232,133 +211,38 @@ const AdminUsers = () => {
   const handleCreateEmployee = async () => {
     if (!nf.name.trim() || !nf.email.trim()) return toast.error("Name and Email are required");
     if (nf.role === "none" || !nf.role) return toast.error("Role is required");
-    if (!nf.password || nf.password.length < 6) return toast.error("Password is required (minimum 6 characters)");
+    if (ROLES_REQUIRING_DEPARTMENT.has(nf.role) && nf.dept === "none") {
+      return toast.error("Department is required for this role");
+    }
 
     setSaving("new");
-    const roleRecord = roles.find((r) => r.role_key === nf.role);
-    const chosenPassword = nf.password;
-    const inviteRedirect = `${window.location.origin}/staff/login?manual_auth=true`;
-
-    const { data: authData, error: authError } = await supabase.auth.signUp({
-      email: nf.email.trim(),
-      password: chosenPassword,
-      options: { emailRedirectTo: inviteRedirect, data: { full_name: nf.name, role: nf.role } },
-    });
-
-    if (authError) {
-      const looksDuplicate = /already|exist|registered/i.test(authError.message);
-      if (looksDuplicate) {
-        const { error: linkErr } = await supabase.auth.signInWithOtp({
-          email: nf.email.trim(),
-          options: { emailRedirectTo: inviteRedirect },
-        });
-        if (linkErr) toast.error("User exists; failed to send link: " + linkErr.message);
-        else toast.success(`Invite link sent to ${nf.email.trim()} (User already existed).`);
-      } else {
-        toast.error("Failed to create auth account: " + authError.message);
-      }
-      setSaving(null);
-      return;
-    }
-
-    const newUserId = authData.user?.id;
-    if (!newUserId) {
-      await supabase.auth.signInWithOtp({ email: nf.email.trim(), options: { emailRedirectTo: inviteRedirect } });
-      toast.success(`Invite link sent to ${nf.email.trim()}.`);
-      setShowModal(false);
-      setSaving(null);
-      return;
-    }
-
-    const formattedMobile = nf.mobile ? formatPlusPhone(nf.mobile) : null;
-    const formattedSecondary = nf.secondary_mobile ? formatPlusPhone(nf.secondary_mobile) : null;
-
     try {
-      const isSalesExec = nf.is_sales_executive || nf.role === "sales_executive";
-      const upsertRow: Database["public"]["Tables"]["users"]["Insert"] = {
-        id: newUserId,
-        full_name: nf.name,
-        email: nf.email.trim(),
-        mobile_number: formattedMobile,
-        ...(formattedSecondary ? { secondary_phones: [formattedSecondary] } : {}),
-        role: nf.role,
-        department: nf.dept === "none" ? null : nf.dept,
-        designation: nf.designation || null,
-        is_active: true,
-        invite_status: "active",
-        is_sales_executive: isSalesExec,
-        ...(isSalesExec && nf.commission_rate > 0 ? { commission_rate_percentage: nf.commission_rate } : {}),
-      };
-      await supabase.from("users").upsert(upsertRow, { onConflict: "id" });
-
-      if (roleRecord) {
-        await supabase
-          .from("user_role_map")
-          .upsert({ user_id: newUserId, role_id: roleRecord.id }, { onConflict: "user_id" });
-      }
-
-      const { error: emailError } = await supabase.functions.invoke("send-email", {
+      // Staff invitation + role authority belong to Core. No browser-side
+      // signUp, privilege-bearing table upsert or emailed password is allowed.
+      const { data, error } = await supabase.functions.invoke("admin-provision-user", {
         body: {
-          to: nf.email.trim(),
-          subject: "Your Oasis Baklawa ERP Login Credentials",
-          html: `<div style="font-family: Georgia, serif; padding: 32px; background: #1c1c1c; color: #f5f5f5; border-radius: 12px;">
-            <h1 style="color: #C4A052; font-size: 22px;">Welcome to Oasis Baklawa</h1>
-            <p>Your admin account has been created.</p>
-            <div style="background: #2a2a2a; padding: 20px; border-radius: 8px; border-left: 3px solid #C4A052;">
-              <p><strong style="color: #C4A052;">Email:</strong> ${nf.email.trim()}</p>
-              <p><strong style="color: #C4A052;">Password:</strong> ${chosenPassword}</p>
-              <p><strong style="color: #C4A052;">Role:</strong> ${nf.role.replace(/_/g, " ").toUpperCase()}</p>
-            </div></div>`,
+          mode: "invite",
+          email: nf.email.trim(),
+          displayName: nf.name.trim(),
+          roleKey: nf.role,
+          department: nf.dept === "none" ? undefined : nf.dept,
+          designation: nf.designation.trim() || undefined,
         },
       });
+      if (error) throw new Error(error.message || "Secure staff invitation failed");
+      assertStaffInviteResponse(data);
 
-      if (emailError) console.error("Email dispatch failed:", emailError);
-
-      const optimisticUser: UserRow = {
-        id: newUserId,
-        email: nf.email.trim(),
-        full_name: nf.name,
-        role: nf.role,
-        department: nf.dept === "none" ? null : nf.dept,
-        designation: nf.designation || null,
-        is_active: true,
-        invite_status: "active",
-        mobile_number: formattedMobile,
-        secondary_phones: formattedSecondary ? [formattedSecondary] : null,
-        company_id: null,
-        created_at: new Date().toISOString(),
-        commission_rate_percentage: isSalesExec && nf.commission_rate > 0 ? nf.commission_rate : null,
-        is_sales_executive: isSalesExec,
-        has_seen_tutorial: null,
-        joined_at: null,
-        name: null,
-        phone: null,
-        preferred_language: null,
-        deleted_at: null,
-      };
-
-      setUsers((prev) => [optimisticUser, ...prev]);
-      setCreatedCredentials({ name: nf.name, email: nf.email.trim(), password: chosenPassword, role: nf.role });
+      setInvitedEmployee({ email: nf.email.trim(), role: nf.role });
       setShowCredentialsModal(true);
       setShowModal(false);
-      setNf({
-        name: "",
-        email: "",
-        mobile: "",
-        secondary_mobile: "",
-        dept: "none",
-        designation: "",
-        role: "none",
-        password: "",
-        status: "invited",
-        is_sales_executive: false,
-        commission_rate: 0,
-      });
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to finalize setup.");
+      setWizardStep(1);
+      setNf({ name: "", email: "", dept: "none", designation: "", role: "none" });
+      toast.success("Staff role provisioned. New users receive a secure invitation link.");
+      void fetchData({ silent: true });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Secure staff invitation failed");
     } finally {
       setSaving(null);
-      void fetchData({ silent: true });
     }
   };
 
@@ -864,47 +748,11 @@ const AdminUsers = () => {
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                    Primary Mobile
-                  </Label>
-                  <Input
-                    type="tel"
-                    value={nf.mobile}
-                    onChange={(e) => setNf((p) => ({ ...p, mobile: formatPlusPhone(e.target.value) }))}
-                    className="rounded-xl h-11 border-border focus-visible:ring-primary font-number"
-                    placeholder="+919876543210"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                    Secondary Mobile
-                  </Label>
-                  <Input
-                    type="tel"
-                    value={nf.secondary_mobile}
-                    onChange={(e) => setNf((p) => ({ ...p, secondary_mobile: formatPlusPhone(e.target.value) }))}
-                    className="rounded-xl h-11 border-border focus-visible:ring-primary font-number"
-                    placeholder="+919876543211 (optional)"
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  Initial Password *
-                </Label>
-                <Input
-                  type="text"
-                  value={nf.password}
-                  onChange={(e) => setNf((p) => ({ ...p, password: e.target.value }))}
-                  className="rounded-xl h-11 border-border focus-visible:ring-primary font-mono text-sm"
-                  placeholder="Min 6 characters"
-                />
-                <p className="text-[10px] text-muted-foreground italic">
-                  Auto-generated. Share this with the employee for first login.
-                </p>
-              </div>
+              <p className="text-xs text-muted-foreground rounded-lg border border-border bg-muted/30 p-3">
+                This invitation uses a secure email activation link, never a temporary password.
+                Phone, commission and other employee profile details must be configured separately
+                through their governed workflows after onboarding.
+              </p>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Role *</Label>
@@ -921,21 +769,6 @@ const AdminUsers = () => {
                         {r.role_name}
                       </option>
                     ))}
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                    Initial Status
-                  </Label>
-                  <select
-                    value={nf.status}
-                    onChange={(e) => setNf((p) => ({ ...p, status: e.target.value }))}
-                    className="flex h-11 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm focus:ring-1 focus:ring-primary focus:outline-none appearance-none cursor-pointer"
-                  >
-                    <option value="invited">Invited</option>
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                    <option value="blocked">Blocked</option>
                   </select>
                 </div>
               </div>
@@ -961,42 +794,11 @@ const AdminUsers = () => {
                 </div>
               )}
 
-              <div className="pt-2 border-t border-border space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                      Sales Executive
-                    </Label>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">Enables commission tracking and sales console access.</p>
-                  </div>
-                  <Switch
-                    checked={nf.is_sales_executive || nf.role === "sales_executive"}
-                    onCheckedChange={(v) => setNf((p) => ({ ...p, is_sales_executive: v }))}
-                  />
-                </div>
-                {(nf.is_sales_executive || nf.role === "sales_executive") && (
-                  <div className="space-y-2">
-                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                      Commission Rate (%)
-                    </Label>
-                    <Input
-                      type="number"
-                      min={0}
-                      max={100}
-                      step={0.5}
-                      value={nf.commission_rate}
-                      onChange={(e) => setNf((p) => ({ ...p, commission_rate: parseFloat(e.target.value) || 0 }))}
-                      className="rounded-xl h-11 border-border focus-visible:ring-primary font-number w-36"
-                      placeholder="0.0"
-                    />
-                  </div>
-                )}
-              </div>
               <button
                 onClick={() => {
                   if (!nf.name.trim() || !nf.email.trim()) return toast.error("Name and Email are required");
                   if (nf.role === "none" || !nf.role) return toast.error("Role is required");
-                  if (!nf.password || nf.password.length < 6) return toast.error("Password must be at least 6 characters");
+                  if (ROLES_REQUIRING_DEPARTMENT.has(nf.role) && nf.dept === "none") return toast.error("Department is required");
                   setWizardStep(2);
                 }}
                 className="w-full mt-4 py-3.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all"
@@ -1014,15 +816,10 @@ const AdminUsers = () => {
                   {[
                     { label: "Full Name", value: nf.name },
                     { label: "Email", value: nf.email },
-                    { label: "Primary Mobile", value: nf.mobile || "—" },
-                    { label: "Secondary Mobile", value: nf.secondary_mobile || "—" },
-                    { label: "Password", value: nf.password, mono: true },
+                    { label: "Activation", value: "Secure email invitation" },
                     { label: "Role", value: (roles.find((r) => r.role_key === nf.role)?.role_name) || nf.role },
-                    { label: "Status", value: nf.status },
                     ...(ROLES_REQUIRING_DEPARTMENT.has(nf.role) ? [{ label: "Department", value: nf.dept === "none" ? "—" : nf.dept }] : []),
                     { label: "Designation", value: nf.designation || "—" },
-                    { label: "Sales Executive", value: (nf.is_sales_executive || nf.role === "sales_executive") ? "Yes" : "No" },
-                    ...((nf.is_sales_executive || nf.role === "sales_executive") ? [{ label: "Commission %", value: `${nf.commission_rate}%` }] : []),
                   ].map((row) => (
                     <div key={row.label} className="flex items-center justify-between text-sm border-b border-border/50 pb-2 last:border-0">
                       <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{row.label}</span>
@@ -1043,7 +840,7 @@ const AdminUsers = () => {
                     disabled={saving === "new"}
                     className="py-3.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all disabled:opacity-50"
                   >
-                    {saving === "new" ? <Loader2 size={16} className="animate-spin mx-auto" /> : "Confirm & Create"}
+                    {saving === "new" ? <Loader2 size={16} className="animate-spin mx-auto" /> : "Send Secure Invitation"}
                   </button>
                 </div>
               </div>
@@ -1052,64 +849,35 @@ const AdminUsers = () => {
         </div>
       )}
 
-      {/* 3. NATIVE CREDENTIALS SUCCESS MODAL */}
+      {/* 3. SECURE INVITATION RESULT (never show or email passwords) */}
       {showCredentialsModal && (
         <div
           className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-4"
           onClick={() => setShowCredentialsModal(false)}
         >
           <div
-            className="w-full max-w-md max-h-[90vh] overflow-y-auto bg-card border border-border rounded-3xl p-6 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200"
+            className="w-full max-w-md bg-card border border-border rounded-3xl p-6 shadow-2xl relative"
             onClick={(e) => e.stopPropagation()}
           >
             <button
               onClick={() => setShowCredentialsModal(false)}
-              className="absolute top-6 right-6 p-2 rounded-full hover:bg-muted transition-colors"
+              className="absolute top-6 right-6 p-2 rounded-full hover:bg-muted"
+              aria-label="Close invitation result"
             >
               <X size={20} className="text-muted-foreground" />
             </button>
-            <div className="mb-4 pr-8">
-              <h2 className="text-xl font-serif font-bold text-foreground flex items-center gap-2">
-                <UserPlus size={20} className="text-primary" /> Employee Created
-              </h2>
-            </div>
-            {createdCredentials && (
-              <div className="space-y-4">
-                <p className="text-sm text-muted-foreground">
-                  Account created successfully.{" "}
-                  <strong className="text-destructive">Copy the temporary password now.</strong>
+            <h2 className="text-xl font-serif font-bold text-foreground mb-3">
+              Employee Role Provisioned
+            </h2>
+            {invitedEmployee && (
+              <div className="space-y-3 text-sm">
+                <p><strong>Email:</strong> {invitedEmployee.email}</p>
+                <p><strong>Role:</strong> {invitedEmployee.role.replace(/_/g, " ")}</p>
+                <p className="text-muted-foreground">
+                  New accounts receive a secure Supabase invitation email. For an existing
+                  identity, use its separate governed login-link process. Email delivery
+                  and employee activation have not been independently confirmed here.
                 </p>
-                <div className="bg-muted/50 rounded-xl p-4 space-y-3 border border-border">
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Email</span>
-                    <span className="text-sm font-bold text-foreground">{createdCredentials.email}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Role</span>
-                    <span className="text-sm font-bold text-primary uppercase">
-                      {createdCredentials.role.replace(/_/g, " ")}
-                    </span>
-                  </div>
-                  <div className="border-t border-border pt-3">
-                    <span className="text-xs font-bold uppercase tracking-wider text-destructive block mb-1">
-                      Temporary Password
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <code className="flex-1 bg-card border border-primary/30 rounded-lg px-3 py-2 text-sm font-mono font-bold text-foreground select-all">
-                        {createdCredentials.password}
-                      </code>
-                      <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(createdCredentials.password);
-                          toast.success("Copied");
-                        }}
-                        className="px-3 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-bold"
-                      >
-                        Copy
-                      </button>
-                    </div>
-                  </div>
-                </div>
               </div>
             )}
           </div>
