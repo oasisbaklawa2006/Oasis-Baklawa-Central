@@ -142,7 +142,6 @@ const AdminUsers = () => {
     designation: "",
     role: "none",
   });
-  const [selectedPermIds, setSelectedPermIds] = useState<string[]>([]);
 
   const fetchData = useCallback(
     async (opts?: { silent?: boolean }) => {
@@ -193,8 +192,6 @@ const AdminUsers = () => {
       role: roleKey,
       dept: needsDept ? prev.dept : "none",
     }));
-    const defaults = DEFAULT_MODULE_MAP[roleKey] ?? [];
-    setSelectedPermIds(getPermIdsForModules(defaults));
   };
 
   const filteredUsers = useMemo(() => {
@@ -750,8 +747,8 @@ const AdminUsers = () => {
               </div>
               <p className="text-xs text-muted-foreground rounded-lg border border-border bg-muted/30 p-3">
                 This invitation uses a secure email activation link, never a temporary password.
-                Phone, commission and other employee profile details must be configured separately
-                through their governed workflows after onboarding.
+                Phone, commission and other profile details are not recorded during this secure invitation.
+                Complete them through an authorised staff profile process after onboarding.
               </p>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -794,6 +791,17 @@ const AdminUsers = () => {
                 </div>
               )}
 
+              <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  Designation
+                </Label>
+                <Input
+                  value={nf.designation}
+                  onChange={(e) => setNf((p) => ({ ...p, designation: e.target.value }))}
+                  className="rounded-xl h-11 border-border focus-visible:ring-primary"
+                  placeholder="Job title (optional)"
+                />
+              </div>
               <button
                 onClick={() => {
                   if (!nf.name.trim() || !nf.email.trim()) return toast.error("Name and Email are required");
@@ -823,7 +831,7 @@ const AdminUsers = () => {
                   ].map((row) => (
                     <div key={row.label} className="flex items-center justify-between text-sm border-b border-border/50 pb-2 last:border-0">
                       <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{row.label}</span>
-                      <span className={`text-foreground ${row.mono ? "font-mono text-xs" : "font-medium"}`}>{row.value}</span>
+                      <span className={`text-foreground font-medium`}>{row.value}</span>
                     </div>
                   ))}
                 </div>
