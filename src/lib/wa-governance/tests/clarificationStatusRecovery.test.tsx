@@ -35,6 +35,8 @@ const sampleRow = {
 };
 
 const statusUpdate = vi.fn();
+const updateEq = vi.fn().mockReturnThis();
+const updateSelect = vi.fn(() => statusUpdate());
 
 function showSuggestions() {
   return render(createElement(MemoryRouter, null,
@@ -44,12 +46,14 @@ function showSuggestions() {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  updateEq.mockReturnThis();
+  updateSelect.mockImplementation(() => statusUpdate());
   vi.mocked(supabase.from).mockImplementation(() => ({
     select: vi.fn().mockReturnThis(),
     eq: vi.fn().mockReturnThis(),
     order: vi.fn().mockReturnThis(),
     limit: vi.fn().mockResolvedValue({ data: [sampleRow], error: null }),
-    update: vi.fn(() => ({ eq: statusUpdate })),
+    update: vi.fn(() => ({ eq: updateEq, select: updateSelect })),
   }) as unknown as ReturnType<typeof supabase.from>);
 });
 
@@ -58,8 +62,8 @@ afterEach(cleanup);
 describe("WA-100 accepted clarification status-only recovery", () => {
   it("retries the database transition after acceptance without another WhatsApp send, even after remount", async () => {
     statusUpdate
-      .mockResolvedValueOnce({ error: { message: "Write temporarily unavailable" } })
-      .mockResolvedValueOnce({ error: null });
+      .mockResolvedValueOnce({ data: null, error: { message: "Write temporarily unavailable" } })
+      .mockResolvedValueOnce({ data: [{ id: sampleRow.id, status: "needs_clarification" }], error: null });
     vi.mocked(sendWhatsAppMessage).mockResolvedValue({ success: true });
 
     showSuggestions();
@@ -76,7 +80,37 @@ describe("WA-100 accepted clarification status-only recovery", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Retry status update only" }).at(-1)!);
 
     await waitFor(() => expect(statusUpdate).toHaveBeenCalledTimes(2));
+    expect(updateEq).toHaveBeenCalledWith("status", "pending_review");
+    expect(updateSelect).toHaveBeenCalledWith("id, status");
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith(expect.stringContaining("suggestion updated")));
+    expect(sendWhatsAppMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the exact accepted text, fails closed on zero rows and never resends on status recovery", async () => {
+    statusUpdate.mockResolvedValue({ data: [], error: null });
+    vi.mocked(sendWhatsAppMessage).mockResolvedValue({ success: true });
+
+    showSuggestions();
+    fireEvent.click(await screen.findByRole("button", { name: "Request Clarification" }));
+    const editable = screen.getByRole("textbox");
+    fireEvent.change(editable, { target: { value: "CUSTOM ACCEPTED MESSAGE FOR TEST" } });
+    fireEvent.click(screen.getByRole("button", { name: "Confirm & Send" }));
+
+    await waitFor(() => expect(statusUpdate).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("already changed or is unavailable")));
+    expect(toast.success).not.toHaveBeenCalled();
+    expect(sendWhatsAppMessage).toHaveBeenCalledWith(expect.objectContaining({
+      message: "CUSTOM ACCEPTED MESSAGE FOR TEST",
+    }));
+
+    cleanup();
+    showSuggestions();
+    fireEvent.click(await screen.findByRole("button", { name: "Retry status update only" }));
+    expect(screen.getByRole("textbox")).toHaveValue("CUSTOM ACCEPTED MESSAGE FOR TEST");
+    expect(screen.getByRole("textbox")).toBeDisabled();
+    fireEvent.click(screen.getAllByRole("button", { name: "Retry status update only" }).at(-1)!);
+    await waitFor(() => expect(statusUpdate).toHaveBeenCalledTimes(2));
+    expect(toast.success).not.toHaveBeenCalled();
     expect(sendWhatsAppMessage).toHaveBeenCalledTimes(1);
   });
 
@@ -90,7 +124,7 @@ describe("WA-100 accepted clarification status-only recovery", () => {
       eq: vi.fn().mockReturnThis(),
       order: vi.fn().mockReturnThis(),
       limit: vi.fn().mockResolvedValue({ data: [{ ...sampleRow, id: "remount-before-result-id" }], error: null }),
-      update: vi.fn(() => ({ eq: statusUpdate })),
+      update: vi.fn(() => ({ eq: updateEq, select: updateSelect })),
     }) as unknown as ReturnType<typeof supabase.from>);
 
     showSuggestions();
@@ -112,7 +146,7 @@ describe("WA-100 accepted clarification status-only recovery", () => {
   });
 
   it("does not allow a status-only recovery when provider acceptance was unknown", async () => {
-    statusUpdate.mockResolvedValue({ error: null });
+    statusUpdate.mockResolvedValue({ data: [], error: null });
     vi.mocked(sendWhatsAppMessage).mockResolvedValue({
       success: false, acceptanceUnknown: true, error: "ACCEPTANCE_UNKNOWN",
     });
@@ -123,7 +157,7 @@ describe("WA-100 accepted clarification status-only recovery", () => {
       eq: vi.fn().mockReturnThis(),
       order: vi.fn().mockReturnThis(),
       limit: vi.fn().mockResolvedValue({ data: [{ ...sampleRow, id: "unknown-acceptance-test-id" }], error: null }),
-      update: vi.fn(() => ({ eq: statusUpdate })),
+      update: vi.fn(() => ({ eq: updateEq, select: updateSelect })),
     }) as unknown as ReturnType<typeof supabase.from>);
 
     showSuggestions();
