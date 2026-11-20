@@ -67,6 +67,9 @@ export default function AssemblyQcPanel({ jobId, jobStatus }: { jobId: string; j
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
+    // A new or failed job read cannot retain another job's prior PASS badges.
+    setCommissioning(null);
+    setEvents([]);
     try {
       const [configResult, eventResult] = await Promise.all([
         qcDb.from("assembly_qc_commissioning_v1")
@@ -91,7 +94,10 @@ export default function AssemblyQcPanel({ jobId, jobStatus }: { jobId: string; j
     }
   }, [jobId]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    retryRef.current = null;
+    void load();
+  }, [load]);
 
   const record = useCallback(async () => {
     const qty = Number(sampleQty);
