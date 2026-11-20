@@ -171,9 +171,9 @@ const AdminB2bSecurityGate = () => {
       toast.error("At least one dispatch evidence reference is required");
       return;
     }
-    const orderId = evidenceOrder();
     setDispatchProofProcessing(true);
     try {
+      const orderId = evidenceOrder();
       await recordDispatchProof({
         orderId,
         transporter,
@@ -209,9 +209,9 @@ const AdminB2bSecurityGate = () => {
       toast.error("Authenticated gate actor required");
       return;
     }
-    const orderId = evidenceOrder();
     setCustomerCommProcessing(true);
     try {
+      const orderId = evidenceOrder();
       const result = await recordGovernedCustomerDispatchCommunication({
         orderId,
         trackingNumber: trackingReference || lrAwbBilty,
