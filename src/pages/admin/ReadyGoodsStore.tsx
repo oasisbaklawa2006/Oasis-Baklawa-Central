@@ -3,6 +3,7 @@ import { AlertTriangle, Factory, PackageCheck, RefreshCw, ShieldCheck, Truck, Wa
 import { supabase } from "@/integrations/supabase/client";
 import { productionGovernedRpc } from "@/lib/production-lifecycle";
 import { rgsGovernedRpc } from "@/lib/rgsGovernedRpc";
+import { factoryOrderLineReference, isFactoryJobForLine, resolveFactoryLineReservations } from "@/lib/rgs/factoryOrderLineage";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -77,6 +78,7 @@ type Reservation = {
   released_qty: number;
   reservation_status: string;
   location_code: string;
+  demand_reference: string | null;
   created_at: string | null;
 };
 type IssueEvent = {
@@ -99,6 +101,7 @@ type DemandState = Demand & {
   shortageQty: number;
   jobs: ProductionJob[];
   reservations: Reservation[];
+  ambiguousLegacyLineage: boolean;
 };
 type QueueFilter = "shortages" | "production" | "receipts" | "all";
 const destinationTypes = ["b2b", "pna", "outlet", "internal"] as const;
@@ -111,6 +114,42 @@ async function callGovernedRpc(fn: string, args: Record<string, unknown>): Promi
 
 const openJobStatuses = new Set(["pending", "accepted", "in_production", "paused"]);
 const activeOrderStatuses = ["approved", "in_production", "manufacturing", "partial_ready"];
+const RGS_ORDER_LINE_PAGE_SIZE = 250;
+
+/**
+ * The RGS intake is backed by canonical order_items and original line IDs,
+ * not a synthetic Factory order ledger. Fetch every active line in stable pages.
+ * A failed later page rejects the whole read (never silently drops shortages).
+ */
+export async function fetchAllRgsFactoryOrderLines(
+  db: typeof operationsDb,
+  pageSize = RGS_ORDER_LINE_PAGE_SIZE,
+): Promise<Demand[]> {
+  if (!Number.isSafeInteger(pageSize) || pageSize < 1 || pageSize > 1000) {
+    throw new Error("Invalid Factory order page size");
+  }
+  const all: Demand[] = [];
+  const seenLineIds = new Set<string>();
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await db.from("order_items")
+      .select("id, order_id, product_id, quantity, actual_packed_qty, production_status, department, order:orders!inner(id, status, created_at, company:companies(business_name)), product:products(id, name, sku, production_department)")
+      .in("order.status", activeOrderStatuses)
+      .order("created_at", { ascending: true, referencedTable: "order" })
+      .order("id", { ascending: true })
+      .range(offset, offset + pageSize - 1);
+    if (error) throw new Error(`Factory order line read failed: ${error.message || "Unknown Core error"}`);
+    if (!Array.isArray(data)) throw new Error("Factory order line read returned invalid data");
+    for (const row of data as Demand[]) {
+      if (!row || typeof row.id !== "string" || !row.id || seenLineIds.has(row.id)) {
+        throw new Error("Factory intake source changed during pagination; reload required");
+      }
+      seenLineIds.add(row.id);
+      all.push(row);
+    }
+    if (data.length < pageSize) return all;
+  }
+}
+
 
 /** RGS is the business-facing alias of the canonical FINISHED_GOODS store. */
 export default function ReadyGoodsStore() {
@@ -134,11 +173,7 @@ export default function ReadyGoodsStore() {
           .select("product_id, sku, store_code, available_for_b2b_qty, reserved_qty, unavailable_qty, updated_at")
           .eq("store_code", "FINISHED_GOODS")
           .order("sku", { ascending: true }),
-        operationsDb.from("order_items")
-          .select("id, order_id, product_id, quantity, actual_packed_qty, production_status, department, order:orders!inner(id, status, created_at, company:companies(business_name)), product:products(id, name, sku, production_department)")
-          .in("order.status", activeOrderStatuses)
-          .order("created_at", { ascending: true, referencedTable: "order" })
-          .limit(500),
+        fetchAllRgsFactoryOrderLines(operationsDb).then((data) => ({ data, error: null })),
         operationsDb.from("production_jobs")
           .select("id, order_item_id, order_id, product_id, department, reservation_id, assigned_qty, produced_qty, batch_number, priority, stage, status, created_at")
           .order("created_at", { ascending: false })
@@ -148,7 +183,7 @@ export default function ReadyGoodsStore() {
           .order("created_at", { ascending: false })
           .limit(500),
         operationsDb.from("inventory_reservations")
-          .select("id, order_id, product_id, sku, requested_qty, reserved_qty, fulfilled_qty, released_qty, reservation_status, location_code, created_at")
+          .select("id, order_id, product_id, sku, requested_qty, reserved_qty, fulfilled_qty, released_qty, reservation_status, location_code, demand_reference, created_at")
           .order("created_at", { ascending: false })
           .limit(500),
         operationsDb.from("rgs_issue_events")
@@ -214,16 +249,23 @@ export default function ReadyGoodsStore() {
 
   const handleAllocateAndRouteShortage = useCallback(async (row: DemandState) => {
     if (!row.product_id) { toast.error("Demand line has no product mapped"); return; }
+    if (row.ambiguousLegacyLineage) {
+      toast.error("This SKU has unassigned historical RGS reservations; reconcile exact order lines before allocating again");
+      return;
+    }
     setActing(row.id);
     try {
       const reserveArgs = {
-        p_reservation_number: `RGS-${row.id.slice(0, 8).toUpperCase()}`,
+        p_reservation_number: `RGS-ORDER-LINE-${row.id}`,
         p_order_id: row.order_id,
         p_product_id: row.product_id,
         p_sku: row.sku,
         p_requested_qty: row.requestedQty,
         p_source_department: "B2B",
-        p_correlation_id: crypto.randomUUID(),
+        // Stable Core correlation and exact SO-line reference make retries safe.
+        p_correlation_id: `rgs-order-line:${row.id}`,
+        p_demand_source_type: "b2b",
+        p_demand_reference: factoryOrderLineReference(row.id),
         p_location_code: "FINISHED_GOODS",
       };
       const { data: reservation, error: reserveError } = await rgsGovernedRpc.rpc("reserve_rgs_stock", reserveArgs);
@@ -411,13 +453,10 @@ export default function ReadyGoodsStore() {
       const remaining = row.product_id ? remainingByProduct.get(row.product_id) ?? 0 : 0;
       const allocated = Math.min(remaining, requestedQty);
       if (row.product_id) remainingByProduct.set(row.product_id, Math.max(remaining - allocated, 0));
-      const rowJobs = jobs.filter((job) =>
-        job.order_item_id === row.id ||
-        (job.product_id != null && row.product_id != null && job.order_id === row.order_id && job.product_id === row.product_id),
-      );
-      const rowReservations = reservations.filter((reservation) =>
-        reservation.order_id === row.order_id && reservation.product_id != null && reservation.product_id === row.product_id,
-      );
+      const attribution = resolveFactoryLineReservations(row, reservations);
+      const rowReservations = attribution.matched;
+      const lineReservationIds = new Set(rowReservations.map((reservation) => reservation.id));
+      const rowJobs = jobs.filter((job) => isFactoryJobForLine(job, row.id, lineReservationIds));
       return {
         ...row,
         sku: row.product?.sku ?? "SKU not assigned",
@@ -426,6 +465,7 @@ export default function ReadyGoodsStore() {
         shortageQty: Math.max(requestedQty - allocated, 0),
         jobs: rowJobs,
         reservations: rowReservations,
+        ambiguousLegacyLineage: attribution.ambiguousLegacy,
       };
     });
   }, [availability, demand, jobs, reservations]);
@@ -504,7 +544,7 @@ export default function ReadyGoodsStore() {
                 <div className="flex items-center justify-between gap-2">
                   <h2 className="text-sm font-semibold">Shortage routing and production correlation</h2>
                   {selected.shortageQty > 0 && (
-                    <Button size="sm" disabled={acting === selected.id} onClick={() => void handleAllocateAndRouteShortage(selected)}>
+                    <Button size="sm" disabled={acting === selected.id || selected.ambiguousLegacyLineage} onClick={() => void handleAllocateAndRouteShortage(selected)}>
                       {acting === selected.id ? "Working…" : "Allocate & route shortage"}
                     </Button>
                   )}

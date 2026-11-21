@@ -34,6 +34,7 @@ const reservationRow = {
   released_qty: 0,
   reservation_status: "partially_reserved",
   location_code: "FINISHED_GOODS",
+  demand_reference: "order_item:item-1",
   created_at: "2026-08-02T00:00:00.000Z",
 };
 
@@ -73,6 +74,7 @@ function makeQuery(data: unknown[]) {
   builder.in = () => builder;
   builder.order = () => builder;
   builder.limit = () => resolved;
+  builder.range = (from: number, to: number) => Promise.resolve({ data: data.slice(from, to + 1), error: null });
   builder.maybeSingle = () => Promise.resolve({ data: null, error: null });
   return builder;
 }
