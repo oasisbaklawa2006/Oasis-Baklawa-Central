@@ -143,6 +143,15 @@ describe("RgsProductionDemandPlanner product-ID chunking", () => {
       }),
     ).toBe(0);
   });
+  it("labels a zero-shortage live read as observed rather than conclusively covered", async () => {
+    plannerFixtures.reservations = [{ ...buildReservations(1)[0], reserved_qty: 10, reservation_status: "reserved" }];
+    render(<RgsProductionDemandPlanner />);
+    await waitFor(() =>
+      expect(screen.getByText(/No open RGS shortage observed in this read/i)).toBeInTheDocument(),
+    );
+    expect(screen.queryByText(/every reservation is fully covered/i)).not.toBeInTheDocument();
+  });
+
   it("shows blocked shortages without allowing their production routing", async () => {
     plannerFixtures.reservations = [
       { ...buildReservations(1)[0], reservation_status: "blocked" },
