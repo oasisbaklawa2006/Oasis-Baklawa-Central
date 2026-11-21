@@ -135,6 +135,7 @@ describe("WO-TB-02 runtime attestation", () => {
   it.each([
     ["missing URL", { ...liveEnv, VITE_SUPABASE_URL: undefined }],
     ["invalid URL", { ...liveEnv, VITE_SUPABASE_URL: "https://example.com" }],
+    ["non-HTTP(S) URL scheme", { ...liveEnv, VITE_SUPABASE_URL: "ftp://abcdefghijklmnopqrst.supabase.co" }],
     ["missing publishable key", { ...liveEnv, VITE_SUPABASE_PUBLISHABLE_KEY: undefined }],
     ["malformed publishable key", { ...liveEnv, VITE_SUPABASE_PUBLISHABLE_KEY: "short" }],
     ["demo flag is ignored (no demo escape hatch)", { VITE_DEMO_MODE: "true" }],
@@ -149,8 +150,9 @@ describe("WO-TB-02 runtime attestation", () => {
     process.env.VERCEL_ENV = "preview";
     process.env.VERCEL_GIT_COMMIT_SHA = "d".repeat(40);
     process.env.VITE_SUPABASE_URL = liveUrl;
-    delete process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-    delete process.env.VITE_SUPABASE_PROJECT_ID;
+    // Empty strings (not delete) so dotenv files cannot supply replacement values.
+    process.env.VITE_SUPABASE_PUBLISHABLE_KEY = "";
+    process.env.VITE_SUPABASE_PROJECT_ID = "";
 
     try {
       await buildSpa(output);

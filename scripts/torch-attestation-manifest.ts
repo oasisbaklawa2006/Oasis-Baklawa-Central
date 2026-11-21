@@ -47,7 +47,9 @@ export function resolveGitSha(env: NodeJS.ProcessEnv, root: string): string {
 export function projectRefFromUrl(url: string | undefined): string | null {
   if (!url) return null;
   try {
-    const host = new URL(url).hostname;
+    const parsed = new URL(url);
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return null; // supabase-js rejects other schemes
+    const host = parsed.hostname;
     const m = /^([a-z0-9]+)\.supabase\.co$/.exec(host);
     return m ? m[1] : null;
   } catch {
@@ -105,7 +107,8 @@ export function torchAttestationPlugin(loadEnv: (mode: string) => Record<string,
       // Remove any stale manifest so a failed/aborted build can never attest an old bundle.
       rmSync(path.join(root, MANIFEST_RELATIVE_PATH), { force: true });
     },
-    closeBundle() {
+    // writeBundle runs only after output was written; closeBundle also fires after failed builds.
+    writeBundle() {
       const target = path.join(root, MANIFEST_RELATIVE_PATH);
       try {
         const manifest = buildManifest(loadEnv(mode), process.env, root);
