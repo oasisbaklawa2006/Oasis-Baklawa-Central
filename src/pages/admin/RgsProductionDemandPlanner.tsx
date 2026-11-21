@@ -330,7 +330,8 @@ export default function RgsProductionDemandPlanner() {
 
       {error && <Card className="border-destructive/40"><CardContent className="flex items-center gap-2 p-4 text-sm text-destructive"><AlertTriangle className="h-4 w-4" />Demand could not be read: {error}</CardContent></Card>}
 
-      <Card><CardContent className="flex items-center gap-3 p-4"><Factory className="h-5 w-5 text-primary" /><div><p className="text-2xl font-bold">{loading || error ? "—" : fmt(totalShortage)}</p><p className="text-xs text-muted-foreground">{loading ? "Reading current RGS shortage…" : error ? "Current shortage totals unavailable until demand can be read." : `Total open shortage across ${skuDemand.length} SKU${skuDemand.length === 1 ? "" : "s"}`}</p>
+      <Card><CardContent className="flex items-center gap-3 p-4"><Factory className="h-5 w-5 text-primary" /><div><p className="text-2xl font-bold">{loading || error ? "—" : fmt(totalShortage)}</p><p className="text-xs text-muted-foreground">{loading ? "Reading current RGS shortage…" : error ? "Current shortage totals unavailable until demand can be read." : `Observed open shortage across ${skuDemand.length} SKU${skuDemand.length === 1 ? "" : "s"} in this read`}</p>
+          {!loading && !error && reservations.length >= RESERVATION_PAGE_SIZE && <p className="text-xs text-muted-foreground">Multi-page demand was cross-checked, but this remains a live observation rather than a frozen Core transaction. Refresh before committing a plan.</p>}
           {!loading && !error && heldShortage > 0 && <p className="text-xs text-destructive">{fmt(heldShortage)} held or lifecycle-inconsistent units require review; not routable.</p>}</div></CardContent></Card>
 
       <Card>
@@ -372,7 +373,7 @@ export default function RgsProductionDemandPlanner() {
               ))}
             </TableBody>
           </Table>
-          {!loading && !error && !skuDemand.length && <p className="py-8 text-center text-sm text-muted-foreground">No open RGS shortage — every reservation is fully covered.</p>}
+          {!loading && !error && !skuDemand.length && <p className="py-8 text-center text-sm text-muted-foreground">No open RGS shortage observed in this read. Live reservation states can change; refresh before planning.</p>}
         </CardContent>
       </Card>
     </div>
