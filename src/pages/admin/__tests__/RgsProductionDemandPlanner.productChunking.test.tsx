@@ -31,7 +31,7 @@ function makeQuery(data: unknown[]) {
 
 function buildReservations(count: number) {
   return Array.from({ length: count }, (_, i) => ({
-    id: `res-${i}`,
+    id: `res-${String(i).padStart(6, "0")}`,
     product_id: `product-${i}`,
     sku: `SKU-${i}`,
     requested_qty: 10,
@@ -141,16 +141,18 @@ describe("RgsProductionDemandPlanner product-ID chunking", () => {
       }),
     ).toBe(0);
   });
-  it("reads beyond the 1,000-row PostgREST default without dropping shortage reservations", async () => {
+  it("reads beyond the default API cap with exclusive id keyset pages", async () => {
     const reservations = buildReservations(1205);
-    const pages: Array<[number, number]> = [];
+    const cursors: Array<string | null> = [];
+    let afterId: string | null = null;
     const builder = {
       select: vi.fn().mockReturnThis(),
       in: vi.fn().mockReturnThis(),
+      gt: vi.fn((_column: string, value: string) => { afterId = value; return builder; }),
       order: vi.fn().mockReturnThis(),
-      range: vi.fn(async (from: number, to: number) => {
-        pages.push([from, to]);
-        return { data: reservations.slice(from, to + 1), error: null };
+      limit: vi.fn(async (amount: number) => {
+        cursors.push(afterId);
+        return { data: reservations.filter((row) => afterId === null || row.id > afterId).slice(0, amount), error: null };
       }),
     };
     const client = { from: () => builder } as unknown as Parameters<typeof readAllOpenRgsReservations>[0];
@@ -158,25 +160,71 @@ describe("RgsProductionDemandPlanner product-ID chunking", () => {
     const rows = await readAllOpenRgsReservations(client);
 
     expect(rows).toHaveLength(1205);
-    expect(rows[0].id).toBe("res-0");
-    expect(rows.at(-1)?.id).toBe("res-1204");
-    expect(pages).toEqual([[0, 499], [500, 999], [1000, 1499]]);
+    expect(rows[0].id).toBe("res-000000");
+    expect(rows.at(-1)?.id).toBe("res-001204");
+    expect(cursors).toEqual([null, "res-000499", "res-000999"]);
     expect(builder.order).toHaveBeenCalledWith("id", { ascending: true });
+    expect(builder.gt).toHaveBeenCalledTimes(2);
+    expect(builder.limit).toHaveBeenCalledTimes(3);
   });
 
-  it("fails the entire RGS demand read when a later page is unavailable", async () => {
+  it("does not skip later open reservations if earlier statuses change between pages", async () => {
+    const reservations = buildReservations(1100);
+    let afterId: string | null = null;
+    let calls = 0;
     const builder = {
       select: vi.fn().mockReturnThis(),
       in: vi.fn().mockReturnThis(),
+      gt: vi.fn((_column: string, value: string) => { afterId = value; return builder; }),
       order: vi.fn().mockReturnThis(),
-      range: vi.fn(async (from: number) => from === 0
+      limit: vi.fn(async (amount: number) => {
+        const rows = reservations.filter((row) =>
+          (row.reservation_status === "pending" || row.reservation_status === "partially_reserved")
+          && (afterId === null || row.id > afterId),
+        ).slice(0, amount);
+        calls++;
+        if (calls === 1) reservations.slice(0, 60).forEach((row) => { row.reservation_status = "fulfilled"; });
+        return { data: rows, error: null };
+      }),
+    };
+    const client = { from: () => builder } as unknown as Parameters<typeof readAllOpenRgsReservations>[0];
+
+    const rows = await readAllOpenRgsReservations(client);
+    expect(rows.at(-1)?.id).toBe("res-001099");
+    expect(new Set(rows.map((row) => row.id)).size).toBe(rows.length);
+    expect(rows.length).toBe(1100);
+    expect(calls).toBe(3);
+  });
+
+  it("fails the entire demand read when a later page is unavailable", async () => {
+    let afterId: string | null = null;
+    const builder = {
+      select: vi.fn().mockReturnThis(),
+      in: vi.fn().mockReturnThis(),
+      gt: vi.fn((_column: string, value: string) => { afterId = value; return builder; }),
+      order: vi.fn().mockReturnThis(),
+      limit: vi.fn(async () => afterId === null
         ? { data: buildReservations(500), error: null }
         : { data: null, error: { message: "second page unavailable" } }),
     };
     const client = { from: () => builder } as unknown as Parameters<typeof readAllOpenRgsReservations>[0];
 
     await expect(readAllOpenRgsReservations(client)).rejects.toThrow("second page unavailable");
-    expect(builder.range).toHaveBeenCalledTimes(2);
+    expect(builder.gt).toHaveBeenCalledWith("id", "res-000499");
+    expect(builder.limit).toHaveBeenCalledTimes(2);
+  });
+
+  it("fails closed when an API page ignores the cursor and repeats IDs", async () => {
+    const builder = {
+      select: vi.fn().mockReturnThis(),
+      in: vi.fn().mockReturnThis(),
+      gt: vi.fn().mockReturnThis(),
+      order: vi.fn().mockReturnThis(),
+      limit: vi.fn(async () => ({ data: buildReservations(500), error: null })),
+    };
+    const client = { from: () => builder } as unknown as Parameters<typeof readAllOpenRgsReservations>[0];
+    await expect(readAllOpenRgsReservations(client)).rejects.toThrow("invalid or repeated cursor");
+    expect(builder.limit).toHaveBeenCalledTimes(2);
   });
 
 });
