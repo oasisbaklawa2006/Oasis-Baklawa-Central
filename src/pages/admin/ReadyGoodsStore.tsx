@@ -3,6 +3,7 @@ import { AlertTriangle, Factory, PackageCheck, RefreshCw, ShieldCheck, Truck, Wa
 import { supabase } from "@/integrations/supabase/client";
 import { productionGovernedRpc } from "@/lib/production-lifecycle";
 import { rgsGovernedRpc } from "@/lib/rgsGovernedRpc";
+import { calculateOpenRgsReservationShortage } from "@/lib/rgs/openReservationShortage";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -229,8 +230,12 @@ export default function ReadyGoodsStore() {
       const { data: reservation, error: reserveError } = await rgsGovernedRpc.rpc("reserve_rgs_stock", reserveArgs);
       if (reserveError) { toast.error(reserveError.message || "Could not reserve stock"); return; }
 
-      const shortage = Number(reservation?.requested_qty ?? 0) - Number(reservation?.reserved_qty ?? 0)
-        - Number(reservation?.fulfilled_qty ?? 0) - Number(reservation?.released_qty ?? 0);
+      if (!reservation || typeof reservation.id !== "string" || !reservation.id) {
+        throw new Error("Core did not confirm an RGS reservation; shortage routing stopped");
+      }
+      // Core already decrements reserved_qty on release. released_qty is audit
+      // history, not additional coverage; subtracting it hides open demand.
+      const shortage = calculateOpenRgsReservationShortage(reservation);
       if (shortage <= 0) {
         toast.success(`Reserved ${row.sku} in full from RGS stock`);
         void load();
@@ -251,6 +256,8 @@ export default function ReadyGoodsStore() {
       if (shortageResult.error) { toast.error(shortageResult.error.message || "Could not route shortage to production"); return; }
       toast.success(`Reserved what was available; routed ${shortage} short of ${row.sku} to Production`);
       void load();
+    } catch (cause) {
+      toast.error(cause instanceof Error ? cause.message : "Could not reconcile RGS shortage");
     } finally {
       setActing(null);
     }
