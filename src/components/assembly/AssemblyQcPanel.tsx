@@ -25,17 +25,16 @@ type QcEvent = {
   created_at: string;
 };
 type Commissioning = { enforced: boolean; policy_version: string | null };
-const qcDb = supabase as unknown as {
-  from: (relation: string) => {
-    select: (fields: string) => {
-      eq: (field: string, value: string | boolean) => {
-        maybeSingle?: () => Promise<{ data: unknown; error: { message: string } | null }>;
-        order?: (field: string, options: { ascending: boolean }) => {
-          limit: (amount: number) => Promise<{ data: unknown; error: { message: string } | null }>;
-        };
-      };
-    };
+type QcReadResult = { data: unknown; error: { message: string } | null };
+type QcQuery = {
+  eq: (field: string, value: string | boolean) => QcQuery;
+  maybeSingle: () => Promise<QcReadResult>;
+  order: (field: string, options: { ascending: boolean }) => {
+    limit: (amount: number) => Promise<QcReadResult>;
   };
+};
+const qcDb = supabase as unknown as {
+  from: (relation: string) => { select: (fields: string) => QcQuery };
 };
 
 const GATES: readonly { code: AssemblyQcGate; label: string }[] = [
@@ -51,7 +50,15 @@ export function canRecordAssemblyQcGate(jobStatus: string, gate: AssemblyQcGate)
   return jobStatus === "qc_pending";
 }
 
-export default function AssemblyQcPanel({ jobId, jobStatus }: { jobId: string; jobStatus: string }) {
+export default function AssemblyQcPanel({
+  jobId, jobStatus, retryCorrelations,
+}: {
+  jobId: string;
+  jobStatus: string;
+  // Parent owns outstanding retry keys so changing the selected job cannot lose
+  // the correlation of a request that may already have committed in Core.
+  retryCorrelations?: Map<string, string>;
+}) {
   const [events, setEvents] = useState<QcEvent[]>([]);
   const [commissioning, setCommissioning] = useState<Commissioning | null>(null);
   const [loading, setLoading] = useState(true);
@@ -62,7 +69,8 @@ export default function AssemblyQcPanel({ jobId, jobStatus }: { jobId: string; j
   const [sampleQty, setSampleQty] = useState("");
   const [evidence, setEvidence] = useState("");
   const [reason, setReason] = useState("");
-  const retryRef = useRef<{ fingerprint: string; correlationId: string } | null>(null);
+  const localRetryCorrelations = useRef(new Map<string, string>());
+  const correlations = retryCorrelations ?? localRetryCorrelations.current;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -71,20 +79,34 @@ export default function AssemblyQcPanel({ jobId, jobStatus }: { jobId: string; j
     setCommissioning(null);
     setEvents([]);
     try {
-      const [configResult, eventResult] = await Promise.all([
+      // Query each gate independently. Limiting a combined event stream
+      // hides earlier valid approvals when one stage has >250 newer records.
+      const [configResult, ...gateResults] = await Promise.all([
         qcDb.from("assembly_qc_commissioning_v1")
-          .select("enforced, policy_version").eq("id", true).maybeSingle!(),
-        qcDb.from("assembly_qc_gate_events_v1")
+          .select("enforced, policy_version").eq("id", true).maybeSingle(),
+        ...GATES.map((stage) => qcDb.from("assembly_qc_gate_events_v1")
           .select("id, event_seq, assembly_job_id, gate, decision, sample_qty, evidence_reference, reason, inspected_by, created_at")
-          .eq("assembly_job_id", jobId).order!("event_seq", { ascending: false }).limit(250),
+          .eq("assembly_job_id", jobId).eq("gate", stage.code)
+          .order("event_seq", { ascending: false }).limit(1)),
       ]);
       if (configResult.error) throw new Error(`QC commissioning: ${configResult.error.message}`);
-      if (eventResult.error) throw new Error(`QC history: ${eventResult.error.message}`);
-      if (!configResult.data || !Array.isArray(eventResult.data)) {
-        throw new Error("Assembly QC authority response is incomplete");
+      if (!configResult.data) throw new Error("Assembly QC commissioning authority is unavailable");
+      const latest: QcEvent[] = [];
+      for (const [index, result] of gateResults.entries()) {
+        const stage = GATES[index];
+        if (result.error) throw new Error(`QC ${stage.code}: ${result.error.message}`);
+        if (!Array.isArray(result.data) || result.data.length > 1) {
+          throw new Error(`Assembly QC ${stage.code} authority response is incomplete`);
+        }
+        for (const event of result.data as QcEvent[]) {
+          if (event.assembly_job_id !== jobId || event.gate !== stage.code) {
+            throw new Error(`Assembly QC ${stage.code} evidence does not match the selected job`);
+          }
+          latest.push(event);
+        }
       }
       setCommissioning(configResult.data as Commissioning);
-      setEvents(eventResult.data as QcEvent[]);
+      setEvents(latest);
     } catch (cause) {
       setCommissioning(null);
       setEvents([]);
@@ -95,7 +117,6 @@ export default function AssemblyQcPanel({ jobId, jobStatus }: { jobId: string; j
   }, [jobId]);
 
   useEffect(() => {
-    retryRef.current = null;
     void load();
   }, [load]);
 
@@ -110,8 +131,12 @@ export default function AssemblyQcPanel({ jobId, jobStatus }: { jobId: string; j
       return;
     }
     const fingerprint = JSON.stringify([jobId, gate, decision, qty, evidence.trim(), reason.trim()]);
-    if (retryRef.current?.fingerprint !== fingerprint) {
-      retryRef.current = { fingerprint, correlationId: crypto.randomUUID() };
+    // Preserve each unresolved (job + payload) correlation across select changes
+    // and keyed panel remounts. Only a confirmed Core success removes its key.
+    let correlationId = correlations.get(fingerprint);
+    if (!correlationId) {
+      correlationId = crypto.randomUUID();
+      correlations.set(fingerprint, correlationId);
     }
 
     setActing(true);
@@ -123,13 +148,13 @@ export default function AssemblyQcPanel({ jobId, jobStatus }: { jobId: string; j
         p_sample_qty: qty,
         p_evidence_reference: evidence.trim(),
         p_reason: reason.trim() || null,
-        p_correlation_id: retryRef.current.correlationId,
+        p_correlation_id: correlationId,
       });
       if (rpcError) {
         toast.error(`QC result not recorded: ${rpcError.message}`);
         return;
       }
-      retryRef.current = null;
+      correlations.delete(fingerprint);
       setSampleQty("");
       setEvidence("");
       setReason("");
@@ -140,7 +165,7 @@ export default function AssemblyQcPanel({ jobId, jobStatus }: { jobId: string; j
     } finally {
       setActing(false);
     }
-  }, [jobId, jobStatus, gate, decision, sampleQty, evidence, reason, load]);
+  }, [jobId, jobStatus, gate, decision, sampleQty, evidence, reason, load, correlations]);
 
   const latestByStage = new Map<AssemblyQcGate, QcEvent>();
   for (const event of events) if (!latestByStage.has(event.gate)) latestByStage.set(event.gate, event);
@@ -153,7 +178,7 @@ export default function AssemblyQcPanel({ jobId, jobStatus }: { jobId: string; j
             <ClipboardCheck className="h-4 w-4" />Four-stage governed quality control
           </CardTitle>
           <Button variant="outline" size="sm" type="button" disabled={loading || acting} onClick={() => void load()}>
-            <RefreshCw className="mr-1 h-3.5 w-3.5" />Refresh
+            <RefreshCw className="mr-1 h-3.5 w-3.5" />Refresh QC
           </Button>
         </div>
       </CardHeader>
@@ -192,13 +217,13 @@ export default function AssemblyQcPanel({ jobId, jobStatus }: { jobId: string; j
           <div className="space-y-3 border-t pt-3">
             <div className="grid gap-3 sm:grid-cols-3">
               <label className="space-y-1 text-xs">Inspection stage
-                <Select value={gate} onValueChange={(next) => { setGate(next as AssemblyQcGate); retryRef.current = null; }}>
+                <Select value={gate} onValueChange={(next) => setGate(next as AssemblyQcGate)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>{GATES.map((item) => <SelectItem key={item.code} value={item.code}>{item.label}</SelectItem>)}</SelectContent>
                 </Select>
               </label>
               <label className="space-y-1 text-xs">Result
-                <Select value={decision} onValueChange={(next) => { setDecision(next as AssemblyQcDecision); retryRef.current = null; }}>
+                <Select value={decision} onValueChange={(next) => setDecision(next as AssemblyQcDecision)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="PASS">Pass</SelectItem>
