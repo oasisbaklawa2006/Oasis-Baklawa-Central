@@ -107,6 +107,10 @@ const destinationTypes = ["RGS", "3PGS", "OUTLET", "INTERNAL", "CUSTOMER_DIRECT"
 
 /** Live P&A evidence and governed lifecycle actions. Every transition below calls a governed Core RPC; this screen never writes stock or job rows directly. */
 export default function AssemblyManagement() {
+  // Survives keyed AssemblyQcPanel remounts on job switch. A Core write can
+  // commit even when its HTTP response fails, so retry the identical payload
+  // using its original correlation until Core confirms success.
+  const qcRetryCorrelationsRef = useRef(new Map<string, string>());
   const [jobs, setJobs] = useState<AssemblyJob[]>([]);
   const [components, setComponents] = useState<AssemblyComponent[]>([]);
   const [products, setProducts] = useState<Record<string, Product>>({});
@@ -679,7 +683,7 @@ export default function AssemblyManagement() {
                 onClose={() => handleClose(selected.id)}
               />
 
-              <AssemblyQcPanel key={selected.id} jobId={selected.id} jobStatus={selected.status} />
+              <AssemblyQcPanel key={selected.id} jobId={selected.id} jobStatus={selected.status} retryCorrelations={qcRetryCorrelationsRef.current} />
 
               <section className="space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-sm font-semibold">Dual-source material readiness</h2><p className="text-[11px] text-muted-foreground">RGS = canonical Finished Goods store record</p></div>
