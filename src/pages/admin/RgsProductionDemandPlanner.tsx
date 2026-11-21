@@ -80,7 +80,7 @@ function assertValidOpenReservation(raw: unknown, previousId: string | null): as
     throw new Error("RGS reservation response contains incomplete identity or status");
   }
   for (const field of RESERVATION_QTY_FIELDS) {
-    const rawQty = row[field];
+    const rawQty: unknown = row[field];
     if ((typeof rawQty !== "number" && typeof rawQty !== "string")
       || (typeof rawQty === "string" && !rawQty.trim())
       || !Number.isFinite(Number(rawQty)) || Number(rawQty) < 0) {
