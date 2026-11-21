@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import AssemblyQcPanel, { canRecordAssemblyQcGate } from "../AssemblyQcPanel";
 
@@ -19,6 +19,8 @@ const qcMock = vi.hoisted(() => ({
   available: false,
   events: [] as MockQcEvent[],
   queries: [] as Array<{ job: string; gate: string; limit: number }>,
+  historyQueries: [] as Array<{ job: string; before: number | null; limit: number }>,
+  denyHistory: false,
   rpc: vi.fn(),
 }));
 
@@ -27,6 +29,7 @@ vi.mock("@/integrations/supabase/client", () => ({
     from: (relation: string) => {
       let jobFilter = "";
       let gateFilter = "";
+      let historyBefore: number | null = null;
       const builder = {
         select: () => builder,
         eq: (field: string, value: string | boolean) => {
@@ -34,12 +37,22 @@ vi.mock("@/integrations/supabase/client", () => ({
           if (field === "gate") gateFilter = String(value);
           return builder;
         },
+        lt: (field: string, value: number) => {
+          if (field === "event_seq") historyBefore = value;
+          return builder;
+        },
         order: () => builder,
         limit: async (limit: number) => {
-          qcMock.queries.push({ job: jobFilter, gate: gateFilter, limit });
+          if (gateFilter) qcMock.queries.push({ job: jobFilter, gate: gateFilter, limit });
+          else qcMock.historyQueries.push({ job: jobFilter, before: historyBefore, limit });
+          if (!gateFilter && qcMock.denyHistory) {
+            return { data: null, error: { message: "Permission denied reading QC history" } };
+          }
           return {
             data: qcMock.events
-              .filter((event) => event.assembly_job_id === jobFilter && event.gate === gateFilter)
+              .filter((event) => event.assembly_job_id === jobFilter
+                && (!gateFilter || event.gate === gateFilter)
+                && (historyBefore === null || event.event_seq < historyBefore))
               .sort((left, right) => right.event_seq - left.event_seq)
               .slice(0, limit),
             error: null,
@@ -80,6 +93,8 @@ afterEach(() => {
   qcMock.available = false;
   qcMock.events = [];
   qcMock.queries = [];
+  qcMock.historyQueries = [];
+  qcMock.denyHistory = false;
   qcMock.rpc.mockReset();
   vi.clearAllMocks();
   vi.unstubAllGlobals();
@@ -119,15 +134,60 @@ describe("Factory F28 governed QC gates", () => {
       ...Array.from({ length: 251 }, (_, index) => event("IN_PROCESS", index + 4)),
     ];
     render(<AssemblyQcPanel jobId="job-1" jobStatus="qc_pending" />);
-    await waitFor(() => expect(screen.getAllByText("PASS")).toHaveLength(4));
+    await waitFor(() => expect(within(screen.getByTestId("assembly-qc-latest-gates")).getAllByText("PASS")).toHaveLength(4));
     expect(qcMock.queries).toEqual([
       { job: "job-1", gate: "INPUT_MATERIAL", limit: 1 },
       { job: "job-1", gate: "FIRST_PIECE", limit: 1 },
       { job: "job-1", gate: "IN_PROCESS", limit: 1 },
       { job: "job-1", gate: "FINAL", limit: 1 },
     ]);
+    expect(qcMock.historyQueries).toEqual([{ job: "job-1", before: null, limit: 51 }]);
+    expect(screen.getByText("50 events loaded")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Refresh QC" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Refresh" })).not.toBeInTheDocument();
+  });
+
+  it("retains old failed inspections, reasons and inspectors beyond 250 newer events", async () => {
+    qcMock.available = true;
+    qcMock.events = [
+      { ...event("INPUT_MATERIAL", 1), decision: "FAIL", reason: "Damaged wrapper", inspected_by: "inspector-older" },
+      event("INPUT_MATERIAL", 2),
+      event("FIRST_PIECE", 3),
+      event("FINAL", 4),
+      ...Array.from({ length: 251 }, (_, index) => event("IN_PROCESS", index + 5)),
+    ];
+
+    render(<AssemblyQcPanel jobId="job-1" jobStatus="qc_pending" />);
+    await waitFor(() =>
+      expect(within(screen.getByTestId("assembly-qc-latest-gates")).getAllByText("PASS")).toHaveLength(4),
+    );
+    expect(screen.queryByText("QC event #1")).not.toBeInTheDocument();
+    for (let page = 2; page <= 6; page++) {
+      fireEvent.click(screen.getByRole("button", { name: "Load older QC events" }));
+      const count = Math.min(page * 50, 255);
+      await waitFor(() => expect(screen.getByText(`${count} events loaded`)).toBeInTheDocument());
+    }
+    expect(screen.getByText("QC event #1")).toBeInTheDocument();
+    const oldFail = screen.getByText("QC event #1").closest("li");
+    expect(oldFail).not.toBeNull();
+    expect(within(oldFail!).getByText("FAIL")).toBeInTheDocument();
+    expect(within(oldFail!).getByText("Reason / notes: Damaged wrapper")).toBeInTheDocument();
+    expect(within(oldFail!).getByText(/Inspector: inspector-older/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Load older QC events" })).not.toBeInTheDocument();
+    expect(within(screen.getByTestId("assembly-qc-latest-gates")).getAllByText("PASS")).toHaveLength(4);
+    expect(qcMock.historyQueries.map((query) => query.before)).toEqual([null, 206, 156, 106, 56, 6]);
+    expect(qcMock.historyQueries.every((query) => query.limit === 51 && query.job === "job-1")).toBe(true);
+  });
+
+  it("fails closed when the Core history read is denied, even if latest gates are returned", async () => {
+    qcMock.available = true;
+    qcMock.events = [event("INPUT_MATERIAL", 1), event("FIRST_PIECE", 2)];
+    qcMock.denyHistory = true;
+    render(<AssemblyQcPanel jobId="job-1" jobStatus="in_progress" />);
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("QC data unavailable"));
+    expect(screen.getByRole("alert")).toHaveTextContent("Permission denied reading QC history");
+    expect(screen.queryByText("PASS")).not.toBeInTheDocument();
+    expect(screen.getAllByText("Not evidenced")).toHaveLength(4);
   });
 
   it("preserves uncertain Core write correlation when the operator switches jobs and returns", async () => {
