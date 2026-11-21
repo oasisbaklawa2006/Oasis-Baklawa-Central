@@ -40,6 +40,7 @@ const ADMIN_ROUTE_MODULES: Array<{ prefix: string; moduleKey: AppVerseModuleKey 
   { prefix: "/admin/clients", moduleKey: "clients" },
   { prefix: "/admin/customers", moduleKey: "clients" },
   { prefix: "/admin/crm", moduleKey: "clients" },
+  { prefix: "/admin/gifting-enquiries", moduleKey: "clients" },
   { prefix: "/admin/approvals", moduleKey: "clients" },
   { prefix: "/admin/products", moduleKey: "products" },
   { prefix: "/admin/merchandising", moduleKey: "products" },

@@ -96,6 +96,7 @@ const AdminLayout = () => {
       title: t("Governance"),
       items: [
         { to: "/admin/clients", icon: UserCheck, label: t("Clients"), moduleKey: "clients" },
+        { to: "/admin/gifting-enquiries", icon: UserCheck, label: t("Gifting enquiries"), moduleKey: "clients" },
         { to: "/admin/products", icon: Package, label: t("Products"), moduleKey: "products" },
         { to: "/admin/merchandising", icon: Sparkles, label: t("Merchandising"), moduleKey: "products" },
         { to: "/admin/catalogue-sync", icon: Link2, label: "Catalogue sync", moduleKey: "products" },
