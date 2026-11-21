@@ -14,6 +14,7 @@ import RgsProductionDemandPlanner, { calculateOpenReservationShortage, readAllOp
 //    is released, so released_qty must not be subtracted again as coverage.
 
 const PRODUCT_ID_QUERY_CHUNK_SIZE = 100;
+const plannerFixtures = vi.hoisted(() => ({ reservations: null as unknown[] | null }));
 
 function makeQuery(data: unknown[]) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -56,7 +57,7 @@ vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     from: (relation: string) => {
       if (relation === "inventory_reservations") {
-        return makeQuery(buildReservations(250));
+        return makeQuery(plannerFixtures.reservations ?? buildReservations(250));
       }
       if (relation === "products") {
         // Return only the products matching whichever chunk was requested,
@@ -87,6 +88,7 @@ vi.mock("sonner", () => ({
 describe("RgsProductionDemandPlanner product-ID chunking", () => {
   afterEach(() => {
     productsInCalls.length = 0;
+    plannerFixtures.reservations = null;
     vi.clearAllMocks();
   });
 
@@ -141,6 +143,51 @@ describe("RgsProductionDemandPlanner product-ID chunking", () => {
       }),
     ).toBe(0);
   });
+  it("shows blocked shortages without allowing their production routing", async () => {
+    plannerFixtures.reservations = [
+      { ...buildReservations(1)[0], reservation_status: "blocked" },
+    ];
+    render(<RgsProductionDemandPlanner />);
+    await waitFor(() => expect(screen.getByText("Widget 0")).toBeInTheDocument());
+    expect(screen.getByText("6 units on hold")).toBeInTheDocument();
+    expect(screen.getByText(/6 held or lifecycle-inconsistent units require review/i)).toBeInTheDocument();
+    expect(screen.getByText("0 routable / 1 held")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Held — review required" })).toBeDisabled();
+    expect(screen.queryByText(/No open RGS shortage/i)).not.toBeInTheDocument();
+  });
+
+  it("includes a reserved-but-uncovered exception as held, not a routable job", async () => {
+    plannerFixtures.reservations = [
+      { ...buildReservations(1)[0], reservation_status: "reserved" },
+    ];
+    render(<RgsProductionDemandPlanner />);
+    await waitFor(() => expect(screen.getByText("Widget 0")).toBeInTheDocument());
+    expect(screen.getByText("6 units on hold")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Held — review required" })).toBeDisabled();
+  });
+
+  it("fails closed on malformed numeric, missing identity, or non-open status rows", async () => {
+    const baseline = buildReservations(1)[0];
+    const invalidRows: unknown[] = [
+      { ...baseline, requested_qty: undefined },
+      { ...baseline, reserved_qty: Number.NaN },
+      { ...baseline, fulfilled_qty: "  " },
+      { ...baseline, product_id: null },
+      { ...baseline, sku: "" },
+      { ...baseline, reservation_status: "fulfilled" },
+    ];
+    for (const row of invalidRows) {
+      const builder = {
+        select: vi.fn().mockReturnThis(),
+        in: vi.fn().mockReturnThis(),
+        order: vi.fn().mockReturnThis(),
+        limit: vi.fn(async () => ({ data: [row], error: null })),
+      };
+      const client = { from: () => builder } as unknown as Parameters<typeof readAllOpenRgsReservations>[0];
+      await expect(readAllOpenRgsReservations(client)).rejects.toThrow(/RGS reservation/);
+    }
+  });
+
   it("reads beyond the default API cap with exclusive id keyset pages", async () => {
     const reservations = buildReservations(1205);
     const cursors: Array<string | null> = [];
@@ -164,6 +211,9 @@ describe("RgsProductionDemandPlanner product-ID chunking", () => {
     expect(rows.at(-1)?.id).toBe("res-001204");
     expect(cursors).toEqual([null, "res-000499", "res-000999"]);
     expect(builder.order).toHaveBeenCalledWith("id", { ascending: true });
+    expect(builder.in).toHaveBeenCalledWith("reservation_status", [
+      "pending", "reserved", "partially_reserved", "blocked",
+    ]);
     expect(builder.gt).toHaveBeenCalledTimes(2);
     expect(builder.limit).toHaveBeenCalledTimes(3);
   });
