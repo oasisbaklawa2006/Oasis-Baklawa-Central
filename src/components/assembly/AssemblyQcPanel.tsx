@@ -26,13 +26,26 @@ type QcEvent = {
 };
 type Commissioning = { enforced: boolean; policy_version: string | null };
 type QcReadResult = { data: unknown; error: { message: string } | null };
+type QcOrderedQuery = { limit: (amount: number) => Promise<QcReadResult> };
 type QcQuery = {
   eq: (field: string, value: string | boolean) => QcQuery;
+  lt: (field: string, value: number) => QcQuery;
   maybeSingle: () => Promise<QcReadResult>;
-  order: (field: string, options: { ascending: boolean }) => {
-    limit: (amount: number) => Promise<QcReadResult>;
-  };
+  order: (field: string, options: { ascending: boolean }) => QcOrderedQuery;
 };
+const QC_EVENT_FIELDS = "id, event_seq, assembly_job_id, gate, decision, sample_qty, evidence_reference, reason, inspected_by, created_at";
+const QC_HISTORY_PAGE_SIZE = 50;
+function validateQcHistory(result: QcReadResult, jobId: string): QcEvent[] {
+  if (result.error) throw new Error(`QC inspection history: ${result.error.message}`);
+  if (!Array.isArray(result.data) || result.data.length > QC_HISTORY_PAGE_SIZE + 1) {
+    throw new Error("Assembly QC inspection history response is incomplete");
+  }
+  const rows = result.data as QcEvent[];
+  if (rows.some((item) => item.assembly_job_id !== jobId || !GATES.some((gate) => gate.code === item.gate))) {
+    throw new Error("Assembly QC inspection history does not match the selected job");
+  }
+  return rows;
+}
 const qcDb = supabase as unknown as {
   from: (relation: string) => { select: (fields: string) => QcQuery };
 };
@@ -60,6 +73,12 @@ export default function AssemblyQcPanel({
   retryCorrelations?: Map<string, string>;
 }) {
   const [events, setEvents] = useState<QcEvent[]>([]);
+  const [history, setHistory] = useState<QcEvent[]>([]);
+  const [hasOlderHistory, setHasOlderHistory] = useState(false);
+  const [loadingOlderHistory, setLoadingOlderHistory] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const historyVersion = useRef(0);
+  const historyRequestInFlight = useRef(false);
   const [commissioning, setCommissioning] = useState<Commissioning | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -73,22 +92,34 @@ export default function AssemblyQcPanel({
   const correlations = retryCorrelations ?? localRetryCorrelations.current;
 
   const load = useCallback(async () => {
+    const version = ++historyVersion.current;
+    historyRequestInFlight.current = false;
     setLoading(true);
     setError(null);
-    // A new or failed job read cannot retain another job's prior PASS badges.
+    setHistoryError(null);
+    setLoadingOlderHistory(false);
+    setHasOlderHistory(false);
+    // A failed authority read must not retain prior PASS badges or audit entries.
     setCommissioning(null);
     setEvents([]);
+    setHistory([]);
     try {
-      // Query each gate independently. Limiting a combined event stream
-      // hides earlier valid approvals when one stage has >250 newer records.
-      const [configResult, ...gateResults] = await Promise.all([
+      // Keep latest-by-gate badge queries independent of audit pagination:
+      // one inspection stage can accumulate hundreds of later rechecks.
+      const [configResult, ...readResults] = await Promise.all([
         qcDb.from("assembly_qc_commissioning_v1")
           .select("enforced, policy_version").eq("id", true).maybeSingle(),
         ...GATES.map((stage) => qcDb.from("assembly_qc_gate_events_v1")
-          .select("id, event_seq, assembly_job_id, gate, decision, sample_qty, evidence_reference, reason, inspected_by, created_at")
+          .select(QC_EVENT_FIELDS)
           .eq("assembly_job_id", jobId).eq("gate", stage.code)
           .order("event_seq", { ascending: false }).limit(1)),
+        qcDb.from("assembly_qc_gate_events_v1")
+          .select(QC_EVENT_FIELDS).eq("assembly_job_id", jobId)
+          .order("event_seq", { ascending: false }).limit(QC_HISTORY_PAGE_SIZE + 1),
       ]);
+      if (version !== historyVersion.current) return;
+      const gateResults = readResults.slice(0, GATES.length);
+      const initialHistoryResult = readResults[GATES.length];
       if (configResult.error) throw new Error(`QC commissioning: ${configResult.error.message}`);
       if (!configResult.data) throw new Error("Assembly QC commissioning authority is unavailable");
       const latest: QcEvent[] = [];
@@ -105,16 +136,56 @@ export default function AssemblyQcPanel({
           latest.push(event);
         }
       }
+      const audit = validateQcHistory(initialHistoryResult, jobId);
       setCommissioning(configResult.data as Commissioning);
       setEvents(latest);
+      setHistory(audit.slice(0, QC_HISTORY_PAGE_SIZE));
+      setHasOlderHistory(audit.length > QC_HISTORY_PAGE_SIZE);
     } catch (cause) {
-      setCommissioning(null);
-      setEvents([]);
-      setError(cause instanceof Error ? cause.message : "Assembly QC evidence unavailable");
+      if (version === historyVersion.current) {
+        setCommissioning(null);
+        setEvents([]);
+        setHistory([]);
+        setHasOlderHistory(false);
+        setError(cause instanceof Error ? cause.message : "Assembly QC evidence unavailable");
+      }
     } finally {
-      setLoading(false);
+      if (version === historyVersion.current) setLoading(false);
     }
   }, [jobId]);
+
+  const loadOlderHistory = useCallback(async () => {
+    // Cursor pagination is stable when new append-only QC events arrive while
+    // an operator browses old evidence. Avoid offset shifting/duplication.
+    if (loading || historyRequestInFlight.current || !hasOlderHistory || history.length === 0) return;
+    historyRequestInFlight.current = true;
+    const version = historyVersion.current;
+    const oldestSeq = history[history.length - 1].event_seq;
+    setLoadingOlderHistory(true);
+    setHistoryError(null);
+    try {
+      const result = await qcDb.from("assembly_qc_gate_events_v1")
+        .select(QC_EVENT_FIELDS).eq("assembly_job_id", jobId)
+        .lt("event_seq", oldestSeq)
+        .order("event_seq", { ascending: false }).limit(QC_HISTORY_PAGE_SIZE + 1);
+      if (version !== historyVersion.current) return;
+      const older = validateQcHistory(result, jobId);
+      if (older.some((event) => event.event_seq >= oldestSeq)) {
+        throw new Error("Assembly QC history cursor returned an invalid event");
+      }
+      setHistory((previous) => [...previous, ...older.slice(0, QC_HISTORY_PAGE_SIZE)]);
+      setHasOlderHistory(older.length > QC_HISTORY_PAGE_SIZE);
+    } catch (cause) {
+      if (version === historyVersion.current) {
+        setHistoryError(cause instanceof Error ? cause.message : "Older QC history is unavailable");
+      }
+    } finally {
+      if (version === historyVersion.current) {
+        historyRequestInFlight.current = false;
+        setLoadingOlderHistory(false);
+      }
+    }
+  }, [hasOlderHistory, history, jobId, loading]);
 
   useEffect(() => {
     void load();
@@ -195,7 +266,7 @@ export default function AssemblyQcPanel({
             Core enforces four QC approvals on Assembly transitions. Policy: {commissioning.policy_version ?? "not specified"}.
           </p>
         )}
-        <div className="grid gap-2 sm:grid-cols-2">
+        <div className="grid gap-2 sm:grid-cols-2" data-testid="assembly-qc-latest-gates">
           {GATES.map((item) => {
             const latest = latestByStage.get(item.code);
             return (
@@ -213,6 +284,36 @@ export default function AssemblyQcPanel({
             );
           })}
         </div>
+        {commissioning && (
+          <section className="space-y-2 border-t pt-3" aria-label="Assembly QC inspection history">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-sm font-semibold">Recorded QC inspection history</h3>
+              <span className="text-xs text-muted-foreground">{history.length} events loaded</span>
+            </div>
+            {history.length === 0 && <p className="text-xs text-muted-foreground">No inspection events recorded for this job.</p>}
+            <ol className="max-h-80 space-y-2 overflow-y-auto" aria-label="QC event history">
+              {history.map((event) => (
+                <li key={event.id} className="rounded-md border p-2 text-xs">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-semibold">QC event #{event.event_seq}</span>
+                    <span>{GATES.find((item) => item.code === event.gate)?.label}</span>
+                    <Badge variant={event.decision === "PASS" ? "outline" : "destructive"}>{event.decision}</Badge>
+                  </div>
+                  <p className="mt-1 break-all">Sample: {event.sample_qty} · Evidence: {event.evidence_reference}</p>
+                  <p className="mt-1 break-all">Inspector: {event.inspected_by} · {new Date(event.created_at).toLocaleString()}</p>
+                  {event.reason && <p className="mt-1 break-words">Reason / notes: {event.reason}</p>}
+                </li>
+              ))}
+            </ol>
+            {historyError && <p role="alert" className="text-xs text-destructive">QC history unavailable: {historyError}. Retry loading older events.</p>}
+            {hasOlderHistory && (
+              <Button type="button" variant="outline" size="sm" disabled={loading || loadingOlderHistory}
+                onClick={() => void loadOlderHistory()}>
+                {loadingOlderHistory ? "Loading older QC events…" : "Load older QC events"}
+              </Button>
+            )}
+          </section>
+        )}
         {commissioning && (
           <div className="space-y-3 border-t pt-3">
             <div className="grid gap-3 sm:grid-cols-3">
