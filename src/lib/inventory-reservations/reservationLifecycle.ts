@@ -31,6 +31,11 @@ export function statusAfterReserve(
   return "partially_reserved";
 }
 
+/** Shared read-side truth for non-terminal inventory reservation states. */
+export const OPEN_INVENTORY_RESERVATION_STATUSES = [
+  "pending", "reserved", "partially_reserved", "blocked",
+] as const satisfies readonly ReservationStatus[];
+
 export function isReservationOpen(status: ReservationStatus): boolean {
-  return ["pending", "reserved", "partially_reserved", "blocked"].includes(status);
+  return (OPEN_INVENTORY_RESERVATION_STATUSES as readonly string[]).includes(status);
 }
