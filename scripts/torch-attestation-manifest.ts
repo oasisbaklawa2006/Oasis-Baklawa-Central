@@ -16,10 +16,8 @@ import type { Plugin } from "vite";
 
 export const MANIFEST_RELATIVE_PATH = "server-only/torch-attestation.manifest.json";
 
-/** Explicit allowlist: flag name -> source file that bakes it into the bundle. */
-export const FLAG_ALLOWLIST: Record<string, string> = {
-  isRealtimeEnabled: "src/hooks/useRealtime.ts",
-};
+/** The only allowlisted flag: baked into the SPA bundle as a literal in this source file. */
+export const REALTIME_FLAG_FILE = "src/hooks/useRealtime.ts";
 
 export type AttestationEnvironment = "production" | "preview" | "development";
 
@@ -27,13 +25,14 @@ export interface AttestationManifest {
   app: "central";
   gitSha: string;
   environment: AttestationEnvironment;
-  supabaseProjectRef: string | null;
-  activeFeatureFlags: Record<string, boolean>;
+  supabaseProjectRef: string | null; // always a ref: no-boot configs produce no manifest
+  activeFeatureFlags: { isRealtimeEnabled: boolean };
   demoMode: boolean;
 }
 
 const SHA_RE = /^[0-9a-f]{40}$/;
 const REF_RE = /^[a-z0-9]{20}$/;
+const KEY_RE = /^[A-Za-z0-9._-]{16,}$/;
 const ENVIRONMENTS: readonly string[] = ["production", "preview", "development"];
 
 export function resolveGitSha(env: NodeJS.ProcessEnv, root: string): string {
@@ -56,17 +55,16 @@ export function projectRefFromUrl(url: string | undefined): string | null {
   }
 }
 
-export function readFlag(root: string, name: string, file: string): boolean {
-  const src = readFileSync(path.join(root, file), "utf8");
-  const m = new RegExp(`export\\s+const\\s+${name}\\s*(?::\\s*boolean\\s*)?=\\s*(true|false)\\s*;`).exec(src);
-  if (!m) throw new Error(`flag ${name} is not a literal boolean in ${file}; refusing to guess`);
+export function readIsRealtimeEnabled(root: string): boolean {
+  const src = readFileSync(path.join(root, REALTIME_FLAG_FILE), "utf8");
+  const m = /export\s+const\s+isRealtimeEnabled\s*(?::\s*boolean\s*)?=\s*(true|false)\s*;/.exec(src);
+  if (!m) throw new Error(`isRealtimeEnabled is not a literal boolean in ${REALTIME_FLAG_FILE}; refusing to guess`);
   return m[1] === "true";
 }
 
 export function buildManifest(
   viteEnv: Record<string, string>,
   procEnv: NodeJS.ProcessEnv,
-  mode: string,
   root: string,
 ): AttestationManifest {
   const gitSha = resolveGitSha(procEnv, root);
@@ -77,26 +75,20 @@ export function buildManifest(
   const environment = vercelEnv ?? "development";
   if (!ENVIRONMENTS.includes(environment)) throw new Error(`invalid environment "${environment}"`);
 
-  const demoRaw = viteEnv.VITE_DEMO_MODE;
-  if (demoRaw !== undefined && demoRaw !== "" && demoRaw !== "true" && demoRaw !== "false") {
-    throw new Error("VITE_DEMO_MODE must be exactly 'true' or 'false' when set");
+  // Boot truth: client.ts needs BOTH a Supabase URL and the publishable key. Either missing/invalid -> no manifest.
+  const supabaseProjectRef = projectRefFromUrl(viteEnv.VITE_SUPABASE_URL);
+  if (!supabaseProjectRef || !REF_RE.test(supabaseProjectRef)) {
+    throw new Error("VITE_SUPABASE_URL does not yield a valid 20-char supabase project ref");
   }
-  const demoMode = demoRaw === "true";
-
-  let supabaseProjectRef: string | null = null;
-  if (!demoMode) {
-    supabaseProjectRef = projectRefFromUrl(viteEnv.VITE_SUPABASE_URL);
-    if (!supabaseProjectRef || !REF_RE.test(supabaseProjectRef)) {
-      throw new Error("VITE_SUPABASE_URL does not yield a valid 20-char supabase project ref");
-    }
-    const id = viteEnv.VITE_SUPABASE_PROJECT_ID;
-    if (id && id !== supabaseProjectRef) throw new Error("VITE_SUPABASE_PROJECT_ID disagrees with VITE_SUPABASE_URL");
+  if (!KEY_RE.test(viteEnv.VITE_SUPABASE_PUBLISHABLE_KEY ?? "")) {
+    throw new Error("VITE_SUPABASE_PUBLISHABLE_KEY is missing or malformed");
   }
+  const id = viteEnv.VITE_SUPABASE_PROJECT_ID;
+  if (id && id !== supabaseProjectRef) throw new Error("VITE_SUPABASE_PROJECT_ID disagrees with VITE_SUPABASE_URL");
 
-  const activeFeatureFlags: Record<string, boolean> = {};
-  for (const [name, file] of Object.entries(FLAG_ALLOWLIST)) activeFeatureFlags[name] = readFlag(root, name, file);
+  const activeFeatureFlags = { isRealtimeEnabled: readIsRealtimeEnabled(root) };
 
-  return { app: "central", gitSha, environment: environment as AttestationEnvironment, supabaseProjectRef, activeFeatureFlags, demoMode };
+  return { app: "central", gitSha, environment: environment as AttestationEnvironment, supabaseProjectRef, activeFeatureFlags, demoMode: false };
 }
 
 export function torchAttestationPlugin(loadEnv: (mode: string) => Record<string, string>): Plugin {
@@ -116,7 +108,7 @@ export function torchAttestationPlugin(loadEnv: (mode: string) => Record<string,
     closeBundle() {
       const target = path.join(root, MANIFEST_RELATIVE_PATH);
       try {
-        const manifest = buildManifest(loadEnv(mode), process.env, mode, root);
+        const manifest = buildManifest(loadEnv(mode), process.env, root);
         mkdirSync(path.dirname(target), { recursive: true });
         writeFileSync(target, JSON.stringify(manifest, null, 2) + "\n", { mode: 0o600 });
       } catch (err) {

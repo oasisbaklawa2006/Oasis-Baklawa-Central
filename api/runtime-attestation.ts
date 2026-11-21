@@ -10,7 +10,6 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 
 const MANIFEST_RELATIVE_PATH = "server-only/torch-attestation.manifest.json";
-const FLAG_ALLOWLIST = ["isRealtimeEnabled"] as const;
 const KEYS = ["app", "gitSha", "environment", "supabaseProjectRef", "activeFeatureFlags", "demoMode"];
 
 const HEADERS = {
@@ -44,22 +43,13 @@ function validate(raw: unknown): Record<string, unknown> | null {
   if (app !== "central") return null;
   if (typeof gitSha !== "string" || !/^[0-9a-f]{40}$/.test(gitSha)) return null;
   if (environment !== "production" && environment !== "preview" && environment !== "development") return null;
-  if (typeof demoMode !== "boolean") return null;
-  if (demoMode) {
-    if (supabaseProjectRef !== null) return null;
-  } else if (typeof supabaseProjectRef !== "string" || !/^[a-z0-9]{20}$/.test(supabaseProjectRef)) {
-    return null;
-  }
-  if (!isObj(activeFeatureFlags)) return null;
-  const flagKeys = Object.keys(activeFeatureFlags);
-  if (flagKeys.length !== FLAG_ALLOWLIST.length) return null;
-  const flags: Record<string, boolean> = {};
-  for (const name of FLAG_ALLOWLIST) {
-    const v = activeFeatureFlags[name];
-    if (typeof v !== "boolean") return null; // unknown/missing must not coerce to false
-    flags[name] = v;
-  }
-  return { app, gitSha, environment, supabaseProjectRef, activeFeatureFlags: flags, demoMode };
+  // No-boot configs never produce a manifest, so a live attestation is always demoMode=false with a ref.
+  if (demoMode !== false) return null;
+  if (typeof supabaseProjectRef !== "string" || !/^[a-z0-9]{20}$/.test(supabaseProjectRef)) return null;
+  if (!isObj(activeFeatureFlags) || Object.keys(activeFeatureFlags).length !== 1) return null;
+  const isRealtimeEnabled = activeFeatureFlags.isRealtimeEnabled;
+  if (typeof isRealtimeEnabled !== "boolean") return null; // unknown/missing must not coerce to false
+  return { app, gitSha, environment, supabaseProjectRef, activeFeatureFlags: { isRealtimeEnabled }, demoMode };
 }
 
 function loadManifest(): Record<string, unknown> | null {

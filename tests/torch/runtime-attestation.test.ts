@@ -1,9 +1,10 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { execFileSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import attestation from "../../api/runtime-attestation";
+import { buildManifest } from "../../scripts/torch-attestation-manifest";
 
 const root = process.cwd();
 const manifestPath = path.join(root, "server-only/torch-attestation.manifest.json");
@@ -20,11 +21,13 @@ const envKeys = [
   "TORCH_ATTEST_TOKEN",
   "VERCEL_ENV",
   "VERCEL_GIT_COMMIT_SHA",
-  "VITE_DEMO_MODE",
   "VITE_SUPABASE_PROJECT_ID",
+  "VITE_SUPABASE_PUBLISHABLE_KEY",
   "VITE_SUPABASE_URL",
 ] as const;
 const originalEnv = Object.fromEntries(envKeys.map((key) => [key, process.env[key]]));
+const liveUrl = "https://abcdefghijklmnopqrst.supabase.co";
+const liveKey = "test-publishable-key-0123456789";
 const originalManifest = existsSync(manifestPath) ? readFileSync(manifestPath, "utf8") : null;
 
 function writeManifest(value: unknown): void {
@@ -32,23 +35,28 @@ function writeManifest(value: unknown): void {
   writeFileSync(manifestPath, JSON.stringify(value));
 }
 
-function buildSpa(output: string): void {
-  execFileSync(
-    process.execPath,
-    [
-      path.join(root, "node_modules/vite/bin/vite.js"),
-      "build",
-      "--config",
-      path.join(root, "vite.config.ts"),
-      "--mode",
-      "production",
-      "--outDir",
-      output,
-      "--logLevel",
-      "silent",
-    ],
-    { cwd: root, env: process.env, stdio: "inherit" },
-  );
+// Async so the vitest worker keeps answering RPC heartbeats during the ~12s build.
+function buildSpa(output: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(
+      process.execPath,
+      [
+        path.join(root, "node_modules/vite/bin/vite.js"),
+        "build",
+        "--config",
+        path.join(root, "vite.config.ts"),
+        "--mode",
+        "production",
+        "--outDir",
+        output,
+        "--logLevel",
+        "silent",
+      ],
+      { cwd: root, env: process.env, stdio: "ignore" },
+    );
+    child.on("error", reject);
+    child.on("exit", (code) => (code === 0 ? resolve() : reject(new Error(`vite build exited ${code}`))));
+  });
 }
 
 async function request(method = "GET", providedToken?: string): Promise<Response> {
@@ -111,28 +119,53 @@ describe("WO-TB-02 runtime attestation", () => {
     expect(Object.keys(body.activeFeatureFlags)).toEqual(["isRealtimeEnabled"]);
   });
 
-  it("builds a demo manifest with a null project ref and serves it", async () => {
-    const output = path.join(os.tmpdir(), `torch-attestation-demo-${process.pid}`);
+  const liveEnv = {
+    VITE_SUPABASE_URL: liveUrl,
+    VITE_SUPABASE_PUBLISHABLE_KEY: liveKey,
+  } as Record<string, string | undefined>;
+  const gitEnv = { VERCEL_ENV: "preview", VERCEL_GIT_COMMIT_SHA: "d".repeat(40) } as NodeJS.ProcessEnv;
+
+  it("generates a live manifest (200 shape) only when both Supabase URL and publishable key are valid", () => {
+    const built = buildManifest(liveEnv as Record<string, string>, gitEnv, root);
+    expect(built.supabaseProjectRef).toBe("abcdefghijklmnopqrst");
+    expect(built.demoMode).toBe(false);
+    expect(JSON.stringify(built)).not.toContain(liveKey);
+  });
+
+  it.each([
+    ["missing URL", { ...liveEnv, VITE_SUPABASE_URL: undefined }],
+    ["invalid URL", { ...liveEnv, VITE_SUPABASE_URL: "https://example.com" }],
+    ["missing publishable key", { ...liveEnv, VITE_SUPABASE_PUBLISHABLE_KEY: undefined }],
+    ["malformed publishable key", { ...liveEnv, VITE_SUPABASE_PUBLISHABLE_KEY: "short" }],
+    ["demo flag is ignored (no demo escape hatch)", { VITE_DEMO_MODE: "true" }],
+  ])("refuses to generate a manifest for %s", (_label, env) => {
+    expect(() => buildManifest(env as Record<string, string>, gitEnv, root)).toThrow();
+  });
+
+  it("a real build without the publishable key removes any stale manifest and the endpoint answers an authenticated 503", async () => {
+    const output = path.join(os.tmpdir(), `torch-attestation-boot-${process.pid}`);
     rmSync(output, { recursive: true, force: true });
+    writeManifest(manifest); // stale manifest must be removed by the failed build
     process.env.VERCEL_ENV = "preview";
-    process.env.VERCEL_GIT_COMMIT_SHA = "c".repeat(40);
-    process.env.VITE_DEMO_MODE = "true";
+    process.env.VERCEL_GIT_COMMIT_SHA = "d".repeat(40);
+    process.env.VITE_SUPABASE_URL = liveUrl;
+    delete process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+    delete process.env.VITE_SUPABASE_PROJECT_ID;
 
     try {
-      buildSpa(output);
+      await buildSpa(output);
 
+      expect(existsSync(manifestPath)).toBe(false);
       const response = await request("GET", token);
-      const body = await response.json();
-      expect(response.status).toBe(200);
-      expect(body.supabaseProjectRef).toBeNull();
-      expect(body.demoMode).toBe(true);
+      expect(response.status).toBe(503);
+      expect(await response.text()).toBe("");
     } finally {
       rmSync(output, { recursive: true, force: true });
     }
   }, 60_000);
 
   it("fails closed with no metadata for missing or corrupt manifests and invalid config", async () => {
-    for (const invalid of [null, "{", { ...manifest, unexpected: "metadata" }]) {
+    for (const invalid of [null, "{", { ...manifest, unexpected: "metadata" }, { ...manifest, demoMode: true, supabaseProjectRef: null }]) {
       if (invalid === null) rmSync(manifestPath, { force: true });
       else if (typeof invalid === "string") writeFileSync(manifestPath, invalid);
       else writeManifest(invalid);
@@ -148,16 +181,16 @@ describe("WO-TB-02 runtime attestation", () => {
     rmSync(output, { recursive: true, force: true });
     process.env.VERCEL_ENV = "preview";
     process.env.VERCEL_GIT_COMMIT_SHA = "b".repeat(40);
-    process.env.VITE_DEMO_MODE = "false";
     process.env.VITE_SUPABASE_PROJECT_ID = "abcdefghijklmnopqrst";
-    process.env.VITE_SUPABASE_URL = "https://abcdefghijklmnopqrst.supabase.co";
+    process.env.VITE_SUPABASE_PUBLISHABLE_KEY = liveKey;
+    process.env.VITE_SUPABASE_URL = liveUrl;
 
     try {
-      buildSpa(output);
+      await buildSpa(output);
 
       process.env.VITE_SUPABASE_PROJECT_ID = "zyxwvutsrqponmlkjihg";
       process.env.VITE_SUPABASE_URL = "https://zyxwvutsrqponmlkjihg.supabase.co";
-      process.env.VITE_DEMO_MODE = "true";
+      process.env.VITE_SUPABASE_PUBLISHABLE_KEY = "changed-after-build-key-000000";
 
       const response = await request("GET", token);
       const body = await response.json();
