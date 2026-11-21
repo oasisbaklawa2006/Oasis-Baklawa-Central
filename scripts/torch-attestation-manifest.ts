@@ -59,13 +59,18 @@ export function projectRefFromUrl(url: string | undefined): string | null {
 
 export function readIsRealtimeEnabled(root: string): boolean {
   const src = readFileSync(path.join(root, REALTIME_FLAG_FILE), "utf8");
-  const m = /export\s+const\s+isRealtimeEnabled\s*(?::\s*boolean\s*)?=\s*(true|false)\s*;/.exec(src);
-  if (!m) throw new Error(`isRealtimeEnabled is not a literal boolean in ${REALTIME_FLAG_FILE}; refusing to guess`);
-  return m[1] === "true";
+  // String parsing (no regex backtracking): accept only `export const isRealtimeEnabled[: boolean] = true|false;`.
+  const head = "export const isRealtimeEnabled";
+  const start = src.indexOf(head);
+  const end = start < 0 ? -1 : src.indexOf(";", start);
+  const decl = end < 0 ? "" : src.slice(start + head.length, end).replace(/\s+/g, "");
+  if (decl === "=true" || decl === ":boolean=true") return true;
+  if (decl === "=false" || decl === ":boolean=false") return false;
+  throw new Error(`isRealtimeEnabled is not a literal boolean in ${REALTIME_FLAG_FILE}; refusing to guess`);
 }
 
 export function buildManifest(
-  viteEnv: Record<string, string>,
+  viteEnv: Record<string, string | undefined>,
   procEnv: NodeJS.ProcessEnv,
   root: string,
 ): AttestationManifest {
