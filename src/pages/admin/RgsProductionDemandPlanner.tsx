@@ -100,7 +100,7 @@ function assertValidOpenReservation(raw: unknown, previousId: string | null): as
  * read must never appear to be the complete set of open reservations.
  * This function is read-only; Core RPCs remain the sole inventory writers.
  */
-export async function readAllOpenRgsReservations(client: typeof reservationDb): Promise<Omit<Reservation, "product">[]> {
+async function readOpenRgsReservationPages(client: typeof reservationDb): Promise<Omit<Reservation, "product">[]> {
   const all: Omit<Reservation, "product">[] = [];
   let afterId: string | null = null;
   for (;;) {
@@ -125,6 +125,31 @@ export async function readAllOpenRgsReservations(client: typeof reservationDb): 
     }
     if (data.length < RESERVATION_PAGE_SIZE) return all;
   }
+}
+
+/**
+ * Each PostgREST page is a separate READ COMMITTED statement. A row changing
+ * from closed to open behind the cursor can otherwise be omitted silently.
+ * Reconcile multi-page loads against a second complete keyset walk, including
+ * mutable statuses and quantities, and reject unstable views rather than
+ * present a misleading zero/shortage total. This is an optimistic read-side
+ * safeguard, not a claim of a transactional snapshot: Core still owns
+ * authoritative mutation-time validation.
+ */
+export async function readAllOpenRgsReservations(client: typeof reservationDb): Promise<Omit<Reservation, "product">[]> {
+  const first = await readOpenRgsReservationPages(client);
+  if (first.length < RESERVATION_PAGE_SIZE) return first; // One statement, no pagination race.
+  const verified = await readOpenRgsReservationPages(client);
+  const same = verified.length === first.length && first.every((row, i) => {
+    const next = verified[i];
+    return next?.id === row.id
+      && next.product_id === row.product_id
+      && next.sku === row.sku
+      && next.reservation_status === row.reservation_status
+      && RESERVATION_QTY_FIELDS.every((field) => Number(next[field]) === Number(row[field]));
+  });
+  if (!same) throw new Error("RGS reservations changed during paging; refresh and retry before routing shortages");
+  return verified;
 }
 
 /**
