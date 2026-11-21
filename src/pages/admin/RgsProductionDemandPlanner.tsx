@@ -65,25 +65,41 @@ export function calculateOpenReservationShortage(reservation: ReservationCoverag
 }
 
 /**
- * Load every open reservation in deterministic pages. Supabase/PostgREST
- * returns at most the configured API row cap for a single query. Without
- * pagination, the demand planner silently loses shortages past that cap.
- * A failed later page must reject the entire snapshot, never show a partial
- * success/zero-shortage state. This remains SELECT-only; Core RPCs own writes.
+ * Read every open reservation using the stable primary-key cursor, not offsets.
+ * If a reservation leaves the open-status filter during paging, offset-based
+ * pagination skips later rows. A strict id > cursor filter continues after the
+ * last observed row instead. Per-request reads are not an atomic DB snapshot;
+ * authoritative writes still revalidate in Core and can reject stale demand.
+ *
+ * Fail closed on page errors or a stalled/duplicate cursor: a partial shortage
+ * read must never appear to be the complete set of open reservations.
+ * This function is read-only; Core RPCs remain the sole inventory writers.
  */
 export async function readAllOpenRgsReservations(client: typeof reservationDb): Promise<Omit<Reservation, "product">[]> {
   const all: Omit<Reservation, "product">[] = [];
-  for (let offset = 0; ; offset += RESERVATION_PAGE_SIZE) {
-    const { data, error } = await client
+  let afterId: string | null = null;
+  for (;;) {
+    let query = client
       .from("inventory_reservations")
       .select("id, product_id, sku, requested_qty, reserved_qty, fulfilled_qty, released_qty, reservation_status")
-      .in("reservation_status", ["pending", "partially_reserved"])
-      .order("created_at", { ascending: true })
+      .in("reservation_status", ["pending", "partially_reserved"]);
+    if (afterId !== null) query = query.gt("id", afterId);
+    const { data, error } = await query
       .order("id", { ascending: true })
-      .range(offset, offset + RESERVATION_PAGE_SIZE - 1);
+      .limit(RESERVATION_PAGE_SIZE);
     if (error) throw new Error(error.message ?? "Could not read RGS reservations");
-    if (!Array.isArray(data)) throw new Error("RGS reservations response is invalid");
-    all.push(...(data as Omit<Reservation, "product">[]));
+    if (!Array.isArray(data) || data.length > RESERVATION_PAGE_SIZE) {
+      throw new Error("RGS reservations response is invalid");
+    }
+    for (const row of data as Omit<Reservation, "product">[]) {
+      // Production IDs are canonical UUID strings. This validates that the
+      // server honored ascending primary-key order and our exclusive cursor.
+      if (typeof row.id !== "string" || !row.id || (afterId !== null && row.id <= afterId)) {
+        throw new Error("RGS reservation page returned an invalid or repeated cursor");
+      }
+      afterId = row.id;
+      all.push(row);
+    }
     if (data.length < RESERVATION_PAGE_SIZE) return all;
   }
 }
