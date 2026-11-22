@@ -12,6 +12,7 @@ import {
   assertReservationUpdateAffected,
   isReservationTablesMissingError,
 } from "./reservationConcurrency";
+import { OPEN_INVENTORY_RESERVATION_STATUSES } from "./reservationLifecycle";
 import type { InventoryReservationStore } from "./reservationStoreContract";
 import {
   INVENTORY_MOVEMENT_TYPES,
@@ -24,8 +25,6 @@ import type {
   InventoryMovementRow,
   InventoryReservationRow,
 } from "./reservationDbTypes";
-
-const OPEN_STATUSES = ["pending", "reserved", "partially_reserved", "blocked"] as const;
 
 const ALLOWED_MOVEMENT_TYPES = new Set<string>([
   ...(INVENTORY_MOVEMENT_TYPES as readonly string[]),
@@ -109,7 +108,7 @@ export function createSupabaseInventoryReservationStore(client: SupabaseClient):
         .from("inventory_reservations")
         .select("*")
         .eq("sku", sku)
-        .in("reservation_status", [...OPEN_STATUSES]);
+        .in("reservation_status", [...OPEN_INVENTORY_RESERVATION_STATUSES]);
       if (error) throw new Error(error.message);
       return ((data ?? []) as InventoryReservationRow[]).map(mapReservationRow);
     },
