@@ -33,6 +33,12 @@ vi.mock("@/lib/rgsGovernedRpc", () => ({ rgsGovernedRpc: { rpc: (...a: unknown[]
 vi.mock("@/lib/production-lifecycle", () => ({ productionGovernedRpc: { createShortageDemand: vi.fn() } }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() } }));
 
+// Assert on numbers/booleans rather than passing DOM nodes into expect().
+const countOf = (query: () => unknown[]): number => query().length;
+const allocateDisabled = (): boolean =>
+  (screen.getByRole("button", { name: /Allocate & route shortage/ }) as HTMLButtonElement).disabled;
+const blockedReason = (): string => screen.getByTestId("rgs-allocation-blocked-reason").textContent ?? "";
+
 const orderId = "order-1", productId = "product-1";
 const line = {
   id: "line-1", order_id: orderId, product_id: productId, quantity: 10, actual_packed_qty: 0, production_status: null, department: null,
@@ -60,13 +66,13 @@ describe("ReadyGoodsStore governed legacy custody queue", () => {
     h.tables.inventory_reservations = [reservation(1, { id: "legacy-res-1" })];
     render(<ReadyGoodsStore />);
     const queue = await screen.findByTestId("rgs-legacy-custody-queue");
-    expect(within(queue).getByText(/Reservation LEGACY-R/i)).toBeTruthy();
-    expect(within(queue).getByText(/reference missing/)).toBeTruthy();
+    expect(countOf(() => within(queue).queryAllByText(/Reservation LEGACY-R/i))).toBeGreaterThan(0);
+    expect(countOf(() => within(queue).queryAllByText(/reference missing/))).toBeGreaterThan(0);
 
     // The sales-order line gets no borrowed reservation and allocation stays blocked.
-    expect(screen.getByText("No RGS stock reservation exists yet for this demand.")).toBeTruthy();
-    expect((screen.getByRole("button", { name: /Allocate & route shortage/ }) as HTMLButtonElement).disabled).toBe(true);
-    expect(screen.getByTestId("rgs-allocation-blocked-reason").textContent).toMatch(/Legacy custody reconciliation/);
+    expect(countOf(() => screen.queryAllByText("No RGS stock reservation exists yet for this demand."))).toBeGreaterThan(0);
+    expect(allocateDisabled()).toBe(true);
+    expect(blockedReason()).toMatch(/Legacy custody reconciliation/);
 
     fireEvent.change(within(queue).getByPlaceholderText("Release qty"), { target: { value: "2" } });
     fireEvent.change(within(queue).getByPlaceholderText("Reason (e.g. order_cancelled)"), { target: { value: "legacy_reconciled" } });
@@ -87,8 +93,8 @@ describe("ReadyGoodsStore governed legacy custody queue", () => {
     ];
     render(<ReadyGoodsStore />);
     await screen.findByText("Allocate & route shortage");
-    expect(screen.queryByTestId("rgs-legacy-custody-queue")).toBeNull();
-    expect((screen.getByRole("button", { name: /Allocate & route shortage/ }) as HTMLButtonElement).disabled).toBe(false);
+    expect(countOf(() => screen.queryAllByTestId("rgs-legacy-custody-queue"))).toBe(0);
+    expect(allocateDisabled()).toBe(false);
   });
 
   it("keeps a pending handover acknowledgement reachable for a legacy reservation that became terminal or zero-qty", async () => {
@@ -101,11 +107,11 @@ describe("ReadyGoodsStore governed legacy custody queue", () => {
     ];
     render(<ReadyGoodsStore />);
     const queue = await screen.findByTestId("rgs-legacy-custody-queue");
-    expect(within(queue).getByText("Acknowledge handover")).toBeTruthy();
+    expect(countOf(() => within(queue).queryAllByText("Acknowledge handover"))).toBeGreaterThan(0);
     // The terminal reservation exposes no pick/issue/release controls; the other zero-qty one is not listed.
-    expect(within(queue).queryByText("Release")).toBeNull();
-    expect(within(queue).queryByText("Issue stock")).toBeNull();
-    expect(within(queue).getAllByText(/Reservation LEGACY-/i)).toHaveLength(1);
+    expect(countOf(() => within(queue).queryAllByText("Release"))).toBe(0);
+    expect(countOf(() => within(queue).queryAllByText("Issue stock"))).toBe(0);
+    expect(countOf(() => within(queue).queryAllByText(/Reservation LEGACY-/i))).toBe(1);
     fireEvent.click(within(queue).getByText("Acknowledge handover"));
     await waitFor(() => expect(h.rpc).toHaveBeenCalledWith("acknowledge_rgs_issue", expect.objectContaining({ p_issue_id: "issue-1" })));
   });
@@ -116,7 +122,7 @@ describe("ReadyGoodsStore governed legacy custody queue", () => {
     h.tables.inventory_reservations = rows.reverse();
     render(<ReadyGoodsStore />);
     const queue = await screen.findByTestId("rgs-legacy-custody-queue");
-    expect(within(queue).getByText(/Reservation LEGACY-L/i)).toBeTruthy();
+    expect(countOf(() => within(queue).queryAllByText(/Reservation LEGACY-L/i))).toBeGreaterThan(0);
   });
 
   it("fails closed: an unreadable later page shows the error and exposes no custody or allocation controls", async () => {
@@ -124,9 +130,9 @@ describe("ReadyGoodsStore governed legacy custody queue", () => {
     h.failReservationsAtPage = 1;
     render(<ReadyGoodsStore />);
     await screen.findByText(/RGS contracts could not be read/);
-    expect(screen.getByText(/page timeout/)).toBeTruthy();
-    expect(screen.queryByText("Release")).toBeNull();
-    expect(screen.queryByText("Allocate & route shortage")).toBeNull();
-    expect(screen.queryByTestId("rgs-legacy-custody-queue")).toBeNull();
+    expect(countOf(() => screen.queryAllByText(/page timeout/))).toBeGreaterThan(0);
+    expect(countOf(() => screen.queryAllByText("Release"))).toBe(0);
+    expect(countOf(() => screen.queryAllByText("Allocate & route shortage"))).toBe(0);
+    expect(countOf(() => screen.queryAllByTestId("rgs-legacy-custody-queue"))).toBe(0);
   });
 });
