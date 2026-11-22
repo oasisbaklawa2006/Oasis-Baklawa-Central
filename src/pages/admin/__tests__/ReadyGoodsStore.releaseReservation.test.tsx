@@ -79,19 +79,26 @@ function makeQuery(data: unknown[]) {
   return builder;
 }
 
-vi.mock("@/integrations/supabase/client", () => ({
-  supabase: {
-    from: (relation: string) => {
-      if (relation === "b2b_order_availability") return makeQuery([]);
-      if (relation === "order_items") return makeQuery([demandRow]);
-      if (relation === "production_jobs") return makeQuery([]);
-      if (relation === "production_rgs_transfers") return makeQuery([]);
-      if (relation === "inventory_reservations") return makeQuery([reservationRow]);
-      if (relation === "rgs_issue_events") return makeQuery([]);
-      return makeQuery([]);
+vi.mock("@/integrations/supabase/client", async () => {
+  const { makeKeysetFakeDb } = await import("@/lib/rgs/__tests__/keysetFakeDb");
+  // Fixtures are module-level consts initialised after this hoisted factory
+  // runs, so build the fake lazily on first query.
+  let fake: ReturnType<typeof makeKeysetFakeDb>["db"] | null = null;
+  const getDb = () => fake ??= makeKeysetFakeDb({
+    orders: [{ id: orderId, status: "approved", created_at: demandRow.order.created_at, company: demandRow.order.company, order_items: [{ ...demandRow, order: undefined }] }],
+    production_jobs: [],
+    production_rgs_transfers: [],
+    inventory_reservations: [reservationRow],
+    rgs_issue_events: [],
+  }).db;
+  return {
+    supabase: {
+      from: (relation: string) => relation === "b2b_order_availability" || relation === "inventory_stock_balances"
+        ? makeQuery([])
+        : getDb().from(relation),
     },
-  },
-}));
+  };
+});
 
 vi.mock("@/lib/rgsGovernedRpc", () => ({
   rgsGovernedRpc: { rpc: (...args: unknown[]) => rpcMock(...(args as [string, Record<string, unknown>])) },

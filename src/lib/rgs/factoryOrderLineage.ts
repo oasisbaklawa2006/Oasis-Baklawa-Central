@@ -12,7 +12,32 @@ export type FactoryLineReservation = {
   order_id: string | null;
   product_id: string | null;
   demand_reference: string | null;
+  reservation_status: string;
+  reserved_qty: number;
 };
+
+/**
+ * Terminal inventory_reservations.reservation_status values per Core's
+ * inventory_reservations_status_check (pending, reserved, partially_reserved,
+ * blocked, released, expired, fulfilled, cancelled). A terminal reservation
+ * holds no custody and cannot be allocated, picked, issued or released.
+ */
+export const TERMINAL_RESERVATION_STATUSES: ReadonlySet<string> = new Set([
+  "released", "fulfilled", "cancelled", "expired",
+]);
+
+export const isTerminalReservation = (reservation: { reservation_status: string }): boolean =>
+  TERMINAL_RESERVATION_STATUSES.has(reservation.reservation_status);
+
+/**
+ * A legacy reservation is one with no `order_item:` source-line anchor. It is
+ * UNRESOLVED (needs governed reconciliation) only while it is non-terminal and
+ * still holds stock. It is never auto-assigned to any sales-order line.
+ */
+export const isUnresolvedLegacyReservation = (reservation: FactoryLineReservation): boolean =>
+  !reservation.demand_reference?.startsWith("order_item:") &&
+  !isTerminalReservation(reservation) &&
+  Number(reservation.reserved_qty) > 0;
 
 export function resolveFactoryLineReservations<T extends FactoryLineReservation>(
   line: { id: string; order_id: string; product_id: string | null },
@@ -24,8 +49,8 @@ export function resolveFactoryLineReservations<T extends FactoryLineReservation>
   );
   return {
     matched: sameSku.filter((item) => item.demand_reference === reference),
-    ambiguousLegacy: sameSku.some((item) =>
-      !item.demand_reference || !item.demand_reference.startsWith("order_item:")),
+    // Terminal or zero-qty legacy rows hold no custody and must not block.
+    ambiguousLegacy: sameSku.some(isUnresolvedLegacyReservation),
   };
 }
 
