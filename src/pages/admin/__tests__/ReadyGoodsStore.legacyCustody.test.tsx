@@ -36,7 +36,6 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), warning: v
 // Assert on numbers/booleans rather than passing DOM nodes into expect().
 const countOf = (query: () => unknown[]): number => query().length;
 const rpcCalls = (fn: string): number => h.rpc.mock.calls.filter(([name]) => name === fn).length;
-const blockedReason = (): string => screen.getByTestId("rgs-allocation-blocked-reason").textContent ?? "";
 
 const orderId = "order-1", productId = "product-1";
 const line = {
@@ -73,7 +72,7 @@ describe("ReadyGoodsStore governed legacy custody queue", () => {
     // A disabled control cannot fire: clicking it must not reach the governed reserve RPC.
     fireEvent.click(screen.getByRole("button", { name: /Allocate & route shortage/ }));
     expect(rpcCalls("reserve_rgs_stock")).toBe(0);
-    expect(blockedReason()).toMatch(/Legacy custody reconciliation/);
+    expect(countOf(() => screen.queryAllByText(/Allocation is blocked: an open legacy RGS reservation/))).toBe(1);
 
     fireEvent.change(within(queue).getByPlaceholderText("Release qty"), { target: { value: "2" } });
     fireEvent.change(within(queue).getByPlaceholderText("Reason (e.g. order_cancelled)"), { target: { value: "legacy_reconciled" } });
