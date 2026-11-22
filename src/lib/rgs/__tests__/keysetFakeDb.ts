@@ -12,7 +12,8 @@ type Hook = (call: { relation: string; phase: "timestamped" | "null_timestamp"; 
 
 export function makeKeysetFakeDb(tables: Record<string, Row[]>, hook?: Hook) {
   const calls: Array<{ relation: string; phase: string; limit: number; orFilter: string | null }> = [];
-  const counters: Record<string, number> = {};
+  const counters = new Map<string, number>();
+  const field = (row: Row, key: string): unknown => Reflect.get(row, key);
   const db = {
     from(relation: string) {
       const st = { notNull: false, isNull: false, idGt: null as string | null, or: null as string | null, in: [] as Array<[string, unknown[]]>, eq: [] as Array<[string, unknown]>, orderCol: "id" };
@@ -30,25 +31,26 @@ export function makeKeysetFakeDb(tables: Record<string, Row[]>, hook?: Hook) {
       builder.limit = (limit: number) => {
         const phase = st.isNull ? "null_timestamp" : "timestamped";
         calls.push({ relation, phase, limit, orFilter: st.or });
-        const index = (counters[relation] = (counters[relation] ?? 0) + 1) - 1;
+        const index = counters.get(relation) ?? 0;
+        counters.set(relation, index + 1);
         const injected = hook?.({ relation, phase, limit, index });
         if (injected) return Promise.resolve(injected);
         const col = st.orderCol;
-        let rows = (tables[relation] ?? []).filter((r) => st.in.every(([c, vals]) => vals.includes(r[c])) && st.eq.every(([c, v]) => r[c] === v));
-        if (st.notNull) rows = rows.filter((r) => r[col] != null);
-        if (st.isNull) rows = rows.filter((r) => r[col] == null);
+        let rows = (Reflect.get(tables, relation) as Row[] | undefined ?? []).filter((r) => st.in.every(([c, vals]) => vals.includes(field(r, c))) && st.eq.every(([c, v]) => field(r, c) === v));
+        if (st.notNull) rows = rows.filter((r) => field(r, col) != null);
+        if (st.isNull) rows = rows.filter((r) => field(r, col) == null);
         if (st.idGt) rows = rows.filter((r) => String(r.id) > st.idGt!);
         if (st.or) {
           const m = /^(\w+)\.gt\.([^,]+),and\(\w+\.eq\.([^,]+),id\.gt\.([^)]+)\)$/.exec(st.or);
           if (!m) throw new Error(`unexpected or() filter: ${st.or}`);
           const [, , ts, ts2, id] = m;
           rows = rows.filter((r) => {
-            const c = compareTimestamps(String(r[col]), ts);
+            const c = compareTimestamps(String(field(r, col)), ts);
             return c > 0 || (c === 0 && ts === ts2 && String(r.id) > id);
           });
         }
         rows = [...rows].sort((a, b) => {
-          if (!st.isNull && col !== "id") { const c = compareTimestamps(String(a[col]), String(b[col])); if (c) return c; }
+          if (!st.isNull && col !== "id") { const c = compareTimestamps(String(field(a, col)), String(field(b, col))); if (c) return c; }
           return String(a.id) < String(b.id) ? -1 : String(a.id) > String(b.id) ? 1 : 0;
         });
         return Promise.resolve({ data: rows.slice(0, limit), error: null });

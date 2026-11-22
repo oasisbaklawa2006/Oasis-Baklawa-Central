@@ -107,7 +107,7 @@ describe("Factory F04 canonical SO-line visibility (parent-order keyset)", () =>
     t.order_items.push({ id: "line-null", order_id: "order-null", product_id: "same-sku", quantity: 1 });
     const result = await fetchAllRgsFactoryOrderLines(db(t).db as unknown as FactoryDb, 2);
     expect(result).toHaveLength(111);
-    expect(result.at(-1)?.id).toBe("line-null");
+    expect(result.slice(-1).map((r) => r.id)).toEqual(["line-null"]);
   });
 
   it("fails the entire intake snapshot if a later order or line page is unreadable", async () => {

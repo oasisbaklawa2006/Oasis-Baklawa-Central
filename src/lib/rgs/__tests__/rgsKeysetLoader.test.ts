@@ -14,9 +14,12 @@ describe("rgsKeysetLoader", () => {
       const out = await loadTableByKeyset<R>(db, relation, "id, created_at", { column: "created_at", get: (r) => r.created_at });
       expect(out).toHaveLength(1203);
       expect(new Set(out.map((r) => r.id)).size).toBe(1203);
-      for (let i = 1; i < out.length; i += 1) {
-        expect(compareTimestamps(out[i - 1].created_at as string, out[i].created_at as string)).toBeLessThanOrEqual(0);
-      }
+      let ascending = true;
+      out.reduce<R | null>((prev, cur) => {
+        if (prev && compareTimestamps(prev.created_at as string, cur.created_at as string) > 0) ascending = false;
+        return cur;
+      }, null);
+      expect(ascending).toBe(true);
       expect(calls.every((c) => c.limit === 250)).toBe(true);
     }
     const issues = Array.from({ length: 700 }, (_, i) => ({ id: pad(i), issued_at: ts(i) })).reverse();
