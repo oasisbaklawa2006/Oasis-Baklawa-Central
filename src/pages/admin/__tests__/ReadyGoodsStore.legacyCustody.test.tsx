@@ -117,6 +117,56 @@ describe("ReadyGoodsStore governed legacy custody queue", () => {
     await waitFor(() => expect(h.rpc).toHaveBeenCalledWith("acknowledge_rgs_issue", expect.objectContaining({ p_issue_id: "issue-1" })));
   });
 
+  const job = (id: string, over: Record<string, unknown> = {}) => ({
+    id, order_item_id: null, order_id: orderId, product_id: productId, department: "FACTORY", reservation_id: "legacy-res-1",
+    assigned_qty: 6, produced_qty: 6, batch_number: null, priority: "normal", stage: "dispatch", status: "completed",
+    created_at: "2026-08-03T00:00:00+00:00", ...over,
+  });
+  const transfer = (id: string, jobId: string, over: Record<string, unknown> = {}) => ({
+    id, job_id: jobId, product_id: productId, quantity: 6, declared_qty: 6, received_qty: null, accepted_qty: null,
+    rejected_qty: null, hold_qty: null, status: "in_transit", batch_number: null, rgs_notified: false,
+    created_at: "2026-08-04T00:00:00+00:00", ...over,
+  });
+
+  it("keeps a legacy production job's transfer receivable outside every demand line", async () => {
+    h.tables.inventory_reservations = [reservation(1, { id: "legacy-res-1" })];
+    h.tables.production_jobs = [job("legacy-job-1")];
+    h.tables.production_rgs_transfers = [transfer("legacy-xfer-1", "legacy-job-1")];
+    render(<ReadyGoodsStore />);
+    const queue = await screen.findByTestId("rgs-legacy-custody-queue");
+    const legacyJob = within(queue).getByTestId("rgs-legacy-job");
+    // The job is never attached to the same-SKU demand line.
+    expect(countOf(() => screen.queryAllByText("No Production-to-RGS transfer evidence is linked to this demand."))).toBe(1);
+    fireEvent.change(within(legacyJob).getByPlaceholderText("Received qty"), { target: { value: "6" } });
+    fireEvent.click(within(legacyJob).getByText("Record receipt"));
+    await waitFor(() => expect(h.rpc).toHaveBeenCalledWith("record_rgs_receipt", expect.objectContaining({
+      p_transfer_id: "legacy-xfer-1", p_received_qty: 6,
+    })));
+  });
+
+  it("offers governed acceptance for a received legacy transfer even when its reservation is terminal", async () => {
+    h.tables.inventory_reservations = [reservation(1, { id: "legacy-res-1", reservation_status: "fulfilled", reserved_qty: 0 })];
+    h.tables.production_jobs = [job("legacy-job-1")];
+    h.tables.production_rgs_transfers = [transfer("legacy-xfer-1", "legacy-job-1", { status: "received", received_qty: 6 })];
+    render(<ReadyGoodsStore />);
+    const queue = await screen.findByTestId("rgs-legacy-custody-queue");
+    fireEvent.change(within(queue).getByPlaceholderText("Accepted"), { target: { value: "6" } });
+    fireEvent.click(within(queue).getByText("Accept into RGS stock"));
+    await waitFor(() => expect(h.rpc).toHaveBeenCalledWith("accept_rgs_production_receipt", expect.objectContaining({
+      p_transfer_id: "legacy-xfer-1", p_accepted_qty: 6,
+    })));
+  });
+
+  it("keeps anchored jobs on their exact demand line and out of the legacy queue", async () => {
+    h.tables.inventory_reservations = [reservation(1, { id: "anchored-res", demand_reference: "order_item:line-1" })];
+    h.tables.production_jobs = [job("anchored-job", { order_item_id: "line-1", reservation_id: "anchored-res" })];
+    h.tables.production_rgs_transfers = [transfer("anchored-xfer", "anchored-job")];
+    render(<ReadyGoodsStore />);
+    await screen.findByText("Record receipt");
+    expect(countOf(() => screen.queryAllByTestId("rgs-legacy-job"))).toBe(0);
+    expect(countOf(() => screen.queryAllByTestId("rgs-legacy-custody-queue"))).toBe(0);
+  });
+
   it("finds a legacy reservation beyond the old 500-row cap", async () => {
     const rows = Array.from({ length: 619 }, (_, i) => reservation(i, { id: `anchored-${String(i).padStart(5, "0")}`, demand_reference: "order_item:other-line", reservation_status: "released", reserved_qty: 0 }));
     rows.push(reservation(900, { id: "legacy-late" }));
