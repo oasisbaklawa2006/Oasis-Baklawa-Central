@@ -48,7 +48,8 @@ beforeEach(() => {
   h.fake = null;
   h.failReservationsAtPage = null;
   h.tables = {
-    orders: [{ id: orderId, status: "approved", created_at: "2026-08-01T00:00:00+00:00", company: { business_name: "Acme" }, order_items: [line] }],
+    orders: [{ id: orderId, status: "approved", created_at: "2026-08-01T00:00:00+00:00", company: { business_name: "Acme" } }],
+    order_items: [line],
     production_jobs: [], production_rgs_transfers: [], rgs_issue_events: [], inventory_reservations: [],
   };
 });
@@ -88,6 +89,25 @@ describe("ReadyGoodsStore governed legacy custody queue", () => {
     await screen.findByText("Allocate & route shortage");
     expect(screen.queryByTestId("rgs-legacy-custody-queue")).toBeNull();
     expect((screen.getByRole("button", { name: /Allocate & route shortage/ }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("keeps a pending handover acknowledgement reachable for a legacy reservation that became terminal or zero-qty", async () => {
+    h.tables.inventory_reservations = [
+      reservation(1, { id: "legacy-fulfilled", reservation_status: "fulfilled", reserved_qty: 0 }),
+      reservation(2, { id: "legacy-zero", reserved_qty: 0 }),
+    ];
+    h.tables.rgs_issue_events = [
+      { id: "issue-1", reservation_id: "legacy-fulfilled", product_id: productId, sku: "WIDGET-1", issued_qty: 3, acknowledged_qty: null, status: "issued", destination_type: "b2b", destination_reference: null, source_location: "FINISHED_GOODS", issued_at: "2026-08-02T00:00:00+00:00" },
+    ];
+    render(<ReadyGoodsStore />);
+    const queue = await screen.findByTestId("rgs-legacy-custody-queue");
+    expect(within(queue).getByText("Acknowledge handover")).toBeTruthy();
+    // The terminal reservation exposes no pick/issue/release controls; the other zero-qty one is not listed.
+    expect(within(queue).queryByText("Release")).toBeNull();
+    expect(within(queue).queryByText("Issue stock")).toBeNull();
+    expect(within(queue).getAllByText(/Reservation LEGACY-/i)).toHaveLength(1);
+    fireEvent.click(within(queue).getByText("Acknowledge handover"));
+    await waitFor(() => expect(h.rpc).toHaveBeenCalledWith("acknowledge_rgs_issue", expect.objectContaining({ p_issue_id: "issue-1" })));
   });
 
   it("finds a legacy reservation beyond the old 500-row cap", async () => {

@@ -48,7 +48,7 @@ export function makeKeysetFakeDb(tables: Record<string, Row[]>, hook?: Hook) {
           });
         }
         rows = [...rows].sort((a, b) => {
-          if (!st.isNull) { const c = compareTimestamps(String(a[col]), String(b[col])); if (c) return c; }
+          if (!st.isNull && col !== "id") { const c = compareTimestamps(String(a[col]), String(b[col])); if (c) return c; }
           return String(a.id) < String(b.id) ? -1 : String(a.id) > String(b.id) ? 1 : 0;
         });
         return Promise.resolve({ data: rows.slice(0, limit), error: null });

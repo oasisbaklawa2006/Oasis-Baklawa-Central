@@ -93,4 +93,18 @@ describe("rgsKeysetLoader", () => {
     expect(compareTimestamps("2026-11-01T00:00:00.12+00:00", "2026-11-01T00:00:00.120001+00:00")).toBe(-1);
     expect(compareTimestamps("2026-11-01T00:00:00.5+00:00", "2026-11-01T00:00:00.500000+00:00")).toBe(0);
   });
+
+  it("pages primary-key tables by id alone (idOnly) and rejects non-monotonic ids", async () => {
+    const rows = Array.from({ length: 700 }, (_, i) => ({ id: pad(i) })).reverse();
+    const { db } = makeKeysetFakeDb({ order_items: rows });
+    const out = await loadKeysetPages<{ id: string }>({
+      label: "order_items", idOnly: true, getId: (r) => r.id, getTimestamp: () => null,
+      fetchPage: (req) => applyKeysetWindow((db.from("order_items") as { select: (c: string) => unknown }).select("id"), "id", req),
+    });
+    expect(out.map((r) => r.id)).toEqual(Array.from({ length: 700 }, (_, i) => pad(i)));
+    await expect(loadKeysetPages<{ id: string }>({
+      label: "t", idOnly: true, pageSize: 2, getId: (r) => r.id, getTimestamp: () => null,
+      fetchPage: async () => ({ data: [{ id: "b" }, { id: "a" }], error: null }),
+    })).rejects.toThrow("non-monotonic");
+  });
 });

@@ -85,7 +85,8 @@ vi.mock("@/integrations/supabase/client", async () => {
   // runs, so build the fake lazily on first query.
   let fake: ReturnType<typeof makeKeysetFakeDb>["db"] | null = null;
   const getDb = () => fake ??= makeKeysetFakeDb({
-    orders: [{ id: orderId, status: "approved", created_at: demandRow.order.created_at, company: demandRow.order.company, order_items: [{ ...demandRow, order: undefined }] }],
+    orders: [{ id: orderId, status: "approved", created_at: demandRow.order.created_at, company: demandRow.order.company }],
+    order_items: [{ ...demandRow, order: undefined }],
     production_jobs: [],
     production_rgs_transfers: [],
     inventory_reservations: [reservationRow],

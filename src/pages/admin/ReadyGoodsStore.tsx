@@ -3,9 +3,9 @@ import { AlertTriangle, Factory, PackageCheck, RefreshCw, ShieldCheck, Truck, Wa
 import { supabase } from "@/integrations/supabase/client";
 import { productionGovernedRpc } from "@/lib/production-lifecycle";
 import { rgsGovernedRpc } from "@/lib/rgsGovernedRpc";
-import { factoryOrderLineReference, isFactoryJobForLine, resolveFactoryLineReservations, isUnresolvedLegacyReservation } from "@/lib/rgs/factoryOrderLineage";
+import { factoryOrderLineReference, isFactoryJobForLine, resolveFactoryLineReservations, isLegacyReservation, isTerminalReservation, isUnresolvedLegacyReservation } from "@/lib/rgs/factoryOrderLineage";
 import { calculateOpenRgsReservationShortage } from "@/lib/rgs/openReservationShortage";
-import { applyKeysetWindow, loadKeysetPages, loadTableByKeyset, RGS_KEYSET_DEFAULT_PAGE_SIZE } from "@/lib/rgs/rgsKeysetLoader";
+import { applyKeysetWindow, compareTimestamps, loadKeysetPages, loadTableByKeyset, RGS_KEYSET_DEFAULT_PAGE_SIZE } from "@/lib/rgs/rgsKeysetLoader";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -122,18 +122,26 @@ type ParentOrderRow = {
   status: string;
   created_at: string | null;
   company: { business_name: string } | null;
-  order_items: Array<Omit<Demand, "order">> | null;
 };
+type OrderLineRow = Omit<Demand, "order">;
+
+const ORDER_LINE_ORDER_CHUNK = 100;
+const ORDER_LINE_COLUMNS =
+  "id, order_id, product_id, quantity, actual_packed_qty, production_status, department, product:products(id, name, sku, production_department)";
 
 /**
  * The RGS intake is backed by canonical order_items and original line IDs,
- * not a synthetic Factory order ledger. Parent orders are walked with a
- * composite keyset cursor (orders.created_at, orders.id) and their lines are
- * embedded and ordered by the unique order_items.id, so the effective total
- * order is (orders.created_at, order_items.id) and no offset can skip or
- * repeat a row while orders change. NULL created_at orders are read in an
- * explicit second phase. Any failed, malformed, duplicate or non-monotonic
- * page rejects the whole snapshot (never a silent partial intake).
+ * not a synthetic Factory order ledger.
+ *   1. Active parent orders are read with a composite keyset cursor
+ *      (orders.created_at, orders.id); NULL created_at orders are read in an
+ *      explicit second phase.
+ *   2. Their lines are read separately, in chunks of order ids, with a keyset
+ *      cursor on the unique order_items.id (never an embedded array whose size
+ *      a server row limit could silently truncate).
+ *   3. The complete snapshot is sorted globally by (orders.created_at,
+ *      order_items.id), NULL created_at last.
+ * Any failed, malformed, duplicate or non-monotonic page, or a line whose order
+ * was not loaded, rejects the whole snapshot (never a silent partial intake).
  */
 export async function fetchAllRgsFactoryOrderLines(
   db: typeof operationsDb,
@@ -146,27 +154,49 @@ export async function fetchAllRgsFactoryOrderLines(
     getTimestamp: (row) => row.created_at,
     fetchPage: (request) => applyKeysetWindow(
       db.from("orders")
-        .select("id, status, created_at, company:companies(business_name), order_items(id, order_id, product_id, quantity, actual_packed_qty, production_status, department, product:products(id, name, sku, production_department))")
+        .select("id, status, created_at, company:companies(business_name)")
         .in("status", activeOrderStatuses),
       "created_at",
       request,
     ),
   });
+  const orderById = new Map(orders.map((order) => [order.id, order] as const));
+
   const lines: Demand[] = [];
   const seenLineIds = new Set<string>();
-  for (const order of orders) {
-    if (!Array.isArray(order.order_items)) throw new Error("Factory order line read returned invalid data");
-    const orderRef = { id: order.id, status: order.status, created_at: order.created_at, company: order.company ?? null };
-    const orderLines = [...order.order_items].sort((x, y) => (x?.id < y?.id ? -1 : x?.id > y?.id ? 1 : 0));
-    for (const line of orderLines) {
-      if (!line || typeof line.id !== "string" || !line.id || line.order_id !== order.id || seenLineIds.has(line.id)) {
+  for (let start = 0; start < orders.length; start += ORDER_LINE_ORDER_CHUNK) {
+    const orderIds = orders.slice(start, start + ORDER_LINE_ORDER_CHUNK).map((order) => order.id);
+    const chunk = await loadKeysetPages<OrderLineRow>({
+      label: "Factory order line items",
+      pageSize,
+      idOnly: true,
+      getId: (row) => row.id,
+      getTimestamp: () => null,
+      fetchPage: (request) => applyKeysetWindow(
+        db.from("order_items").select(ORDER_LINE_COLUMNS).in("order_id", orderIds),
+        "id",
+        request,
+      ),
+    });
+    for (const line of chunk) {
+      const order = orderById.get(line.order_id);
+      if (!order || !orderIds.includes(line.order_id) || seenLineIds.has(line.id)) {
         throw new Error("Factory intake source changed during pagination; reload required");
       }
       seenLineIds.add(line.id);
-      lines.push({ ...line, order: orderRef });
+      lines.push({ ...line, order: { id: order.id, status: order.status, created_at: order.created_at, company: order.company ?? null } });
     }
   }
-  return lines;
+  return lines.sort((a, b) => {
+    const at = a.order?.created_at ?? null, bt = b.order?.created_at ?? null;
+    if (at !== bt) {
+      if (at === null) return 1;
+      if (bt === null) return -1;
+      const byTime = compareTimestamps(at, bt);
+      if (byTime !== 0) return byTime;
+    }
+    return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+  });
 }
 
 /** RGS is the business-facing alias of the canonical FINISHED_GOODS store. */
@@ -508,7 +538,12 @@ export default function ReadyGoodsStore() {
   const openProductionCount = jobs.filter((job) => openJobStatuses.has(job.status)).length;
   // Custody/allocation stay disabled until every page of every read model loaded.
   const custodyLocked = loading || error != null;
-  const legacyCustody = reservations.filter(isUnresolvedLegacyReservation);
+  // Legacy (un-anchored) reservations stay reachable while they hold stock OR
+  // while any of their issued stock still awaits handover acknowledgement, even
+  // after the reservation itself became terminal or zero-qty.
+  const pendingIssueReservationIds = new Set(issueEvents.filter((issue) => issue.status === "issued").map((issue) => issue.reservation_id));
+  const legacyCustody = reservations.filter((reservation) =>
+    isUnresolvedLegacyReservation(reservation) || (isLegacyReservation(reservation) && pendingIssueReservationIds.has(reservation.id)));
   const legacyIssueEvents = issueEvents.filter((issue) => legacyCustody.some((reservation) => reservation.id === issue.reservation_id));
   const pendingAcceptanceCount = transfers.filter((row) => !row.rgs_notified).length;
 
@@ -523,7 +558,7 @@ export default function ReadyGoodsStore() {
               </span>
             </div>
           </div>
-          {reservation.reserved_qty > 0 && (
+          {reservation.reserved_qty > 0 && !isTerminalReservation(reservation) && (
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <Input type="number" step="0.001" placeholder="Pick qty" className="h-8 w-28 text-xs"
                 value={pickQtyById[reservation.id] ?? ""}

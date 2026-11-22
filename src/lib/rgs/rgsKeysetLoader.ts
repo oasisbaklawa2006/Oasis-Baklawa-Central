@@ -20,7 +20,7 @@ const MAX_PAGE_SIZE = 1000;
 // Hard ceiling against a cursor that never advances (infinite-loop guard).
 const MAX_PAGES = 10_000;
 
-export type KeysetPhase = "timestamped" | "null_timestamp";
+export type KeysetPhase = "timestamped" | "null_timestamp" | "id_only";
 export type KeysetCursor = { timestamp: string | null; id: string };
 export type KeysetRequest = { phase: KeysetPhase; after: KeysetCursor | null; limit: number };
 export type KeysetPageResult = { data: unknown; error: { message?: string } | null };
@@ -68,11 +68,14 @@ export function applyKeysetWindow(
   column: string,
   request: KeysetRequest,
 ): PromiseLike<KeysetPageResult> {
-  if (!/^[a-z_]+$/.test(column)) throw new Error("Invalid keyset column");
+  if (request.phase !== "id_only" && !/^[a-z_]+$/.test(column)) throw new Error("Invalid keyset column");
   let q = query as KeysetQuery;
   const { after } = request;
   if (after && !SAFE_ID.test(after.id)) throw new Error("Keyset cursor id is malformed");
-  if (request.phase === "timestamped") {
+  if (request.phase === "id_only") {
+    if (after) q = q.gt("id", after.id);
+    q = q.order("id", { ascending: true });
+  } else if (request.phase === "timestamped") {
     q = q.not(column, "is", null);
     if (after) {
       if (!after.timestamp || !SAFE_TIMESTAMP.test(after.timestamp)) throw new Error("Keyset cursor timestamp is malformed");
@@ -91,6 +94,8 @@ export type KeysetLoaderConfig<T> = {
   /** Human label used in error messages, e.g. "inventory_reservations". */
   label: string;
   pageSize?: number;
+  /** Page by the unique `id` alone (primary-key tables; no timestamp column needed). */
+  idOnly?: boolean;
   getTimestamp: (row: T) => unknown;
   getId: (row: T) => unknown;
   fetchPage: (request: KeysetRequest) => PromiseLike<KeysetPageResult>;
@@ -104,7 +109,7 @@ export async function loadKeysetPages<T>(config: KeysetLoaderConfig<T>): Promise
   }
   const all: T[] = [];
   const seen = new Set<string>();
-  let phase: KeysetPhase = "timestamped";
+  let phase: KeysetPhase = config.idOnly ? "id_only" : "timestamped";
   let after: KeysetCursor | null = null;
   let previous: KeysetCursor | null = null;
 
@@ -126,7 +131,7 @@ export async function loadKeysetPages<T>(config: KeysetLoaderConfig<T>): Promise
           throw new Error(`${label} read returned a row with an invalid timestamp`);
         }
         timestamp = rawTimestamp;
-      } else if (rawTimestamp != null) {
+      } else if (phase === "null_timestamp" && rawTimestamp != null) {
         throw new Error(`${label} source changed during pagination; reload required`);
       }
       const key: KeysetCursor = { timestamp, id };

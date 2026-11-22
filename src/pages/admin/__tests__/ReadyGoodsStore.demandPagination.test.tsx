@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { fetchAllRgsFactoryOrderLines } from "../ReadyGoodsStore";
 import { makeKeysetFakeDb } from "@/lib/rgs/__tests__/keysetFakeDb";
+import { compareTimestamps } from "@/lib/rgs/rgsKeysetLoader";
 
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: vi.fn() } }));
 vi.mock("@/lib/rgsGovernedRpc", () => ({ rgsGovernedRpc: { rpc: vi.fn() } }));
@@ -15,92 +16,121 @@ const createdAt = (i: number) => `2026-10-${String(1 + (i % 25)).padStart(2, "0"
 
 /** 605 same-SKU lines spread over 11 orders (55 lines each). */
 function buildOrders(lineCount = 605, perOrder = 55) {
-  const orders = [];
+  const orders: Array<Record<string, unknown>> = [];
+  const items: Array<Record<string, unknown>> = [];
   for (let o = 0; o * perOrder < lineCount; o += 1) {
-    const items = [];
+    orders.push({ id: orderId(o), status: "approved", created_at: createdAt(o), company: { business_name: "Acme" } });
     for (let k = 0; k < perOrder && o * perOrder + k < lineCount; k += 1) {
       items.push({ id: lineId(o * perOrder + k), order_id: orderId(o), product_id: "same-sku", quantity: 1 });
     }
-    orders.push({ id: orderId(o), status: "approved", created_at: createdAt(o), company: { business_name: "Acme" }, order_items: items });
   }
-  return orders;
+  return { orders, order_items: items };
 }
+const db = (tables: Record<string, Array<Record<string, unknown>>>, hook?: Parameters<typeof makeKeysetFakeDb>[1]) =>
+  makeKeysetFakeDb(tables, hook);
 
 describe("Factory F04 canonical SO-line visibility (parent-order keyset)", () => {
   it("preserves every original order_item.id across 605 same-SKU lines, with a page size forcing multiple pages", async () => {
-    const { db, calls } = makeKeysetFakeDb({ orders: buildOrders() });
-    const result = await fetchAllRgsFactoryOrderLines(db as unknown as FactoryDb, 4);
+    const fake = db(buildOrders());
+    const result = await fetchAllRgsFactoryOrderLines(fake.db as unknown as FactoryDb, 4);
 
     expect(result).toHaveLength(605);
     expect(new Set(result.map((row) => row.id)).size).toBe(605);
-    expect(calls.filter((c) => c.relation === "orders").length).toBeGreaterThan(3);
-    expect(calls.some((c) => c.orFilter?.includes("id.gt."))).toBe(true);
+    expect(fake.calls.filter((c) => c.relation === "orders").length).toBeGreaterThan(3);
+    expect(fake.calls.some((c) => c.orFilter?.includes("id.gt."))).toBe(true);
     expect(result.every((row) => row.order?.id === row.order_id)).toBe(true);
   });
 
   it("returns lines ordered by (orders.created_at, order_items.id) even when the source is in reverse order", async () => {
-    const reversed = buildOrders().reverse().map((o) => ({ ...o, order_items: [...o.order_items].reverse() }));
-    const { db } = makeKeysetFakeDb({ orders: reversed });
-    const result = await fetchAllRgsFactoryOrderLines(db as unknown as FactoryDb, 3);
+    const t = buildOrders();
+    const result = await fetchAllRgsFactoryOrderLines(
+      db({ orders: [...t.orders].reverse(), order_items: [...t.order_items].reverse() }).db as unknown as FactoryDb, 3);
 
-    const keys = result.map((row) => [row.order?.created_at as string, row.id] as const);
-    const sorted = [...keys].sort((a, b) => (a[0] === b[0] ? (a[1] < b[1] ? -1 : 1) : a[0] < b[0] ? -1 : 1));
-    // Parent order priority is by created_at then order id; within an order, line id.
-    expect(keys.map((k) => k[0])).toEqual(sorted.map((k) => k[0]));
-    for (let i = 1; i < result.length; i += 1) {
-      if (result[i - 1].order_id === result[i].order_id) expect(result[i - 1].id < result[i].id).toBe(true);
-    }
     expect(result).toHaveLength(605);
+    for (let i = 1; i < result.length; i += 1) {
+      const prev = result[i - 1], cur = result[i];
+      const cmp = compareTimestamps(prev.order?.created_at as string, cur.order?.created_at as string);
+      expect(cmp < 0 || (cmp === 0 && prev.id < cur.id)).toBe(true);
+    }
+  });
+
+  it("orders same-timestamp orders by LINE id across orders (not by order id first)", async () => {
+    const same = "2026-10-01T08:00:00+00:00";
+    const orders = [
+      { id: "order-a", status: "approved", created_at: same, company: null },
+      { id: "order-b", status: "approved", created_at: same, company: null },
+    ];
+    const items = [
+      { id: "line-z", order_id: "order-a", product_id: "p", quantity: 1 },
+      { id: "line-a", order_id: "order-b", product_id: "p", quantity: 1 },
+      { id: "line-m", order_id: "order-a", product_id: "p", quantity: 1 },
+    ];
+    const result = await fetchAllRgsFactoryOrderLines(db({ orders, order_items: items }).db as unknown as FactoryDb, 2);
+    expect(result.map((r) => r.id)).toEqual(["line-a", "line-m", "line-z"]);
+  });
+
+  it("puts an older order first even when its line ids sort after a newer order's", async () => {
+    const orders = [
+      { id: "order-new", status: "approved", created_at: "2026-10-09T00:00:00+00:00", company: null },
+      { id: "order-old", status: "approved", created_at: "2026-10-01T00:00:00+00:00", company: null },
+    ];
+    const items = [
+      { id: "line-a", order_id: "order-new", product_id: "p", quantity: 1 },
+      { id: "line-z", order_id: "order-old", product_id: "p", quantity: 1 },
+    ];
+    const result = await fetchAllRgsFactoryOrderLines(db({ orders, order_items: items }).db as unknown as FactoryDb);
+    expect(result.map((r) => r.id)).toEqual(["line-z", "line-a"]);
+  });
+
+  it("loads a single order with more lines than the page size, and more orders than one line chunk", async () => {
+    const big = buildOrders(700, 700); // one order, 700 lines, page size 250
+    expect(await fetchAllRgsFactoryOrderLines(db(big).db as unknown as FactoryDb)).toHaveLength(700);
+    const many = buildOrders(260, 1); // 260 orders, 1 line each -> 3 line chunks
+    const fake = db(many);
+    expect(await fetchAllRgsFactoryOrderLines(fake.db as unknown as FactoryDb)).toHaveLength(260);
+    expect(fake.calls.filter((c) => c.relation === "order_items").length).toBeGreaterThanOrEqual(3);
   });
 
   it("does not skip orders sharing one created_at across a page boundary", async () => {
-    const same = buildOrders().map((o) => ({ ...o, created_at: "2026-10-01T08:00:00+00:00" }));
-    const { db } = makeKeysetFakeDb({ orders: same });
-    expect(await fetchAllRgsFactoryOrderLines(db as unknown as FactoryDb, 2)).toHaveLength(605);
+    const t = buildOrders();
+    const same = t.orders.map((o) => ({ ...o, created_at: "2026-10-01T08:00:00+00:00" }));
+    expect(await fetchAllRgsFactoryOrderLines(db({ orders: same, order_items: t.order_items }).db as unknown as FactoryDb, 2)).toHaveLength(605);
   });
 
-  it("reads orders with a NULL created_at instead of silently dropping them", async () => {
-    const orders = buildOrders(110, 55);
-    orders.push({ id: "order-null", status: "approved", created_at: null as unknown as string, company: null,
-      order_items: [{ id: "line-null", order_id: "order-null", product_id: "same-sku", quantity: 1 }] });
-    const { db } = makeKeysetFakeDb({ orders });
-    const result = await fetchAllRgsFactoryOrderLines(db as unknown as FactoryDb, 2);
-    expect(result.map((r) => r.id)).toContain("line-null");
+  it("reads orders with a NULL created_at (sorted last) instead of silently dropping them", async () => {
+    const t = buildOrders(110, 55);
+    t.orders.push({ id: "order-null", status: "approved", created_at: null, company: null });
+    t.order_items.push({ id: "line-null", order_id: "order-null", product_id: "same-sku", quantity: 1 });
+    const result = await fetchAllRgsFactoryOrderLines(db(t).db as unknown as FactoryDb, 2);
     expect(result).toHaveLength(111);
+    expect(result.at(-1)?.id).toBe("line-null");
   });
 
-  it("fails the entire intake snapshot if a later page is unreadable", async () => {
-    const { db } = makeKeysetFakeDb({ orders: buildOrders() }, ({ index }) =>
-      index === 1 ? { data: null, error: { message: "request timed out" } } : undefined);
-    await expect(fetchAllRgsFactoryOrderLines(db as unknown as FactoryDb, 2)).rejects.toThrow(
-      "Factory order line read failed: request timed out",
-    );
+  it("fails the entire intake snapshot if a later order or line page is unreadable", async () => {
+    await expect(fetchAllRgsFactoryOrderLines(db(buildOrders(), ({ relation, index }) =>
+      relation === "orders" && index === 1 ? { data: null, error: { message: "request timed out" } } : undefined).db as unknown as FactoryDb, 2))
+      .rejects.toThrow("Factory order line read failed: request timed out");
+    await expect(fetchAllRgsFactoryOrderLines(db(buildOrders(), ({ relation, index }) =>
+      relation === "order_items" && index === 1 ? { data: null, error: { message: "lines timed out" } } : undefined).db as unknown as FactoryDb, 2))
+      .rejects.toThrow("Factory order line items read failed: lines timed out");
   });
 
-  it("rejects a repeated or non-monotonic order page (changing cursor)", async () => {
-    const orders = buildOrders();
-    const { db } = makeKeysetFakeDb({ orders }, ({ index }) =>
-      index === 1 ? { data: [orders[0], orders[1]], error: null } : undefined);
-    await expect(fetchAllRgsFactoryOrderLines(db as unknown as FactoryDb, 2)).rejects.toThrow(/source changed|non-monotonic/);
-  });
-
-  it("rejects a duplicate order_item id across orders and a line pointing at a different order", async () => {
-    const dup = buildOrders(110, 55);
-    dup[1].order_items[0] = { ...dup[1].order_items[0], id: dup[0].order_items[0].id };
-    await expect(fetchAllRgsFactoryOrderLines(makeKeysetFakeDb({ orders: dup }).db as unknown as FactoryDb))
-      .rejects.toThrow("source changed during pagination");
-
-    const wrong = buildOrders(110, 55);
-    wrong[0].order_items[0] = { ...wrong[0].order_items[0], order_id: "someone-else" };
-    await expect(fetchAllRgsFactoryOrderLines(makeKeysetFakeDb({ orders: wrong }).db as unknown as FactoryDb))
+  it("rejects a repeated order page, a repeated line page, and a line whose order was not loaded", async () => {
+    const t = buildOrders();
+    await expect(fetchAllRgsFactoryOrderLines(db(t, ({ relation, index }) =>
+      relation === "orders" && index === 1 ? { data: [t.orders[0], t.orders[1]], error: null } : undefined).db as unknown as FactoryDb, 2))
+      .rejects.toThrow(/source changed|non-monotonic/);
+    await expect(fetchAllRgsFactoryOrderLines(db(t, ({ relation, index }) =>
+      relation === "order_items" && index === 1 ? { data: [t.order_items[0], t.order_items[1]], error: null } : undefined).db as unknown as FactoryDb, 2))
+      .rejects.toThrow(/source changed|non-monotonic/);
+    const orphan = buildOrders(110, 55);
+    await expect(fetchAllRgsFactoryOrderLines(db(orphan, ({ relation }) =>
+      relation === "order_items" ? { data: [{ id: "line-x", order_id: "not-loaded", product_id: "p", quantity: 1 }], error: null } : undefined).db as unknown as FactoryDb))
       .rejects.toThrow("source changed during pagination");
   });
 
-  it("rejects invalid page responses, missing embedded lines and out-of-range page sizes", async () => {
-    const bad = makeKeysetFakeDb({}, () => ({ data: null, error: null }));
-    await expect(fetchAllRgsFactoryOrderLines(bad.db as unknown as FactoryDb)).rejects.toThrow("invalid data");
-    const noItems = [{ id: "o1", status: "approved", created_at: createdAt(1), company: null, order_items: null }];
-    await expect(fetchAllRgsFactoryOrderLines(makeKeysetFakeDb({ orders: noItems }).db as unknown as FactoryDb)).rejects.toThrow("invalid data");
-    await expect(fetchAllRgsFactoryOrderLines(makeKeysetFakeDb({}).db as unknown as FactoryDb, 1001)).rejects.toThrow("invalid page size");
+  it("rejects invalid page responses and out-of-range page sizes", async () => {
+    await expect(fetchAllRgsFactoryOrderLines(db({}, () => ({ data: null, error: null })).db as unknown as FactoryDb)).rejects.toThrow("invalid data");
+    await expect(fetchAllRgsFactoryOrderLines(db({}).db as unknown as FactoryDb, 1001)).rejects.toThrow("invalid page size");
   });
 });

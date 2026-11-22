@@ -34,8 +34,12 @@ export const isTerminalReservation = (reservation: { reservation_status: string 
  * UNRESOLVED (needs governed reconciliation) only while it is non-terminal and
  * still holds stock. It is never auto-assigned to any sales-order line.
  */
+/** A reservation with no `order_item:` source-line anchor (any lifecycle state). */
+export const isLegacyReservation = (reservation: { demand_reference: string | null }): boolean =>
+  !reservation.demand_reference?.startsWith("order_item:");
+
 export const isUnresolvedLegacyReservation = (reservation: FactoryLineReservation): boolean =>
-  !reservation.demand_reference?.startsWith("order_item:") &&
+  isLegacyReservation(reservation) &&
   !isTerminalReservation(reservation) &&
   Number(reservation.reserved_qty) > 0;
 
