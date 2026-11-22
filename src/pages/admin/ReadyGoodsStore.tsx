@@ -195,16 +195,16 @@ export default function ReadyGoodsStore() {
         // Fail-closed keyset pages (created_at/issued_at, id): no .limit() caps.
         loadTableByKeyset<ProductionJob>(operationsDb, "production_jobs",
           "id, order_item_id, order_id, product_id, department, reservation_id, assigned_qty, produced_qty, batch_number, priority, stage, status, created_at",
-          "created_at").then((data) => ({ data, error: null })),
+          { column: "created_at", get: (row) => row.created_at }).then((data) => ({ data, error: null })),
         loadTableByKeyset<Transfer>(operationsDb, "production_rgs_transfers",
           "id, job_id, product_id, quantity, declared_qty, received_qty, accepted_qty, rejected_qty, hold_qty, status, batch_number, rgs_notified, created_at",
-          "created_at").then((data) => ({ data, error: null })),
+          { column: "created_at", get: (row) => row.created_at }).then((data) => ({ data, error: null })),
         loadTableByKeyset<Reservation>(operationsDb, "inventory_reservations",
           "id, order_id, product_id, sku, requested_qty, reserved_qty, fulfilled_qty, released_qty, reservation_status, location_code, demand_reference, created_at",
-          "created_at").then((data) => ({ data, error: null })),
+          { column: "created_at", get: (row) => row.created_at }).then((data) => ({ data, error: null })),
         loadTableByKeyset<IssueEvent>(operationsDb, "rgs_issue_events",
           "id, reservation_id, product_id, sku, issued_qty, acknowledged_qty, status, destination_type, destination_reference, source_location, issued_at",
-          "issued_at").then((data) => ({ data, error: null })),
+          { column: "issued_at", get: (row) => row.issued_at }).then((data) => ({ data, error: null })),
       ]);
       const failed = [
         ["availability", availabilityResult.error],

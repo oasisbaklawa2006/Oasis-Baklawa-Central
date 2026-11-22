@@ -151,19 +151,19 @@ export async function loadKeysetPages<T>(config: KeysetLoaderConfig<T>): Promise
   }
 }
 
-/** Convenience: page a plain table by `(timestampColumn, id)`. */
+/** Convenience: page a plain table by `(timestamp column, id)`. */
 export function loadTableByKeyset<T extends { id: string }>(
   db: { from: (relation: string) => any }, // eslint-disable-line @typescript-eslint/no-explicit-any
   relation: string,
   columns: string,
-  timestampColumn: keyof T & string,
+  timestamp: { column: string; get: (row: T) => unknown },
   pageSize?: number,
 ): Promise<T[]> {
   return loadKeysetPages<T>({
     label: relation,
     pageSize,
     getId: (row) => row.id,
-    getTimestamp: (row) => row[timestampColumn],
-    fetchPage: (request) => applyKeysetWindow(db.from(relation).select(columns), timestampColumn, request),
+    getTimestamp: timestamp.get,
+    fetchPage: (request) => applyKeysetWindow(db.from(relation).select(columns), timestamp.column, request),
   });
 }

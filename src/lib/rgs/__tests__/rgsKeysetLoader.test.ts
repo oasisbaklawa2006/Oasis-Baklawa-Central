@@ -11,7 +11,7 @@ describe("rgsKeysetLoader", () => {
     for (const relation of ["inventory_reservations", "production_jobs", "production_rgs_transfers"]) {
       const rows: R[] = Array.from({ length: 1203 }, (_, i) => ({ id: pad(i), created_at: ts(i) })).reverse();
       const { db, calls } = makeKeysetFakeDb({ [relation]: rows });
-      const out = await loadTableByKeyset<R>(db, relation, "id, created_at", "created_at");
+      const out = await loadTableByKeyset<R>(db, relation, "id, created_at", { column: "created_at", get: (r) => r.created_at });
       expect(out).toHaveLength(1203);
       expect(new Set(out.map((r) => r.id)).size).toBe(1203);
       for (let i = 1; i < out.length; i += 1) {
@@ -21,14 +21,14 @@ describe("rgsKeysetLoader", () => {
     }
     const issues = Array.from({ length: 700 }, (_, i) => ({ id: pad(i), issued_at: ts(i) })).reverse();
     const { db } = makeKeysetFakeDb({ rgs_issue_events: issues });
-    expect(await loadTableByKeyset<{ id: string; issued_at: string }>(db, "rgs_issue_events", "id, issued_at", "issued_at")).toHaveLength(700);
+    expect(await loadTableByKeyset<{ id: string; issued_at: string }>(db, "rgs_issue_events", "id, issued_at", { column: "issued_at", get: (r) => r.issued_at })).toHaveLength(700);
   });
 
   it("breaks identical-timestamp ties by id without skipping rows across a page boundary", async () => {
     const same = "2026-11-05T10:00:00+00:00";
     const rows: R[] = Array.from({ length: 600 }, (_, i) => ({ id: pad(i), created_at: same })).reverse();
     const { db } = makeKeysetFakeDb({ t: rows });
-    const out = await loadTableByKeyset<R>(db, "t", "id", "created_at");
+    const out = await loadTableByKeyset<R>(db, "t", "id", { column: "created_at", get: (r) => r.created_at });
     expect(out.map((r) => r.id)).toEqual(Array.from({ length: 600 }, (_, i) => pad(i)));
   });
 
@@ -38,7 +38,7 @@ describe("rgsKeysetLoader", () => {
       ...Array.from({ length: 260 }, (_, i) => ({ id: pad(1000 + i), created_at: null })),
     ];
     const { db, calls } = makeKeysetFakeDb({ t: rows });
-    const out = await loadTableByKeyset<R>(db, "t", "id", "created_at");
+    const out = await loadTableByKeyset<R>(db, "t", "id", { column: "created_at", get: (r) => r.created_at });
     expect(out).toHaveLength(560);
     expect(out.slice(300).every((r) => r.created_at === null)).toBe(true);
     expect(calls.some((c) => c.phase === "null_timestamp")).toBe(true);
@@ -48,7 +48,7 @@ describe("rgsKeysetLoader", () => {
     const rows: R[] = Array.from({ length: 600 }, (_, i) => ({ id: pad(i), created_at: ts(i) }));
     const { db } = makeKeysetFakeDb({ inventory_reservations: rows }, ({ index }) =>
       index === 1 ? { data: null, error: { message: "statement timeout" } } : undefined);
-    await expect(loadTableByKeyset<R>(db, "inventory_reservations", "id", "created_at"))
+    await expect(loadTableByKeyset<R>(db, "inventory_reservations", "id", { column: "created_at", get: (r) => r.created_at }))
       .rejects.toThrow("inventory_reservations read failed: statement timeout");
   });
 
