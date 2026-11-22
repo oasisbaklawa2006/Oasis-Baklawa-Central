@@ -160,6 +160,32 @@ describe("WA-100 actual password activation and session recovery", () => {
     expect(supabase.auth.updateUser).toHaveBeenCalledTimes(1);
   });
 
+  it("completes the staff-login return when the original session is already signed out, without a second password update", async () => {
+    const originalClaims = {
+      data: { claims: { session_id: "qa-original-invitation-session", sub: "synthetic-wa100-staff" } },
+      error: null,
+    };
+    vi.mocked(supabase.auth.getClaims)
+      .mockResolvedValueOnce(originalClaims as never)
+      .mockResolvedValueOnce(originalClaims as never)
+      // Confirmed absence: auth-js yields data=null and error=null when no session exists.
+      .mockResolvedValueOnce({ data: null, error: null } as never);
+    vi.mocked(supabase.auth.signOut).mockResolvedValueOnce({
+      error: { message: "Synthetic initial sign-out failure" },
+    } as never);
+
+    render(<ResetPassword />);
+    submitPassword();
+    const retry = await screen.findByRole("button", { name: "Retry sign out" });
+    fireEvent.click(retry);
+    await screen.findByText("Password Updated");
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith(
+      "/staff/login", { replace: true },
+    ), { timeout: 2500 });
+    expect(supabase.auth.signOut).toHaveBeenCalledTimes(1);
+    expect(supabase.auth.updateUser).toHaveBeenCalledTimes(1);
+  });
+
   it("goes to staff login only after successful sign-out", async () => {
     render(<ResetPassword />);
     submitPassword();

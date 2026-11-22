@@ -25,8 +25,18 @@ const ResetPassword = () => {
     setLoading(true);
     try {
       const { data: claimsData, error: claimsError } = await supabase.auth.getClaims();
-      if (claimsError || !claimsData?.claims || !originalSession.current) {
+      if (claimsError || !originalSession.current) {
         toast.error("Password saved, but the invitation session could not be verified. Retry sign-out.");
+        return;
+      }
+      if (!claimsData?.claims) {
+        // auth-js returns no data AND no error when no session exists: the
+        // temporary session is already gone (e.g. signed out in another tab).
+        // There is nothing left to sign out, and the password is already
+        // saved, so finish the staff-login return without any further write.
+        setDone(true);
+        toast.success(isStaffInvite ? "Staff account password set." : "Staff password updated.");
+        setTimeout(() => navigate("/staff/login", { replace: true }), 1500);
         return;
       }
       if (
