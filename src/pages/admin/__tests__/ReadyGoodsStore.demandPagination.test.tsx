@@ -47,11 +47,13 @@ describe("Factory F04 canonical SO-line visibility (parent-order keyset)", () =>
       db({ orders: [...t.orders].reverse(), order_items: [...t.order_items].reverse() }).db as unknown as FactoryDb, 3);
 
     expect(result).toHaveLength(605);
-    for (let i = 1; i < result.length; i += 1) {
-      const prev = result[i - 1], cur = result[i];
+    const inOrder = result.every((cur, i) => {
+      const prev = result.at(i - 1);
+      if (i === 0 || !prev) return true;
       const cmp = compareTimestamps(prev.order?.created_at as string, cur.order?.created_at as string);
-      expect(cmp < 0 || (cmp === 0 && prev.id < cur.id)).toBe(true);
-    }
+      return cmp < 0 || (cmp === 0 && prev.id < cur.id);
+    });
+    expect(inOrder).toBe(true);
   });
 
   it("orders same-timestamp orders by LINE id across orders (not by order id first)", async () => {

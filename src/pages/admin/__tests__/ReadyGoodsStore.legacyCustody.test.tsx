@@ -35,8 +35,7 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), warning: v
 
 // Assert on numbers/booleans rather than passing DOM nodes into expect().
 const countOf = (query: () => unknown[]): number => query().length;
-const allocateDisabled = (): boolean =>
-  (screen.getByRole("button", { name: /Allocate & route shortage/ }) as HTMLButtonElement).disabled;
+const rpcCalls = (fn: string): number => h.rpc.mock.calls.filter(([name]) => name === fn).length;
 const blockedReason = (): string => screen.getByTestId("rgs-allocation-blocked-reason").textContent ?? "";
 
 const orderId = "order-1", productId = "product-1";
@@ -71,7 +70,9 @@ describe("ReadyGoodsStore governed legacy custody queue", () => {
 
     // The sales-order line gets no borrowed reservation and allocation stays blocked.
     expect(countOf(() => screen.queryAllByText("No RGS stock reservation exists yet for this demand."))).toBeGreaterThan(0);
-    expect(allocateDisabled()).toBe(true);
+    // A disabled control cannot fire: clicking it must not reach the governed reserve RPC.
+    fireEvent.click(screen.getByRole("button", { name: /Allocate & route shortage/ }));
+    expect(rpcCalls("reserve_rgs_stock")).toBe(0);
     expect(blockedReason()).toMatch(/Legacy custody reconciliation/);
 
     fireEvent.change(within(queue).getByPlaceholderText("Release qty"), { target: { value: "2" } });
@@ -94,7 +95,8 @@ describe("ReadyGoodsStore governed legacy custody queue", () => {
     render(<ReadyGoodsStore />);
     await screen.findByText("Allocate & route shortage");
     expect(countOf(() => screen.queryAllByTestId("rgs-legacy-custody-queue"))).toBe(0);
-    expect(allocateDisabled()).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: /Allocate & route shortage/ }));
+    await waitFor(() => expect(rpcCalls("reserve_rgs_stock")).toBe(1));
   });
 
   it("keeps a pending handover acknowledgement reachable for a legacy reservation that became terminal or zero-qty", async () => {
