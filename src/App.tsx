@@ -23,6 +23,7 @@ import { WhatsAppPermissionRoute } from "@/components/WhatsAppPermissionRoute";
 import AdminModuleRoute from "@/components/AdminModuleRoute";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { getRoleDestination, isStaffRole, isStorefrontRole, normalizeRole } from "@/lib/auth-routing";
+import { COMPLAINT_FINANCE_ROUTE } from "@/lib/support/complaintBridge";
 import { SECURITY_GATE_ALLOWED_ROLES } from "@/lib/auth/securityGatePolicy";
 
 // Lazy — split out of the main bundle
@@ -50,6 +51,7 @@ const AdminUsers = lazy(() => import("./pages/admin/AdminUsers.tsx"));
 const AdminMOQ = lazy(() => import("./pages/admin/AdminMOQ.tsx"));
 const AdminCurrency = lazy(() => import("./pages/admin/AdminCurrency.tsx"));
 const AdminSupport = lazy(() => import("./pages/admin/AdminSupport.tsx"));
+const FinanceComplaintLookup = lazy(() => import("./pages/admin/AdminSupport.tsx").then((module) => ({ default: module.FinanceComplaintLookup })));
 const AdminSettings = lazy(() => import("./pages/admin/AdminSettings.tsx"));
 const AdminAudit = lazy(() => import("./pages/admin/AdminAudit.tsx"));
 const AdminDepartment = lazy(() => import("./pages/admin/AdminDepartment.tsx"));
@@ -325,6 +327,7 @@ const App = () => (
                     <Route path="moq" element={<AdminMOQ />} />
                     <Route path="currency" element={<AdminCurrency />} />
                     <Route path="support" element={<AdminSupport />} />
+                    <Route path={COMPLAINT_FINANCE_ROUTE} element={<FinanceComplaintLookup />} />
                     <Route path="operator-inbox" element={<WhatsAppPermissionRoute permission="wa.intake.read"><OperatorInbox /></WhatsAppPermissionRoute>} />
                     <Route path="whatsapp" element={<WhatsAppPermissionRoute permission="wa.intake.read"><OperatorInbox /></WhatsAppPermissionRoute>} />
                     <Route path="settings" element={<AdminSettings />} />

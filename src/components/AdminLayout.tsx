@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { canResolveCommercialComplaint, COMPLAINT_FINANCE_ROUTE } from "@/lib/support/complaintBridge";
 import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useApplicationBadge } from "@/hooks/useApplicationBadge";
@@ -104,6 +105,7 @@ const AdminLayout = () => {
         { to: "/admin/finance-governance", icon: Landmark, label: "Finance governance (audit)", moduleKey: "finance_audit" },
         { to: "/admin/finance-board", icon: Receipt, label: "Finance release board", moduleKey: "finance" },
         { to: "/admin/finance", icon: DollarSign, label: t("Finance"), moduleKey: "finance" },
+        { to: COMPLAINT_FINANCE_ROUTE, icon: Receipt, label: "Commercial complaints", moduleKey: "finance" },
         { to: "/admin/users", icon: Users, label: t("Users"), moduleKey: "users" },
         { to: "/sales/dashboard", icon: BarChart3, label: t("Sales Console"), moduleKey: "clients" },
       ],
@@ -142,6 +144,7 @@ const AdminLayout = () => {
     .map((section) => ({
       ...section,
       items: section.items.filter((item) => {
+        if (item.to === COMPLAINT_FINANCE_ROUTE && !canResolveCommercialComplaint(role)) return false;
         if (item.to === "/admin/central-pool") {
           if (!canAccessCentralOrderPool(role)) return false;
         } else if (item.to === "/admin/golden-chain-operator") {
