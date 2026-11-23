@@ -169,7 +169,7 @@ describe("ReadyGoodsStore governed legacy custody queue", () => {
 
   it("finds a legacy reservation beyond the old 500-row cap", async () => {
     const rows = Array.from({ length: 619 }, (_, i) => reservation(i, { id: `anchored-${String(i).padStart(5, "0")}`, demand_reference: "order_item:other-line", reservation_status: "released", reserved_qty: 0 }));
-    rows.push(reservation(900, { id: "legacy-late" }));
+    rows.push(reservation(900, { id: "legacy-late", created_at: "2026-08-01T00:01:00.000000+00:00" }));
     h.tables.inventory_reservations = rows.reverse();
     render(<ReadyGoodsStore />);
     const queue = await screen.findByTestId("rgs-legacy-custody-queue");
