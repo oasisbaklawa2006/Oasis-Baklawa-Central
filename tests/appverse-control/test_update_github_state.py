@@ -188,6 +188,27 @@ class SnapshotScriptTests(unittest.TestCase):
                 self.assertFalse(self.default_out.exists(), "no partial snapshot may be written")
                 self.assertIn("o/buyer", result.stderr)
 
+    def test_mixed_access_and_unrecognised_errors_fail_closed(self):
+        def body(errors):
+            return failure("gh: mixed errors", json.dumps({"data": {"repository": None}, "errors": errors}))
+        mixed = {
+            "forbidden + internal": body([{"type": "FORBIDDEN", "message": "no"}, {"type": "INTERNAL", "message": "boom"}]),
+            "not_found + untyped": body([{"type": "NOT_FOUND", "message": "gone"}, {"message": "untyped"}]),
+            "only unknown type": body([{"type": "INTERNAL", "message": "boom"}]),
+        }
+        for label, fixture in mixed.items():
+            with self.subTest(label):
+                result = self.run_script(["o/central", "o/buyer"], {"o/central": ok(prs=1), "o/buyer": fixture})
+                self.assertNotEqual(result.returncode, 0, "must fail closed")
+                self.assertFalse(self.default_out.exists())
+
+    def test_multiple_access_errors_of_supported_types_are_still_degraded(self):
+        both = failure("gh: access", json.dumps({"data": {"repository": None}, "errors": [
+            {"type": "NOT_FOUND", "message": "a"}, {"type": "NOT_FOUND", "message": "b"}]}))
+        result = self.run_script(["o/central", "o/buyer"], {"o/central": ok(prs=1), "o/buyer": both})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(self.read()["repositories"]["o/buyer"]["readable"])
+
     def test_all_repositories_unreadable_fails_closed(self):
         result = self.run_script(["o/a", "o/b"], {"o/a": not_found("o/a"), "o/b": not_found("o/b")})
         self.assertNotEqual(result.returncode, 0)

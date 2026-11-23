@@ -94,17 +94,29 @@ run_page() {
 # (GraphQL NOT_FOUND/FORBIDDEN, HTTP 403/404). Throttling and bad credentials are never access findings: they
 # return 1 so the caller fails closed. Anything unrecognised also returns 1.
 classify_access_failure() {
-  local combined types
+  local combined types all_access
   combined="${PAGE_ERR}"$'\n'"${PAGE_OUT}"
   if grep -qiE 'rate limit|abuse detection|secondary|bad credentials|HTTP 401|requires authentication' <<<"$combined"; then
     return 1
   fi
+  # When GraphQL reports typed errors, EVERY error must be a supported access error. A mixed response (an access
+  # error plus anything else, or an untyped error) is never degraded: it fails closed.
+  all_access="$(jq -r '
+    if ((.errors | type) == "array" and (.errors | length) > 0)
+    then ([.errors[].type] | all(. == "FORBIDDEN" or . == "NOT_FOUND") | tostring)
+    else "none" end' <<<"$PAGE_OUT" 2>/dev/null || echo none)"
+  if [[ "$all_access" != true && "$all_access" != false ]]; then
+    all_access=none # empty or non-JSON output (e.g. a plain HTTP 404): fall back to the text patterns below
+  fi
+  if [[ "$all_access" == false ]]; then
+    return 1
+  fi
   types="$(jq -r '[.errors[]?.type] | join(",")' <<<"$PAGE_OUT" 2>/dev/null || true)"
-  if [[ "$types" == *FORBIDDEN* ]] || grep -qiE 'HTTP 403|Resource not accessible' <<<"$combined"; then
+  if [[ "$types" == *FORBIDDEN* ]] || { [[ "$all_access" == none ]] && grep -qiE 'HTTP 403|Resource not accessible' <<<"$combined"; }; then
     echo FORBIDDEN
     return 0
   fi
-  if [[ "$types" == *NOT_FOUND* ]] || grep -qE 'Could not resolve to a Repository|HTTP 404' <<<"$combined"; then
+  if [[ "$types" == *NOT_FOUND* ]] || { [[ "$all_access" == none ]] && grep -qE 'Could not resolve to a Repository|HTTP 404' <<<"$combined"; }; then
     echo NOT_FOUND
     return 0
   fi
