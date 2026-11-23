@@ -211,6 +211,31 @@ describe("Central complaint bridge", () => {
     expect(mock.update).not.toHaveBeenCalled();
   });
 
+  it("keeps stale facts read-only and lets Support retry a failed refresh", async () => {
+    const read = mock.rpc.getMockImplementation();
+    mock.rpc.mockImplementation((name: string) => {
+      if (name !== linkRpc) return read?.(name);
+      return { single: async () => {
+        handoffError = { message: "Refresh unavailable" };
+        return { data: { return_case_id: returnId, complaint_id: complaintId, already_linked: false }, error: null };
+      } };
+    });
+    mount(<AdminSupport />);
+    await expandTicket();
+    fireEvent.change(await screen.findByLabelText("Physical return case ID"), { target: { value: returnId } });
+    fireEvent.click(screen.getByRole("button", { name: "Link return case" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(/previous read/);
+    expect(screen.getByText(complaintId)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Link return case" })).not.toBeInTheDocument();
+
+    handoffError = null;
+    handoffRow = { ...facts, return_case_ids: [returnId] };
+    fireEvent.click(screen.getByRole("button", { name: "Retry handoff" }));
+    expect(await screen.findByText(returnId)).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Link return case" })).toBeInTheDocument();
+  });
+
   it.each([
     ["RETURN_COMPLAINT_LINEAGE_MISMATCH", /same order and company/],
     ["RETURN_CASE_UNBOUND_LEGACY", /legacy return case has no linked order/],

@@ -32,10 +32,14 @@ export default function ComplaintHandoffPanel({ ticketId, actorId, role, queueAc
   });
 
   if (handoff.isPending) return <p role="status">Checking complaint handoff…</p>;
+  const retryButton = (
+    <Button type="button" variant="outline" size="sm" disabled={handoff.isFetching}
+      onClick={() => void handoff.refetch()}>Retry handoff</Button>
+  );
   if (handoff.isError && !handoff.data) {
     return <div className="space-y-2">
       <p role="alert">Could not verify the complaint handoff.</p>
-      <Button type="button" variant="outline" size="sm" onClick={() => void handoff.refetch()}>Retry handoff</Button>
+      {retryButton}
     </div>;
   }
 
@@ -81,7 +85,12 @@ export default function ComplaintHandoffPanel({ ticketId, actorId, role, queueAc
           ) : "No Finance adjustment recorded"}</dd>
         </div>
       </dl>
-      {handoff.isError && <p role="alert">Could not refresh the handoff. Displayed facts are from the previous read.</p>}
+      {handoff.isError && (
+        <div className="space-y-2">
+          <p role="alert">Could not refresh the handoff. Displayed facts are from the previous read.</p>
+          {retryButton}
+        </div>
+      )}
       {!handoff.isError && canLinkComplaintReturn(role) && (
         <ReturnLinkForm complaintId={facts.complaint_id} refresh={handoff.refetch} />
       )}
