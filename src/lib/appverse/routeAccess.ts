@@ -1,5 +1,6 @@
 import { canAccessSecurityGate, isDispatchRole } from "@/lib/auth/securityGatePolicy";
 import { canAccessCentralOrderPool } from "@/lib/centralOrderPool/centralOrderPoolAccess";
+import { canResolveCommercialComplaint, COMPLAINT_FINANCE_ROUTE } from "@/lib/support/complaintBridge";
 import { getRoleDestination } from "@/lib/auth-routing";
 import {
   getAllowedModulesForRole,
@@ -155,6 +156,9 @@ export function isAuthorizedForAdminPath(pathname: string, role: string | null |
     return canAccessSecurityGate(role);
   }
   if (!pathname.startsWith("/admin")) return true;
+  if (pathname === COMPLAINT_FINANCE_ROUTE || pathname.startsWith(`${COMPLAINT_FINANCE_ROUTE}/`)) {
+    return canResolveCommercialComplaint(role?.trim().toUpperCase());
+  }
   if (isCentralOrderPoolPath(pathname)) return canAccessCentralOrderPool(role);
   if (isGoldenChainOperatorPath(pathname)) return canAccessGoldenChainOperatorRoute(role);
   if (isCommercialDispatchTvPath(pathname)) return canAccessCommercialDispatchTvRoute(role);
