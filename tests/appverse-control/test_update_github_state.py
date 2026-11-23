@@ -17,11 +17,12 @@ import os
 import re
 import shutil
 import stat
-import subprocess
+import subprocess  # nosec B404 - the test must execute the snapshot script; argv is fixed, no shell
 import tempfile
 import unittest
 from pathlib import Path
 
+BASH = shutil.which("bash") or "/bin/bash"
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = REPO_ROOT / "scripts" / "appverse-control" / "update_github_state.sh"
 WORKFLOW = REPO_ROOT / ".github" / "workflows" / "appverse-mission-control.yml"
@@ -121,8 +122,9 @@ class SnapshotScriptTests(unittest.TestCase):
         env.pop("APPVERSE_GITHUB_STATE_OUT", None)
         if out_override:
             env["APPVERSE_GITHUB_STATE_OUT"] = str(out_override)
-        return subprocess.run(["bash", str(self.tmp / "scripts" / "appverse-control" / "update_github_state.sh")],
-                              capture_output=True, text=True, env=env)
+        # nosec B603: absolute bash, fixed argv (a path inside this test's own temp tree), shell=False, no user input.
+        return subprocess.run([BASH, str(self.tmp / "scripts" / "appverse-control" / "update_github_state.sh")],  # nosec B603
+                              capture_output=True, text=True, env=env, check=False)
 
     def read(self, path=None):
         return json.loads((path or self.default_out).read_text())
