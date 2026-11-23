@@ -25,10 +25,27 @@ jobs:
           ref: mission-control/live-state
           persist-credentials: false
 
+      # Run the snapshot script from this workflow's own commit, not from the live-state branch (a data branch
+      # whose copy of the script is stale). It is written into the live-state checkout above via
+      # APPVERSE_GITHUB_STATE_OUT.
+      - name: Checkout snapshot script from the workflow commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+          path: _mc_src
+          persist-credentials: false
+
+      # secrets.APPVERSE_READ_TOKEN is optional. The default token cannot read other private repositories, which are
+      # then recorded honestly as unreadable (never as empty). To include a private sibling such as
+      # oasisbaklawa2006/oasis-baklawa, add a fine-grained read-only token as the repository secret
+      # APPVERSE_READ_TOKEN (Repository access: that repository; Repository permissions: Metadata read, Pull requests
+      # read, Contents read, Commit statuses read, Checks read). It is used only by this step; the commit and push
+      # step below always uses the workflow's own github.token.
       - name: Refresh objective GitHub evidence
         env:
-          GH_TOKEN: ${{ github.token }}
-        run: bash scripts/appverse-control/update_github_state.sh
+          GH_TOKEN: ${{ secrets.APPVERSE_READ_TOKEN || github.token }}
+          APPVERSE_GITHUB_STATE_OUT: ${{ github.workspace }}/appverse-control/generated/github-state.json
+        run: bash _mc_src/scripts/appverse-control/update_github_state.sh
 
       - name: Commit live evidence only when changed
         shell: bash
