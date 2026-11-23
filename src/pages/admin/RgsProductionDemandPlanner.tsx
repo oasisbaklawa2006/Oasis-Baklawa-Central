@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { productionGovernedRpc } from "@/lib/production-lifecycle";
 import { rgsGovernedRpc } from "@/lib/rgsGovernedRpc";
+import { OPEN_INVENTORY_RESERVATION_STATUSES } from "@/lib/inventory-reservations/reservationLifecycle";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 
 const nonB2bDemandSources = ["pna", "outlet", "internal"] as const;
 const PRODUCT_ID_QUERY_CHUNK_SIZE = 100;
+const RESERVATION_PAGE_SIZE = 500;
 
 // inventory_reservations is not yet present in Central's generated Database
 // snapshot. Keep the temporary boundary ONLY for that relation; products is
@@ -47,6 +49,8 @@ type SkuDemand = {
   productName: string;
   department: string | null;
   totalShortage: number;
+  heldShortage: number;
+  heldReservationCount: number;
   reservationIds: string[];
 };
 
@@ -61,6 +65,91 @@ export function calculateOpenReservationShortage(reservation: ReservationCoverag
   const reserved = Math.max(0, Number(reservation.reserved_qty));
   const fulfilled = Math.max(0, Number(reservation.fulfilled_qty));
   return Math.max(0, requested - reserved - fulfilled);
+}
+
+const RESERVATION_QTY_FIELDS = ["requested_qty", "reserved_qty", "fulfilled_qty", "released_qty"] as const;
+function assertValidOpenReservation(raw: unknown, previousId: string | null): asserts raw is Omit<Reservation, "product"> {
+  if (!raw || typeof raw !== "object") throw new Error("RGS reservation response contains a malformed row");
+  const row = raw as Partial<Omit<Reservation, "product">>;
+  if (typeof row.id !== "string" || !row.id || (previousId !== null && row.id <= previousId)) {
+    throw new Error("RGS reservation page returned an invalid or repeated cursor");
+  }
+  if (typeof row.product_id !== "string" || !row.product_id.trim()
+    || typeof row.sku !== "string" || !row.sku.trim()
+    || !OPEN_INVENTORY_RESERVATION_STATUSES.some((status) => status === row.reservation_status)) {
+    throw new Error("RGS reservation response contains incomplete identity or status");
+  }
+  for (const field of RESERVATION_QTY_FIELDS) {
+    const rawQty: unknown = row[field];
+    if ((typeof rawQty !== "number" && typeof rawQty !== "string")
+      || (typeof rawQty === "string" && !rawQty.trim())
+      || !Number.isFinite(Number(rawQty)) || Number(rawQty) < 0) {
+      throw new Error(`RGS reservation response contains invalid ${field}`);
+    }
+  }
+}
+
+/**
+ * Read every open reservation using the stable primary-key cursor, not offsets.
+ * If a reservation leaves the open-status filter during paging, offset-based
+ * pagination skips later rows. A strict id > cursor filter continues after the
+ * last observed row instead. Per-request reads are not an atomic DB snapshot;
+ * authoritative writes still revalidate in Core and can reject stale demand.
+ *
+ * Fail closed on page errors or a stalled/duplicate cursor: a partial shortage
+ * read must never appear to be the complete set of open reservations.
+ * This function is read-only; Core RPCs remain the sole inventory writers.
+ */
+async function readOpenRgsReservationPages(client: typeof reservationDb): Promise<Omit<Reservation, "product">[]> {
+  const all: Omit<Reservation, "product">[] = [];
+  let afterId: string | null = null;
+  for (;;) {
+    let query = client
+      .from("inventory_reservations")
+      .select("id, product_id, sku, requested_qty, reserved_qty, fulfilled_qty, released_qty, reservation_status")
+      .in("reservation_status", [...OPEN_INVENTORY_RESERVATION_STATUSES]);
+    if (afterId !== null) query = query.gt("id", afterId);
+    const { data, error } = await query
+      .order("id", { ascending: true })
+      .limit(RESERVATION_PAGE_SIZE);
+    if (error) throw new Error(error.message ?? "Could not read RGS reservations");
+    if (!Array.isArray(data) || data.length > RESERVATION_PAGE_SIZE) {
+      throw new Error("RGS reservations response is invalid");
+    }
+    for (const row of data as unknown[]) {
+      // Validate the entire row and monotone UUID cursor before using it for
+      // a shortage calculation; malformed data must not become false zero.
+      assertValidOpenReservation(row, afterId);
+      afterId = row.id;
+      all.push(row);
+    }
+    if (data.length < RESERVATION_PAGE_SIZE) return all;
+  }
+}
+
+/**
+ * Each PostgREST page is a separate READ COMMITTED statement. A row changing
+ * from closed to open behind the cursor can otherwise be omitted silently.
+ * Reconcile multi-page loads against a second complete keyset walk, including
+ * mutable statuses and quantities, and reject unstable views rather than
+ * present a misleading zero/shortage total. This is an optimistic read-side
+ * safeguard, not a claim of a transactional snapshot: Core still owns
+ * authoritative mutation-time validation.
+ */
+export async function readAllOpenRgsReservations(client: typeof reservationDb): Promise<Omit<Reservation, "product">[]> {
+  const first = await readOpenRgsReservationPages(client);
+  if (first.length < RESERVATION_PAGE_SIZE) return first; // One statement, no pagination race.
+  const verified = await readOpenRgsReservationPages(client);
+  const same = verified.length === first.length && first.every((row, i) => {
+    const next = verified[i];
+    return next?.id === row.id
+      && next.product_id === row.product_id
+      && next.sku === row.sku
+      && next.reservation_status === row.reservation_status
+      && RESERVATION_QTY_FIELDS.every((field) => Number(next[field]) === Number(row[field]));
+  });
+  if (!same) throw new Error("RGS reservations changed during paging; refresh and retry before routing shortages");
+  return verified;
 }
 
 /**
@@ -88,19 +177,15 @@ export default function RgsProductionDemandPlanner() {
     // 'products' in the schema cache". Fetch reservations and products as
     // two plain queries and join them client-side instead of adding an FK
     // solely to satisfy PostgREST's embedding.
-    const { data: reservationRows, error: loadError } = await reservationDb
-      .from("inventory_reservations")
-      .select("id, product_id, sku, requested_qty, reserved_qty, fulfilled_qty, released_qty, reservation_status")
-      .in("reservation_status", ["pending", "partially_reserved"])
-      .order("created_at", { ascending: true })
-      .limit(1000);
-    if (loadError) {
-      setError(loadError.message ?? "Unexpected demand planner error");
+    let rows: Omit<Reservation, "product">[];
+    try {
+      rows = await readAllOpenRgsReservations(reservationDb);
+    } catch (readError) {
+      setError(readError instanceof Error ? readError.message : "Unexpected demand planner error");
       setReservations([]);
       setLoading(false);
       return;
     }
-    const rows = (reservationRows ?? []) as Omit<Reservation, "product">[];
     const productIds = Array.from(new Set(rows.map((r) => r.product_id))).filter(Boolean);
     let productMap = new Map<string, Pick<DemandProduct, "name" | "production_department">>();
     if (productIds.length > 0) {
@@ -138,16 +223,28 @@ export default function RgsProductionDemandPlanner() {
     for (const reservation of reservations) {
       const shortage = calculateOpenReservationShortage(reservation);
       if (shortage <= 0) continue;
+      // Blocked reservations and inconsistent fully-reserved rows must remain
+      // visible in shortage totals, but never enter the "route to Production"
+      // list until their lifecycle state has been corrected by Core.
+      const routable = reservation.reservation_status === "pending"
+        || reservation.reservation_status === "partially_reserved";
       const department = reservation.product?.production_department ?? null;
       const key = `${reservation.sku}::${department ?? "unmapped"}`;
       const existing = byKey.get(key);
       if (existing) {
         existing.totalShortage += shortage;
-        existing.reservationIds.push(reservation.id);
+        if (routable) existing.reservationIds.push(reservation.id);
+        else {
+          existing.heldShortage += shortage;
+          existing.heldReservationCount += 1;
+        }
       } else {
         byKey.set(key, {
           key, sku: reservation.sku, productName: reservation.product?.name ?? reservation.sku,
-          department, totalShortage: shortage, reservationIds: [reservation.id],
+          department, totalShortage: shortage,
+          heldShortage: routable ? 0 : shortage,
+          heldReservationCount: routable ? 0 : 1,
+          reservationIds: routable ? [reservation.id] : [],
         });
       }
     }
@@ -156,6 +253,10 @@ export default function RgsProductionDemandPlanner() {
 
   const handleRouteAll = useCallback(async (demand: SkuDemand) => {
     if (!demand.department) { toast.error(`${demand.sku} has no production department mapped`); return; }
+    if (!demand.reservationIds.length) {
+      toast.error("This shortage is held or in an inconsistent reservation state. Resolve the Core reservation status before routing.");
+      return;
+    }
     setActing(demand.key);
     let routed = 0;
     let failed = 0;
@@ -213,6 +314,7 @@ export default function RgsProductionDemandPlanner() {
   }, [raiseForm, load]);
 
   const totalShortage = skuDemand.reduce((sum, row) => sum + row.totalShortage, 0);
+  const heldShortage = skuDemand.reduce((sum, row) => sum + row.heldShortage, 0);
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 p-4 pb-24">
@@ -228,7 +330,9 @@ export default function RgsProductionDemandPlanner() {
 
       {error && <Card className="border-destructive/40"><CardContent className="flex items-center gap-2 p-4 text-sm text-destructive"><AlertTriangle className="h-4 w-4" />Demand could not be read: {error}</CardContent></Card>}
 
-      <Card><CardContent className="flex items-center gap-3 p-4"><Factory className="h-5 w-5 text-primary" /><div><p className="text-2xl font-bold">{loading || error ? "—" : fmt(totalShortage)}</p><p className="text-xs text-muted-foreground">{loading ? "Reading current RGS shortage…" : error ? "Current shortage totals unavailable until demand can be read." : `Total open shortage across ${skuDemand.length} SKU${skuDemand.length === 1 ? "" : "s"}`}</p></div></CardContent></Card>
+      <Card><CardContent className="flex items-center gap-3 p-4"><Factory className="h-5 w-5 text-primary" /><div><p className="text-2xl font-bold">{loading || error ? "—" : fmt(totalShortage)}</p><p className="text-xs text-muted-foreground">{loading ? "Reading current RGS shortage…" : error ? "Current shortage totals unavailable until demand can be read." : `Observed open shortage across ${skuDemand.length} SKU${skuDemand.length === 1 ? "" : "s"} in this read`}</p>
+          {!loading && !error && reservations.length >= RESERVATION_PAGE_SIZE && <p className="text-xs text-muted-foreground">Multi-page demand was cross-checked, but this remains a live observation rather than a frozen Core transaction. Refresh before committing a plan.</p>}
+          {!loading && !error && heldShortage > 0 && <p className="text-xs text-destructive">{fmt(heldShortage)} held or lifecycle-inconsistent units require review; not routable.</p>}</div></CardContent></Card>
 
       <Card>
         <CardHeader><CardTitle className="flex items-center gap-2 text-base"><PlusCircle className="h-4 w-4 text-primary" />Raise P&amp;A / outlet / internal demand</CardTitle></CardHeader>
@@ -256,17 +360,20 @@ export default function RgsProductionDemandPlanner() {
                   <TableCell className="text-xs text-muted-foreground">{row.sku}</TableCell>
                   <TableCell>{row.department ? <Badge variant="outline">{row.department}</Badge> : <Badge variant="destructive">Unmapped</Badge>}</TableCell>
                   <TableCell className="text-right font-semibold">{fmt(row.totalShortage)}</TableCell>
-                  <TableCell className="text-right text-xs text-muted-foreground">{row.reservationIds.length}</TableCell>
+                  <TableCell className="text-right text-xs text-muted-foreground">
+                    {row.reservationIds.length} routable{row.heldReservationCount > 0 ? ` / ${row.heldReservationCount} held` : ""}
+                    {row.heldShortage > 0 && <p className="text-xs text-destructive">{fmt(row.heldShortage)} units on hold</p>}
+                  </TableCell>
                   <TableCell className="text-right">
-                    <Button size="sm" disabled={!row.department || acting === row.key} onClick={() => void handleRouteAll(row)}>
-                      {acting === row.key ? "Working…" : "Route to production"}
+                    <Button size="sm" disabled={!row.department || row.reservationIds.length === 0 || acting === row.key} onClick={() => void handleRouteAll(row)}>
+                      {acting === row.key ? "Working…" : row.reservationIds.length === 0 ? "Held — review required" : "Route to production"}
                     </Button>
                   </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
-          {!loading && !error && !skuDemand.length && <p className="py-8 text-center text-sm text-muted-foreground">No open RGS shortage — every reservation is fully covered.</p>}
+          {!loading && !error && !skuDemand.length && <p className="py-8 text-center text-sm text-muted-foreground">No open RGS shortage observed in this read. Live reservation states can change; refresh before planning.</p>}
         </CardContent>
       </Card>
     </div>
