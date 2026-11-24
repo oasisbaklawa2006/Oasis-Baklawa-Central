@@ -62,6 +62,48 @@ export async function fetchWhatsAppCommercialLayers(
   };
 }
 
+export type WhatsAppCasePartyCandidate = {
+  id: string;
+  partyType: "COMPANY" | "CONTACT" | "EMPLOYEE";
+  displayLabel: string;
+  phone: string | null;
+  companyId: string | null;
+  companyName: string | null;
+};
+
+function text(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+/**
+ * MC#629 activation repair: lets the ORIGINAL_COMMUNICATOR confirmation
+ * control search real companies/contacts/employees instead of requiring the
+ * operator to type a canonical party UUID blind. Read-only lookup; selection
+ * and confirmation remain confirmWhatsAppOriginalCommunicator's job.
+ */
+export async function searchWhatsAppCaseParties(
+  supabase: SupabaseClient,
+  partyType: "COMPANY" | "CUSTOMER" | "CONTACT" | "EMPLOYEE",
+  query: string,
+): Promise<WhatsAppCasePartyCandidate[]> {
+  const q = query.trim();
+  if (q.length < 2) return [];
+  const { data, error } = await rpcInvoker(supabase)("whatsapp_search_case_parties", {
+    p_party_type: partyType,
+    p_query: q,
+    p_limit: 20,
+  });
+  if (error) throw new Error(error.message || "PARTY_SEARCH_FAILED");
+  return records(data).map((row) => ({
+    id: text(row.id),
+    partyType: (text(row.party_type) || "COMPANY") as WhatsAppCasePartyCandidate["partyType"],
+    displayLabel: text(row.display_label) || text(row.phone) || "(unnamed)",
+    phone: text(row.phone) || null,
+    companyId: text(row.company_id) || null,
+    companyName: text(row.company_name) || null,
+  }));
+}
+
 export async function confirmWhatsAppOriginalCommunicator(
   supabase: SupabaseClient,
   input: {

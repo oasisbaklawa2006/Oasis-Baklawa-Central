@@ -76,7 +76,7 @@ function buildLineItems(
         productId: best.productId,
         productName: best.productName,
         sku: best.sku,
-        rawQuantity: 1,
+        rawQuantity: null,
         rawUnit: null,
         normalizedQuantity: null,
         normalizedUnit: null,
@@ -85,8 +85,9 @@ function buildLineItems(
         productBand: product?.band ?? null,
         quantityBand: "needs_clarification",
         originalTextSpan: null,
-        conversionExplanation: "No explicit quantity in WA-06A — placeholder qty 1 for draft preview only.",
-        resolutionReasons: [...best.reasons, "Quantity missing — not persisted."],
+        conversionExplanation:
+          "No explicit quantity in WA-06A — quantity and UOM remain unresolved until clarification.",
+        resolutionReasons: [...best.reasons, "Quantity missing — not persisted or promoted."],
       },
     ];
   }
@@ -130,8 +131,10 @@ function buildConversionSummary(lineItems: DraftOrderLineItem[]): string[] {
   for (const line of lineItems) {
     const qty = line.normalizedQuantity ?? line.rawQuantity;
     const unit = line.normalizedUnit ?? line.rawUnit ?? "unit";
+    const qtyLabel =
+      qty == null ? "quantity pending clarification" : `× ${qty} ${unit}`;
     summary.push(
-      `Line ${line.lineIndex + 1}: ${line.productName} × ${qty} ${unit} (product ${line.productConfidence ?? "—"}%, qty ${line.quantityConfidence}%).`,
+      `Line ${line.lineIndex + 1}: ${line.productName} ${qtyLabel} (product ${line.productConfidence ?? "—"}%, qty ${line.quantityConfidence}%).`,
     );
     if (line.conversionExplanation) summary.push(line.conversionExplanation);
   }

@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/hooks/useAuth";
 import type { Database } from "@/integrations/supabase/types";
+import { generateTempPassword } from "@/lib/security/temporaryPassword";
 
 /* ─── types ─── */
 type UserRow = Database["public"]["Tables"]["users"]["Row"] & {
@@ -103,13 +104,6 @@ const ROLES_REQUIRING_DEPARTMENT = new Set([
   "dispatch_manager", "dispatch_incharge", "packing_supervisor",
   "store_ready_goods", "rgs_admin",
 ]);
-
-const generateTempPassword = () => {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%";
-  let pwd = "";
-  for (let i = 0; i < 14; i++) pwd += chars[Math.floor(Math.random() * chars.length)];
-  return pwd;
-};
 
 const AdminUsers = () => {
   const { user } = useAuth();
