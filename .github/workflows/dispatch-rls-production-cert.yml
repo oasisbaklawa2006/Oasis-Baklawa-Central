@@ -32,7 +32,7 @@ jobs:
   dispatch-rls-cert:
     name: Production Dispatch RLS characterization (read-only probes)
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - name: Assert trusted default-branch dispatch (fail closed before credentials)
         shell: bash
@@ -87,14 +87,18 @@ jobs:
             exit 1
           fi
 
+      # Pin Node. `lts/*` now resolves to Node 26, where `playwright install chromium`
+      # stalls after the Chrome download and burns the whole job timeout (10 of 10
+      # dispatches cancelled). Other Playwright workflows pin Node 20/22.
       - uses: actions/setup-node@v4
         with:
-          node-version: lts/*
+          node-version: 22
 
       - name: Install dependencies
         run: npm install
 
       - name: Install Playwright Chromium
+        timeout-minutes: 8
         run: npx playwright install --with-deps chromium
 
       - name: Run Dispatch RLS characterization (JUnit only, no HTML reporter)
