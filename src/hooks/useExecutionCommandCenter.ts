@@ -77,6 +77,9 @@ export function useExecutionCommandCenter() {
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
+    // Clear prior figures during refresh; a failed canonical read must never
+    // leave a stale or synthetic zero-workload projection on any of the boards.
+    setProjection(null);
     const nowIso = new Date().toISOString();
     try {
       const [canonicalQueueRes, eventRes, scanRes] = await Promise.all([
@@ -115,16 +118,9 @@ export function useExecutionCommandCenter() {
       setProjection(buildExecutionCommandCenterProjection(input));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load execution intelligence");
-      if (feeds) {
-        const fallback: ExecutionIntelligenceInput = {
-          nowIso,
-          queueItems: [],
-          events: [],
-          scans: [],
-          liveFeedSnapshots: feeds.snapshots,
-        };
-        setProjection(buildExecutionCommandCenterProjection(fallback));
-      }
+      // No canonical queue authority => unavailable, never an empty projection.
+      // The separate live feed snapshots remain available through `feeds`.
+      setProjection(null);
     } finally {
       setLoading(false);
     }

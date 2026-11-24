@@ -416,6 +416,52 @@ type FinanceExitFunctions = {
   };
 };
 
+type ComplaintBridgeFunctions = {
+  get_commercial_complaint_handoff_facts_v1: {
+    Args: { p_support_ticket_id: string };
+    Returns: {
+      support_ticket_id: string;
+      ticket_order_id: string | null;
+      ticket_status: string | null;
+      complaint_id: string;
+      order_id: string;
+      company_id: string;
+      complaint_type: string;
+      complaint_filed_at: string;
+      complaint_deadline: string;
+      complaint_status: string | null;
+      return_case_ids: string[];
+      adjustment_count: number;
+      adjustments: {
+        adjustment_id: string;
+        adjustment_type: string;
+        amount: number;
+        created_at: string;
+      }[];
+      resolved: boolean;
+    }[];
+  };
+  link_return_case_to_commercial_complaint_v1: {
+    Args: { p_return_case_id: string; p_complaint_id: string };
+    Returns: { return_case_id: string; complaint_id: string; already_linked: boolean }[];
+  };
+  resolve_commercial_complaint_v1: {
+    Args: {
+      p_complaint_id: string;
+      p_adjustment_type: string;
+      p_amount: number;
+      p_document_number: string | null;
+      p_document_reference: string | null;
+      p_payment_reference: string | null;
+      p_decision_reason: string;
+      p_correlation_id: string;
+      p_idempotency_key: string;
+      p_actor_id?: string;
+    };
+    Returns: { adjustment_id: string; wallet_entry_id: string | null; already_resolved: boolean }[];
+  };
+};
+
 export type Database = Omit<GeneratedDatabase, "public"> & {
   public: Omit<GeneratedDatabase["public"], "Tables" | "Functions"> & {
     Tables: GeneratedDatabase["public"]["Tables"] & {
@@ -426,6 +472,6 @@ export type Database = Omit<GeneratedDatabase, "public"> & {
       whatsapp_message_packets: WhatsappMessagePacketsTable;
       whatsapp_messages: WhatsappMessagesTable;
     };
-    Functions: GeneratedDatabase["public"]["Functions"] & FinanceExitFunctions;
+    Functions: GeneratedDatabase["public"]["Functions"] & FinanceExitFunctions & ComplaintBridgeFunctions;
   };
 };

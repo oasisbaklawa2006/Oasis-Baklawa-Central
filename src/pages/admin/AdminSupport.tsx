@@ -1,8 +1,13 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, type FormEvent } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, CheckCircle2, AlertTriangle, Clock, User, Star, Shield, ChevronDown, ChevronUp, RefreshCw } from "lucide-react";
+import { Loader2, CheckCircle2, Clock, User, Star, ChevronDown, ChevronUp, RefreshCw } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { Navigate } from "react-router-dom";
+import ComplaintHandoffPanel from "@/components/admin/support/ComplaintHandoffPanel";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { canLinkComplaintReturn, canResolveCommercialComplaint, isBridgeId } from "@/lib/support/complaintBridge";
 import { Badge } from "@/components/ui/badge";
 import { computeSupportTicketSlaState, isSupportTicketActive, isSupportTicketSlaBreached } from "@/lib/support/supportTicketPolicy";
 
@@ -17,7 +22,6 @@ interface Ticket {
   qty_affected: number | null;
   proof_url: string | null;
   dispatch_date: string | null;
-  window_status: string | null;
   routed_to_department: string | null;
   assigned_employee_id: string | null;
   sla_first_response_due: string | null;
@@ -35,15 +39,6 @@ interface Ticket {
   admin_rating_communication: number | null;
   escalated_to_hod: boolean | null;
   commission_blocked: boolean | null;
-}
-
-interface EmployeePerf {
-  employee_id: string;
-  total_handled: number;
-  avg_rating: number;
-  sla_compliance_pct: number;
-  total_penalty_score: number;
-  never_responded_count: number;
 }
 
 interface StaffUser {
@@ -67,15 +62,6 @@ const SLA_COLORS: Record<string, string> = {
   "pending": "bg-muted text-muted-foreground",
 };
 
-const routeDepartment = (issueType: string): string => {
-  const t = (issueType || "").toLowerCase();
-  if (t.includes("quality") || t.includes("taste") || t.includes("expired")) return "Production";
-  if (t.includes("packaging") || t.includes("broken") || t.includes("damaged")) return "Assembly";
-  if (t.includes("missing") || t.includes("wrong") || t.includes("short")) return "Dispatch";
-  if (t.includes("billing") || t.includes("gst") || t.includes("invoice")) return "Finance";
-  return "Operations";
-};
-
 const formatTimeLeft = (due: string | null): string => {
   if (!due) return "—";
   const diff = new Date(due).getTime() - Date.now();
@@ -86,10 +72,9 @@ const formatTimeLeft = (due: string | null): string => {
 };
 
 const AdminSupport = () => {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [staff, setStaff] = useState<StaffUser[]>([]);
-  const [perfLogs, setPerfLogs] = useState<EmployeePerf[]>([]);
   const [loading, setLoading] = useState(true);
   const [resolving, setResolving] = useState<string | null>(null);
   const [tab, setTab] = useState<"active" | "resolved" | "offenders">("active");
@@ -97,20 +82,19 @@ const AdminSupport = () => {
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
-    const [ticketRes, staffRes, perfRes] = await Promise.all([
+    const [ticketRes, staffRes] = await Promise.all([
       supabase.from("support_tickets").select("*").order("created_at", { ascending: false }),
       supabase.from("users").select("id, full_name, email").not("role", "is", null),
-      supabase.from("employee_performance_logs").select("*").order("total_penalty_score", { ascending: false }),
     ]);
     setTickets((ticketRes.data as Ticket[]) ?? []);
     setStaff((staffRes.data as StaffUser[]) ?? []);
-    setPerfLogs((perfRes.data as EmployeePerf[]) ?? []);
     setLoading(false);
   }, []);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  const handleResolve = async (ticket: Ticket) => {
+  const closeSupportTicket = async (ticket: Ticket) => {
+    if (!canLinkComplaintReturn(role)) return;
     setResolving(ticket.id);
     const { error } = await supabase
       .from("support_tickets")
@@ -132,7 +116,7 @@ const AdminSupport = () => {
         entity_id: ticket.id,
         actor_id: user?.id ?? null,
       });
-      toast.success("Ticket resolved");
+      toast.success("Support ticket closed");
       fetchAll();
     }
     setResolving(null);
@@ -185,7 +169,7 @@ const AdminSupport = () => {
 
   const tabs = [
     { key: "active" as const, label: `Active (${activeTickets.length})` },
-    { key: "resolved" as const, label: `Resolved (${resolvedTickets.length})` },
+    { key: "resolved" as const, label: `Closed tickets (${resolvedTickets.length})` },
     { key: "offenders" as const, label: `Top Offenders (${offenders.length})` },
   ];
 
@@ -202,7 +186,6 @@ const AdminSupport = () => {
               <Badge className={SLA_COLORS[sla]} variant="secondary">
                 <Clock size={10} className="mr-1" />{sla}
               </Badge>
-              {t.window_status === "OUT_OF_WINDOW" && <Badge variant="destructive">OUT OF WINDOW</Badge>}
               {t.commission_blocked && <Badge variant="destructive">₹ BLOCKED</Badge>}
             </div>
             <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
@@ -222,9 +205,9 @@ const AdminSupport = () => {
           <div className="px-4 pb-4 space-y-3 bg-muted/20">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
               <div><span className="text-muted-foreground">Qty Affected:</span> <span className="text-foreground font-medium">{t.qty_affected ?? "—"}</span></div>
-              <div><span className="text-muted-foreground">Financial Loss:</span> <span className="text-foreground font-medium">₹{t.estimated_financial_loss ?? 0}</span></div>
+              <div><span className="text-muted-foreground">Estimated Loss:</span> <span className="text-foreground font-medium">₹{t.estimated_financial_loss ?? 0}</span></div>
               <div><span className="text-muted-foreground">1st Response:</span> <span className={`font-medium ${t.sla_first_response_at ? "text-green-600" : "text-destructive"}`}>{t.sla_first_response_at ? "Done" : formatTimeLeft(t.sla_first_response_due)}</span></div>
-              <div><span className="text-muted-foreground">Resolution:</span> <span className={`font-medium ${t.sla_resolved_at ? "text-green-600" : "text-destructive"}`}>{t.sla_resolved_at ? "Done" : formatTimeLeft(t.sla_resolution_due)}</span></div>
+              <div><span className="text-muted-foreground">Support SLA:</span> <span className={`font-medium ${t.sla_resolved_at ? "text-green-600" : "text-destructive"}`}>{t.sla_resolved_at ? "Done" : formatTimeLeft(t.sla_resolution_due)}</span></div>
             </div>
 
             {t.proof_url && (
@@ -232,6 +215,22 @@ const AdminSupport = () => {
             )}
 
             <p className="text-xs text-muted-foreground">{t.description}</p>
+            <p className="break-all text-xs">Support ticket ID · {t.id}</p>
+
+            {user && canLinkComplaintReturn(role) && (
+              <ComplaintHandoffPanel
+                key={`${user.id}:${t.id}`}
+                ticketId={t.id}
+                actorId={user.id}
+                role={role}
+                queueAction={t.status !== "resolved" && (
+                  <Button type="button" size="sm" variant="outline" onClick={() => void closeSupportTicket(t)} disabled={resolving === t.id}>
+                    {resolving === t.id ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
+                    Close support ticket
+                  </Button>
+                )}
+              />
+            )}
 
             {/* Assign employee */}
             {!t.assigned_employee_id && t.status !== "resolved" && (
@@ -244,20 +243,6 @@ const AdminSupport = () => {
                   <option value="" disabled>Assign to…</option>
                   {staff.map(s => <option key={s.id} value={s.id}>{s.full_name || s.email}</option>)}
                 </select>
-              </div>
-            )}
-
-            {/* Resolve + Admin Rating */}
-            {t.status !== "resolved" && (
-              <div className="flex items-center gap-2 flex-wrap">
-                <button
-                  onClick={() => handleResolve(t)}
-                  disabled={resolving === t.id}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-green-100 text-green-700 hover:bg-green-200 transition-colors disabled:opacity-50"
-                >
-                  {resolving === t.id ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
-                  Resolve
-                </button>
               </div>
             )}
 
@@ -301,7 +286,7 @@ const AdminSupport = () => {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-display-h2 text-foreground">Complaint Governance</h1>
+        <h1 className="text-display-h2 text-foreground">Support queue</h1>
         <button onClick={fetchAll} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-muted text-foreground hover:bg-muted/80 transition-colors">
           <RefreshCw size={14} /> Refresh
         </button>
@@ -313,7 +298,7 @@ const AdminSupport = () => {
           { label: "Active", value: activeTickets.length, color: "text-primary" },
           { label: "SLA Breached", value: activeTickets.filter(t => isSupportTicketSlaBreached(t)).length, color: "text-destructive" },
           { label: "Never Responded", value: activeTickets.filter(t => computeSupportTicketSlaState(t) === "NEVER_RESPONDED").length, color: "text-destructive" },
-          { label: "Avg Resolution", value: resolvedTickets.length > 0 ? `${Math.round(resolvedTickets.reduce((sum, t) => {
+          { label: "Avg Support Closure", value: resolvedTickets.length > 0 ? `${Math.round(resolvedTickets.reduce((sum, t) => {
             if (!t.created_at || !t.sla_resolved_at) return sum;
             return sum + (new Date(t.sla_resolved_at).getTime() - new Date(t.created_at).getTime()) / 3600000;
           }, 0) / resolvedTickets.length)}h` : "—", color: "text-foreground" },
@@ -338,7 +323,7 @@ const AdminSupport = () => {
       {tab === "active" && (
         <div className="rounded-xl border border-border bg-card overflow-hidden" style={{ boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
           {activeTickets.length === 0
-            ? <p className="p-6 text-sm text-muted-foreground">No active complaints.</p>
+            ? <p className="p-6 text-sm text-muted-foreground">No active support tickets.</p>
             : activeTickets.map(renderTicketRow)
           }
         </div>
@@ -348,7 +333,7 @@ const AdminSupport = () => {
       {tab === "resolved" && (
         <div className="rounded-xl border border-border bg-card overflow-hidden" style={{ boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
           {resolvedTickets.length === 0
-            ? <p className="p-6 text-sm text-muted-foreground">No resolved complaints.</p>
+            ? <p className="p-6 text-sm text-muted-foreground">No closed support tickets.</p>
             : resolvedTickets.map(renderTicketRow)
           }
         </div>
@@ -382,5 +367,37 @@ const AdminSupport = () => {
     </div>
   );
 };
+
+export function FinanceComplaintLookup() {
+  const { user, role } = useAuth();
+  const [input, setInput] = useState("");
+  const [ticketId, setTicketId] = useState("");
+  const id = input.trim();
+
+  if (!user || !canResolveCommercialComplaint(role)) return <Navigate to="/admin/finance" replace />;
+
+  function lookup(event: FormEvent) {
+    event.preventDefault();
+    if (isBridgeId(id)) setTicketId(id.toLowerCase());
+  }
+
+  return (
+    <div className="space-y-4">
+      <h1 className="text-display-h2 text-foreground">Commercial complaint resolution</h1>
+      <form onSubmit={lookup} className="space-y-1">
+        <label htmlFor="complaint-ticket-id" className="text-sm font-medium">Support ticket ID from the handoff</label>
+        <div className="flex flex-wrap gap-2">
+          <Input id="complaint-ticket-id" className="max-w-sm" value={input}
+            onChange={(event) => {
+              setInput(event.target.value);
+              setTicketId("");
+            }} />
+          <Button type="submit" disabled={!isBridgeId(id)}>Find complaint</Button>
+        </div>
+      </form>
+      {ticketId && <ComplaintHandoffPanel key={`${user.id}:${ticketId}`} ticketId={ticketId} actorId={user.id} role={role} />}
+    </div>
+  );
+}
 
 export default AdminSupport;

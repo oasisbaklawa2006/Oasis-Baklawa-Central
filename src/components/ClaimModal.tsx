@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Upload, CheckCircle2, Loader2 } from "lucide-react";
+import { X, CheckCircle2, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
@@ -39,13 +39,6 @@ const ClaimModal = ({ open, onClose, orderId, dispatchDate }: Props) => {
   const [loading, setLoading] = useState(false);
   const { user } = useAuth();
 
-  // 10-day window check
-  const isOutOfWindow = (() => {
-    if (!dispatchDate) return false;
-    const diff = (Date.now() - new Date(dispatchDate).getTime()) / 86400000;
-    return diff > 10;
-  })();
-
   const handleSubmit = async () => {
     if (!issueType || !user || !productSku.trim() || !qtyAffected) {
       toast.error("All mandatory fields are required");
@@ -54,7 +47,6 @@ const ClaimModal = ({ open, onClose, orderId, dispatchDate }: Props) => {
     setLoading(true);
 
     const now = new Date();
-    const windowStatus = isOutOfWindow ? "OUT_OF_WINDOW" : "WITHIN_WINDOW";
     const routed = routeDepartment(issueType);
 
     const { error } = await supabase.from("support_tickets").insert({
@@ -65,7 +57,7 @@ const ClaimModal = ({ open, onClose, orderId, dispatchDate }: Props) => {
       product_sku: productSku.trim(),
       qty_affected: parseInt(qtyAffected) || 1,
       dispatch_date: dispatchDate || null,
-      window_status: windowStatus,
+      window_status: null,
       routed_to_department: routed,
       severity: "Medium",
       sla_first_response_due: new Date(now.getTime() + 2 * 3600000).toISOString(),
@@ -74,7 +66,7 @@ const ClaimModal = ({ open, onClose, orderId, dispatchDate }: Props) => {
     });
     setLoading(false);
     if (error) {
-      toast.error("Failed to submit claim: " + error.message);
+      toast.error("Failed to submit support ticket: " + error.message);
       return;
     }
     setSubmitted(true);
@@ -101,7 +93,7 @@ const ClaimModal = ({ open, onClose, orderId, dispatchDate }: Props) => {
             className="relative bg-background w-full sm:max-w-md sm:rounded-3xl rounded-t-3xl max-h-[90vh] overflow-y-auto"
           >
             <div className="sticky top-0 bg-background z-10 px-5 pt-5 pb-3 flex items-center justify-between border-b border-border/50">
-              <h2 className="text-display-h2 text-foreground">Raise Issue / Claim</h2>
+              <h2 className="text-display-h2 text-foreground">Open a support ticket</h2>
               <button onClick={onClose} className="w-8 h-8 rounded-full bg-muted/80 flex items-center justify-center">
                 <X size={16} className="text-foreground" />
               </button>
@@ -111,16 +103,14 @@ const ClaimModal = ({ open, onClose, orderId, dispatchDate }: Props) => {
               {submitted ? (
                 <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="text-center py-8 space-y-3">
                   <CheckCircle2 size={48} className="mx-auto text-primary" />
-                  <p className="text-sm font-semibold text-foreground">Claim Submitted</p>
+                  <p className="text-sm font-semibold text-foreground">Support ticket submitted</p>
                   <p className="text-xs text-muted-foreground">SLA Timers Active. Routed to {routeDepartment(issueType)}.</p>
                 </motion.div>
               ) : (
                 <>
-                  {isOutOfWindow && (
-                    <div className="bg-destructive/10 border border-destructive/30 rounded-xl px-3 py-2 text-xs text-destructive font-medium">
-                      ⚠ This order was dispatched over 10 days ago. Resolution options are limited unless Admin overrides.
-                    </div>
-                  )}
+                  <p className="text-xs text-muted-foreground">
+                    This sends an enquiry to Support. File commercial complaints through the B2B Buyer App.
+                  </p>
 
                   <p className="text-xs text-muted-foreground">Order: {orderId}</p>
 
@@ -170,20 +160,13 @@ const ClaimModal = ({ open, onClose, orderId, dispatchDate }: Props) => {
                     />
                   </div>
 
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-foreground">Attach Proof (optional)</label>
-                    <button className="w-full py-3 rounded-xl border-2 border-dashed border-border text-xs text-muted-foreground flex items-center justify-center gap-2 hover:border-primary/50 transition-colors">
-                      <Upload size={16} /> Upload Photos
-                    </button>
-                  </div>
-
                   <button
                     onClick={handleSubmit}
                     disabled={!issueType || !productSku.trim() || !qtyAffected || loading}
                     className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                   >
                     {loading && <Loader2 size={16} className="animate-spin" />}
-                    {loading ? "Submitting…" : isOutOfWindow ? "Submit (Out of Window)" : "Submit Claim"}
+                    {loading ? "Submitting…" : "Submit support ticket"}
                   </button>
                 </>
               )}

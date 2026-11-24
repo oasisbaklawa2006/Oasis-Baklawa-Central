@@ -72,4 +72,34 @@ describe("fetchCanonicalDepartmentQueueItems (Point86)", () => {
     expect(relations).not.toContain("operational_queue_items");
     expect(relations).toContain("production_jobs");
   });
+  it.each([
+    "b2b_assembly_jobs",
+    "inventory_reservations",
+    "b2b_dispatch_consignments",
+    "b2b_procurement_requirements",
+  ])("fails closed instead of showing zero demand when %s is missing", async (missingRelation) => {
+    const fromSpy = vi.fn((relation: string) =>
+      makeChain([], relation === missingRelation
+        ? { message: `relation "${relation}" does not exist` }
+        : null),
+    );
+    const client = { from: fromSpy } as unknown as SupabaseClient;
+
+    await expect(fetchCanonicalDepartmentQueueItems(client)).rejects.toThrow(
+      `${missingRelation} read failed: relation "${missingRelation}" does not exist`,
+    );
+    expect(fromSpy).not.toHaveBeenCalledWith("operational_queue_items");
+  });
+
+  it("surfaces a Core permissions error rather than claiming an empty dispatch queue", async () => {
+    const client = {
+      from: (relation: string) => makeChain([], relation === "b2b_dispatch_consignments"
+        ? { message: "permission denied for table b2b_dispatch_consignments" }
+        : null),
+    } as unknown as SupabaseClient;
+    await expect(fetchCanonicalDepartmentQueueItems(client)).rejects.toThrow(
+      "b2b_dispatch_consignments read failed: permission denied",
+    );
+  });
+
 });
