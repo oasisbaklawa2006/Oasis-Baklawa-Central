@@ -90,6 +90,73 @@ describe("two-step Finance reversal client", () => {
     expect(deriveFinanceReversalStatus(hold, done).status).toBe("COMPLETED");
   });
 
+  describe("chronological ordering of the reversal history", () => {
+    const hold = "hold-1";
+    const at = (minute: number) => `2026-11-10T10:${String(minute).padStart(2, "0")}:00Z`;
+    const ev = (id: string, control_kind: string, decision: string, prior: string | null, minute: number): FinanceControlEventRow =>
+      ({ id, control_kind, decision, prior_event_id: prior, created_at: at(minute) });
+    const holdEvent = ev(hold, "HOLD", "APPLIED", null, 0);
+    // Cycle 1 rejected, cycle 2 approved, cycle 3 still awaiting a second person.
+    const req1 = ev("req-1", "REVERSAL_REQUEST", "PENDING", hold, 1);
+    const rej1 = ev("app-1", "REVERSAL_APPROVAL", "REJECTED", "req-1", 2);
+    const req2 = ev("req-2", "REVERSAL_REQUEST", "PENDING", hold, 3);
+    const app2 = ev("app-2", "REVERSAL_APPROVAL", "APPROVED", "req-2", 4);
+    const req3 = ev("req-3", "REVERSAL_REQUEST", "PENDING", hold, 5);
+    const full = [holdEvent, req1, rej1, req2, app2, req3];
+    const permutations = <T,>(items: T[]): T[][] =>
+      items.length <= 1 ? [items] : items.flatMap((item, i) => permutations([...items.slice(0, i), ...items.slice(i + 1)]).map((rest) => [item, ...rest]));
+
+    it("gives the same answer for every ordering of a multi-cycle history", () => {
+      for (const order of permutations(full)) {
+        expect(deriveFinanceReversalStatus(hold, order)).toEqual({ status: "REQUESTED", requestEventId: "req-3", awaitingSecondPerson: true });
+      }
+    });
+
+    it("reports the latest request by time even when it is listed first (shuffled history)", () => {
+      const shuffled = [req3, app2, rej1, holdEvent, req2, req1];
+      expect(deriveFinanceReversalStatus(hold, shuffled).requestEventId).toBe("req-3");
+      expect(deriveFinanceReversalStatus(hold, [req2, app2, req1, rej1, holdEvent])).toEqual({ status: "APPROVED", requestEventId: "req-2", awaitingSecondPerson: false });
+    });
+
+    it("reports REJECTED only when the newest cycle was rejected, regardless of listing order", () => {
+      const rejectedLast = [holdEvent, req1, rej1];
+      for (const order of permutations(rejectedLast)) expect(deriveFinanceReversalStatus(hold, order).status).toBe("REJECTED");
+      const earlierApprovalThenNewRejection = [
+        ev("req-a", "REVERSAL_REQUEST", "PENDING", hold, 1), ev("app-a", "REVERSAL_APPROVAL", "APPROVED", "req-a", 2),
+        ev("req-b", "REVERSAL_REQUEST", "PENDING", hold, 3), ev("app-b", "REVERSAL_APPROVAL", "REJECTED", "req-b", 4),
+      ];
+      for (const order of permutations(earlierApprovalThenNewRejection)) {
+        expect(deriveFinanceReversalStatus(hold, order)).toEqual({ status: "APPROVED", requestEventId: "req-a", awaitingSecondPerson: false });
+      }
+    });
+
+    it("stays COMPLETED for any ordering once the reversal event exists", () => {
+      const done = [...full, ev("rev-1", "REVERSAL", "REVERSED", hold, 6)];
+      for (const order of [done, [...done].reverse()]) expect(deriveFinanceReversalStatus(hold, order).status).toBe("COMPLETED");
+    });
+
+    it("breaks timestamp ties by id so the result does not depend on listing order", () => {
+      const a = ev("req-a", "REVERSAL_REQUEST", "PENDING", hold, 7);
+      const b = ev("req-b", "REVERSAL_REQUEST", "PENDING", hold, 7);
+      expect(deriveFinanceReversalStatus(hold, [a, b]).requestEventId).toBe("req-b");
+      expect(deriveFinanceReversalStatus(hold, [b, a]).requestEventId).toBe("req-b");
+    });
+
+    it("sorts undated events before dated ones and keeps their input order", () => {
+      const undatedOld: FinanceControlEventRow = { id: "req-old", control_kind: "REVERSAL_REQUEST", decision: "PENDING", prior_event_id: hold };
+      const undatedBad: FinanceControlEventRow = { ...undatedOld, id: "req-bad", created_at: "not-a-date" };
+      expect(deriveFinanceReversalStatus(hold, [req1, undatedOld]).requestEventId).toBe("req-1");
+      expect(deriveFinanceReversalStatus(hold, [undatedOld, undatedBad]).requestEventId).toBe("req-bad");
+    });
+
+    it("does not mutate the history it is given", () => {
+      const input = [req3, holdEvent, req1];
+      const copy = [...input];
+      deriveFinanceReversalStatus(hold, input);
+      expect(input).toEqual(copy);
+    });
+  });
+
   it("does not reference the immediate reversal function", async () => {
     const { readFileSync } = await import("node:fs");
     const { resolve } = await import("node:path");

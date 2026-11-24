@@ -144,17 +144,39 @@ export async function completeFinanceReversalV1(
   return financeStep(row, "control_event_id", "already_reversed", ["REVERSED"]);
 }
 
-export type FinanceControlEventRow = { id: string; control_kind: string; decision: string; prior_event_id: string | null; actor_id?: string | null; approver_id?: string | null };
+export type FinanceControlEventRow = { id: string; control_kind: string; decision: string; prior_event_id: string | null; actor_id?: string | null; approver_id?: string | null; created_at?: string | null };
 export type FinanceReversalStatus = "NONE" | "REQUESTED" | "APPROVED" | "REJECTED" | "COMPLETED";
+
+/**
+ * Chronological order of the append-only history: `created_at` ascending, then `id` as Core's own
+ * tiebreaker (its indexes order by `created_at, id`). Row order from the API is never trusted. An
+ * event with a missing or unparseable timestamp sorts before every dated event and keeps its
+ * relative input order (stable sort), so the result is deterministic for any given input.
+ */
+function chronological(events: FinanceControlEventRow[]): FinanceControlEventRow[] {
+  const time = (event: FinanceControlEventRow) => {
+    const parsed = event.created_at ? Date.parse(event.created_at) : Number.NaN;
+    return Number.isFinite(parsed) ? parsed : Number.NEGATIVE_INFINITY;
+  };
+  return events
+    .map((event, index) => ({ event, index, at: time(event) }))
+    .sort((a, b) => {
+      if (a.at !== b.at) return a.at < b.at ? -1 : 1;
+      if (a.at === Number.NEGATIVE_INFINITY) return a.index - b.index;
+      return a.event.id < b.event.id ? -1 : a.event.id > b.event.id ? 1 : a.index - b.index;
+    })
+    .map(({ event }) => event);
+}
 
 /** Read-only visibility of where a target control event stands in the two-step flow (append-only event history). */
 export function deriveFinanceReversalStatus(targetEventId: string, events: FinanceControlEventRow[]): { status: FinanceReversalStatus; requestEventId: string | null; awaitingSecondPerson: boolean } {
-  if (events.some((e) => e.control_kind === "REVERSAL" && e.decision === "REVERSED" && e.prior_event_id === targetEventId)) {
+  const history = chronological(events);
+  if (history.some((e) => e.control_kind === "REVERSAL" && e.decision === "REVERSED" && e.prior_event_id === targetEventId)) {
     return { status: "COMPLETED", requestEventId: null, awaitingSecondPerson: false };
   }
-  const requests = events.filter((e) => e.control_kind === "REVERSAL_REQUEST" && e.prior_event_id === targetEventId);
+  const requests = history.filter((e) => e.control_kind === "REVERSAL_REQUEST" && e.prior_event_id === targetEventId);
   const open = requests
-    .map((request) => ({ request, approval: events.find((e) => e.control_kind === "REVERSAL_APPROVAL" && e.prior_event_id === request.id) }))
+    .map((request) => ({ request, approval: history.filter((e) => e.control_kind === "REVERSAL_APPROVAL" && e.prior_event_id === request.id).at(-1) }))
     .filter(({ approval }) => !approval || approval.decision === "APPROVED")
     .at(-1);
   if (!open) return { status: requests.length ? "REJECTED" : "NONE", requestEventId: null, awaitingSecondPerson: false };
