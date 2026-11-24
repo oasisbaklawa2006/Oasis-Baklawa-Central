@@ -53,3 +53,6 @@ supabase/.temp/
 .env.production
 .env.*.local
 
+
+# WO-TB-02 server-only runtime attestation manifest (generated at build; never commit)
+server-only/

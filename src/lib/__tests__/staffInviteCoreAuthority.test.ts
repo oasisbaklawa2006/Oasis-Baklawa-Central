@@ -33,11 +33,20 @@ describe("Core-governed employee invitation", () => {
     expect(ui).not.toContain("nf.password");
     expect(ui).not.toContain("Your Oasis Baklawa ERP Login Credentials");
   });
-  it("sends accepted invitations to first-password setup then employee login", () => {
+  it("sends accepted invitations to first-password setup, verifies the Auth session server-side first, then returns to employee login", () => {
+    // Invite presentation flag (copy only; never an authority).
     expect(resetPassword).toContain('get("invite") === "1"');
-    expect(resetPassword).toContain("Set Your Staff Password");
-    expect(resetPassword).toContain('navigate("/staff/login?manual_auth=true"');
+    expect(resetPassword).toContain("Activate Your Staff Account");
+    // #689 session controls must stay: server-verified identity precedes the password write.
+    expect(resetPassword).toContain("supabase.auth.getUser()");
+    expect(resetPassword).toContain("supabase.auth.getClaims()");
     expect(resetPassword).toContain("supabase.auth.updateUser({ password })");
+    expect(resetPassword.indexOf("supabase.auth.getUser()")).toBeLessThan(
+      resetPassword.indexOf("supabase.auth.updateUser({ password })"),
+    );
+    // The temporary invitation/recovery session ends locally and returns to the STAFF login, never the Buyer login.
+    expect(resetPassword).toContain('signOut({ scope: "local" })');
+    expect(resetPassword).toContain('navigate("/staff/login"');
     expect(resetPassword).not.toContain('navigate("/login"');
   });
 
