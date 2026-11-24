@@ -1,124 +1,124 @@
 {
   "authority": "OBJECTIVE_GITHUB_EVIDENCE_ONLY",
   "clearance_warning": "This file MUST NOT autonomously mark ASM stages CLEARED.",
-  "generated_at": "2026-11-23T21:20:57Z",
+  "generated_at": "2026-11-24T06:00:07Z",
   "repositories": {
     "oasisbaklawa2006/Oasis-Baklawa-Central": {
       "access_status": "readable",
       "archived": false,
       "default_branch": "main",
-      "open_pr_count": 14,
+      "open_pr_count": 12,
       "open_prs": [
         {
           "base": "main",
           "combined_status": "SUCCESS",
           "draft": false,
-          "head": "694123afd1703cdc64da295fc20135fecdea7a59",
+          "head": "df0110ba732d7091c2b41db02de67f95d6a85a6e",
           "mergeable": "MERGEABLE",
-          "number": 681,
+          "number": 678,
           "status_checks": [
             {
               "conclusion": "SUCCESS",
               "context": "Analyze (actions)",
               "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/45220191201/job/137852047265",
+              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/45335721136/job/138247205269",
               "type": "check_run"
             },
             {
               "conclusion": "SUCCESS",
               "context": "Enforce oasis-supabase-core backend authority (trusted)",
               "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/45220197801/job/137852069692",
+              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/45335725091/job/138247215786",
               "type": "check_run"
             },
             {
               "conclusion": "SUCCESS",
               "context": "Enforce oasis-supabase-core backend authority (advisory)",
               "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/45220204819/job/137852083114",
+              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/45335729894/job/138247227461",
               "type": "check_run"
             },
             {
               "conclusion": "SUCCESS",
               "context": "Typecheck, unit test, production build, and Playwright smoke",
               "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/45220204997/job/137852083837",
+              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/45335729774/job/138247225881",
               "type": "check_run"
             },
             {
               "conclusion": "SUCCESS",
               "context": "Enforce Catalogue AI-Studio repo ownership boundaries",
               "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/45220204800/job/137852085942",
+              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/45335729815/job/138247225748",
               "type": "check_run"
             },
             {
               "conclusion": "SUCCESS",
               "context": "Scan tracked files for secret values (trusted)",
               "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/45220198123/job/137852070230",
+              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/45335725198/job/138247217439",
               "type": "check_run"
             },
             {
               "conclusion": "SUCCESS",
               "context": "Scan tracked files for secret values (advisory)",
               "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/45220204955/job/137852083677",
+              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/45335729826/job/138247226182",
               "type": "check_run"
             },
             {
               "conclusion": "SUCCESS",
               "context": "Analyze (javascript-typescript)",
               "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/45220191201/job/137852046701",
+              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/45335721136/job/138247205070",
               "type": "check_run"
             },
             {
               "conclusion": "SUCCESS",
               "context": "Analyze (python)",
               "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/45220191201/job/137852047519",
+              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/45335721136/job/138247204742",
               "type": "check_run"
             },
             {
               "conclusion": "SKIPPED",
               "context": "Enforce oasis-supabase-core backend authority",
               "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/45220197801/job/137852072336",
+              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/45335725091/job/138247217810",
               "type": "check_run"
             },
             {
               "conclusion": "SKIPPED",
               "context": "Scan tracked files for secret values",
               "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/45220198123/job/137852073406",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SKIPPED",
-              "context": "CodeRabbit",
-              "status": "COMPLETED",
-              "target_url": "https://coderabbit.ai?utm_source=cr_app&utm_medium=github",
+              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/45335725198/job/138247219690",
               "type": "check_run"
             },
             {
               "conclusion": "SUCCESS",
               "context": "Codacy Static Code Analysis",
               "status": "COMPLETED",
-              "target_url": "https://app.codacy.com/gh/oasisbaklawa2006/Oasis-Baklawa-Central/pull-requests/681",
+              "target_url": "https://app.codacy.com/gh/oasisbaklawa2006/Oasis-Baklawa-Central/pull-requests/678",
               "type": "check_run"
             },
             {
               "conclusion": "SUCCESS",
               "context": "CodeQL",
               "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/runs/137852448779",
+              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/runs/138247434282",
+              "type": "check_run"
+            },
+            {
+              "conclusion": "SUCCESS",
+              "context": "CodeRabbit",
+              "status": "COMPLETED",
+              "target_url": "https://app.coderabbit.ai/change-stack/oasisbaklawa2006/Oasis-Baklawa-Central/pull/678?scope=ghh_OusAJGA4HG8ljoOV0wJvVx8NmnZIjc2DdjmxOu0xZWA",
               "type": "check_run"
             },
             {
               "context": "Vercel",
               "state": "SUCCESS",
-              "target_url": "https://vercel.com/oasisbaklawa2006-6222s-projects/oasis-baklawa-central/EZfSzYNZWc2jG3piCXJpRn2yn3ez",
+              "target_url": "https://vercel.com/oasisbaklawa2006-6222s-projects/oasis-baklawa-central/J62q2six79R5UMsxnyKbAai7Mp6h",
               "type": "status_context"
             },
             {
@@ -131,20 +131,280 @@
             {
               "context": "security/snyk (oasisbaklawa2006)",
               "state": "SUCCESS",
-              "target_url": "https://app.snyk.io/org/oasisbaklawa2006/pr-checks/009382e6-1257-404e-af3d-eb3bc9e2c557",
+              "target_url": "https://app.snyk.io/org/oasisbaklawa2006/pr-checks/a2874ccb-6baf-4a9e-aec1-e8cfcc678e13",
               "type": "status_context"
             }
           ],
-          "title": "feat(admin): Gifting enquiries staff queue (Core RPC client, admin page, route registration)",
-          "updated_at": "2026-11-23T16:46:56Z",
-          "url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/pull/681"
+          "title": "docs(wa100): prepared Central Preview no-send acceptance runbook (not executed)",
+          "updated_at": "2026-11-24T05:56:09Z",
+          "url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/pull/678"
+        },
+        {
+          "base": "main",
+          "combined_status": "SUCCESS",
+          "draft": true,
+          "head": "a1a5767156aaec5d31196d36a702dee3fc9414a1",
+          "mergeable": "MERGEABLE",
+          "number": 654,
+          "status_checks": [
+            {
+              "conclusion": "SUCCESS",
+              "context": "Isolated Core",
+              "status": "COMPLETED",
+              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/45335577571/job/138246731669",
+              "type": "check_run"
+            },
+            {
+              "conclusion": "SUCCESS",
+              "context": "Analyze (actions)",
+              "status": "COMPLETED",
+              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/45335572439/job/138246720786",
+              "type": "check_run"
+            },
+            {
+              "conclusion": "SUCCESS",
+              "context": "Enforce oasis-supabase-core backend authority (trusted)",
+              "status": "COMPLETED",
+              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/45335575080/job/138246727108",
+              "type": "check_run"
+            },
+            {
+              "conclusion": "SUCCESS",
+              "context": "Enforce oasis-supabase-core backend authority (advisory)",
+              "status": "COMPLETED",
+              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/45335577505/job/138246731380",
+              "type": "check_run"
+            },
+            {
+              "conclusion": "SUCCESS",
+              "context": "Typecheck, unit test, production build, and Playwright smoke",
+              "status": "COMPLETED",
+              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/45335577538/job/138246731745",
+              "type": "check_run"
+            },
+            {
+              "conclusion": "SUCCESS",
+              "context": "Enforce Catalogue AI-Studio repo ownership boundaries",
+              "status": "COMPLETED",
+              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/45335577492/job/138246731603",
+              "type": "check_run"
+            },
+            {
+              "conclusion": "SUCCESS",
+              "context": "Scan tracked files for secret values (trusted)",
+              "status": "COMPLETED",
+              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/45335574903/job/138246725724",
+              "type": "check_run"
+            },
+            {
+              "conclusion": "SUCCESS",
+              "context": "Scan tracked files for secret values (advisory)",
+              "status": "COMPLETED",
+              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/45335577507/job/138246731809",
+              "type": "check_run"
+            },
+            {
+              "conclusion": "SUCCESS",
+              "context": "Analyze (javascript-typescript)",
+              "status": "COMPLETED",
+              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/45335572439/job/138246721018",
+              "type": "check_run"
+            },
+            {
+              "conclusion": "SUCCESS",
+              "context": "Analyze (python)",
+              "status": "COMPLETED",
+              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/45335572439/job/138246720785",
+              "type": "check_run"
+            },
+            {
+              "conclusion": "SKIPPED",
+              "context": "Enforce oasis-supabase-core backend authority",
+              "status": "COMPLETED",
+              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/45335575080/job/138246729357",
+              "type": "check_run"
+            },
+            {
+              "conclusion": "SKIPPED",
+              "context": "Scan tracked files for secret values",
+              "status": "COMPLETED",
+              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/45335574903/job/138246727704",
+              "type": "check_run"
+            },
+            {
+              "conclusion": "SUCCESS",
+              "context": "Codacy Static Code Analysis",
+              "status": "COMPLETED",
+              "target_url": "https://app.codacy.com/gh/oasisbaklawa2006/Oasis-Baklawa-Central/pull-requests/654",
+              "type": "check_run"
+            },
+            {
+              "conclusion": "SUCCESS",
+              "context": "CodeQL",
+              "status": "COMPLETED",
+              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/runs/138246958209",
+              "type": "check_run"
+            },
+            {
+              "context": "Vercel",
+              "state": "SUCCESS",
+              "target_url": "https://vercel.com/oasisbaklawa2006-6222s-projects/oasis-baklawa-central/DVZJAACW3KpbMZRWMRwmfPDu2fTN",
+              "type": "status_context"
+            },
+            {
+              "conclusion": "SUCCESS",
+              "context": "Vercel Preview Comments",
+              "status": "COMPLETED",
+              "target_url": "https://vercel.com/github",
+              "type": "check_run"
+            },
+            {
+              "context": "security/snyk (oasisbaklawa2006)",
+              "state": "SUCCESS",
+              "target_url": "https://app.snyk.io/org/oasisbaklawa2006/pr-checks/55240f70-e0df-4a9e-8fbf-2de72865ec70",
+              "type": "status_context"
+            }
+          ],
+          "title": "feat(finance): Core #508 two-step reversal client — fail-closed source candidate (DRAFT)",
+          "updated_at": "2026-11-24T05:46:32Z",
+          "url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/pull/654"
+        },
+        {
+          "base": "main",
+          "combined_status": "SUCCESS",
+          "draft": true,
+          "head": "8967a766bcbf72daef7be16bc4b8079be9b1423c",
+          "mergeable": "MERGEABLE",
+          "number": 687,
+          "status_checks": [
+            {
+              "conclusion": "SUCCESS",
+              "context": "Isolated Core",
+              "status": "COMPLETED",
+              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/45335159973/job/138245406742",
+              "type": "check_run"
+            },
+            {
+              "conclusion": "SUCCESS",
+              "context": "Analyze (actions)",
+              "status": "COMPLETED",
+              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/45335153571/job/138245390220",
+              "type": "check_run"
+            },
+            {
+              "conclusion": "SUCCESS",
+              "context": "Enforce oasis-supabase-core backend authority (trusted)",
+              "status": "COMPLETED",
+              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/45335155827/job/138245395888",
+              "type": "check_run"
+            },
+            {
+              "conclusion": "SUCCESS",
+              "context": "Enforce oasis-supabase-core backend authority (advisory)",
+              "status": "COMPLETED",
+              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/45335160043/job/138245406595",
+              "type": "check_run"
+            },
+            {
+              "conclusion": "SUCCESS",
+              "context": "Typecheck, unit test, production build, and Playwright smoke",
+              "status": "COMPLETED",
+              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/45335160113/job/138245406573",
+              "type": "check_run"
+            },
+            {
+              "conclusion": "SUCCESS",
+              "context": "Enforce Catalogue AI-Studio repo ownership boundaries",
+              "status": "COMPLETED",
+              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/45335159910/job/138245406380",
+              "type": "check_run"
+            },
+            {
+              "conclusion": "SUCCESS",
+              "context": "Scan tracked files for secret values (trusted)",
+              "status": "COMPLETED",
+              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/45335155805/job/138245396160",
+              "type": "check_run"
+            },
+            {
+              "conclusion": "SUCCESS",
+              "context": "Scan tracked files for secret values (advisory)",
+              "status": "COMPLETED",
+              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/45335159966/job/138245406355",
+              "type": "check_run"
+            },
+            {
+              "conclusion": "SUCCESS",
+              "context": "Analyze (javascript-typescript)",
+              "status": "COMPLETED",
+              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/45335153571/job/138245390518",
+              "type": "check_run"
+            },
+            {
+              "conclusion": "SUCCESS",
+              "context": "Analyze (python)",
+              "status": "COMPLETED",
+              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/45335153571/job/138245390501",
+              "type": "check_run"
+            },
+            {
+              "conclusion": "SKIPPED",
+              "context": "Enforce oasis-supabase-core backend authority",
+              "status": "COMPLETED",
+              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/45335155827/job/138245397223",
+              "type": "check_run"
+            },
+            {
+              "conclusion": "SKIPPED",
+              "context": "Scan tracked files for secret values",
+              "status": "COMPLETED",
+              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/45335155805/job/138245397783",
+              "type": "check_run"
+            },
+            {
+              "conclusion": "SUCCESS",
+              "context": "Codacy Static Code Analysis",
+              "status": "COMPLETED",
+              "target_url": "https://app.codacy.com/gh/oasisbaklawa2006/Oasis-Baklawa-Central/pull-requests/687",
+              "type": "check_run"
+            },
+            {
+              "conclusion": "SUCCESS",
+              "context": "CodeQL",
+              "status": "COMPLETED",
+              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/runs/138245582738",
+              "type": "check_run"
+            },
+            {
+              "context": "Vercel",
+              "state": "SUCCESS",
+              "target_url": "https://vercel.com/oasisbaklawa2006-6222s-projects/oasis-baklawa-central/8r8S3cP3bYwBC3icWWGagHUo3XDe",
+              "type": "status_context"
+            },
+            {
+              "conclusion": "SUCCESS",
+              "context": "Vercel Preview Comments",
+              "status": "COMPLETED",
+              "target_url": "https://vercel.com/github",
+              "type": "check_run"
+            },
+            {
+              "context": "security/snyk (oasisbaklawa2006)",
+              "state": "SUCCESS",
+              "target_url": "https://app.snyk.io/org/oasisbaklawa2006/pr-checks/6fe49b40-0dbe-4379-b62c-137221fab9d9",
+              "type": "status_context"
+            }
+          ],
+          "title": "fix(factory/F46): catch Security Gate proof/communication preflight errors",
+          "updated_at": "2026-11-24T05:42:59Z",
+          "url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/pull/687"
         },
         {
           "base": "main",
           "combined_status": "SUCCESS",
           "draft": false,
           "head": "be3ce8e5b3d472d71c96dbaccea33c1074b3eedd",
-          "mergeable": "MERGEABLE",
+          "mergeable": "UNKNOWN",
           "number": 661,
           "status_checks": [
             {
@@ -266,7 +526,7 @@
             }
           ],
           "title": "feat(gate): tested GitHub App auth reference + staged secret-safe diagnostic (draft)",
-          "updated_at": "2026-11-23T04:50:06Z",
+          "updated_at": "2026-11-23T22:00:32Z",
           "url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/pull/661"
         },
         {
@@ -274,7 +534,7 @@
           "combined_status": "SUCCESS",
           "draft": false,
           "head": "3eb01c9ae2bce33fd22ad9c3886325e4ae1d4fa5",
-          "mergeable": "MERGEABLE",
+          "mergeable": "UNKNOWN",
           "number": 656,
           "status_checks": [
             {
@@ -469,139 +729,9 @@
         {
           "base": "main",
           "combined_status": "SUCCESS",
-          "draft": false,
-          "head": "d60b868002f6115475c8c0857a948b84c167a732",
-          "mergeable": "UNKNOWN",
-          "number": 678,
-          "status_checks": [
-            {
-              "conclusion": "SUCCESS",
-              "context": "Analyze (actions)",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/44329656921/job/134890297701",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Enforce oasis-supabase-core backend authority (trusted)",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/44329672901/job/134890351413",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Enforce oasis-supabase-core backend authority (advisory)",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/44329671867/job/134890341221",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Typecheck, unit test, production build, and Playwright smoke",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/44329672016/job/134890344611",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Enforce Catalogue AI-Studio repo ownership boundaries",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/44329671802/job/134890341575",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Scan tracked files for secret values (trusted)",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/44329673154/job/134890356226",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Scan tracked files for secret values (advisory)",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/44329671799/job/134890341103",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Analyze (javascript-typescript)",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/44329656921/job/134890297485",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Analyze (python)",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/44329656921/job/134890297554",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SKIPPED",
-              "context": "Enforce oasis-supabase-core backend authority",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/44329672901/job/134890354336",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SKIPPED",
-              "context": "Scan tracked files for secret values",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/44329673154/job/134890360375",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Codacy Static Code Analysis",
-              "status": "COMPLETED",
-              "target_url": "https://app.codacy.com/gh/oasisbaklawa2006/Oasis-Baklawa-Central/pull-requests/678",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "CodeQL",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/runs/134890653881",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "CodeRabbit",
-              "status": "COMPLETED",
-              "target_url": "https://app.coderabbit.ai/change-stack/oasisbaklawa2006/Oasis-Baklawa-Central/pull/678?scope=ghh_OusAJGA4HG8ljoOV0wJvVx8NmnZIjc2DdjmxOu0xZWA",
-              "type": "check_run"
-            },
-            {
-              "context": "Vercel",
-              "state": "SUCCESS",
-              "target_url": "https://vercel.com/oasisbaklawa2006-6222s-projects/oasis-baklawa-central/FRJWxbkDyGBje4r7K5PgBk3XWxKr",
-              "type": "status_context"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Vercel Preview Comments",
-              "status": "COMPLETED",
-              "target_url": "https://vercel.com/github",
-              "type": "check_run"
-            },
-            {
-              "context": "security/snyk (oasisbaklawa2006)",
-              "state": "SUCCESS",
-              "target_url": "https://app.snyk.io/org/oasisbaklawa2006/pr-checks/78a8b035-236e-4c76-8aaa-de8d9942ed7f",
-              "type": "status_context"
-            }
-          ],
-          "title": "docs(wa100): prepared Central Preview no-send acceptance runbook (not executed)",
-          "updated_at": "2026-11-23T04:47:56Z",
-          "url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/pull/678"
-        },
-        {
-          "base": "main",
-          "combined_status": "SUCCESS",
           "draft": true,
           "head": "c1c497bada8b2ba186f6fefa8ad4c0b1fc2b1906",
-          "mergeable": "CONFLICTING",
+          "mergeable": "UNKNOWN",
           "number": 694,
           "status_checks": [
             {
@@ -725,136 +855,6 @@
           "title": "cert(wa100): integrated staff + Operator Inbox isolated acceptance carrier — DO NOT MERGE",
           "updated_at": "2026-11-21T10:38:40Z",
           "url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/pull/694"
-        },
-        {
-          "base": "main",
-          "combined_status": "SUCCESS",
-          "draft": false,
-          "head": "8e9f2069b0a475a4a0f09bdf9997fa6fb26156e1",
-          "mergeable": "UNKNOWN",
-          "number": 686,
-          "status_checks": [
-            {
-              "conclusion": "SUCCESS",
-              "context": "Analyze (actions)",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/44761113903/job/136373589304",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Enforce oasis-supabase-core backend authority (trusted)",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/44761119397/job/136373604117",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Enforce oasis-supabase-core backend authority (advisory)",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/44761119167/job/136373600111",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Typecheck, unit test, production build, and Playwright smoke",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/44761119327/job/136373600233",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Enforce Catalogue AI-Studio repo ownership boundaries",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/44761119162/job/136373599293",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Scan tracked files for secret values (trusted)",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/44761119196/job/136373603727",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Scan tracked files for secret values (advisory)",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/44761119117/job/136373599313",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Analyze (javascript-typescript)",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/44761113903/job/136373588764",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Analyze (python)",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/44761113903/job/136373589293",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SKIPPED",
-              "context": "Enforce oasis-supabase-core backend authority",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/44761119397/job/136373606747",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SKIPPED",
-              "context": "Scan tracked files for secret values",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/44761119196/job/136373606351",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "NEUTRAL",
-              "context": "CodeRabbit",
-              "status": "COMPLETED",
-              "target_url": "https://coderabbit.ai?utm_source=cr_app&utm_medium=github",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Codacy Static Code Analysis",
-              "status": "COMPLETED",
-              "target_url": "https://app.codacy.com/gh/oasisbaklawa2006/Oasis-Baklawa-Central/pull-requests/686",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "CodeQL",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/runs/136373923223",
-              "type": "check_run"
-            },
-            {
-              "context": "Vercel",
-              "state": "SUCCESS",
-              "target_url": "https://vercel.com/oasisbaklawa2006-6222s-projects/oasis-baklawa-central/CYnxPnHo6bo6KfSa48qNM2UghKyL",
-              "type": "status_context"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Vercel Preview Comments",
-              "status": "COMPLETED",
-              "target_url": "https://vercel.com/github",
-              "type": "check_run"
-            },
-            {
-              "context": "security/snyk (oasisbaklawa2006)",
-              "state": "SUCCESS",
-              "target_url": "https://app.snyk.io/org/oasisbaklawa2006/pr-checks/19d60dae-58a4-4b4b-9253-0737ac2dd6b5",
-              "type": "status_context"
-            }
-          ],
-          "title": "test(factory-d2c): read-only retail intake harness and separate integration scope (#685)",
-          "updated_at": "2026-11-20T22:58:47Z",
-          "url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/pull/686"
         },
         {
           "base": "main",
@@ -991,7 +991,7 @@
           "combined_status": "SUCCESS",
           "draft": false,
           "head": "5b2b91e75f9b458cf889ccf736c27435fa64720d",
-          "mergeable": "CONFLICTING",
+          "mergeable": "UNKNOWN",
           "number": 682,
           "status_checks": [
             {
@@ -1120,136 +1120,6 @@
           "base": "main",
           "combined_status": "SUCCESS",
           "draft": true,
-          "head": "dd4e5aceadb34e8c64ecdfed2da83ffe87ab1290",
-          "mergeable": "UNKNOWN",
-          "number": 687,
-          "status_checks": [
-            {
-              "conclusion": "SUCCESS",
-              "context": "Isolated Core",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/44761957033/job/136376519242",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Analyze (actions)",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/44761946729/job/136376492671",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Enforce oasis-supabase-core backend authority (trusted)",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/44761956529/job/136376523023",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Enforce oasis-supabase-core backend authority (advisory)",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/44761957346/job/136376519500",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Typecheck, unit test, production build, and Playwright smoke",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/44761957353/job/136376520236",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Enforce Catalogue AI-Studio repo ownership boundaries",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/44761957362/job/136376520102",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Scan tracked files for secret values (trusted)",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/44761956679/job/136376523085",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Scan tracked files for secret values (advisory)",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/44761957351/job/136376519791",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Analyze (javascript-typescript)",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/44761946729/job/136376493188",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Analyze (python)",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/44761946729/job/136376493323",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SKIPPED",
-              "context": "Enforce oasis-supabase-core backend authority",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/44761956529/job/136376525766",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SKIPPED",
-              "context": "Scan tracked files for secret values",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/44761956679/job/136376525746",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Codacy Static Code Analysis",
-              "status": "COMPLETED",
-              "target_url": "https://app.codacy.com/gh/oasisbaklawa2006/Oasis-Baklawa-Central/pull-requests/687",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "CodeQL",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/runs/136376827320",
-              "type": "check_run"
-            },
-            {
-              "context": "Vercel",
-              "state": "SUCCESS",
-              "target_url": "https://vercel.com/oasisbaklawa2006-6222s-projects/oasis-baklawa-central/CQFvKGaYDvNqPwjGhUxM8NQ7J7Hs",
-              "type": "status_context"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Vercel Preview Comments",
-              "status": "COMPLETED",
-              "target_url": "https://vercel.com/github",
-              "type": "check_run"
-            },
-            {
-              "context": "security/snyk (oasisbaklawa2006)",
-              "state": "SUCCESS",
-              "target_url": "https://app.snyk.io/org/oasisbaklawa2006/pr-checks/3f1c998b-72d3-4bc2-9fa6-39a6333e8e66",
-              "type": "status_context"
-            }
-          ],
-          "title": "fix(factory/F46): catch Security Gate proof/communication preflight errors",
-          "updated_at": "2026-11-20T15:19:40Z",
-          "url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/pull/687"
-        },
-        {
-          "base": "main",
-          "combined_status": "SUCCESS",
-          "draft": true,
           "head": "6ec544ebef28f031e2edc956ccf7689e4a672304",
           "mergeable": "CONFLICTING",
           "number": 653,
@@ -1296,138 +1166,8 @@
           "base": "main",
           "combined_status": "SUCCESS",
           "draft": true,
-          "head": "1146a913d27229b1d666a15d9a487c171fe3686a",
-          "mergeable": "MERGEABLE",
-          "number": 654,
-          "status_checks": [
-            {
-              "conclusion": "SUCCESS",
-              "context": "Isolated Core",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/43559600266/job/132340257414",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Analyze (actions)",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/43559597214/job/132340086039",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Enforce oasis-supabase-core backend authority (trusted)",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/43559597901/job/132340088741",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Enforce oasis-supabase-core backend authority (advisory)",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/43559600255/job/132340093260",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Typecheck, unit test, production build, and Playwright smoke",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/43559600230/job/132340093392",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Enforce Catalogue AI-Studio repo ownership boundaries",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/43559600296/job/132340093629",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Scan tracked files for secret values (trusted)",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/43559598029/job/132340088843",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Scan tracked files for secret values (advisory)",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/43559600223/job/132340093261",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Analyze (javascript-typescript)",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/43559597214/job/132340085836",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Analyze (python)",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/43559597214/job/132340086069",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SKIPPED",
-              "context": "Enforce oasis-supabase-core backend authority",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/43559597901/job/132340090260",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SKIPPED",
-              "context": "Scan tracked files for secret values",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/actions/runs/43559598029/job/132340089872",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Codacy Static Code Analysis",
-              "status": "COMPLETED",
-              "target_url": "https://app.codacy.com/gh/oasisbaklawa2006/Oasis-Baklawa-Central/pull-requests/654",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "CodeQL",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/runs/132340254315",
-              "type": "check_run"
-            },
-            {
-              "context": "Vercel",
-              "state": "SUCCESS",
-              "target_url": "https://vercel.com/oasisbaklawa2006-6222s-projects/oasis-baklawa-central/CdN1LYYQTnZtz49MoNpknMSvvqJo",
-              "type": "status_context"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Vercel Preview Comments",
-              "status": "COMPLETED",
-              "target_url": "https://vercel.com/github",
-              "type": "check_run"
-            },
-            {
-              "context": "security/snyk (oasisbaklawa2006)",
-              "state": "SUCCESS",
-              "target_url": "https://app.snyk.io/org/oasisbaklawa2006/pr-checks/57c54b4c-e67c-41fc-aaaf-f69474dc99df",
-              "type": "status_context"
-            }
-          ],
-          "title": "feat(finance): Core #508 two-step reversal client — fail-closed source candidate (DRAFT)",
-          "updated_at": "2026-11-14T05:42:38Z",
-          "url": "https://github.com/oasisbaklawa2006/Oasis-Baklawa-Central/pull/654"
-        },
-        {
-          "base": "main",
-          "combined_status": "SUCCESS",
-          "draft": true,
           "head": "14d9265a288476961eb144194ad0036bae83ecca",
-          "mergeable": "UNKNOWN",
+          "mergeable": "CONFLICTING",
           "number": 665,
           "status_checks": [
             {
@@ -1666,7 +1406,7 @@
           "base": "main",
           "combined_status": "SUCCESS",
           "draft": true,
-          "head": "cec8bedf245eaf9e394385bbd30b424c8b4cd5a1",
+          "head": "78927df7405e3193b18bd1470d0295180c6527ab",
           "mergeable": "MERGEABLE",
           "number": 282,
           "status_checks": [
@@ -1674,84 +1414,84 @@
               "conclusion": "SKIPPED",
               "context": "SonarQube (requires configured server)",
               "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/actions/runs/44819133700/job/136575144582",
+              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/actions/runs/45336315462/job/138249117697",
               "type": "check_run"
             },
             {
               "conclusion": "SUCCESS",
               "context": "Enforce oasis-supabase-core backend authority",
               "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/actions/runs/44819133394/job/136575140669",
+              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/actions/runs/45336315514/job/138249116623",
               "type": "check_run"
             },
             {
               "conclusion": "SUCCESS",
               "context": "quality",
               "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/actions/runs/44819133330/job/136575140101",
+              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/actions/runs/45336315411/job/138249116070",
               "type": "check_run"
             },
             {
               "conclusion": "SUCCESS",
               "context": "Enforce oasis-ai-studio repo ownership boundaries",
               "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/actions/runs/44819133252/job/136575140081",
+              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/actions/runs/45336315441/job/138249116050",
               "type": "check_run"
             },
             {
               "conclusion": "SUCCESS",
               "context": "CodeQL",
               "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/actions/runs/44819133387/job/136575140964",
+              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/actions/runs/45336315366/job/138249116563",
               "type": "check_run"
             },
             {
               "conclusion": "SUCCESS",
               "context": "lint",
               "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/actions/runs/44819133493/job/136575140923",
+              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/actions/runs/45336315414/job/138249116069",
               "type": "check_run"
             },
             {
               "conclusion": "SUCCESS",
               "context": "Semgrep Community",
               "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/actions/runs/44819133387/job/136575140788",
+              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/actions/runs/45336315366/job/138249116417",
               "type": "check_run"
             },
             {
               "conclusion": "SUCCESS",
               "context": "Trivy filesystem",
               "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/actions/runs/44819133387/job/136575140430",
+              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/actions/runs/45336315366/job/138249116447",
               "type": "check_run"
             },
             {
               "conclusion": "SUCCESS",
               "context": "Reviewdog ESLint",
               "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/actions/runs/44819133387/job/136575140988",
+              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/actions/runs/45336315366/job/138249116401",
               "type": "check_run"
             },
             {
               "conclusion": "SUCCESS",
               "context": "Coverage, build and boundaries",
               "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/actions/runs/44819133387/job/136575140968",
+              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/actions/runs/45336315366/job/138249116423",
               "type": "check_run"
             },
             {
               "conclusion": "SUCCESS",
               "context": "Biome changed files",
               "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/actions/runs/44819133387/job/136575141048",
+              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/actions/runs/45336315366/job/138249116139",
               "type": "check_run"
             },
             {
               "conclusion": "SUCCESS",
               "context": "Knip debt inventory",
               "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/actions/runs/44819133387/job/136575140805",
+              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/actions/runs/45336315366/job/138249116451",
               "type": "check_run"
             },
             {
@@ -1765,20 +1505,20 @@
               "conclusion": "SUCCESS",
               "context": "CodeQL",
               "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/runs/136575659482",
+              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/runs/138249451740",
               "type": "check_run"
             },
             {
               "conclusion": "SUCCESS",
               "context": "Trivy",
               "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/runs/136575273239",
+              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/runs/138249252915",
               "type": "check_run"
             },
             {
               "context": "Vercel",
               "state": "SUCCESS",
-              "target_url": "https://vercel.com/oasisbaklawa2006-6222s-projects/oasis-ai-studio/CMeEgfRf4gFYzZHEArAkbJQkkSUL",
+              "target_url": "https://vercel.com/oasisbaklawa2006-6222s-projects/oasis-ai-studio/Goo2Sez5x4j6cQCmJbQhjUY1p5NB",
               "type": "status_context"
             },
             {
@@ -1791,20 +1531,157 @@
             {
               "context": "security/snyk (oasisbaklawa2006)",
               "state": "SUCCESS",
-              "target_url": "https://app.snyk.io/org/oasisbaklawa2006/pr-checks/34515861-cb4c-4580-aa08-a0dc62eee8bc",
+              "target_url": "https://app.snyk.io/org/oasisbaklawa2006/pr-checks/09715246-c854-4e10-970f-c61d445f0166",
               "type": "status_context"
             }
           ],
           "title": "fix(studio G2): stop guessing unverified tray/carton conversion factors",
-          "updated_at": "2026-11-20T21:22:21Z",
+          "updated_at": "2026-11-24T05:53:43Z",
           "url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/pull/282"
+        },
+        {
+          "base": "main",
+          "combined_status": "SUCCESS",
+          "draft": true,
+          "head": "6f35b39e991d613145bfc60ce2083d0caf70200f",
+          "mergeable": "MERGEABLE",
+          "number": 280,
+          "status_checks": [
+            {
+              "conclusion": "SKIPPED",
+              "context": "SonarQube (requires configured server)",
+              "status": "COMPLETED",
+              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/actions/runs/45336025618/job/138248187010",
+              "type": "check_run"
+            },
+            {
+              "conclusion": "SUCCESS",
+              "context": "Enforce oasis-supabase-core backend authority",
+              "status": "COMPLETED",
+              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/actions/runs/45336025678/job/138248186586",
+              "type": "check_run"
+            },
+            {
+              "conclusion": "SUCCESS",
+              "context": "quality",
+              "status": "COMPLETED",
+              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/actions/runs/45336025607/job/138248184846",
+              "type": "check_run"
+            },
+            {
+              "conclusion": "SUCCESS",
+              "context": "Enforce oasis-ai-studio repo ownership boundaries",
+              "status": "COMPLETED",
+              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/actions/runs/45336025605/job/138248184904",
+              "type": "check_run"
+            },
+            {
+              "conclusion": "SUCCESS",
+              "context": "CodeQL",
+              "status": "COMPLETED",
+              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/actions/runs/45336025619/job/138248184731",
+              "type": "check_run"
+            },
+            {
+              "conclusion": "SUCCESS",
+              "context": "lint",
+              "status": "COMPLETED",
+              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/actions/runs/45336025557/job/138248184877",
+              "type": "check_run"
+            },
+            {
+              "conclusion": "SUCCESS",
+              "context": "Semgrep Community",
+              "status": "COMPLETED",
+              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/actions/runs/45336025619/job/138248185306",
+              "type": "check_run"
+            },
+            {
+              "conclusion": "SUCCESS",
+              "context": "Trivy filesystem",
+              "status": "COMPLETED",
+              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/actions/runs/45336025619/job/138248185341",
+              "type": "check_run"
+            },
+            {
+              "conclusion": "SUCCESS",
+              "context": "Reviewdog ESLint",
+              "status": "COMPLETED",
+              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/actions/runs/45336025619/job/138248185144",
+              "type": "check_run"
+            },
+            {
+              "conclusion": "SUCCESS",
+              "context": "Coverage, build and boundaries",
+              "status": "COMPLETED",
+              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/actions/runs/45336025619/job/138248185101",
+              "type": "check_run"
+            },
+            {
+              "conclusion": "SUCCESS",
+              "context": "Biome changed files",
+              "status": "COMPLETED",
+              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/actions/runs/45336025619/job/138248185198",
+              "type": "check_run"
+            },
+            {
+              "conclusion": "SUCCESS",
+              "context": "Knip debt inventory",
+              "status": "COMPLETED",
+              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/actions/runs/45336025619/job/138248185025",
+              "type": "check_run"
+            },
+            {
+              "conclusion": "SUCCESS",
+              "context": "Codacy Static Code Analysis",
+              "status": "COMPLETED",
+              "target_url": "https://app.codacy.com/gh/oasisbaklawa2006/oasis-ai-studio/pull-requests/280",
+              "type": "check_run"
+            },
+            {
+              "conclusion": "SUCCESS",
+              "context": "CodeQL",
+              "status": "COMPLETED",
+              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/runs/138248498131",
+              "type": "check_run"
+            },
+            {
+              "conclusion": "SUCCESS",
+              "context": "Trivy",
+              "status": "COMPLETED",
+              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/runs/138248299615",
+              "type": "check_run"
+            },
+            {
+              "context": "Vercel",
+              "state": "SUCCESS",
+              "target_url": "https://vercel.com/oasisbaklawa2006-6222s-projects/oasis-ai-studio/5XuFhKjkDHrsBYpeiptUVUQwZCZp",
+              "type": "status_context"
+            },
+            {
+              "conclusion": "SUCCESS",
+              "context": "Vercel Preview Comments",
+              "status": "COMPLETED",
+              "target_url": "https://vercel.com/github",
+              "type": "check_run"
+            },
+            {
+              "context": "security/snyk (oasisbaklawa2006)",
+              "state": "SUCCESS",
+              "target_url": "https://app.snyk.io/org/oasisbaklawa2006/pr-checks/58377178-b49a-41fd-ba04-9b03e95c0e0b",
+              "type": "status_context"
+            }
+          ],
+          "title": "fix(studio G2): reject hidden and fractional Fast Create piece counts",
+          "updated_at": "2026-11-24T05:51:27Z",
+          "url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/pull/280"
         },
         {
           "base": "fix/g2-fast-create-hidden-quantity-guard-20261107",
           "combined_status": "SUCCESS",
           "draft": false,
           "head": "25cb29be6d638fdf43c1a4c1e2f1013a89f4e1ae",
-          "mergeable": "MERGEABLE",
+          "mergeable": "UNKNOWN",
           "number": 285,
           "status_checks": [
             {
@@ -1986,143 +1863,6 @@
           "base": "main",
           "combined_status": "SUCCESS",
           "draft": true,
-          "head": "94d995945a2d209e1ae712d0bcf89c369ee771c3",
-          "mergeable": "MERGEABLE",
-          "number": 280,
-          "status_checks": [
-            {
-              "conclusion": "SKIPPED",
-              "context": "SonarQube (requires configured server)",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/actions/runs/44747467367/job/136326380033",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Enforce oasis-supabase-core backend authority",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/actions/runs/44747467897/job/136326379790",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "quality",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/actions/runs/44747467486/job/136326378519",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Enforce oasis-ai-studio repo ownership boundaries",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/actions/runs/44747467910/job/136326379524",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "CodeQL",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/actions/runs/44747467930/job/136326380389",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "lint",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/actions/runs/44747467615/job/136326378753",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Semgrep Community",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/actions/runs/44747467930/job/136326380533",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Trivy filesystem",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/actions/runs/44747467930/job/136326380099",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Reviewdog ESLint",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/actions/runs/44747467930/job/136326380788",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Coverage, build and boundaries",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/actions/runs/44747467930/job/136326380708",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Biome changed files",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/actions/runs/44747467930/job/136326380696",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Knip debt inventory",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/actions/runs/44747467930/job/136326383377",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Codacy Static Code Analysis",
-              "status": "COMPLETED",
-              "target_url": "https://app.codacy.com/gh/oasisbaklawa2006/oasis-ai-studio/pull-requests/280",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "CodeQL",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/runs/136326852473",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Trivy",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/runs/136326489412",
-              "type": "check_run"
-            },
-            {
-              "context": "Vercel",
-              "state": "SUCCESS",
-              "target_url": "https://vercel.com/oasisbaklawa2006-6222s-projects/oasis-ai-studio/Gggs2qJHBGe3CR7V95xVj9q3TV8p",
-              "type": "status_context"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Vercel Preview Comments",
-              "status": "COMPLETED",
-              "target_url": "https://vercel.com/github",
-              "type": "check_run"
-            },
-            {
-              "context": "security/snyk (oasisbaklawa2006)",
-              "state": "SUCCESS",
-              "target_url": "https://app.snyk.io/org/oasisbaklawa2006/pr-checks/93ae3bd6-fecd-46e5-a6ea-325f80749603",
-              "type": "status_context"
-            }
-          ],
-          "title": "fix(studio G2): reject hidden and fractional Fast Create piece counts",
-          "updated_at": "2026-11-20T13:54:03Z",
-          "url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/pull/280"
-        },
-        {
-          "base": "main",
-          "combined_status": "SUCCESS",
-          "draft": true,
           "head": "843088cf6f0a84e37a9d5cf644c2151fb52d1aa0",
           "mergeable": "MERGEABLE",
           "number": 276,
@@ -2277,108 +2017,115 @@
       "open_prs": [
         {
           "base": "main",
-          "combined_status": "SUCCESS",
-          "draft": true,
-          "head": "1c0bd10289cfe7978a1b7c3c659f6444376d1e2f",
+          "combined_status": "PENDING",
+          "draft": false,
+          "head": "1d714b5ea7d054ab41e8ccf7f636cb3d0869b9d3",
           "mergeable": "MERGEABLE",
           "number": 600,
           "status_checks": [
             {
-              "conclusion": "SUCCESS",
+              "conclusion": null,
               "context": "Core merge governance validation",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/oasis-supabase-core/actions/runs/45219821952/job/137854335059",
+              "status": "IN_PROGRESS",
+              "target_url": "https://github.com/oasisbaklawa2006/oasis-supabase-core/actions/runs/45336945003/job/138251795392",
               "type": "check_run"
             },
             {
               "conclusion": "SUCCESS",
               "context": "path-scope",
               "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/oasis-supabase-core/actions/runs/45219821978/job/137850746022",
+              "target_url": "https://github.com/oasisbaklawa2006/oasis-supabase-core/actions/runs/45336945054/job/138251158584",
               "type": "check_run"
             },
             {
               "conclusion": "SUCCESS",
               "context": "Migration naming, safety and contract tests",
               "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/oasis-supabase-core/actions/runs/45219821817/job/137850745862",
+              "target_url": "https://github.com/oasisbaklawa2006/oasis-supabase-core/actions/runs/45336945060/job/138251158806",
               "type": "check_run"
             },
             {
               "conclusion": "SUCCESS",
               "context": "Enforce oasis-supabase-core repo ownership boundaries",
               "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/oasis-supabase-core/actions/runs/45219821818/job/137850745544",
+              "target_url": "https://github.com/oasisbaklawa2006/oasis-supabase-core/actions/runs/45336945007/job/138251158122",
               "type": "check_run"
             },
             {
               "conclusion": "SUCCESS",
               "context": "deno-contract",
               "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/oasis-supabase-core/actions/runs/45219822037/job/137850743764",
+              "target_url": "https://github.com/oasisbaklawa2006/oasis-supabase-core/actions/runs/45336945062/job/138251158550",
               "type": "check_run"
             },
             {
               "conclusion": "SUCCESS",
               "context": "deno-contract",
               "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/oasis-supabase-core/actions/runs/45219822060/job/137850745037",
+              "target_url": "https://github.com/oasisbaklawa2006/oasis-supabase-core/actions/runs/45336944997/job/138251158291",
               "type": "check_run"
             },
             {
               "conclusion": "SUCCESS",
               "context": "path-scope",
               "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/oasis-supabase-core/actions/runs/45219821865/job/137850743469",
+              "target_url": "https://github.com/oasisbaklawa2006/oasis-supabase-core/actions/runs/45336945086/job/138251158617",
+              "type": "check_run"
+            },
+            {
+              "conclusion": null,
+              "context": "Clean database replay and pgTAP contracts",
+              "status": "IN_PROGRESS",
+              "target_url": "https://github.com/oasisbaklawa2006/oasis-supabase-core/actions/runs/45336945060/job/138251533167",
               "type": "check_run"
             },
             {
               "conclusion": "SKIPPED",
               "context": "Re-run Core Merge Governance after a slow dependency concludes",
               "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/oasis-supabase-core/actions/runs/45219821952/job/137854338640",
+              "target_url": "https://github.com/oasisbaklawa2006/oasis-supabase-core/actions/runs/45336945003/job/138251797856",
               "type": "check_run"
             },
             {
               "conclusion": "SUCCESS",
               "context": "Static Edge Function governance",
               "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/oasis-supabase-core/actions/runs/45219821978/job/137850820927",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Clean database replay and pgTAP contracts",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/oasis-supabase-core/actions/runs/45219821817/job/137851555935",
+              "target_url": "https://github.com/oasisbaklawa2006/oasis-supabase-core/actions/runs/45336945054/job/138251235999",
               "type": "check_run"
             },
             {
               "conclusion": "SUCCESS",
               "context": "verification-primitives",
               "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/oasis-supabase-core/actions/runs/45219821865/job/137850827004",
+              "target_url": "https://github.com/oasisbaklawa2006/oasis-supabase-core/actions/runs/45336945086/job/138251217870",
               "type": "check_run"
             },
             {
               "conclusion": "SKIPPED",
               "context": "Provision encrypted preview Edge Runtime env",
               "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/oasis-supabase-core/actions/runs/45219821978/job/137851938048",
+              "target_url": "https://github.com/oasisbaklawa2006/oasis-supabase-core/actions/runs/45336945054/job/138251667345",
               "type": "check_run"
             },
             {
               "conclusion": "SUCCESS",
               "context": "handler-contracts",
               "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/oasis-supabase-core/actions/runs/45219821865/job/137850827559",
+              "target_url": "https://github.com/oasisbaklawa2006/oasis-supabase-core/actions/runs/45336945086/job/138251217871",
               "type": "check_run"
             },
             {
               "conclusion": "SUCCESS",
               "context": "Preview Edge Runtime readiness",
               "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/oasis-supabase-core/actions/runs/45219821978/job/137851936710",
+              "target_url": "https://github.com/oasisbaklawa2006/oasis-supabase-core/actions/runs/45336945054/job/138251666049",
+              "type": "check_run"
+            },
+            {
+              "conclusion": "NEUTRAL",
+              "context": "CodeRabbit",
+              "status": "COMPLETED",
+              "target_url": "https://coderabbit.ai?utm_source=cr_app&utm_medium=github",
               "type": "check_run"
             },
             {
@@ -2397,7 +2144,7 @@
             }
           ],
           "title": "feat(gifting): Option A Core authority and gifting-enquiries first deploy",
-          "updated_at": "2026-11-23T16:45:12Z",
+          "updated_at": "2026-11-24T05:58:53Z",
           "url": "https://github.com/oasisbaklawa2006/oasis-supabase-core/pull/600"
         },
         {
