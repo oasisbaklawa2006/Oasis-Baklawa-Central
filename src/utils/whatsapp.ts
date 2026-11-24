@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { classifyWhatsAppInvocationError, classifyWhatsAppSendResult, type WhatsAppSendResult } from "@/lib/wa-governance/whatsappSendResult";
 
 const PORTAL_URL = import.meta.env.VITE_B2B_PORTAL_URL || "https://b2b.oasisbaklawa.com";
 const CTA_FOOTER = `\n\nPlease login to your B2B Portal to track your 10-point artisan journey:\n${PORTAL_URL}`;
@@ -11,22 +12,36 @@ export const sendWhatsAppMessage = async (params: {
   message: string;
   companyId?: string;
   orderId?: string;
-}) => {
-  const { data, error } = await supabase.functions.invoke("send-whatsapp", {
-    body: {
-      to: params.to,
-      message: params.message,
-      company_id: params.companyId || null,
-      order_id: params.orderId || null,
-    },
-  });
+}): Promise<WhatsAppSendResult> => {
+  try {
+    const { data, error } = await supabase.functions.invoke("send-whatsapp", {
+      body: {
+        to: params.to,
+        message: params.message,
+        company_id: params.companyId || null,
+        order_id: params.orderId || null,
+      },
+    });
 
-  if (error) {
-    console.error("[WhatsApp] Send failed:", error.message);
-    return { success: false, error: error.message };
+    if (error) {
+      const response = (error as { context?: unknown }).context;
+      if (response instanceof Response) {
+        try {
+          const result = classifyWhatsAppSendResult(await response.clone().json());
+          if (!result.success && !result.acceptanceUnknown) return result;
+        } catch {
+          // An unreadable error response cannot establish provider rejection.
+        }
+      }
+      console.warn("[WhatsApp] Invocation failed; delivery acceptance is unknown.");
+      return await classifyWhatsAppInvocationError(error);
+    }
+
+    return classifyWhatsAppSendResult(data);
+  } catch (error: unknown) {
+    console.warn("[WhatsApp] Invocation interrupted; provider acceptance unconfirmed.");
+    return await classifyWhatsAppInvocationError(error);
   }
-
-  return { success: true, data };
 };
 
 /**

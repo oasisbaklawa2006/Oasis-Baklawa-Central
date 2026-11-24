@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
-import { AlertCircle, RefreshCw, MessageSquare, Send, FileText, Mic, Image as ImageIcon, Package, Trash2, AlertTriangle, Tag } from "lucide-react";
+import { AlertCircle, RefreshCw, MessageSquare, Send, FileText, Mic, Image as ImageIcon, Trash2, AlertTriangle, Tag } from "lucide-react";
 import { toast } from "sonner";
 import { parseBanyanMessage } from "@/lib/banyan-parser";
 import { useScopedRealtimeSubscription } from "@/hooks/useScopedRealtimeSubscription";
@@ -64,7 +64,6 @@ export default function RawIntelligenceTab() {
   const [messages, setMessages] = useState<RawMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [aliases, setAliases] = useState<ProductAliasLookupRow[]>([]);
-  const [creatingDraft, setCreatingDraft] = useState<string | null>(null);
   const [markingWaste, setMarkingWaste] = useState<string | null>(null);
   const [merging, setMerging] = useState<string | null>(null);
   // sender phone (10-digit) → recent shadow/unknown order id available for merge
@@ -305,65 +304,6 @@ export default function RawIntelligenceTab() {
       toast.error("Error marking waste");
     }
     setMarkingWaste(null);
-  };
-
-  const handleCreateDraftSO = async (msg: RawMessage) => {
-    setCreatingDraft(msg.id);
-    try {
-      const sender = extractSender(msg.raw_payload, msg.phone_number);
-      const text = extractText(msg.raw_payload);
-      const parsed = parseMessage(text, sender.phone);
-      const phone = sender.phone.replace(/\D/g, "");
-
-      if (parsed.missingQty) {
-        toast.info("The quantity was not detected. Please specify the required amount in Kg or Boxes to proceed.");
-      }
-      if (parsed.missingPhone) {
-        toast.info("The Customer Mobile number is required to generate the Portal Link. Please provide it to proceed.");
-      }
-      if (parsed.needsClarification) {
-        toast.warning("Low confidence SKU match — order will be flagged ORANGE for clarification.");
-      }
-
-      const wamid =
-        msg.raw_payload?.entry?.[0]?.changes?.[0]?.value?.messages?.[0]?.id || null;
-
-      const { data, error } = await supabase.functions.invoke("admin-create-draft", {
-        body: {
-          phone,
-          sku_items: parsed.matchedSKUs.map((m) => ({
-            name: m.name,
-            confidence: m.confidence,
-            quantity: m.quantity ?? undefined,
-            unit: m.unit ?? undefined,
-          })),
-          candidate_company_name: parsed.candidateCompanyName,
-          webhook_id: msg.id,
-          wamid,
-        },
-      });
-
-      if (error || !data?.ok) {
-        const endpointError = data?.error || error?.message || "Failed to create draft order";
-        if (String(endpointError).includes("Proxy employee order requires explicit client resolution")) {
-          toast.error("Client resolution required for proxy/staff order. Include the client business name before creating Draft SO.");
-        } else {
-          toast.error(endpointError);
-        }
-        setCreatingDraft(null);
-        return;
-      }
-
-      if (data.needs_clarification) {
-        toast.warning(`Order #${data.order_id.slice(0, 8).toUpperCase()} created — AWAITING CLARIFICATION`);
-      } else {
-        toast.success(`Draft SO created! Order #${data.order_id.slice(0, 8).toUpperCase()}`);
-      }
-      fetchRaw();
-    } catch (err) {
-      toast.error("Error creating draft SO");
-    }
-    setCreatingDraft(null);
   };
 
   const msgTypeIcon = (type: string) => {
@@ -608,17 +548,9 @@ export default function RawIntelligenceTab() {
                   <><Trash2 size={12} /> Mark as Waste</>
                 )}
               </button>
-              <button
-                onClick={() => handleCreateDraftSO(msg)}
-                disabled={creatingDraft === msg.id}
-                className="flex items-center gap-1.5 text-xs font-medium text-primary hover:text-primary/80 transition-colors px-3 py-1.5 rounded-md border border-primary/20 hover:bg-primary/5 disabled:opacity-50"
-              >
-                {creatingDraft === msg.id ? (
-                  <>Creating…</>
-                ) : (
-                  <><Package size={12} /> Create Draft SO</>
-                )}
-              </button>
+              {/* This legacy War Room tab is retired; its old Inbox link was
+                  unreachable. The mounted Operator Inbox now provides governed
+                  provider-message and sender-phone packet lookup directly. */}
                 </div>
               );
             })()}
