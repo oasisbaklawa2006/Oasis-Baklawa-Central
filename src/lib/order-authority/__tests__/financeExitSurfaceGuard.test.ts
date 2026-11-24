@@ -157,4 +157,31 @@ describe("Finance Exit surface authority guard", () => {
     expect(client).toContain('complaintClockBasis !== "FINAL_INVOICE_DATE"');
     expect(client).toContain("not anchored to final invoice date");
   });
+  it("Gate dispatch proof and customer communication catch missing or mismatched scan-order preflight errors", () => {
+    const page = source("src/pages/admin/AdminB2bSecurityGate.tsx");
+    const proofStart = page.indexOf("const freezeDispatchProof = async");
+    const proofEnd = page.indexOf("const visual =", proofStart);
+    const customerStart = page.indexOf("const sendCustomerDispatchCommunication = async");
+    const customerEnd = page.indexOf("const communicationEligibility =", customerStart);
+    expect(proofStart).toBeGreaterThan(-1);
+    expect(proofEnd).toBeGreaterThan(proofStart);
+    expect(customerStart).toBeGreaterThan(-1);
+    expect(customerEnd).toBeGreaterThan(customerStart);
+    const proof = page.slice(proofStart, proofEnd);
+    const communication = page.slice(customerStart, customerEnd);
+    for (const [label, handler] of [["dispatch proof", proof], ["customer communication", communication]] as const) {
+      const startTry = handler.indexOf("try {");
+      const preflight = handler.indexOf("const orderId = evidenceOrder();");
+      const catchError = handler.indexOf("} catch (error)");
+      const endFinally = handler.indexOf("} finally {");
+      expect(startTry, label).toBeGreaterThan(-1);
+      expect(preflight, label).toBeGreaterThan(startTry);
+      expect(catchError, label).toBeGreaterThan(preflight);
+      expect(endFinally, label).toBeGreaterThan(catchError);
+      expect(handler, label).toContain("toast.error(");
+    }
+    expect(proof).not.toContain('.from("orders")');
+    expect(communication).not.toContain('.from("operational_scan_records")');
+  });
+
 });
