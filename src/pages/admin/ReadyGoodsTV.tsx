@@ -1,5 +1,11 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useContext } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  TvDeviceSessionContext,
+  fetchTvRgsStockSnapshot,
+  tvProductLabel,
+  type TvRpcClient,
+} from "@/lib/tvDevice";
 import { Package, AlertTriangle, CheckCircle2, Clock, Loader2, type LucideIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -33,9 +39,39 @@ export default function ReadyGoodsTV() {
   const [items, setItems] = useState<TVItem[]>([]);
   const [lowStock, setLowStock] = useState<LowStockItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deviceError, setDeviceError] = useState<string | null>(null);
   const [now, setNow] = useState(new Date());
 
+  // True only under TvDeviceRoute's ACTIVE device branch. A dedicated RGS TV identity is denied order_items/products
+  // by RLS and reads only Core's tv_rgs_stock_snapshot(); order demand is not available to a device session.
+  const deviceSession = useContext(TvDeviceSessionContext);
+
   const fetchData = useCallback(async () => {
+    if (deviceSession) {
+      try {
+        const balances = await fetchTvRgsStockSnapshot(supabase as unknown as TvRpcClient);
+        setDeviceError(null);
+        setItems([]);
+        setLowStock(
+          balances
+            .filter((b) => (b.available_qty ?? 0) < 10)
+            .map((b) => ({
+              id: b.product_id,
+              name: tvProductLabel(b.product_id),
+              sku: null,
+              computed_stock: b.available_qty ?? 0,
+            })),
+        );
+      } catch (snapshotError) {
+        console.error("TV device stock snapshot error:", snapshotError);
+        // Never show an empty board as "all good" when the snapshot could not be read.
+        setItems([]);
+        setLowStock([]);
+        setDeviceError(snapshotError instanceof Error ? snapshotError.message : "Stock snapshot unavailable");
+      }
+      setLoading(false);
+      return;
+    }
     const { data: orderItems } = await supabase
       .from("order_items")
       .select("id, order_id, quantity, actual_packed_qty, production_status, product:products(name, sku)")
@@ -64,7 +100,7 @@ export default function ReadyGoodsTV() {
     })));
 
     setLoading(false);
-  }, []);
+  }, [deviceSession]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
   useEffect(() => {
@@ -90,6 +126,16 @@ export default function ReadyGoodsTV() {
   const skuDemand = Object.values(skuDemandMap).sort((a, b) => (b.totalNeeded - b.totalReady) - (a.totalNeeded - a.totalReady));
 
   if (loading) return <div className="min-h-screen bg-black flex items-center justify-center"><Loader2 className="animate-spin text-emerald-400" size={48} /></div>;
+
+  if (deviceSession && deviceError) {
+    return (
+      <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center gap-3" data-testid="rgs-tv-device-error">
+        <AlertTriangle size={48} className="text-red-500" />
+        <p className="text-2xl font-bold">Could not load the Ready Goods stock snapshot</p>
+        <p className="text-gray-400">{deviceError}</p>
+      </div>
+    );
+  }
 
   const Column = ({ title, icon: Icon, items: colItems, color, blink }: { title: string; icon: LucideIcon; items: TVItem[]; color: string; blink?: boolean }) => (
     <div className="flex flex-col h-full">

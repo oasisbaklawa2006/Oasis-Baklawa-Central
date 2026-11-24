@@ -1,10 +1,16 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useContext } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { Loader2, RefreshCw, Clock, Package, AlertTriangle, Zap } from "lucide-react";
 import { getPackDescription, getPrimaryPackWeightKg } from "@/utils/pricing";
 import { tvGroupOf } from "@/lib/productProductionDepartments";
 import { productionJobsDb } from "@/lib/production-jobs/productionJobsDatabase";
+import {
+  TvDeviceSessionContext,
+  fetchTvDepartmentProductionQueue,
+  tvProductLabel,
+  type TvRpcClient,
+} from "@/lib/tvDevice";
 
 // production_jobs is the governed production execution authority (RGS
 // shortage demand -> create_production_shortage_demand -> production_jobs,
@@ -49,6 +55,8 @@ type ProductionJobRow = Pick<
   | "created_at"
 > & {
   product: ProductionJobProduct;
+  // Present on device-session rows (tv_department_production_queue); a device may not read `products`.
+  product_id?: string | null;
 };
 
 interface OrderLookup {
@@ -73,10 +81,43 @@ const FactoryTVModule = ({ category, departmentFilter, title }: FactoryTVModuleP
   const [lastRefresh, setLastRefresh] = useState(new Date());
 
   const tvGroup = tvGroupOf(departmentFilter);
+  // True only under TvDeviceRoute's ACTIVE device branch. A dedicated TV identity is denied every table by RLS, so it
+  // reads only Core's group-scoped tv_department_production_queue() and shows product identifiers, never names.
+  const deviceSession = useContext(TvDeviceSessionContext);
+  const jobLabel = (job: ProductionJobRow, fallback: string) =>
+    job.product?.name || (deviceSession ? tvProductLabel(job.product_id) : fallback);
 
   const fetchJobs = useCallback(async () => {
     if (!tvGroup) {
       setError(`Unrecognised department filter: ${departmentFilter}`);
+      setLoading(false);
+      return;
+    }
+
+    if (deviceSession) {
+      try {
+        const queue = await fetchTvDepartmentProductionQueue(supabase as unknown as TvRpcClient);
+        setJobs(
+          queue.map((row) => ({
+            id: row.id,
+            order_id: row.order_id,
+            assigned_qty: row.assigned_qty ?? 0,
+            produced_qty: row.produced_qty ?? 0,
+            priority: row.priority ?? "normal",
+            status: row.status ?? "pending",
+            department: row.department ?? "",
+            created_at: row.created_at ?? "",
+            product_id: row.product_id,
+            product: null,
+          })) as unknown as ProductionJobRow[],
+        );
+        setOrderLookup(new Map());
+        setError(null);
+        setLastRefresh(new Date());
+      } catch (queueError) {
+        console.error("TV device queue error:", queueError);
+        setError(queueError instanceof Error ? queueError.message : "TV production queue unavailable");
+      }
       setLoading(false);
       return;
     }
@@ -116,7 +157,7 @@ const FactoryTVModule = ({ category, departmentFilter, title }: FactoryTVModuleP
 
     setLastRefresh(new Date());
     setLoading(false);
-  }, [tvGroup, departmentFilter]);
+  }, [tvGroup, departmentFilter, deviceSession]);
 
   useEffect(() => {
     fetchJobs();
@@ -179,7 +220,7 @@ const FactoryTVModule = ({ category, departmentFilter, title }: FactoryTVModuleP
                 <span className={`px-2 py-0.5 rounded text-xs font-black uppercase ${job.priority === "red" ? "bg-white text-red-600" : "bg-amber-400 text-black"}`}>
                   {job.priority}
                 </span>
-                <span className="text-white font-bold text-lg">{job.product?.name || "Unknown"}</span>
+                <span className="text-white font-bold text-lg">{jobLabel(job, "Unknown")}</span>
                 <span className="text-white/80 text-lg font-black">×{job.assigned_qty}</span>
               </div>
             ))}
@@ -254,7 +295,7 @@ const FactoryTVModule = ({ category, departmentFilter, title }: FactoryTVModuleP
                     <div className="flex justify-between items-center bg-gray-900/40 rounded-lg px-4 py-3">
                       <div className="flex-1">
                         <p className="text-xl font-bold text-white truncate">
-                          {job.product?.name ?? "Unknown Item"}
+                          {jobLabel(job, "Unknown Item")}
                         </p>
                         <p className="text-sm text-gray-500">
                           {job.product ? getPackDescription(job.product) : ""}
