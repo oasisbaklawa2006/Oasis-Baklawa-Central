@@ -5,6 +5,8 @@ on:
     branches: [ audit/ui-ux-playwright ]
   workflow_dispatch:
 
+permissions: {}
+
 jobs:
   test-api:
     runs-on: ubuntu-latest

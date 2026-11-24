@@ -1,0 +1,28 @@
+name: Appverse GitHub State Snapshot Tests
+
+# Read-only unit tests for the Mission Control snapshot script and its workflow wiring. No secrets, no network access
+# beyond the checkout (gh is faked), no write permission, and no privileged trigger.
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'scripts/appverse-control/update_github_state.sh'
+      - 'tests/appverse-control/test_update_github_state.py'
+      - '.github/workflows/appverse-mission-control.yml'
+      - '.github/workflows/appverse-github-state-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    name: Appverse GitHub state snapshot tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Snapshot script and workflow wiring tests
+        run: python3 -I -m unittest discover -s tests/appverse-control -p 'test_update_github_state.py' -v

@@ -11,6 +11,9 @@ concurrency:
   group: repo-boundaries-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   check-boundaries:
     name: Enforce Catalogue AI-Studio repo ownership boundaries

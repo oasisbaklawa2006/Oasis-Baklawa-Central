@@ -2,6 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Database, Json } from "@/integrations/supabase/types";
 import type { ExtractedDraftOrder } from "@/lib/wa-governance/draftOrderExtractionTypes";
 import { assertPersistedDraftExtractionMatch } from "./assertPersistedDraftExtractionMatch";
+import { canTransitionToApproved, validateSalesOrderDraftReadiness } from "./readinessValidation";
 import {
   isExtractionVersionStale,
   STALE_EXTRACTION_DRAFT_MESSAGE,
@@ -221,6 +222,15 @@ export async function submitSalesOrderDraftForReviewWithOperatorSync(
   return reloaded;
 }
 
+function requestsEarlySoRecording(
+  dimensions: ExtractedDraftOrder["readiness"]["dimensions"],
+): boolean {
+  return (
+    !validateSalesOrderDraftReadiness(dimensions).valid &&
+    canTransitionToApproved(dimensions).valid
+  );
+}
+
 export async function approveSalesOrderDraft(
   input: TransitionSalesOrderDraftInput & { extracted: ExtractedDraftOrder },
 ): Promise<SalesOrderDraftBundle> {
@@ -240,6 +250,12 @@ export async function approveSalesOrderDraft(
     p_review_notes: input.reviewNotes ?? null,
     p_metadata: {
       reviewNotes: input.reviewNotes ?? null,
+      // Early SO capture is requested explicitly and only when client/product/quantity
+      // are ready while billing/delivery details are still pending. Core re-verifies
+      // the operator's wa.draft.promote authority; it never trusts this flag alone.
+      ...(requestsEarlySoRecording(input.extracted.readiness.dimensions)
+        ? { readiness_gate: "SO_RECORDABLE" }
+        : {}),
     } as Json,
   });
 

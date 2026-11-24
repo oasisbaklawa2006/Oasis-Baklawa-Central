@@ -12,6 +12,7 @@ import {
 } from "@/lib/order-authority/financeExitAuthorityClient";
 import {
   assessDispatchCustomerCommunicationEligibility,
+  DISPATCH_WHATSAPP_COMMISSIONED,
   recordGovernedCustomerDispatchCommunication,
 } from "@/lib/order-authority/dispatchCustomerCommunicationClient";
 import { escapeGateBarcodeIlikeLiteral, gateScanCorrelationId, matchUniqueCaseInsensitiveGateCarton } from "@/utils/gateScanEvidence";
@@ -300,13 +301,15 @@ const AdminB2bSecurityGate = () => {
               ) : (
                 <>
                   <p className="mt-2 text-amber-300">
-                    {communicationEligibility.reason ?? "Send governed dispatch notification to open the customer communication thread."}
+                    {!DISPATCH_WHATSAPP_COMMISSIONED
+                      ? "WhatsApp dispatch notice not sent: recipient consent, durable receipt and protected release are pending. Physical gate proof remains independently valid."
+                      : (communicationEligibility.reason ?? "Send governed dispatch notification to open the customer communication thread.")}
                   </p>
                   <button
                     type="button"
                     data-testid="macro-security-gate-customer-comm"
                     onClick={() => { void sendCustomerDispatchCommunication(); }}
-                    disabled={customerCommProcessing || !communicationEligibility.eligible}
+                    disabled={customerCommProcessing || !communicationEligibility.eligible || !DISPATCH_WHATSAPP_COMMISSIONED}
                     className="mt-3 w-full rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold disabled:opacity-50"
                   >
                     {customerCommProcessing && <Loader2 className="mr-2 inline h-4 w-4 animate-spin" />}
