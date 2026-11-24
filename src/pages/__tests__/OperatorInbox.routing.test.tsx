@@ -9,6 +9,9 @@ vi.mock("@/hooks/useWhatsAppPermissions", () => ({
   useWhatsAppPermissions: () => ({ loading: permissionsLoading, has: (key: string) => permissions.has(key) }),
 }));
 vi.mock("@/components/WhatsAppInbox", () => ({ default: () => <div data-testid="full-console">console</div> }));
+vi.mock("@/components/whatsapp/OperatorInboxSourceHandoff", () => ({
+  OperatorInboxSourceHandoff: () => <div data-testid="packet-source-handoff">source lookup</div>,
+}));
 vi.mock("@/components/whatsapp/OperatorInboxWorkspacePersistenceGate", () => ({
   OperatorInboxWorkspacePersistenceGate: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
@@ -43,6 +46,18 @@ describe("OperatorInbox routing", () => {
     renderAt("/admin/operator-inbox");
     expect(screen.getByTestId("work-queue")).toBeInTheDocument();
     expect(screen.queryByTestId("full-console")).not.toBeInTheDocument();
+  });
+
+  it("mounts the source-to-packet handoff for read-and-triage operators without assignment authority", () => {
+    renderAt("/admin/operator-inbox");
+    expect(screen.getByTestId("packet-source-handoff")).toBeInTheDocument();
+    expect(screen.getByTestId("work-queue")).toHaveAttribute("data-can-view-all", "false");
+  });
+
+  it("does not mount source lookup without intake-triage permission", () => {
+    permissions = new Set(["wa.intake.read"]);
+    renderAt("/admin/operator-inbox");
+    expect(screen.queryByTestId("packet-source-handoff")).not.toBeInTheDocument();
   });
 
   it("keeps existing ?packet= deep links on the full console, for any reader", () => {
