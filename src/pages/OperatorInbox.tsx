@@ -3,6 +3,7 @@ import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import WhatsAppInbox from "@/components/WhatsAppInbox";
 import { OperatorInboxWorkspacePersistenceGate } from "@/components/whatsapp/OperatorInboxWorkspacePersistenceGate";
 import { WhatsAppWorkQueue } from "@/components/whatsapp/workQueue/WhatsAppWorkQueue";
+import { OperatorInboxSourceHandoff } from "@/components/whatsapp/OperatorInboxSourceHandoff";
 import { useWhatsAppPermissions } from "@/hooks/useWhatsAppPermissions";
 
 /**
@@ -57,12 +58,17 @@ export default function OperatorInbox() {
   }
 
   return (
-    <div className="h-screen">
-      <WhatsAppWorkQueue
-        canViewAllConversations={canViewAll}
-        onOpenAllConversations={() => navigate("/admin/operator-inbox?view=all")}
-        onOpenConversation={(packetId) => navigate(`/admin/operator-inbox?packet=${encodeURIComponent(packetId)}`)}
-      />
+    <div className="flex h-screen min-h-0 flex-col">
+      {!wa.loading && wa.has("wa.intake.read") && wa.has("wa.intake.triage") && (
+        <OperatorInboxSourceHandoff />
+      )}
+      <div className="min-h-0 flex-1">
+        <WhatsAppWorkQueue
+          canViewAllConversations={canViewAll}
+          onOpenAllConversations={() => navigate("/admin/operator-inbox?view=all")}
+          onOpenConversation={(packetId) => navigate(`/admin/operator-inbox?packet=${encodeURIComponent(packetId)}`)}
+        />
+      </div>
     </div>
   );
 }
