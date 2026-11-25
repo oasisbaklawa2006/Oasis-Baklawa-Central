@@ -29,6 +29,8 @@ export FACTORY_CERT_LOCAL_SERVICE_ROLE_KEY="${SERVICE_ROLE_KEY}" FACTORY_CERT_LO
 
 POINT100_LOCAL_DB_URL="${DB_URL}" node "${P100_DIR}/restore-canonical-dispatch-authority.mjs"
 node "${P100_DIR}/ensure-point38-admin-auth.mjs"
+# Fixture data only (never run by the Factory lane): a Buyer-priced, producible, stock-free product for the governed production leg.
+node "${SCRIPT_DIR}/../factory-certification/seed-journey-buyer-product.mjs"
 node "${SCRIPT_DIR}/buyer-order-journey.mjs"          # Buyer -> catalogue -> cart -> quote -> checkout -> PI create
 node "${P100_DIR}/ensure-point38-pi-issued.mjs"       # Finance issues the PI (AAL2)
 POINT38_JOURNEY_GOVERNED_STATUS_PATH=true node "${P100_DIR}/prepare-point38-canonical-exit.mjs"

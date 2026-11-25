@@ -204,6 +204,24 @@ describe("certification lane dispatch-authority guard", () => {
       expect(tail).toContain("Gate session must not insert evidence directly");
     });
 
+    it("the journey's product fixture is fixture-only: loopback, two rule tables, refuses stock, run only by the journey", () => {
+      const seed = read("scripts/factory-certification/seed-journey-buyer-product.mjs");
+      expect(seed).toContain("createLocalSupabaseAdminClient");
+      // It may only INSERT price and MOQ rules (the same rows the shared fixture gives CERT-ARABIC-001); nothing else is written.
+      const writes = [...seed.matchAll(/\.from\("([a-z_]+)"\)\s*\.(insert|upsert|update|delete)\(/g)].map((m) => `${m[1]}.${m[2]}`);
+      expect(writes.sort()).toEqual(["product_moq_rules.insert", "product_pricing_rules.insert"]);
+      // Reading stock to refuse a product that has some is required; writing it is never allowed.
+      expect(seed).toContain('.from("inventory_stock_balances")');
+      expect(seed).not.toMatch(/\.from\("inventory_[a-z_]+"\)\s*\.(insert|upsert|update|delete)\(/);
+      // Stock is never altered to qualify a product: a product with stock on hand fails the step.
+      expect(seed).toContain("JOURNEY_FIXTURE_PRODUCT_HAS_STOCK");
+      expect(seed).toContain("20000000-0000-4000-8000-000000000104");
+      // Only the journey runs it; the shared Factory lane and its workflow do not.
+      expect(read("scripts/integration-certification/start-ephemeral.sh")).toContain("seed-journey-buyer-product.mjs");
+      expect(read("scripts/factory-certification/start-ephemeral.sh")).not.toContain("seed-journey-buyer-product");
+      expect(read(".github/workflows/factory-certification-ephemeral.yml")).not.toContain("seed-journey-buyer-product");
+    });
+
     it("no removed fixture, mode switch or combined-lane variant remains anywhere in the lane", () => {
       const lane = [
         ...journeyFiles,
