@@ -19,7 +19,7 @@ import {
   type FactoryCertificationCredentials,
 } from "../factory-certification/support";
 import { factoryCertificationCredentialSpec } from "../../src/lib/factoryCertificationCredentialPolicy";
-import { POINT100_CORE_PRODUCTION_VERIFIED_SHA, POINT100_PRODUCTION_MIGRATION_GATE, POINT100_PRODUCTION_MIGRATION_RUN_ID, isCoreInventoryProductionVerified, isProductionCertificationPermitted, resolveCoreVerifiedSha, resolveProductionMigrationRunId } from "../../src/lib/point100/upstreamDependencies";
+import { POINT100_CORE_PRODUCTION_VERIFIED_SHA, POINT100_PRODUCTION_MIGRATION_RUN_ID, isCoreInventoryProductionVerified, isProductionCertificationPermitted, resolveCoreVerifiedSha, resolveProductionMigrationGate, resolveProductionMigrationRunId } from "../../src/lib/point100/upstreamDependencies";
 
 export type Point100StageRecord = {
   stage: string;
@@ -151,7 +151,7 @@ export function writeDressRehearsalLedger(
     ...ledger,
     certification_mode: isProductionCertificationPermitted() ? "production" : "disposable_synthetic",
     production_certification_permitted: isProductionCertificationPermitted(),
-    production_migration_gate: isCoreInventoryProductionVerified() ? POINT100_PRODUCTION_MIGRATION_GATE : null,
+    production_migration_gate: isCoreInventoryProductionVerified() ? resolveProductionMigrationGate() : null,
     core_verified_sha: resolveCoreVerifiedSha(),
     inventory_production_verified: isCoreInventoryProductionVerified(),
     production_migration_run_id: isCoreInventoryProductionVerified() ? resolveProductionMigrationRunId() : null,

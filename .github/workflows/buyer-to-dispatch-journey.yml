@@ -1,0 +1,164 @@
+name: Buyer-to-Dispatch Journey Certification
+
+# NON-PRODUCTION, CI-VERIFIED ONLY. A disposable Supabase stack is built from Core main at the exact pinned SHA below and
+# ONE order is carried by a synthetic Buyer through Core's governed checkout, Finance, Operations (governed production
+# completion), Dispatch, the independent Security Gate and canonical finalization. Every state change is a Core RPC:
+# there are no direct business-table writes, no synthetic evidence rows and no fallbacks (see
+# src/lib/point100/__tests__/certificationLaneAuthorityGuard.test.ts). No external provider (MSG91, payments, messaging)
+# is contacted. This lane is NOT a production-readiness, physical-UAT or provider claim.
+#
+# The pinned SHA is declared by the owner. This lane does not require, and never claims, a protected production release
+# for that SHA; it reports whether one exists (informational only). The production-bound lane
+# (point100-certification-ephemeral.yml) is the one that gates on protected release evidence.
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/buyer-to-dispatch-journey.yml'
+      - 'scripts/integration-certification/**'
+      - 'scripts/point100-certification/**'
+      - 'scripts/factory-certification/**'
+      - 'src/lib/point100/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: buyer-to-dispatch-journey-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Exact Core main commit under test (full 40-hex SHA). Changing it is an owner decision.
+  JOURNEY_CORE_SHA: 4e821518089ada8fa60cc0b7e115a291f856c68d
+
+jobs:
+  static-guards:
+    name: Journey source guards (no backend required)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout Central
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate journey scripts and the exact Core pin
+        run: |
+          bash -n scripts/integration-certification/start-ephemeral.sh
+          for f in scripts/integration-certification/*.mjs scripts/point100-certification/*.mjs; do node --check "$f"; done
+          [[ "${JOURNEY_CORE_SHA}" =~ ^[0-9a-f]{40}$ ]]
+          test "${JOURNEY_CORE_SHA}" = "4e821518089ada8fa60cc0b7e115a291f856c68d"
+
+      - name: Unit tests (Point100 harness and journey authority guards)
+        run: npm run test -- src/lib/point100 src/lib/order-authority/__tests__/financeExitSurfaceGuard.test.ts
+
+  buyer-to-dispatch-journey:
+    name: Buyer-to-Dispatch uninterrupted journey (non-production)
+    needs: static-guards
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      POINT100_CORE_REPO: ${{ github.workspace }}/oasis-supabase-core
+      POINT100_ALLOW_LOCAL_RESET: "true"
+      POINT100_ALLOW_DISPOSABLE_BOOTSTRAP: "false"
+      POINT100_CORE_VERIFIED_SHA: 4e821518089ada8fa60cc0b7e115a291f856c68d
+      FACTORY_CERT_CORE_REPO: ${{ github.workspace }}/oasis-supabase-core
+      FACTORY_CERT_ALLOW_LOCAL_RESET: "true"
+      FACTORY_CERT_CREDENTIAL_FILE: /tmp/oasis-factory-certification.env
+      JOURNEY_LEDGER_FILE: /tmp/buyer-to-dispatch-journey-ledger.json
+
+    steps:
+      - name: Checkout Central
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Pin consistency
+        run: test "${POINT100_CORE_VERIFIED_SHA}" = "${JOURNEY_CORE_SHA}"
+
+      - name: Report protected Core production release evidence (informational, non-gating)
+        # This lane is non-production and does not depend on a protected release. It only records whether one exists for
+        # the pinned SHA so nobody reads a green journey as production certification.
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CORE_RELEASE_REPO: oasisbaklawa2006/oasis-supabase-core
+        shell: bash
+        run: |
+          set -uo pipefail
+          candidates="$(gh api --paginate "repos/${CORE_RELEASE_REPO}/actions/workflows/production-migration-release.yml/runs?event=workflow_dispatch&status=completed&branch=main&per_page=100" --jq ".workflow_runs[] | select(.head_sha == \"${JOURNEY_CORE_SHA}\" and .conclusion == \"success\") | .id" 2>/dev/null || true)"
+          # A deploy=false run can also conclude "success" with its deployment job skipped: list a run only when BOTH the
+          # preflight and the approved deployment jobs succeeded (same rule as the production-bound lane).
+          runs=""
+          for run_id in ${candidates}; do
+            preflight="$(gh api "repos/${CORE_RELEASE_REPO}/actions/runs/${run_id}/jobs?filter=latest&per_page=100" --jq '[.jobs[] | select(.name == "Production ledger and dry-run verification")][0].conclusion // ""' 2>/dev/null || true)"
+            deploy="$(gh api "repos/${CORE_RELEASE_REPO}/actions/runs/${run_id}/jobs?filter=latest&per_page=100" --jq '[.jobs[] | select(.name == "Approved production migration deployment")][0].conclusion // ""' 2>/dev/null || true)"
+            if [[ "${preflight}" == "success" && "${deploy}" == "success" ]]; then
+              runs="${runs:+${runs}$'\n'}${run_id}"
+            fi
+          done
+          {
+            echo "### Buyer-to-Dispatch journey: NON-PRODUCTION, CI-verified only"
+            echo "- Core under test: \`${JOURNEY_CORE_SHA}\` (exact main commit, disposable local stack)"
+            if [[ -n "${runs}" ]]; then
+              echo "- Protected Production Migration Release run(s) for this exact SHA: ${runs//$'\n'/, }"
+            else
+              echo "- Protected Production Migration Release for this exact SHA: **none found** (this lane does not claim production certification)"
+            fi
+          } | tee -a "${GITHUB_STEP_SUMMARY}"
+
+      - name: Checkout Core at the exact pinned SHA
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          repository: oasisbaklawa2006/oasis-supabase-core
+          ref: ${{ env.JOURNEY_CORE_SHA }}
+          path: oasis-supabase-core
+
+      - name: Verify the Core checkout is exactly the pinned SHA
+        run: test "$(git -C oasis-supabase-core rev-parse HEAD)" = "${JOURNEY_CORE_SHA}"
+
+      - name: Set up Supabase CLI (the version Core uses to start its own local stack)
+        uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520
+        with:
+          version: 2.110.0
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run the uninterrupted Buyer-to-Dispatch journey
+        run: bash scripts/integration-certification/start-ephemeral.sh
+
+      - name: Upload journey ledger
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: buyer-to-dispatch-journey-${{ github.run_id }}
+          path: /tmp/buyer-to-dispatch-journey-ledger.json
+          if-no-files-found: warn
+
+      - name: Stop disposable backend
+        if: always()
+        run: |
+          if [[ -d "${POINT100_CORE_REPO}" ]]; then
+            bash scripts/point100-certification/stop-ephemeral.sh
+          else
+            echo "Disposable Core was never started; cleanup not required."
+          fi

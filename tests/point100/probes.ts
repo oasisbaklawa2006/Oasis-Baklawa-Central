@@ -5,7 +5,7 @@ import { buildProbeOutcome, probeFixtureKeys, resolvedRpcForStage } from "../../
 import {
   POINT100_CORE_PRODUCTION_VERIFIED_SHA,
   POINT100_DISPATCH_FINALIZE_RPC,
-  POINT100_PRODUCTION_MIGRATION_GATE,
+  resolveProductionMigrationGate,
   formatUpstreamBlocker,
   isRpcOnCertifiedCorePin,
   productionGateBlockers,
@@ -174,7 +174,7 @@ export async function certifiedDispatchFinalizeProbe(client?: SupabaseClient): P
   const onCertifiedPin = isRpcOnCertifiedCorePin(POINT100_DISPATCH_FINALIZE_RPC);
   const ready = onCertifiedPin && dispatchedRpc.exists;
   const note = ready
-    ? `canonical ${POINT100_DISPATCH_FINALIZE_RPC} present on certified Core pin ${POINT100_CORE_PRODUCTION_VERIFIED_SHA.slice(0, 8)} / ${POINT100_PRODUCTION_MIGRATION_GATE}`
+    ? `canonical ${POINT100_DISPATCH_FINALIZE_RPC} present on certified Core pin ${POINT100_CORE_PRODUCTION_VERIFIED_SHA.slice(0, 8)} / ${resolveProductionMigrationGate()}`
     : dispatchedRpc.exists
       ? "dispatch-finalize RPC exists but is not recognized on the certified Core pin"
       : `${POINT100_DISPATCH_FINALIZE_RPC} absent from certified Core pin ${POINT100_CORE_PRODUCTION_VERIFIED_SHA.slice(0, 8)}`;

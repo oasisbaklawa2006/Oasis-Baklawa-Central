@@ -19,6 +19,7 @@ import {
   isRpcOnCertifiedCorePin,
   POINT100_CORE_PENDING_DISPATCH_PR,
   POINT100_DISPATCH_FINALIZE_RPC,
+  resolveProductionMigrationGate,
   resolveProductionMigrationRunId,
 } from "../upstreamDependencies";
 import { macro556DispatchRoutesPresent } from "../dispatchRouteCensus";
@@ -279,6 +280,9 @@ describe("point100 probe runner", () => {
       process.env.POINT100_PRODUCTION_MIGRATION_RUN_ID = "123456789";
       expect(resolveProductionMigrationRunId()).toBe("123456789");
       expect(buildCapabilityMatrix([], "test-env").production_migration_run_id).toBe("123456789");
+      // The published gate is built from the resolved release id, never left on the pending placeholder once one is bound.
+      expect(resolveProductionMigrationGate()).toBe("oasis-supabase-core:production-migration-release:123456789");
+      expect(buildCapabilityMatrix([], "test-env").production_migration_gate).toBe("oasis-supabase-core:production-migration-release:123456789");
     } finally {
       if (originalSha === undefined) delete process.env.POINT100_CORE_VERIFIED_SHA;
       else process.env.POINT100_CORE_VERIFIED_SHA = originalSha;

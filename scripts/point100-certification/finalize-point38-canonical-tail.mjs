@@ -17,6 +17,7 @@
  */
 
 import { createClient } from "@supabase/supabase-js";
+import { recordPhase } from "../integration-certification/journey-ledger.mjs";
 import {
   RUN_TOKEN,
   assertLoopbackHttpOrigin,
@@ -68,15 +69,6 @@ const dispatchRole = await authenticatedRole("DISPATCH_MANAGER");
 const gateRole = await authenticatedRole("GATE_SECURITY");
 
 const authorityMode = process.env.POINT38_CORE_AUTHORITY_MODE?.trim() ?? "";
-/**
- * STRICTLY a disposable loopback fixture for one already-deployed, pre-507
- * production-certified Core pin. This is NOT an application fallback and
- * NEVER applies to Core #507 or other Core revisions. When the official
- * Point100 production pin advances, the governed Core RPC is mandatory.
- */
-const legacyPinnedSyntheticGateFixture =
-  process.env.POINT100_CORE_VERIFIED_SHA === "645899439fe0a84806238b9114649eb2c3785a75" &&
-  process.env.POINT100_DISPATCH_PRODUCTION_VERIFIED === "true";
 
 if (authorityMode !== "role-separated") {
   throw new Error(
@@ -86,6 +78,7 @@ if (authorityMode !== "role-separated") {
 // Proof recording and finalization belong to Dispatch; the Gate only releases the carton.
 const proofRole = dispatchRole;
 const stopBeforeFinalize = process.env.POINT38_TAIL_STOP_BEFORE_FINALIZE === "true";
+const journeyLedger = process.env.POINT38_JOURNEY_GOVERNED_STATUS_PATH === "true";
 console.log("Point100 Point38 tail authority mode: gate/dispatch role-separated (Core >= 20261001220000)");
 
 /**
@@ -93,6 +86,7 @@ console.log("Point100 Point38 tail authority mode: gate/dispatch role-separated 
  * separation of duties is ever loosened (or if a role were silently interchangeable). Core's role matrix
  * (20261001220000) is the documented contract. A rejected call must not mutate state.
  */
+let rejectedProbeCount = 0; // exact number of negative probes that actually ran and were rejected for the stated reason
 async function expectRejected(label, call, expectedFragment) {
   const { data, error } = await call();
   const message = String(error?.message ?? "");
@@ -101,6 +95,7 @@ async function expectRejected(label, call, expectedFragment) {
       `POINT38_NEGATIVE_AUTHORIZATION_FAILED: ${label}: expected rejection containing "${expectedFragment}", got ${JSON.stringify({ error: error?.message ?? null, data })}`,
     );
   }
+  rejectedProbeCount += 1;
   console.log(`Point38 negative authorization PASS: ${label} -> rejected ("${expectedFragment}")`);
 }
 
@@ -149,58 +144,47 @@ try {
     );
   }
 
-  // Core #507's governed writer is mandatory for every Core revision except
-  // the single proven pre-507 production pin used by the OLD disposable rehearsal.
-  // All paths use loopback-only Supabase and the independent Gate staff actor.
-  const gateScanCorrelation = `${RUN_TOKEN}:synthetic-gate-scan`;
-  let gateScanId = "";
-  if (legacyPinnedSyntheticGateFixture) {
-    console.log("POINT100_PRE507_LEGACY_FIXTURE_ONLY: production-certified Core 6458994; NOT Core #507 acceptance");
-    const { data: priorScan, error: priorScanError } = await gateRole.client
-      .from("operational_scan_records")
-      .select("id")
-      .eq("correlation_id", gateScanCorrelation)
-      .maybeSingle();
-    assertNoError(priorScanError, "Point38 pre-507 prior fixture lookup");
-    gateScanId = String(priorScan?.id ?? "");
-    if (!gateScanId) {
-      const { data: legacyScan, error: legacyScanError } = await gateRole.client
-        .from("operational_scan_records")
-        .insert({
-          scan_type: "dispatch_gate",
-          verification_type: "gate_check",
-          entity_type: "dispatch_carton",
-          entity_id: cartonId,
-          order_id: point38OrderId,
-          barcode_value: cartonCode,
-          expected_barcode: cartonCode,
-          verification_status: "scanned",
-          scan_source: "point100_disposable_synthetic_gate",
-          actor_id: gateRole.actorId,
-          actor_role: "GATE_SECURITY",
-          correlation_id: gateScanCorrelation,
-          metadata: { certification_mode: "disposable_synthetic_pre507_only", physical_uat: false },
-        })
-        .select("id")
-        .single();
-      assertNoError(legacyScanError, "Point38 pre-507 synthetic fixture scan");
-      gateScanId = String(legacyScan?.id ?? "");
-    }
-    if (!gateScanId) throw new Error("POINT100_POINT38_TAIL_LEGACY_GATE_SCAN_ID_MISSING");
-  } else {
-    // Replays retain server-issued scan ID, with full active Gate-staff
-    // authorization, carton provenance and append-only evidence.
-    const { data: gateScan, error: gateScanError } = await gateRole.client.rpc("record_b2b_dispatch_gate_scan_v1", {
-      p_carton_id: cartonId,
-      p_scanned_barcode: cartonCode,
-      p_idempotency_key: gateScanCorrelation,
-    });
-    assertNoError(gateScanError, "Point38 tail governed gate scan");
-    gateScanId = String(gateScan?.scan_id ?? "");
-    if (gateScan?.ok !== true || gateScan?.carton_id !== cartonId || !gateScanId) {
-      throw new Error("POINT100_POINT38_TAIL_GOVERNED_GATE_SCAN_INVALID");
-    }
+  // Core's governed writer (record_b2b_dispatch_gate_scan_v1) is the ONLY way Gate evidence is recorded: Gate authority,
+  // server-derived attribution, idempotent, and direct client inserts are rejected. There is no synthetic fixture and no
+  // fallback to a direct insert for any Core revision. The carton is already ready_to_load (the RPC enforces that
+  // physical-exit state). All calls use loopback-only Supabase and the independent Gate staff actor.
+  const gateScanCorrelation = `${RUN_TOKEN}:gate-scan`;
+  const { data: gateScan, error: gateScanError } = await gateRole.client.rpc("record_b2b_dispatch_gate_scan_v1", {
+    p_carton_id: cartonId,
+    p_scanned_barcode: cartonCode,
+    p_idempotency_key: gateScanCorrelation,
+  });
+  assertNoError(gateScanError, "Point38 tail governed gate scan");
+  const gateScanId = String(gateScan?.scan_id ?? "");
+  if (gateScan?.ok !== true || gateScan?.carton_id !== cartonId || !gateScanId) {
+    throw new Error("POINT100_POINT38_TAIL_GOVERNED_GATE_SCAN_INVALID");
   }
+
+  // Exercise the contract against the live evidence: replay, unauthorized actor, direct write, wrong barcode, unknown
+  // carton, duplicate under a new key, and the same key with a different payload.
+  const expectGateProbeRejected = async (label, call, fragment) => {
+    const { data, error } = await call();
+    if (!error || !String(error.message ?? "").includes(fragment)) {
+      throw new Error(`POINT38_GATE_SCAN_PROBE_FAILED: ${label}: expected "${fragment}", got ${JSON.stringify({ error: error?.message ?? null, data })}`);
+    }
+    rejectedProbeCount += 1;
+    console.log(`Point38 gate-scan authority PASS: ${label} -> rejected ("${fragment}")`);
+  };
+  const replay = await gateRole.client.rpc("record_b2b_dispatch_gate_scan_v1", { p_carton_id: cartonId, p_scanned_barcode: cartonCode, p_idempotency_key: gateScanCorrelation });
+  assertNoError(replay.error, "Point38 gate scan replay");
+  if (replay.data?.already_recorded !== true || String(replay.data?.scan_id ?? "") !== gateScanId) {
+    throw new Error(`POINT38_GATE_SCAN_REPLAY_NOT_IDEMPOTENT: ${JSON.stringify(replay.data)}`);
+  }
+  console.log("Point38 gate-scan authority PASS: replay with the same key returns the same evidence row");
+  await expectGateProbeRejected("DISPATCH_MANAGER must not record Gate evidence", () => dispatchRole.client.rpc("record_b2b_dispatch_gate_scan_v1", { p_carton_id: cartonId, p_scanned_barcode: cartonCode, p_idempotency_key: `${RUN_TOKEN}:dm-gate-scan-probe` }), "independent security gate authority required");
+  await expectGateProbeRejected("Gate session must not insert evidence directly", () => gateRole.client.from("operational_scan_records").insert({
+    scan_type: "dispatch_gate", verification_type: "gate_check", entity_type: "b2b_dispatch_carton", entity_id: cartonId, order_id: point38OrderId,
+    barcode_value: cartonCode, expected_barcode: cartonCode, verification_status: "scanned", scan_source: "forged", correlation_id: `${RUN_TOKEN}:forged-gate-scan`,
+  }), "B2B_GATE_SCAN_DIRECT_INSERT_FORBIDDEN");
+  await expectGateProbeRejected("wrong barcode for the carton", () => gateRole.client.rpc("record_b2b_dispatch_gate_scan_v1", { p_carton_id: cartonId, p_scanned_barcode: `${cartonCode}-WRONG`, p_idempotency_key: `${RUN_TOKEN}:wrong-barcode-probe` }), "B2B_GATE_SCAN_BARCODE_MISMATCH");
+  await expectGateProbeRejected("unknown carton", () => gateRole.client.rpc("record_b2b_dispatch_gate_scan_v1", { p_carton_id: "00000000-0000-4000-8000-0000000000b1", p_scanned_barcode: cartonCode, p_idempotency_key: `${RUN_TOKEN}:wrong-carton-probe` }), "B2B_GATE_SCAN_CARTON_NOT_FOUND");
+  await expectGateProbeRejected("duplicate scan under a new key", () => gateRole.client.rpc("record_b2b_dispatch_gate_scan_v1", { p_carton_id: cartonId, p_scanned_barcode: cartonCode, p_idempotency_key: `${RUN_TOKEN}:duplicate-probe` }), "B2B_GATE_SCAN_DUPLICATE");
+  await expectGateProbeRejected("same key with a different payload", () => gateRole.client.rpc("record_b2b_dispatch_gate_scan_v1", { p_carton_id: cartonId, p_scanned_barcode: `${cartonCode}-X`, p_idempotency_key: gateScanCorrelation }), "B2B_GATE_SCAN_IDEMPOTENCY_CONFLICT");
 
   // Finance stays independent too: neither Dispatch nor the Security Gate may issue Finance documents or decide
   // Finance clearance. Core checks the Finance actor first, before any argument or state validation, so dummy
@@ -255,16 +239,14 @@ try {
     throw new Error(`POINT100_POINT38_TAIL_GATE_BLOCKED: ${JSON.stringify(gateDecision?.blockers ?? gateDecision)}`);
   }
 
-  if (legacyPinnedSyntheticGateFixture) {
-    // ONLY the explicitly pinned pre-507 disposable fixture expects a legacy
-    // scan-verification update. Never execute for the governed Core #507 path.
-    const { error: verifyLegacyScanError } = await gateRole.client
-      .from("operational_scan_records")
-      .update({ verification_status: "verified" })
-      .eq("id", gateScanId);
-    assertNoError(verifyLegacyScanError, "Point38 pre-507 fixture scan verification");
+  // Gate evidence is append-only; Core's gate-decision row is the truth. The harness never updates scan evidence.
+  if (journeyLedger) {
+    recordPhase(`Independent Security Gate releases the carton (${rejectedProbeCount} negative authority probes rejected first)`, "GATE_SECURITY", "release_b2b_dispatch_carton_at_gate_v1", {
+      negativeProbesRejectedBeforeRelease: rejectedProbeCount,
+      gateScanId,
+      gateEvidence: "recorded by record_b2b_dispatch_gate_scan_v1 (server-derived attribution); the barcode is typed by the harness, not read by a physical scanner",
+    });
   }
-  // Core #507 evidence remains append-only; its gate-decision row is the truth.
 
   await expectRejected(
     "GATE_SECURITY must not record the dispatch proof (Dispatch-owned)",
@@ -304,6 +286,9 @@ try {
   assertNoError(proofError, "Point38 tail immutable dispatch proof");
   const dispatchProofId = String(firstRow(proofData)?.dispatch_proof_id ?? "");
   if (!dispatchProofId) throw new Error("POINT100_POINT38_TAIL_DISPATCH_PROOF_ID_MISSING");
+  if (journeyLedger) {
+    recordPhase("Dispatch records the immutable dispatch proof packet", "DISPATCH_MANAGER", "record_dispatch_proof_packet_v1", { dispatchProofId });
+  }
 
   await expectRejected(
     "GATE_SECURITY must not finalize dispatch (Security does not mutate order status)",
@@ -317,6 +302,44 @@ try {
       }),
     "dispatch finalization authority required",
   );
+  if (journeyLedger) {
+    // The Buyer denial is exercised HERE, while the order is still cleared_for_dispatch and finalization is otherwise
+    // possible, with the canonical arguments, so only Core's actor check can be the reason for the rejection.
+    const buyerEmail = "factory-cert-point38-buyer@example.invalid";
+    const serviceKey = requireBootstrapEnv("FACTORY_CERT_LOCAL_SERVICE_ROLE_KEY", LOCAL_LABEL);
+    const adminClient = createClient(backendUrl, serviceKey, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });
+    const { data: buyerRow, error: buyerLookupError } = await adminClient.from("users").select("id").eq("email", buyerEmail).maybeSingle();
+    assertNoError(buyerLookupError, "Point38 tail Buyer lookup");
+    if (!buyerRow?.id) throw new Error("POINT100_POINT38_TAIL_BUYER_FIXTURE_MISSING");
+    // Disposable Auth only: reset the synthetic Buyer's own password so the Buyer can sign in; no business table is written.
+    const buyerPassword = `Jv${Date.now()}Aa1!x`;
+    assertNoError((await adminClient.auth.admin.updateUserById(buyerRow.id, { password: buyerPassword })).error, "Point38 tail Buyer password reset");
+    const buyerClient = newClient();
+    assertNoError((await buyerClient.auth.signInWithPassword({ email: buyerEmail, password: buyerPassword })).error, "Point38 tail Buyer sign-in");
+    let buyerRejection = "";
+    await expectRejected(
+      "BUYER must not finalize dispatch (staff-only authority)",
+      async () => {
+        const result = await buyerClient.rpc("release_order_to_dispatched_v1", {
+          p_order_id: point38OrderId,
+          p_tracking_number: trackingReference,
+          p_courier_name: "POINT100 SYNTHETIC CARRIER",
+          p_finalize_reason: "negative authorization probe",
+          p_correlation_id: `${RUN_TOKEN}:negative-buyer-finalize-probe`,
+        });
+        buyerRejection = String(result.error?.message ?? "");
+        return result;
+      },
+      "DISPATCH_FINALIZATION_ACTOR_REQUIRED",
+    );
+    await buyerClient.auth.signOut().catch(() => undefined);
+    const { data: afterBuyerProbe, error: afterBuyerProbeError } = await dispatchRole.client.from("orders").select("status").eq("id", point38OrderId).maybeSingle();
+    assertNoError(afterBuyerProbeError, "Point38 tail post-Buyer-probe order status read");
+    if (String(afterBuyerProbe?.status ?? "").toLowerCase() !== "cleared_for_dispatch") {
+      throw new Error(`POINT38_NEGATIVE_AUTHORIZATION_MUTATED_STATE: order status is ${String(afterBuyerProbe?.status)} after the Buyer probe`);
+    }
+    recordPhase("Buyer is rejected from dispatch authority at cleared_for_dispatch; order state unchanged", "BUYER", "release_order_to_dispatched_v1 (negative)", { rejection: buyerRejection, orderStatusAfter: afterBuyerProbe.status });
+  }
   // The rejected finalize must not have changed the order: it is still cleared_for_dispatch.
   const { data: afterProbe, error: afterProbeError } = await dispatchRole.client
     .from("orders")
@@ -347,6 +370,9 @@ try {
   const finalize = firstRow(finalizeData) ?? finalizeData;
   if (finalize?.ok !== true || finalize?.new_status !== "dispatched") {
     throw new Error(`POINT100_POINT38_TAIL_FINALIZE_BLOCKED: ${JSON.stringify(finalize)}`);
+  }
+  if (journeyLedger) {
+    recordPhase("Dispatch finalizes the order through the canonical Core RPC", "DISPATCH_MANAGER", "release_order_to_dispatched_v1", { newStatus: finalize.new_status, negativeProbesRejectedTotal: rejectedProbeCount });
   }
 
   const { data: exitFactsData, error: exitFactsError } = await proofRole.client.rpc("get_finance_exit_facts_v1", {
