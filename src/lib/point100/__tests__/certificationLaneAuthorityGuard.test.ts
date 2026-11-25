@@ -56,9 +56,12 @@ describe("certification lane dispatch-authority guard", () => {
     expect(tail).toContain("dispatch finalization authority required");
     expect(tail).toContain("POINT38_NEGATIVE_AUTHORIZATION_FAILED");
     expect(tail).toContain("POINT38_NEGATIVE_AUTHORIZATION_MUTATED_STATE");
-    // Exactly five negative probes, unconditional (the tail already refuses a non-separated Core):
-    // Dispatch->Gate release, Gate->proof, Gate->finalize, Dispatch->final invoice, Gate->Finance clearance.
-    expect(tail.match(/await expectRejected\(/g)?.length).toBe(5);
+    // Five unconditional staff-role probes (the tail already refuses a non-separated Core): Dispatch->Gate release,
+    // Gate->proof, Gate->finalize, Dispatch->final invoice, Gate->Finance clearance; plus the journey-only Buyer->finalize
+    // probe. The count reported in the ledger is the number that actually ran, never a hard-coded "five".
+    expect(tail.match(/await expectRejected\(/g)?.length).toBe(6);
+    expect(tail).toContain("rejectedProbeCount");
+    expect(tail).not.toMatch(/\(5 negative authority probes/);
     expect(tail).toContain("finance authority required");
     expect(tail).toContain('dispatchRole.client.rpc("issue_final_invoice_v1"');
     expect(tail).toContain('gateRole.client.rpc("decide_finance_dispatch_clearance_v1"');
@@ -141,7 +144,14 @@ describe("certification lane dispatch-authority guard", () => {
     it("verification is read-only and requires governed completion events and authoritative Gate evidence", () => {
       const verify = read("scripts/integration-certification/verify-buyer-to-dispatch-journey.mjs");
       expect(verify).toContain('"dispatched"');
-      expect(verify).toContain("JOURNEY_BUYER_DISPATCH_AUTHORITY_NOT_REJECTED");
+      // The Buyer denial runs in the tail at cleared_for_dispatch; the verifier checks it from the ledger and never signs a Buyer in.
+      expect(verify).toContain("JOURNEY_BUYER_DENIAL_PROBE_MISSING");
+      expect(verify).toContain("JOURNEY_BUYER_DENIAL_NOT_BEFORE_FINALIZATION");
+      expect(verify).toContain("DISPATCH_FINALIZATION_ACTOR_REQUIRED");
+      expect(verify).not.toContain("updateUserById");
+      expect(verify).not.toContain("signInWithPassword");
+      expect(verify).toContain("items?.length !== 1 || items[0].id !== orderItemId");
+      expect(verify).toMatch(/^\s*assertNoError\(unsupportedError\b/m);
       expect(verify).toContain('outcomes.join(",") !== "PARTIAL,COMPLETE"');
       expect(verify).toContain("JOURNEY_GATE_EVIDENCE_NOT_AUTHORITATIVE");
       expect(verify).toContain("B2B_GATE_SCAN_V1");
@@ -182,6 +192,59 @@ describe("certification lane dispatch-authority guard", () => {
         expect(leg).toContain(rpc);
       }
       expect(leg).toContain("JOURNEY_PRODUCTION_BLOCKED_STOCK_COVERED");
+    });
+
+    it("the Buyer denial is exercised at cleared_for_dispatch with Core's specific actor denial", () => {
+      const tail = read("scripts/point100-certification/finalize-point38-canonical-tail.mjs");
+      const buyerProbe = tail.indexOf("BUYER must not finalize dispatch");
+      const finalize = tail.indexOf("Point38 tail canonical dispatch finalization");
+      expect(buyerProbe).toBeGreaterThan(-1);
+      expect(buyerProbe).toBeLessThan(finalize);
+      expect(tail).toContain('"DISPATCH_FINALIZATION_ACTOR_REQUIRED"');
+      expect(tail).toContain("after the Buyer probe");
+    });
+
+    it("lookups fail closed and the ledger is written atomically", () => {
+      const buyer = read("scripts/integration-certification/buyer-order-journey.mjs");
+      expect(buyer).toMatch(/^\s*assertNoError\(stockError\b/m);
+      expect(buyer).toMatch(/^\s*assertNoError\(prodError\b/m);
+      expect(buyer).toContain("JOURNEY_FINANCE_ACTOR_MISSING");
+      expect(buyer).toContain("Journey clear draft after rejected candidate");
+      const leg = read("scripts/integration-certification/governed-production-leg.mjs");
+      expect(leg).toMatch(/^\s*assertNoError\(balanceError\b/m);
+      expect(leg).toContain("JOURNEY_PRODUCTION_HELD_STOCK_NOT_EXERCISED");
+      const ledger = read("scripts/integration-certification/journey-ledger.mjs");
+      expect(ledger).toContain("renameSync");
+      expect(ledger.match(/writeFileSync\(/g)).toHaveLength(1);
+    });
+
+    it("the wrapper never enables the destructive local reset by default", () => {
+      const wrapper = read("scripts/integration-certification/start-ephemeral.sh");
+      expect(wrapper).toContain('POINT100_ALLOW_LOCAL_RESET:?');
+      expect(wrapper).not.toMatch(/POINT100_ALLOW_LOCAL_RESET:-/);
+      expect(wrapper).toContain('!= "true"');
+    });
+
+    it("the prepare/tail scripts reach custody and Gate state only through governed RPCs", () => {
+      const prepare = read("scripts/point100-certification/prepare-point38-canonical-exit.mjs");
+      const tail = read("scripts/point100-certification/finalize-point38-canonical-tail.mjs");
+      for (const rpc of ["declare_b2b_dispatch_source_handoff", "record_b2b_dispatch_handoff_receipt", "accept_b2b_dispatch_handoff", "open_b2b_dispatch_carton"]) {
+        expect(prepare).toContain(`rpc("${rpc}"`);
+      }
+      // No update/upsert/delete anywhere; the only insert in either script is the REJECTED direct-insert probe.
+      for (const script of [prepare, tail]) {
+        expect(script).not.toMatch(/\.(update|upsert|delete)\(/);
+      }
+      expect(prepare).not.toMatch(/\.insert\(/);
+      expect(tail.match(/\.insert\(/g)).toHaveLength(1);
+      expect(tail).toContain("B2B_GATE_SCAN_DIRECT_INSERT_FORBIDDEN");
+    });
+
+    it("the ledger credits only the payment RPCs the run executed", () => {
+      const prepare = read("scripts/point100-certification/prepare-point38-canonical-exit.mjs");
+      expect(prepare).toContain("advanceProofExecuted");
+      expect(prepare).toContain("clearanceDecisionExecuted");
+      expect(prepare).not.toContain("Advance payment proof recorded and verified; operations clearance GRANTED");
     });
 
     it("the RGS reservation names its exact source order line, as Core's factory lineage authority requires", () => {

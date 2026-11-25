@@ -6,7 +6,12 @@ set -euo pipefail
 # Point38 order (and its forced status) is not used.
 : "${POINT100_CORE_REPO:?Set POINT100_CORE_REPO to a local oasis-supabase-core checkout}"
 export FACTORY_CERT_CORE_REPO="${POINT100_CORE_REPO}"
-export FACTORY_CERT_ALLOW_LOCAL_RESET="${POINT100_ALLOW_LOCAL_RESET:-true}"
+: "${POINT100_ALLOW_LOCAL_RESET:?Set POINT100_ALLOW_LOCAL_RESET=true to permit the destructive local db reset}"
+if [[ "${POINT100_ALLOW_LOCAL_RESET}" != "true" ]]; then
+  echo "Refusing local reset: POINT100_ALLOW_LOCAL_RESET must be exactly true" >&2
+  exit 1
+fi
+export FACTORY_CERT_ALLOW_LOCAL_RESET="${POINT100_ALLOW_LOCAL_RESET}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 P100_DIR="${SCRIPT_DIR}/../point100-certification"
 rm -f /tmp/buyer-to-dispatch-journey-ledger.json
@@ -34,5 +39,5 @@ node "${SCRIPT_DIR}/../factory-certification/seed-journey-buyer-product.mjs"
 node "${SCRIPT_DIR}/buyer-order-journey.mjs"          # Buyer -> catalogue -> cart -> quote -> checkout -> PI create
 node "${P100_DIR}/ensure-point38-pi-issued.mjs"       # Finance issues the PI (AAL2)
 POINT38_JOURNEY_GOVERNED_STATUS_PATH=true node "${P100_DIR}/prepare-point38-canonical-exit.mjs"
-POINT38_JOURNEY_GOVERNED_STATUS_PATH=true node "${P100_DIR}/finalize-point38-canonical-tail.mjs" # 5 negative probes, Gate release, proof, finalization
+POINT38_JOURNEY_GOVERNED_STATUS_PATH=true node "${P100_DIR}/finalize-point38-canonical-tail.mjs" # negative authority probes, Gate release, proof, Buyer denial at cleared_for_dispatch, finalization
 node "${SCRIPT_DIR}/verify-buyer-to-dispatch-journey.mjs"

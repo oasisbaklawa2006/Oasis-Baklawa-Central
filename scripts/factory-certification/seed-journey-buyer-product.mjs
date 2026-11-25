@@ -39,8 +39,12 @@ if (onHand !== 0) {
   throw new Error(`JOURNEY_FIXTURE_PRODUCT_HAS_STOCK: ${PRODUCT_SKU} has ${onHand} finished goods on hand; stock is never altered to qualify a product`);
 }
 
-const { data: existingPrice, error: priceReadError } = await supabase.from("product_pricing_rules").select("id").eq("product_id", PRODUCT_ID).eq("price_channel", "b2b").limit(1);
+const { data: existingPrice, error: priceReadError } = await supabase.from("product_pricing_rules").select("id,approval_status").eq("product_id", PRODUCT_ID).eq("price_channel", "b2b");
 assertNoSupabaseError(priceReadError, "Journey fixture pricing read failed");
+if (existingPrice?.length && !existingPrice.some((rule) => rule.approval_status === "approved")) {
+  // A pending/rejected rule is not visible to the Buyer; never report readiness on it and never approve it from here.
+  throw new Error(`JOURNEY_FIXTURE_PRICE_NOT_APPROVED: ${PRODUCT_SKU} has B2B pricing rules but none is approved: ${JSON.stringify(existingPrice)}`);
+}
 if (!existingPrice?.length) {
   const { error: pricingError } = await supabase.from("product_pricing_rules").insert({
     product_id: PRODUCT_ID,
@@ -56,8 +60,11 @@ if (!existingPrice?.length) {
   assertNoSupabaseError(pricingError, "Journey fixture B2B pricing insert failed");
 }
 
-const { data: existingMoq, error: moqReadError } = await supabase.from("product_moq_rules").select("id").eq("product_id", PRODUCT_ID).eq("channel", "b2b").limit(1);
+const { data: existingMoq, error: moqReadError } = await supabase.from("product_moq_rules").select("id,moq_applicable,moq_value,increment_value").eq("product_id", PRODUCT_ID).eq("channel", "b2b");
 assertNoSupabaseError(moqReadError, "Journey fixture MOQ read failed");
+if (existingMoq?.length && !existingMoq.some((rule) => rule.moq_applicable === true && Number(rule.moq_value) === 1 && Number(rule.increment_value) === 1)) {
+  throw new Error(`JOURNEY_FIXTURE_MOQ_INCOMPATIBLE: ${PRODUCT_SKU} has B2B MOQ rules but none is applicable with MOQ 1 / increment 1: ${JSON.stringify(existingMoq)}`);
+}
 if (!existingMoq?.length) {
   const { error: moqError } = await supabase.from("product_moq_rules").insert({
     product_id: PRODUCT_ID,

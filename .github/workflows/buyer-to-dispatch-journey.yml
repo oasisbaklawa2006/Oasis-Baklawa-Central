@@ -97,7 +97,17 @@ jobs:
         shell: bash
         run: |
           set -uo pipefail
-          runs="$(gh api --paginate "repos/${CORE_RELEASE_REPO}/actions/workflows/production-migration-release.yml/runs?event=workflow_dispatch&status=completed&branch=main&per_page=100" --jq ".workflow_runs[] | select(.head_sha == \"${JOURNEY_CORE_SHA}\" and .conclusion == \"success\") | .id" 2>/dev/null || true)"
+          candidates="$(gh api --paginate "repos/${CORE_RELEASE_REPO}/actions/workflows/production-migration-release.yml/runs?event=workflow_dispatch&status=completed&branch=main&per_page=100" --jq ".workflow_runs[] | select(.head_sha == \"${JOURNEY_CORE_SHA}\" and .conclusion == \"success\") | .id" 2>/dev/null || true)"
+          # A deploy=false run can also conclude "success" with its deployment job skipped: list a run only when BOTH the
+          # preflight and the approved deployment jobs succeeded (same rule as the production-bound lane).
+          runs=""
+          for run_id in ${candidates}; do
+            preflight="$(gh api "repos/${CORE_RELEASE_REPO}/actions/runs/${run_id}/jobs?filter=latest&per_page=100" --jq '[.jobs[] | select(.name == "Production ledger and dry-run verification")][0].conclusion // ""' 2>/dev/null || true)"
+            deploy="$(gh api "repos/${CORE_RELEASE_REPO}/actions/runs/${run_id}/jobs?filter=latest&per_page=100" --jq '[.jobs[] | select(.name == "Approved production migration deployment")][0].conclusion // ""' 2>/dev/null || true)"
+            if [[ "${preflight}" == "success" && "${deploy}" == "success" ]]; then
+              runs="${runs:+${runs}$'\n'}${run_id}"
+            fi
+          done
           {
             echo "### Buyer-to-Dispatch journey: NON-PRODUCTION, CI-verified only"
             echo "- Core under test: \`${JOURNEY_CORE_SHA}\` (exact main commit, disposable local stack)"

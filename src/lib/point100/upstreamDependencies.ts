@@ -73,6 +73,16 @@ export function resolveProductionMigrationRunId(): string | null {
   return process.env.POINT100_PRODUCTION_MIGRATION_RUN_ID?.trim() ?? POINT100_PRODUCTION_MIGRATION_RUN_ID;
 }
 
+/**
+ * The migration gate published with certification evidence, built from the RESOLVED protected-release run id.
+ * The `pending-protected-release` placeholder is used only when CI has not bound a release run, so a verified run is
+ * never published against a pending gate.
+ */
+export function resolveProductionMigrationGate(): string {
+  const runId = resolveProductionMigrationRunId();
+  return `oasis-supabase-core:production-migration-release:${runId ? runId : POINT100_PRODUCTION_RELEASE_PENDING}`;
+}
+
 export function isCoreProductionVerified(): boolean {
   const sha = resolveCoreVerifiedSha()?.toLowerCase();
   return sha === POINT100_CORE_PRODUCTION_VERIFIED_SHA;

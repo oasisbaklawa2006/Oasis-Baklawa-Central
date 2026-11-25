@@ -76,10 +76,14 @@ const orderedRows = [...publishedRows].sort((a, b) => Number(b.sku === "CERT-ARA
 const candidates = [];
 for (const row of orderedRows) {
   const productId = String(row.product_id ?? "");
-  const { data: stock } = await admin.from("inventory_stock_balances").select("available_qty,reserved_qty,picked_qty").eq("product_id", productId).eq("location_code", "FINISHED_GOODS");
+  // Fail closed: a failed lookup must never be read as "stock-free" or "no such product".
+  const { data: stock, error: stockError } = await admin.from("inventory_stock_balances").select("available_qty,reserved_qty,picked_qty").eq("product_id", productId).eq("location_code", "FINISHED_GOODS");
+  assertNoError(stockError, `Journey candidate stock lookup (${productId})`);
   const onHand = (stock ?? []).reduce((sum, r) => sum + Number(r.available_qty ?? 0) + Number(r.reserved_qty ?? 0) + Number(r.picked_qty ?? 0), 0);
-  const { data: prod } = await admin.from("products").select("sku,production_department").eq("id", productId).maybeSingle();
-  candidates.push({ productId, sku: prod?.sku ?? row.sku ?? null, department: prod?.production_department ?? null, finishedGoodsOnHand: onHand });
+  const { data: prod, error: prodError } = await admin.from("products").select("sku,production_department").eq("id", productId).maybeSingle();
+  assertNoError(prodError, `Journey candidate product lookup (${productId})`);
+  if (!prod) throw new Error(`JOURNEY_CANDIDATE_PRODUCT_MISSING: published product ${productId} has no products row`);
+  candidates.push({ productId, sku: prod.sku ?? row.sku ?? null, department: prod.production_department ?? null, finishedGoodsOnHand: onHand });
 }
 console.log(`JOURNEY product candidates: ${JSON.stringify(candidates)}`);
 const eligible = new Set(candidates.filter((c) => SUPPORTED_DEPARTMENTS.has(String(c.department ?? "").toLowerCase()) && c.finishedGoodsOnHand === 0).map((c) => c.productId));
@@ -90,11 +94,12 @@ if (orderable.length === 0) {
 }
 for (const row of orderable) {
   const productId = String(row.product_id ?? "");
-  // Order each candidate at its own MOQ/increment; the governed production leg needs a quantity of at least 2.
+  // Order each candidate at its own MOQ/increment; the governed production leg needs a quantity of at least 3 so its first
+  // batch can accept one unit, reject one and hold one (held stock must be exercised, not merely claimed).
   const priceRow = (prices.data ?? []).find((p) => String(p.product_id ?? p.id ?? "") === productId) ?? {};
   const minimum = Number(priceRow.minimum_order_quantity ?? 1) || 1;
   const increment = Number(priceRow.order_increment ?? 1) || 1;
-  let quantity = Math.max(minimum, 2);
+  let quantity = Math.max(minimum, 3);
   if (quantity > minimum) quantity = minimum + Math.ceil((quantity - minimum) / increment) * increment;
   const added = await buyer.rpc("add_customer_order_draft_line_v1", { p_product_id: productId, p_quantity: quantity });
   const rows = added.data;
@@ -103,7 +108,8 @@ for (const row of orderable) {
     break;
   }
   console.log(`JOURNEY candidate ${productId} not orderable at ${quantity}: ${JSON.stringify({ error: added.error?.message ?? null, readiness: rows?.[0]?.readiness_status ?? null, issues: rows?.[0]?.readiness_issues ?? null, minimum, increment })}`);
-  await buyer.rpc("clear_customer_order_draft_v1");
+  // A draft that cannot be cleared would poison the next candidate's one-line check, so stop instead of continuing.
+  assertNoError((await buyer.rpc("clear_customer_order_draft_v1")).error, `Journey clear draft after rejected candidate ${productId}`);
 }
 if (!chosen) throw new Error("JOURNEY_NO_ORDERABLE_PRODUCT: no published, priced, producible stock-free product produced a ready draft");
 const draft = await buyer.rpc("get_customer_order_draft_v1");
@@ -127,6 +133,9 @@ if (!/^[0-9a-f-]{36}$/.test(orderId) || checkout?.is_duplicate_submission !== fa
   throw new Error(`JOURNEY_CHECKOUT_INVALID: ${JSON.stringify(submitted.data)}`);
 }
 setLedgerOrder(orderId, { orderNumber: checkout.order_number, quote: { salesOrderValue: quote.sales_order_value, advanceRequired: quote.advance_required, fingerprint: quote.fingerprint } });
+if (quote.advance_required === null || quote.advance_required === undefined || !Number.isFinite(Number(quote.advance_required))) {
+  throw new Error(`JOURNEY_QUOTE_ADVANCE_MISSING: ${JSON.stringify(quote)}`);
+}
 recordPhase("Buyer submits through Core quoted checkout authority", "BUYER", "customer_checkout_quote_v1 + submit_customer_order_quoted_v1", {
   orderId,
   orderNumber: checkout.order_number,
@@ -166,8 +175,10 @@ const financePassword = readCredential(credentials, "FACTORY_CERT_FINANCE_HEAD_P
 const finance = newClient(anonKey);
 const { error: financeSignIn } = await finance.auth.signInWithPassword({ email: financeEmail, password: financePassword });
 assertNoError(financeSignIn, "Journey Finance sign-in");
-const { data: financeUser } = await finance.auth.getUser();
-const actorId = financeUser.user?.id;
+const { data: financeUser, error: financeUserError } = await finance.auth.getUser();
+assertNoError(financeUserError, "Journey Finance actor lookup");
+const actorId = financeUser?.user?.id;
+if (!actorId) throw new Error("JOURNEY_FINANCE_ACTOR_MISSING: Finance auth.getUser() returned no user id");
 const pi = await finance.rpc("create_sales_order_proforma_invoice_v1", {
   p_order_id: orderId,
   p_commercial_version_id: versions[0].id,

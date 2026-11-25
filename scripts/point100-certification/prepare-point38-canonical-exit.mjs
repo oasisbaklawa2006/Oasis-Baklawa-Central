@@ -164,8 +164,9 @@ async function loadOperationsClearanceFacts(finance, piId, commercialVersionId, 
   return facts;
 }
 
+/** Returns true only when this run actually executed the payment-proof and verification RPCs. */
 async function ensureRequiredAdvanceVerified(finance, financeActorId, piId, commercialVersionId, requiredAdvance) {
-  if (requiredAdvance <= 0.01) return;
+  if (requiredAdvance <= 0.01) return false;
   await recordAndVerifyPayment(
     finance,
     financeActorId,
@@ -185,6 +186,7 @@ async function ensureRequiredAdvanceVerified(finance, financeActorId, piId, comm
       missingPaymentIdError: "POINT100_POINT38_ADVANCE_PAYMENT_ID_MISSING",
     },
   );
+  return true;
 }
 
 async function grantOperationsClearanceDecision(finance, financeActorId, piId, commercialVersionId) {
@@ -207,8 +209,10 @@ async function grantOperationsClearanceDecision(finance, financeActorId, piId, c
 
 async function ensureOperationsClearance(finance, financeActorId, piId, commercialVersionId) {
   let facts = await loadOperationsClearanceFacts(finance, piId, commercialVersionId, "Point38 finance operations facts");
+  let advanceProofExecuted = false;
+  let clearanceDecisionExecuted = false;
   if (facts.eligible_for_operations_clearance !== true) {
-    await ensureRequiredAdvanceVerified(
+    advanceProofExecuted = await ensureRequiredAdvanceVerified(
       finance,
       financeActorId,
       piId,
@@ -224,6 +228,7 @@ async function ensureOperationsClearance(finance, financeActorId, piId, commerci
   }
   if (facts.latest_clearance_decision !== "GRANTED") {
     await grantOperationsClearanceDecision(finance, financeActorId, piId, commercialVersionId);
+    clearanceDecisionExecuted = true;
   }
   const finalRow = await loadOperationsClearanceFacts(
     finance,
@@ -234,6 +239,7 @@ async function ensureOperationsClearance(finance, financeActorId, piId, commerci
   if (finalRow.eligible_for_operations_clearance !== true || finalRow.latest_clearance_decision !== "GRANTED") {
     throw new Error(`POINT100_POINT38_OPERATIONS_CLEARANCE_NOT_ACTIVE: ${JSON.stringify(finalRow)}`);
   }
+  return { advanceProofExecuted, clearanceDecisionExecuted, requiredAdvance: Number(finalRow.required_advance ?? facts.required_advance ?? 0) };
 }
 
 async function issueFinalPaymentRequest(
@@ -554,9 +560,19 @@ try {
   const piId = String(bindings[0].id);
   const commercialVersionId = String(bindings[0].commercial_version_id);
 
-  await ensureOperationsClearance(financeRole.client, financeRole.actorId, piId, commercialVersionId);
+  const clearance = await ensureOperationsClearance(financeRole.client, financeRole.actorId, piId, commercialVersionId);
   if (JOURNEY_STATUS_PATH) {
-    recordPhase("Advance payment proof recorded and verified; operations clearance GRANTED", "FINANCE_HEAD", "record_order_payment_proof_v1 + verify_order_payment_v1 + decide_finance_operations_clearance_v1", { piId });
+    // Credit only what this run executed; verified end-state facts are recorded separately from executed RPCs.
+    const executed = [
+      clearance.advanceProofExecuted ? "record_order_payment_proof_v1 + verify_order_payment_v1" : null,
+      clearance.clearanceDecisionExecuted ? "decide_finance_operations_clearance_v1" : null,
+    ].filter(Boolean);
+    recordPhase(
+      "Operations clearance is active and GRANTED (verified from Core facts)",
+      "FINANCE_HEAD",
+      executed.length ? executed.join(" + ") : "get operations clearance facts (read-only; no payment or decision RPC was needed)",
+      { piId, advanceProofExecutedThisRun: clearance.advanceProofExecuted, clearanceDecisionExecutedThisRun: clearance.clearanceDecisionExecuted, requiredAdvance: clearance.requiredAdvance },
+    );
   }
 
   const { data: orderItem, error: orderItemError } = await dispatchRole.client

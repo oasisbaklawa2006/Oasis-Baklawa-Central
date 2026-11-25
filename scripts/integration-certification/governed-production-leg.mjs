@@ -47,7 +47,7 @@ export async function runGovernedProductionLeg({ orderId, orderItem, adminClient
   const anonKey = requireBootstrapEnv("FACTORY_CERT_SUPABASE_ANON_KEY", LABEL);
   if (!orderItem?.id) throw new Error("JOURNEY_PRODUCTION_BLOCKED_ORDER_LINE: the order line id is required to anchor the RGS reservation");
   const quantity = Number(orderItem.quantity);
-  if (!Number.isInteger(quantity) || quantity < 2) throw new Error(`JOURNEY_PRODUCTION_BLOCKED_QUANTITY: need an integral quantity >= 2, got ${quantity}`);
+  if (!Number.isInteger(quantity) || quantity < 3) throw new Error(`JOURNEY_PRODUCTION_BLOCKED_QUANTITY: need an integral quantity >= 3 (accept one, reject one, hold one), got ${quantity}`);
 
   const { data: product, error: productError } = await adminClient.from("products").select("id,sku,production_department").eq("id", orderItem.product_id).maybeSingle();
   assertNoError(productError, "Journey product read");
@@ -104,7 +104,9 @@ export async function runGovernedProductionLeg({ orderId, orderItem, adminClient
     assertNoError(transfer.error, `Journey ${label} dispatch to RGS`);
     const transferId = String(firstRow(transfer.data)?.id ?? "");
     assertNoError((await store.rpc("record_rgs_receipt", { p_transfer_id: transferId, p_received_qty: produced, p_correlation_id: `journey-${suffix}-${label}-receipt` })).error, `Journey ${label} RGS receipt`);
-    const { data: balance } = await store.from("inventory_stock_balances").select("version").eq("product_id", product.id).eq("sku", product.sku).eq("location_code", "FINISHED_GOODS").maybeSingle();
+    const { data: balance, error: balanceError } = await store.from("inventory_stock_balances").select("version").eq("product_id", product.id).eq("sku", product.sku).eq("location_code", "FINISHED_GOODS").maybeSingle();
+    // A failed read must not be defaulted to version 0; only a successful read that finds no balance row means "no balance yet".
+    assertNoError(balanceError, `Journey ${label} RGS balance read`);
     const accept = await store.rpc("accept_rgs_production_receipt", { p_transfer_id: transferId, p_accepted_qty: accepted, p_rejected_qty: rejected, p_hold_qty: hold, p_expected_balance_version: Number(balance?.version ?? 0), p_correlation_id: `journey-${suffix}-${label}-accept-receipt` });
     assertNoError(accept.error, `Journey ${label} RGS acceptance`);
     recordPhase(`Production job ${label}: produced ${produced}, RGS accepted ${accepted}, rejected ${rejected}, held ${hold}`, `${department.role}+STORE_READY_GOODS`, "accept_production_job ... accept_rgs_production_receipt", { jobId, transferId });
@@ -116,6 +118,7 @@ export async function runGovernedProductionLeg({ orderId, orderItem, adminClient
   const firstAccepted = Math.max(1, quantity - 3);
   const firstRejected = 1;
   const firstHold = firstProduced - firstAccepted - firstRejected;
+  if (firstHold <= 0) throw new Error(`JOURNEY_PRODUCTION_HELD_STOCK_NOT_EXERCISED: first batch holds ${firstHold}; the held-stock exclusion claim needs a positive hold`);
   await runJob("batch1", firstProduced, firstAccepted, firstRejected, firstHold);
 
   const complete = async (key, client = dispatchClient) => {

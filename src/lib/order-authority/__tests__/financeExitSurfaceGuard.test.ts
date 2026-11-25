@@ -120,8 +120,13 @@ describe("Finance Exit surface authority guard", () => {
     expect(script).not.toContain("POINT100_DISPATCH_PRODUCTION_VERIFIED");
     expect(script).not.toContain('.update({ verification_status: "verified" })');
     // The only operational_scan_records access is the negative probe proving a direct insert is REJECTED.
-    const withoutProbe = script.replace(/gateRole\.client\.from\("operational_scan_records"\)\.insert\(\{[\s\S]*?B2B_GATE_SCAN_DIRECT_INSERT_FORBIDDEN"\)/, "");
-    expect(withoutProbe).not.toContain('.from("operational_scan_records")');
+    // Exactly ONE table access may exist, and it must be that probe; a second insert earlier in the file must not be able
+    // to hide inside the probe's exemption window.
+    const tableAccesses = script.match(/\.from\("operational_scan_records"\)/g) ?? [];
+    expect(tableAccesses).toHaveLength(1);
+    const probe = /gateRole\.client\.from\("operational_scan_records"\)\.insert\(\{[\s\S]*?\}\), "B2B_GATE_SCAN_DIRECT_INSERT_FORBIDDEN"\)/.exec(script);
+    expect(probe).not.toBeNull();
+    expect(script.replace(probe![0], "")).not.toContain('.from("operational_scan_records")');
   });
 
   it("Point100 Playwright dispatch tail enforces carton-ready and governed Gate scan after Core #507", () => {

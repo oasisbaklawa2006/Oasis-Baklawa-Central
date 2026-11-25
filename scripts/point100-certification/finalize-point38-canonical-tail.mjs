@@ -86,6 +86,7 @@ console.log("Point100 Point38 tail authority mode: gate/dispatch role-separated 
  * separation of duties is ever loosened (or if a role were silently interchangeable). Core's role matrix
  * (20261001220000) is the documented contract. A rejected call must not mutate state.
  */
+let rejectedProbeCount = 0; // exact number of negative probes that actually ran and were rejected for the stated reason
 async function expectRejected(label, call, expectedFragment) {
   const { data, error } = await call();
   const message = String(error?.message ?? "");
@@ -94,6 +95,7 @@ async function expectRejected(label, call, expectedFragment) {
       `POINT38_NEGATIVE_AUTHORIZATION_FAILED: ${label}: expected rejection containing "${expectedFragment}", got ${JSON.stringify({ error: error?.message ?? null, data })}`,
     );
   }
+  rejectedProbeCount += 1;
   console.log(`Point38 negative authorization PASS: ${label} -> rejected ("${expectedFragment}")`);
 }
 
@@ -165,6 +167,7 @@ try {
     if (!error || !String(error.message ?? "").includes(fragment)) {
       throw new Error(`POINT38_GATE_SCAN_PROBE_FAILED: ${label}: expected "${fragment}", got ${JSON.stringify({ error: error?.message ?? null, data })}`);
     }
+    rejectedProbeCount += 1;
     console.log(`Point38 gate-scan authority PASS: ${label} -> rejected ("${fragment}")`);
   };
   const replay = await gateRole.client.rpc("record_b2b_dispatch_gate_scan_v1", { p_carton_id: cartonId, p_scanned_barcode: cartonCode, p_idempotency_key: gateScanCorrelation });
@@ -238,7 +241,8 @@ try {
 
   // Gate evidence is append-only; Core's gate-decision row is the truth. The harness never updates scan evidence.
   if (journeyLedger) {
-    recordPhase("Independent Security Gate releases the carton (5 negative authority probes rejected first)", "GATE_SECURITY", "release_b2b_dispatch_carton_at_gate_v1", {
+    recordPhase(`Independent Security Gate releases the carton (${rejectedProbeCount} negative authority probes rejected first)`, "GATE_SECURITY", "release_b2b_dispatch_carton_at_gate_v1", {
+      negativeProbesRejectedBeforeRelease: rejectedProbeCount,
       gateScanId,
       gateEvidence: "recorded by record_b2b_dispatch_gate_scan_v1 (server-derived attribution); the barcode is typed by the harness, not read by a physical scanner",
     });
@@ -298,6 +302,44 @@ try {
       }),
     "dispatch finalization authority required",
   );
+  if (journeyLedger) {
+    // The Buyer denial is exercised HERE, while the order is still cleared_for_dispatch and finalization is otherwise
+    // possible, with the canonical arguments, so only Core's actor check can be the reason for the rejection.
+    const buyerEmail = "factory-cert-point38-buyer@example.invalid";
+    const serviceKey = requireBootstrapEnv("FACTORY_CERT_LOCAL_SERVICE_ROLE_KEY", LOCAL_LABEL);
+    const adminClient = createClient(backendUrl, serviceKey, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });
+    const { data: buyerRow, error: buyerLookupError } = await adminClient.from("users").select("id").eq("email", buyerEmail).maybeSingle();
+    assertNoError(buyerLookupError, "Point38 tail Buyer lookup");
+    if (!buyerRow?.id) throw new Error("POINT100_POINT38_TAIL_BUYER_FIXTURE_MISSING");
+    // Disposable Auth only: reset the synthetic Buyer's own password so the Buyer can sign in; no business table is written.
+    const buyerPassword = `Jv${Date.now()}Aa1!x`;
+    assertNoError((await adminClient.auth.admin.updateUserById(buyerRow.id, { password: buyerPassword })).error, "Point38 tail Buyer password reset");
+    const buyerClient = newClient();
+    assertNoError((await buyerClient.auth.signInWithPassword({ email: buyerEmail, password: buyerPassword })).error, "Point38 tail Buyer sign-in");
+    let buyerRejection = "";
+    await expectRejected(
+      "BUYER must not finalize dispatch (staff-only authority)",
+      async () => {
+        const result = await buyerClient.rpc("release_order_to_dispatched_v1", {
+          p_order_id: point38OrderId,
+          p_tracking_number: trackingReference,
+          p_courier_name: "POINT100 SYNTHETIC CARRIER",
+          p_finalize_reason: "negative authorization probe",
+          p_correlation_id: `${RUN_TOKEN}:negative-buyer-finalize-probe`,
+        });
+        buyerRejection = String(result.error?.message ?? "");
+        return result;
+      },
+      "DISPATCH_FINALIZATION_ACTOR_REQUIRED",
+    );
+    await buyerClient.auth.signOut().catch(() => undefined);
+    const { data: afterBuyerProbe, error: afterBuyerProbeError } = await dispatchRole.client.from("orders").select("status").eq("id", point38OrderId).maybeSingle();
+    assertNoError(afterBuyerProbeError, "Point38 tail post-Buyer-probe order status read");
+    if (String(afterBuyerProbe?.status ?? "").toLowerCase() !== "cleared_for_dispatch") {
+      throw new Error(`POINT38_NEGATIVE_AUTHORIZATION_MUTATED_STATE: order status is ${String(afterBuyerProbe?.status)} after the Buyer probe`);
+    }
+    recordPhase("Buyer is rejected from dispatch authority at cleared_for_dispatch; order state unchanged", "BUYER", "release_order_to_dispatched_v1 (negative)", { rejection: buyerRejection, orderStatusAfter: afterBuyerProbe.status });
+  }
   // The rejected finalize must not have changed the order: it is still cleared_for_dispatch.
   const { data: afterProbe, error: afterProbeError } = await dispatchRole.client
     .from("orders")
@@ -330,7 +372,7 @@ try {
     throw new Error(`POINT100_POINT38_TAIL_FINALIZE_BLOCKED: ${JSON.stringify(finalize)}`);
   }
   if (journeyLedger) {
-    recordPhase("Dispatch finalizes the order through the canonical Core RPC", "DISPATCH_MANAGER", "release_order_to_dispatched_v1", { newStatus: finalize.new_status });
+    recordPhase("Dispatch finalizes the order through the canonical Core RPC", "DISPATCH_MANAGER", "release_order_to_dispatched_v1", { newStatus: finalize.new_status, negativeProbesRejectedTotal: rejectedProbeCount });
   }
 
   const { data: exitFactsData, error: exitFactsError } = await proofRole.client.rpc("get_finance_exit_facts_v1", {
