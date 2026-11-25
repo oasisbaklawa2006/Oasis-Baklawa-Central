@@ -184,6 +184,16 @@ describe("certification lane dispatch-authority guard", () => {
       expect(leg).toContain("JOURNEY_PRODUCTION_BLOCKED_STOCK_COVERED");
     });
 
+    it("the RGS reservation names its exact source order line, as Core's factory lineage authority requires", () => {
+      const leg = read("scripts/integration-certification/governed-production-leg.mjs");
+      const call = leg.slice(leg.indexOf('rpc("reserve_rgs_stock"'), leg.indexOf("Journey RGS reservation"));
+      expect(call).toContain('p_demand_source_type: "b2b"');
+      expect(call).toContain("p_demand_reference: `order_item:${orderItem.id}`");
+      // The line id comes from the Buyer-created order; a missing id fails the journey, never a synthetic reference.
+      expect(leg).toContain("JOURNEY_PRODUCTION_BLOCKED_ORDER_LINE");
+      expect(leg).not.toMatch(/order_item:\$\{(?!orderItem\.id)/);
+    });
+
     it("Gate evidence is recorded only by record_b2b_dispatch_gate_scan_v1, after the carton is ready_to_load", () => {
       const tail = read("scripts/point100-certification/finalize-point38-canonical-tail.mjs");
       expect(tail).toContain("record_b2b_dispatch_gate_scan_v1");

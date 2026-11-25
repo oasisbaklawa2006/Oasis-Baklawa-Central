@@ -45,6 +45,7 @@ export async function runGovernedProductionLeg({ orderId, orderItem, adminClient
   const credentials = parseCredentialFile();
   const backendUrl = assertLoopbackHttpOrigin(requireBootstrapEnv("FACTORY_CERT_SUPABASE_URL", LABEL), LABEL);
   const anonKey = requireBootstrapEnv("FACTORY_CERT_SUPABASE_ANON_KEY", LABEL);
+  if (!orderItem?.id) throw new Error("JOURNEY_PRODUCTION_BLOCKED_ORDER_LINE: the order line id is required to anchor the RGS reservation");
   const quantity = Number(orderItem.quantity);
   if (!Number.isInteger(quantity) || quantity < 2) throw new Error(`JOURNEY_PRODUCTION_BLOCKED_QUANTITY: need an integral quantity >= 2, got ${quantity}`);
 
@@ -62,6 +63,8 @@ export async function runGovernedProductionLeg({ orderId, orderItem, adminClient
   const reservation = await adminClient.rpc("reserve_rgs_stock", {
     p_reservation_number: `JRN-RES-${suffix}`, p_order_id: orderId, p_product_id: product.id, p_sku: product.sku,
     p_requested_qty: quantity, p_source_department: department.source, p_correlation_id: `journey-${suffix}-reserve`,
+    // Core's factory lineage authority requires every governed in-production reservation to name its exact source order line.
+    p_demand_source_type: "b2b", p_demand_reference: `order_item:${orderItem.id}`,
   });
   assertNoError(reservation.error, "Journey RGS reservation");
   let reservationRow = firstRow(reservation.data);
