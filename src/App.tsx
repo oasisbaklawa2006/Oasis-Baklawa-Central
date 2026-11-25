@@ -19,6 +19,7 @@ import NotFound from "./pages/NotFound.tsx";
 import ErrorBoundary from "./components/ErrorBoundary.tsx";
 import AuthErrorListener from "./components/AuthErrorListener.tsx";
 import RoleProtectedRoute from "@/components/RoleProtectedRoute";
+import TvDeviceRoute from "@/components/TvDeviceRoute";
 import { WhatsAppPermissionRoute } from "@/components/WhatsAppPermissionRoute";
 import AdminModuleRoute from "@/components/AdminModuleRoute";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
@@ -544,13 +545,13 @@ const App = () => (
                       </ProtectedRoute>
                     }
                   />
-                  <Route path="/tv/arabic-sweets" element={<RoleProtectedRoute allowedRoles={["HOD_ARABIC", "PROD_ARABIC_SWEETS", "SUPER_ADMIN", "ADMIN"]}><FactoryTVModule category="Arabic Sweets" departmentFilter="Arabic Sweets" title="Arabic Sweets Line" /></RoleProtectedRoute>} />
+                  <Route path="/tv/arabic-sweets" element={<TvDeviceRoute group="ARABIC_SWEETS" staffRoles={["HOD_ARABIC", "PROD_ARABIC_SWEETS", "SUPER_ADMIN", "ADMIN"]}><FactoryTVModule category="Arabic Sweets" departmentFilter="Arabic Sweets" title="Arabic Sweets Line" /></TvDeviceRoute>} />
                   {/* Chocolates & Confectionery TV also serves Dragees staff -- owner's
                       six-TV estate (Central issue #368) folds Dragees into Chocolates &
                       Confectionery rather than giving it its own screen. FactoryTVModule's
                       departmentFilter matches by TV group (productProductionDepartments.ts),
                       so "Chocolates" already includes dragees-labelled jobs/products. */}
-                  <Route path="/tv/chocolate" element={<RoleProtectedRoute allowedRoles={["HOD_CHOCOLATE", "PROD_CHOCOLATE", "HOD_DRAGEES", "PROD_DRAGEES", "SUPER_ADMIN", "ADMIN"]}><FactoryTVModule category="Chocolate" departmentFilter="Chocolates" title="Chocolate Line" /></RoleProtectedRoute>} />
+                  <Route path="/tv/chocolate" element={<TvDeviceRoute group="CHOCOLATES_CONFECTIONERY" staffRoles={["HOD_CHOCOLATE", "PROD_CHOCOLATE", "HOD_DRAGEES", "PROD_DRAGEES", "SUPER_ADMIN", "ADMIN"]}><FactoryTVModule category="Chocolate" departmentFilter="Chocolates" title="Chocolate Line" /></TvDeviceRoute>} />
                   {/* Legacy standalone Dragees TV bookmark/kiosk config -- redirect rather
                       than leave an unreachable route (six-TV estate has no Dragees TV). */}
                   <Route path="/tv/dragees" element={<Navigate to="/tv/chocolate" replace />} />
@@ -559,9 +560,9 @@ const App = () => (
                       giving it its own screen. FactoryTVModule's departmentFilter
                       matches by TV group (productProductionDepartments.ts), so
                       "Fusion Sweets" already includes dates-labelled jobs/products. */}
-                  <Route path="/tv/fusion" element={<RoleProtectedRoute allowedRoles={["HOD_FUSION", "PROD_FUSION", "HOD_DATES", "PROD_DATES", "SUPER_ADMIN", "ADMIN"]}><FactoryTVModule category="Fusion Sweets" departmentFilter="Fusion Sweets" title="Fusion Sweets Line" /></RoleProtectedRoute>} />
-                  <Route path="/tv/bakery" element={<RoleProtectedRoute allowedRoles={["HOD_BAKERY", "PROD_BAKERY", "SUPER_ADMIN", "ADMIN"]}><FactoryTVModule category="Bakery" departmentFilter="Bakery" title="Bakery Line" /></RoleProtectedRoute>} />
-                  <Route path="/tv/nuts" element={<RoleProtectedRoute allowedRoles={["HOD_NUTS", "PROD_NUTS", "SUPER_ADMIN", "ADMIN"]}><FactoryTVModule category="Seasoned Nuts" departmentFilter="Nuts Roasting" title="Nuts & Dry Fruits Line" /></RoleProtectedRoute>} />
+                  <Route path="/tv/fusion" element={<TvDeviceRoute group="FUSION_SWEETS" staffRoles={["HOD_FUSION", "PROD_FUSION", "HOD_DATES", "PROD_DATES", "SUPER_ADMIN", "ADMIN"]}><FactoryTVModule category="Fusion Sweets" departmentFilter="Fusion Sweets" title="Fusion Sweets Line" /></TvDeviceRoute>} />
+                  <Route path="/tv/bakery" element={<TvDeviceRoute group="BAKERY" staffRoles={["HOD_BAKERY", "PROD_BAKERY", "SUPER_ADMIN", "ADMIN"]}><FactoryTVModule category="Bakery" departmentFilter="Bakery" title="Bakery Line" /></TvDeviceRoute>} />
+                  <Route path="/tv/nuts" element={<TvDeviceRoute group="SEASONED_NUTS_MIXES" staffRoles={["HOD_NUTS", "PROD_NUTS", "SUPER_ADMIN", "ADMIN"]}><FactoryTVModule category="Seasoned Nuts" departmentFilter="Nuts Roasting" title="Nuts & Dry Fruits Line" /></TvDeviceRoute>} />
                   {/* RGS is the sixth TV in the owner's six-TV estate (Central issue #368),
                       alongside the five production TVs above -- previously ReadyGoodsTV was
                       only reachable inside the full authenticated /admin shell
@@ -569,7 +570,7 @@ const App = () => (
                       dedicated display. This route gives it the same top-level, chrome-free
                       pattern as /tv/arabic-sweets etc.; /admin/rgs-tv is left in place
                       unchanged for in-app admin navigation. */}
-                  <Route path="/tv/rgs" element={<RoleProtectedRoute allowedRoles={["STORE_READY_GOODS", "RGS_ADMIN", "TV_READY", "SUPER_ADMIN", "ADMIN"]}><ReadyGoodsTV /></RoleProtectedRoute>} />
+                  <Route path="/tv/rgs" element={<TvDeviceRoute group="RGS" staffRoles={["STORE_READY_GOODS", "RGS_ADMIN", "TV_READY", "SUPER_ADMIN", "ADMIN"]}><ReadyGoodsTV /></TvDeviceRoute>} />
                   <Route path="/tv/3pgs" element={<RoleProtectedRoute allowedRoles={["STORE_3RD_PARTY", "OPERATIONS_MANAGER", "TV_3PGS", "SUPER_ADMIN", "ADMIN"]}><ThreePgsTV /></RoleProtectedRoute>} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
