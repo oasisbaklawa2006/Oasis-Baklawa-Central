@@ -216,6 +216,17 @@ describe("certification lane dispatch-authority guard", () => {
       const ledger = read("scripts/integration-certification/journey-ledger.mjs");
       expect(ledger).toContain("renameSync");
       expect(ledger.match(/writeFileSync\(/g)).toHaveLength(1);
+      // Static analysis requires literal paths for the temp write and the rename.
+      expect(ledger).toMatch(/writeFileSync\("\/tmp\/buyer-to-dispatch-journey-ledger\.json\.tmp"/);
+      expect(ledger).toMatch(/renameSync\("\/tmp\/buyer-to-dispatch-journey-ledger\.json\.tmp", "\/tmp\/buyer-to-dispatch-journey-ledger\.json"\)/);
+      // Detail keys must never overwrite the phase's own fixed fields (a phase once recorded status "dispatched" instead of PASS).
+      expect(ledger).toMatch(/\.\.\.detail, n:/);
+      expect(read("scripts/integration-certification/verify-buyer-to-dispatch-journey.mjs")).not.toMatch(/\{ orderId, status:/);
+      expect(read("scripts/integration-certification/verify-buyer-to-dispatch-journey.mjs")).not.toMatch(/ledgerAfter\.phases\[/);
+      // Stage details must report the RESOLVED release run id, not the pending placeholder constant.
+      const rehearsal = read("tests/point100/dress-rehearsal.cert.spec.ts");
+      expect(rehearsal).not.toContain("${POINT100_PRODUCTION_MIGRATION_RUN_ID}");
+      expect(rehearsal).toContain("${resolveProductionMigrationRunId()}");
     });
 
     it("the wrapper never enables the destructive local reset by default", () => {

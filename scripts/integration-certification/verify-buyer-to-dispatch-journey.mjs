@@ -42,7 +42,7 @@ if (Number(order.sales_order_value) !== Number(ledger.quote?.salesOrderValue)) f
 const hasNumber = (value) => value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value));
 if (!hasNumber(order.advance_required) || !hasNumber(ledger.quote?.advanceRequired)) fail("JOURNEY_ADVANCE_MISSING", { order: order.advance_required, quote: ledger.quote?.advanceRequired });
 if (Number(order.advance_required) !== Number(ledger.quote.advanceRequired)) fail("JOURNEY_ADVANCE_DRIFT_ORDER_VS_QUOTE", { order: order.advance_required, quote: ledger.quote.advanceRequired });
-recordPhase("Final order state is dispatched for the Buyer-created order id", "CORE", "orders read-back", { orderId, status: order.status });
+recordPhase("Final order state is dispatched for the Buyer-created order id", "CORE", "orders read-back", { orderId, orderStatus: order.status });
 
 // 2. Status lineage in order.
 const { data: history, error: historyError } = await admin.from("order_status_history").select("*").eq("order_id", orderId);
@@ -111,7 +111,7 @@ const buyerIndex = names.findIndex((name) => name.startsWith("Buyer is rejected 
 const finalizeIndex = names.findIndex((name) => name === "Dispatch finalizes the order through the canonical Core RPC");
 if (buyerIndex < 0) fail("JOURNEY_BUYER_DENIAL_PROBE_MISSING", { phases: names });
 if (finalizeIndex < 0 || buyerIndex > finalizeIndex) fail("JOURNEY_BUYER_DENIAL_NOT_BEFORE_FINALIZATION", { buyerIndex, finalizeIndex });
-const buyerPhase = ledgerAfter.phases[buyerIndex];
+const buyerPhase = ledgerAfter.phases.find((phase) => phase.name.startsWith("Buyer is rejected from dispatch authority at cleared_for_dispatch"));
 if (!String(buyerPhase.rejection ?? "").includes("DISPATCH_FINALIZATION_ACTOR_REQUIRED") || String(buyerPhase.orderStatusAfter ?? "").toLowerCase() !== "cleared_for_dispatch") {
   fail("JOURNEY_BUYER_DENIAL_NOT_AUTHORITY_SPECIFIC", buyerPhase);
 }

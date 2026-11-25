@@ -20,10 +20,10 @@ import {
 import {
   POINT100_CORE_PRODUCTION_VERIFIED_SHA,
   POINT100_DISPATCH_FINALIZE_RPC,
-  POINT100_PRODUCTION_MIGRATION_RUN_ID,
   POINT100_UPSTREAM_DEPENDENCIES,
   formatUpstreamBlocker,
   productionGateBlockers,
+  resolveProductionMigrationRunId,
 } from "../../src/lib/point100/upstreamDependencies";
 import {
   certifiedDispatchFinalizeProbe,
@@ -244,7 +244,7 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
       }],
       p_correlation_id: correlationId,
     });
-    recordStage(stages, "inventory_lot_allocation", "create_assembly_job", "HOD_ASSEMBLY", correlationId, error ? "FAIL" : "PASS", error?.message ?? `job_id=${String((data as { id?: string } | null)?.id)}; production_core_sha=${POINT100_CORE_PRODUCTION_VERIFIED_SHA.slice(0, 8)}; migration_run=${POINT100_PRODUCTION_MIGRATION_RUN_ID}`);
+    recordStage(stages, "inventory_lot_allocation", "create_assembly_job", "HOD_ASSEMBLY", correlationId, error ? "FAIL" : "PASS", error?.message ?? `job_id=${String((data as { id?: string } | null)?.id)}; production_core_sha=${POINT100_CORE_PRODUCTION_VERIFIED_SHA.slice(0, 8)}; migration_run=${resolveProductionMigrationRunId()}`);
     recordStage(stages, "production_qc", null, "HOD_ASSEMBLY", correlationId, error ? "FAIL" : "PASS", error?.message ?? "assembly job created; QC contract is separately probed below");
     expect(error, error?.message).toBeNull();
   });
@@ -263,7 +263,7 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
       client,
     );
     const ok = putawayProbe.exists && lotExceptionProbe.exists;
-    recordStage(stages, "inventory_lot_allocation", "record_inventory_lot_exception", "STORE_READY_GOODS", `p100-${RUN_SUFFIX}-lot-rpc`, ok ? "PASS" : "FAIL", `allocate_b2b_inventory_putaway=${putawayProbe.exists}; record_inventory_lot_exception=${lotExceptionProbe.exists}; core_sha=${POINT100_CORE_PRODUCTION_VERIFIED_SHA.slice(0, 8)}; migration_run=${POINT100_PRODUCTION_MIGRATION_RUN_ID}`);
+    recordStage(stages, "inventory_lot_allocation", "record_inventory_lot_exception", "STORE_READY_GOODS", `p100-${RUN_SUFFIX}-lot-rpc`, ok ? "PASS" : "FAIL", `allocate_b2b_inventory_putaway=${putawayProbe.exists}; record_inventory_lot_exception=${lotExceptionProbe.exists}; core_sha=${POINT100_CORE_PRODUCTION_VERIFIED_SHA.slice(0, 8)}; migration_run=${resolveProductionMigrationRunId()}`);
     expect(ok, `${putawayProbe.detail}; ${lotExceptionProbe.detail}`).toBe(true);
   });
 
@@ -281,7 +281,7 @@ test("POINT100 :: full synthetic dress rehearsal", async ({ page }) => {
       client,
     );
     const ok = acceptProbe.exists && outputProbe.exists;
-    recordStage(stages, "production_qc", "accept_production_job", "PROD_ARABIC_SWEETS", `p100-${RUN_SUFFIX}-factory-rpc`, ok ? "PASS" : "FAIL", `accept_production_job=${acceptProbe.exists}; record_production_output=${outputProbe.exists}; core_sha=${POINT100_CORE_PRODUCTION_VERIFIED_SHA.slice(0, 8)}; migration_run=${POINT100_PRODUCTION_MIGRATION_RUN_ID}`);
+    recordStage(stages, "production_qc", "accept_production_job", "PROD_ARABIC_SWEETS", `p100-${RUN_SUFFIX}-factory-rpc`, ok ? "PASS" : "FAIL", `accept_production_job=${acceptProbe.exists}; record_production_output=${outputProbe.exists}; core_sha=${POINT100_CORE_PRODUCTION_VERIFIED_SHA.slice(0, 8)}; migration_run=${resolveProductionMigrationRunId()}`);
     expect(ok, `${acceptProbe.detail}; ${outputProbe.detail}`).toBe(true);
   });
 
