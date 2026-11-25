@@ -1,5 +1,11 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useContext, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  TvDeviceSessionContext,
+  fetchTvRgsStockSnapshot,
+  tvProductLabel,
+  type TvRpcClient,
+} from "@/lib/tvDevice";
 import { Package, AlertTriangle, CheckCircle2, Clock, Loader2, type LucideIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -33,9 +39,47 @@ export default function ReadyGoodsTV() {
   const [items, setItems] = useState<TVItem[]>([]);
   const [lowStock, setLowStock] = useState<LowStockItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deviceError, setDeviceError] = useState<string | null>(null);
   const [now, setNow] = useState(new Date());
 
+  // True only under TvDeviceRoute's ACTIVE device branch. A dedicated RGS TV identity is denied order_items/products
+  // by RLS and reads only Core's tv_rgs_stock_snapshot(); order demand is not available to a device session.
+  const deviceSession = useContext(TvDeviceSessionContext);
+
+  // Only the newest refresh may update the board: an older response that finishes late must not clear a newer error or
+  // replace newer stock data (the board would then read as healthy while the latest snapshot failed).
+  const latestRequest = useRef(0);
+
   const fetchData = useCallback(async () => {
+    const requestId = ++latestRequest.current;
+    const isLatest = () => requestId === latestRequest.current;
+    if (deviceSession) {
+      try {
+        const balances = await fetchTvRgsStockSnapshot(supabase as unknown as TvRpcClient);
+        if (!isLatest()) return;
+        setDeviceError(null);
+        setItems([]);
+        setLowStock(
+          balances
+            .filter((b) => (b.available_qty ?? 0) < 10)
+            .map((b) => ({
+              id: b.product_id,
+              name: tvProductLabel(b.product_id, b.sku),
+              sku: b.sku ?? null,
+              computed_stock: b.available_qty ?? 0,
+            })),
+        );
+      } catch (snapshotError) {
+        if (!isLatest()) return;
+        console.error("TV device stock snapshot error:", snapshotError);
+        // Never show an empty board as "all good" when the snapshot could not be read.
+        setItems([]);
+        setLowStock([]);
+        setDeviceError(snapshotError instanceof Error ? snapshotError.message : "Stock snapshot unavailable");
+      }
+      setLoading(false);
+      return;
+    }
     const { data: orderItems } = await supabase
       .from("order_items")
       .select("id, order_id, quantity, actual_packed_qty, production_status, product:products(name, sku)")
@@ -43,6 +87,7 @@ export default function ReadyGoodsTV() {
       .neq("department", "3PCS")
       .in("production_status", ["pending", "in_progress", "partial_ready", "completed"])
       .order("production_status", { ascending: true });
+    if (!isLatest()) return;
     setItems((orderItems ?? []) as TVItem[]);
 
     // Governed stock-on-hand (inventory_stock_balances), not the legacy
@@ -56,6 +101,7 @@ export default function ReadyGoodsTV() {
       .select("product_id, available_qty, product:products(name, sku)")
       .eq("location_code", "FINISHED_GOODS")
       .lt("available_qty", 10);
+    if (!isLatest()) return;
     setLowStock((invData ?? []).map((i) => ({
       id: i.product_id,
       name: i.product?.name || "?",
@@ -64,7 +110,7 @@ export default function ReadyGoodsTV() {
     })));
 
     setLoading(false);
-  }, []);
+  }, [deviceSession]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
   useEffect(() => {
@@ -90,6 +136,16 @@ export default function ReadyGoodsTV() {
   const skuDemand = Object.values(skuDemandMap).sort((a, b) => (b.totalNeeded - b.totalReady) - (a.totalNeeded - a.totalReady));
 
   if (loading) return <div className="min-h-screen bg-black flex items-center justify-center"><Loader2 className="animate-spin text-emerald-400" size={48} /></div>;
+
+  if (deviceSession && deviceError) {
+    return (
+      <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center gap-3" data-testid="rgs-tv-device-error">
+        <AlertTriangle size={48} className="text-red-500" />
+        <p className="text-2xl font-bold">Could not load the Ready Goods stock snapshot</p>
+        <p className="text-gray-400">{deviceError}</p>
+      </div>
+    );
+  }
 
   const Column = ({ title, icon: Icon, items: colItems, color, blink }: { title: string; icon: LucideIcon; items: TVItem[]; color: string; blink?: boolean }) => (
     <div className="flex flex-col h-full">
@@ -127,9 +183,26 @@ export default function ReadyGoodsTV() {
 
       {/* TOP: 3+1 Column Board */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 h-auto xl:h-[45vh] overflow-hidden">
-        <Column title="Ready for Dispatch" icon={CheckCircle2} items={readyItems} color="bg-emerald-600" blink />
-        <Column title="Partial Orders" icon={Package} items={partialItems} color="bg-purple-600" />
-        <Column title="Pending Production" icon={Clock} items={pendingItems} color="bg-amber-600" />
+        {deviceSession ? (
+          // A device identity cannot read order demand (RLS), so these panels would read "Empty" / "0 SKUs" for data that
+          // simply is not available here. Say so instead of presenting it as zero demand.
+          <div
+            className="md:col-span-1 xl:col-span-3 flex flex-col items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 p-6 text-center"
+            data-testid="rgs-tv-demand-unavailable"
+          >
+            <Package size={36} className="text-white/40" />
+            <p className="text-xl font-bold">Order demand is not available on this display</p>
+            <p className="text-sm text-white/50">
+              This screen shows finished-goods stock only. Ready, partial and pending orders and the SKU demand summary need a staff view.
+            </p>
+          </div>
+        ) : (
+          <>
+            <Column title="Ready for Dispatch" icon={CheckCircle2} items={readyItems} color="bg-emerald-600" blink />
+            <Column title="Partial Orders" icon={Package} items={partialItems} color="bg-purple-600" />
+            <Column title="Pending Production" icon={Clock} items={pendingItems} color="bg-amber-600" />
+          </>
+        )}
 
         {/* LOW STOCK ALERTS */}
         <div className="flex flex-col h-full">
@@ -153,7 +226,8 @@ export default function ReadyGoodsTV() {
         </div>
       </div>
 
-      {/* BOTTOM: SKU-wise Demand Summary Table */}
+      {/* BOTTOM: SKU-wise Demand Summary Table (staff only; a device session cannot read order demand) */}
+      {!deviceSession && (
       <div className="mt-4 bg-white/5 rounded-xl border border-white/10 overflow-hidden">
         <div className="px-4 py-3 bg-blue-900/60 flex items-center gap-2">
           <Package size={20} />
@@ -190,6 +264,7 @@ export default function ReadyGoodsTV() {
           </table>
         </div>
       </div>
+      )}
     </div>
   );
 }
