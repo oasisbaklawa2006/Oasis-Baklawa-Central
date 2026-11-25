@@ -200,14 +200,74 @@ describe("TvDeviceRoute", () => {
     expect(screen.getByTestId("tv-content")).toBeTruthy();
   });
 
-  it("does not stack overlapping checks while one is still pending", async () => {
+  it("does not stack overlapping checks while one is still pending, across several poll intervals", async () => {
     currentRole = "TV_DISPLAY";
     rpc = vi.fn(() => new Promise<never>(() => {}));
     renderRoute();
-    // 3 ticks of the interval, but each hung call is abandoned after the timeout, so calls stay bounded.
     await act(async () => {
       await vi.advanceTimersByTimeAsync(5_000);
     });
     expect(rpc).toHaveBeenCalledTimes(1);
+
+    // The hung call is abandoned at the 10s timeout (fail closed). Right up to the first 60s poll nothing else starts.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(54_000); // t = 59s
+    });
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("tv-device-blocked").getAttribute("data-tv-device-status")).toBe("UNAVAILABLE");
+
+    // Past the first poll exactly one new check starts; it is not doubled by the earlier hung one.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_000); // t = 61s
+    });
+    expect(rpc).toHaveBeenCalledTimes(2);
+
+    // And again across the second and third poll: one new check per poll, never more.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000); // t = 121s
+    });
+    expect(rpc).toHaveBeenCalledTimes(3);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000); // t = 181s
+    });
+    expect(rpc).toHaveBeenCalledTimes(4);
+    expect(screen.queryByTestId("tv-content")).toBeNull();
+  });
+
+  it("a late ACTIVE from an abandoned check cannot override a later REVOKED result", async () => {
+    currentRole = "TV_DISPLAY";
+    let resolveFirst!: (value: { data: unknown; error: null }) => void;
+    let call = 0;
+    rpc = vi.fn(() => {
+      call += 1;
+      if (call === 1) {
+        return new Promise<{ data: unknown; error: null }>((resolve) => {
+          resolveFirst = resolve;
+        });
+      }
+      return Promise.resolve({ data: "REVOKED", error: null });
+    });
+    renderRoute();
+
+    // First check hangs and is abandoned at the timeout (fails closed).
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(TV_REQUEST_TIMEOUT_MS);
+    });
+    expect(screen.getByTestId("tv-device-blocked").getAttribute("data-tv-device-status")).toBe("UNAVAILABLE");
+
+    // The next poll reports the device REVOKED.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000 - TV_REQUEST_TIMEOUT_MS);
+    });
+    expect(rpc).toHaveBeenCalledTimes(2);
+    expect(screen.getByTestId("tv-device-blocked").getAttribute("data-tv-device-status")).toBe("REVOKED");
+
+    // The abandoned first request now answers ACTIVE, late. It must not restore the board.
+    await act(async () => {
+      resolveFirst({ data: "ACTIVE", error: null });
+    });
+    await flush();
+    expect(screen.queryByTestId("tv-content")).toBeNull();
+    expect(screen.getByTestId("tv-device-blocked").getAttribute("data-tv-device-status")).toBe("REVOKED");
   });
 });

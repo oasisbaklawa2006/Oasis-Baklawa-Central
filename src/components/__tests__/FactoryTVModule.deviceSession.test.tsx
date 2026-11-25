@@ -162,6 +162,13 @@ describe("FactoryTVModule as a TV device session", () => {
     expect(from).not.toHaveBeenCalled();
   });
 
+  it("shows an error, never 'No Open Production Jobs', when the queue payload is malformed", async () => {
+    rpc.mockResolvedValue({ data: "nope", error: null });
+    renderDevice();
+    await waitFor(() => expect(screen.getByText("Could not load Arabic Sweets Line")).toBeTruthy());
+    expect(screen.queryByText(/No Open Production Jobs/i)).toBeNull();
+  });
+
   it("does not use the device RPC outside a device session (staff path unchanged)", async () => {
     const builder: Record<string, unknown> = {};
     builder.select = () => builder;

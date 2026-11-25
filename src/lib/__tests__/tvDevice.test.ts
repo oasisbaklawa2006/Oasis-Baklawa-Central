@@ -3,6 +3,7 @@ import {
   TV_DEVICE_ROLES,
   TV_REQUEST_TIMEOUT_MS,
   TvRequestTimeoutError,
+  TvResponseFormatError,
   withTvTimeout,
   TV_GROUPS,
   fetchTvDepartmentProductionQueue,
@@ -163,10 +164,32 @@ describe("TV device helpers", () => {
     });
   });
 
-  it("surfaces read errors and treats a non-array payload as no rows", async () => {
+  it("surfaces read errors", async () => {
     await expect(fetchTvDepartmentProductionQueue(client({ data: null, error: { message: "denied" } }))).rejects.toThrow("denied");
     await expect(fetchTvRgsStockSnapshot(client({ data: null, error: {} }))).rejects.toThrow("TV stock snapshot unavailable");
-    await expect(fetchTvDepartmentProductionQueue(client({ data: "nope", error: null }))).resolves.toEqual([]);
+  });
+
+  it("accepts an empty list as a real answer but rejects any other payload instead of reading it as no rows", async () => {
+    await expect(fetchTvDepartmentProductionQueue(client({ data: [], error: null }))).resolves.toEqual([]);
+    await expect(fetchTvRgsStockSnapshot(client({ data: [], error: null }))).resolves.toEqual([]);
+    for (const bad of ["nope", null, undefined, {}, { rows: [] }, 0, true]) {
+      await expect(fetchTvDepartmentProductionQueue(client({ data: bad, error: null }))).rejects.toBeInstanceOf(TvResponseFormatError);
+      await expect(fetchTvRgsStockSnapshot(client({ data: bad, error: null }))).rejects.toBeInstanceOf(TvResponseFormatError);
+    }
+  });
+
+  it("also rejects a malformed payload from the legacy queue after a fallback", async () => {
+    const calls: string[] = [];
+    const c: TvRpcClient = {
+      rpc: vi.fn(async (fn: string) => {
+        calls.push(fn);
+        return calls.length === 1
+          ? { data: null, error: { code: "PGRST202", message: "Could not find the function" } }
+          : { data: "nope", error: null };
+      }),
+    };
+    await expect(fetchTvDepartmentProductionQueue(c)).rejects.toBeInstanceOf(TvResponseFormatError);
+    expect(calls).toEqual([TV_QUEUE_NAMED_RPC, TV_QUEUE_LEGACY_RPC]);
   });
 
   it("labels products by SKU when Core provides one, else by an honest reference, and never invents a name", () => {
@@ -225,5 +248,77 @@ describe("TV device helpers", () => {
       await vi.advanceTimersByTimeAsync(250);
       await expect(result).resolves.toBe("UNAVAILABLE");
     });
+  });
+});
+
+describe("TV RPC cancellation (a timed-out request must not keep running)", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /** A PostgREST-style call: awaitable, with abortSignal() that records the signal and resolves/rejects on it. */
+  function abortableClient(answer?: { data: unknown; error: null }) {
+    const state = { signals: [] as AbortSignal[], aborted: 0 };
+    const rpc = vi.fn(() => {
+      const call = {
+        then: (onFulfilled?: (v: unknown) => unknown, onRejected?: (e: unknown) => unknown) =>
+          (answer ? Promise.resolve(answer) : new Promise<never>(() => {})).then(onFulfilled, onRejected),
+        abortSignal: (signal: AbortSignal) => {
+          state.signals.push(signal);
+          signal.addEventListener("abort", () => {
+            state.aborted += 1;
+          });
+          return call;
+        },
+      };
+      return call;
+    });
+    return { client: { rpc } as unknown as TvRpcClient, state, rpc };
+  }
+
+  it("aborts the underlying request when the timeout expires, and still reports a timeout", async () => {
+    vi.useFakeTimers();
+    const { client: c, state } = abortableClient();
+    const pending = fetchTvDepartmentProductionQueue(c, 1000);
+    const assertion = expect(pending).rejects.toBeInstanceOf(TvRequestTimeoutError);
+    await vi.advanceTimersByTimeAsync(1000);
+    await assertion;
+    expect(state.signals).toHaveLength(1);
+    expect(state.signals[0].aborted).toBe(true);
+    expect(state.aborted).toBe(1);
+  });
+
+  it("aborts the status check too (fails closed to UNAVAILABLE)", async () => {
+    vi.useFakeTimers();
+    const { client: c, state } = abortableClient();
+    const pending = fetchTvDeviceStatus(c, "BAKERY", 1000);
+    await vi.advanceTimersByTimeAsync(1000);
+    await expect(pending).resolves.toBe("UNAVAILABLE");
+    expect(state.signals[0].aborted).toBe(true);
+  });
+
+  it("does not abort a request that answered in time", async () => {
+    const { client: c, state } = abortableClient({ data: [], error: null });
+    await expect(fetchTvRgsStockSnapshot(c)).resolves.toEqual([]);
+    expect(state.signals).toHaveLength(1);
+    expect(state.signals[0].aborted).toBe(false);
+  });
+
+  it("still works with a client that has no abortSignal (plain promise)", async () => {
+    await expect(fetchTvRgsStockSnapshot(client({ data: [], error: null }))).resolves.toEqual([]);
+  });
+
+  it("hands withTvTimeout's work function a signal that is aborted on timeout and not before", async () => {
+    vi.useFakeTimers();
+    let seen: AbortSignal | undefined;
+    const pending = withTvTimeout((signal) => {
+      seen = signal;
+      return new Promise<never>(() => {});
+    }, 500);
+    const assertion = expect(pending).rejects.toBeInstanceOf(TvRequestTimeoutError);
+    expect(seen?.aborted).toBe(false);
+    await vi.advanceTimersByTimeAsync(500);
+    await assertion;
+    expect(seen?.aborted).toBe(true);
   });
 });

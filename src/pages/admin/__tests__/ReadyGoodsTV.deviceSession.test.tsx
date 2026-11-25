@@ -117,4 +117,41 @@ describe("ReadyGoodsTV as the RGS TV device session", () => {
     expect(screen.queryByTestId("rgs-tv-device-error")).toBeNull();
     expect(screen.getAllByText(/NEWER-SKU-1/).length).toBeGreaterThan(0);
   });
+
+  it("does not present unreadable order demand as empty demand on a device session", async () => {
+    rpc.mockResolvedValue({ data: [{ product_id: "abcdef12-0000-4000-8000-000000000000", sku: "BKL-PIST-250", available_qty: 3 }], error: null });
+    renderDevice();
+    await waitFor(() => expect(screen.getByTestId("rgs-tv-demand-unavailable")).toBeTruthy());
+    expect(screen.getByText("Order demand is not available on this display")).toBeTruthy();
+    // None of the staff demand panels (which would read "Empty" / "0 SKUs") are rendered for a device.
+    for (const title of ["Ready for Dispatch", "Partial Orders", "Pending Production", "SKU-Wise Demand Summary"]) {
+      expect(screen.queryByText(title)).toBeNull();
+    }
+    expect(screen.queryByText("Empty")).toBeNull();
+    expect(screen.queryByText(/\b0 SKUs\b/)).toBeNull();
+    // The stock the device CAN read is still shown.
+    expect(screen.getAllByText(/BKL-PIST-250/).length).toBeGreaterThan(0);
+    expect(screen.getByText("Low Stock")).toBeTruthy();
+  });
+
+  it("rejects an unexpected snapshot payload instead of showing an all-clear board", async () => {
+    rpc.mockResolvedValue({ data: "nope", error: null });
+    renderDevice();
+    await waitFor(() => expect(screen.getByTestId("rgs-tv-device-error")).toBeTruthy());
+    expect(screen.queryByText("All OK")).toBeNull();
+  });
+
+  it("keeps the staff demand panels unchanged outside a device session", async () => {
+    const builder: Record<string, unknown> = {};
+    for (const m of ["select", "in", "neq", "order", "eq", "lt"]) builder[m] = () => builder;
+    builder.then = (resolve: (v: { data: unknown[]; error: null }) => void) => resolve({ data: [], error: null });
+    from.mockReturnValue(builder);
+    render(<ReadyGoodsTV />);
+    await waitFor(() => expect(screen.getByText("Ready for Dispatch")).toBeTruthy());
+    expect(screen.getByText("Partial Orders")).toBeTruthy();
+    expect(screen.getByText("Pending Production")).toBeTruthy();
+    expect(screen.getByText("SKU-Wise Demand Summary")).toBeTruthy();
+    expect(screen.queryByTestId("rgs-tv-demand-unavailable")).toBeNull();
+    expect(rpc).not.toHaveBeenCalled();
+  });
 });

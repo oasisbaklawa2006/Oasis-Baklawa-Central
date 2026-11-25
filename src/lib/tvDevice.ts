@@ -41,11 +41,15 @@ export function parseTvDeviceStatus(value: unknown): TvDeviceStatusResult {
   return typeof value === "string" && KNOWN_STATUSES.includes(value) ? (value as TvDeviceStatus) : "UNAVAILABLE";
 }
 
+export type TvRpcResult = { data: unknown; error: { message?: string; code?: string } | null };
+
+/** A PostgREST RPC builder can also be cancelled with abortSignal(); plain test doubles do not offer it. */
+export type TvRpcCall = PromiseLike<TvRpcResult> & {
+  abortSignal?: (signal: AbortSignal) => PromiseLike<TvRpcResult>;
+};
+
 export interface TvRpcClient {
-  rpc: (
-    fn: string,
-    args?: Record<string, unknown>,
-  ) => PromiseLike<{ data: unknown; error: { message?: string; code?: string } | null }>;
+  rpc: (fn: string, args?: Record<string, unknown>) => TvRpcCall;
 }
 
 /**
@@ -61,11 +65,32 @@ export class TvRequestTimeoutError extends Error {
   }
 }
 
-/** Rejects with TvRequestTimeoutError if `work` has not settled within `ms`. The timer is always cleared. */
-export function withTvTimeout<T>(work: PromiseLike<T>, ms: number = TV_REQUEST_TIMEOUT_MS): Promise<T> {
+/**
+ * Rejects with TvRequestTimeoutError if `work` has not settled within `ms`. The timer is always cleared.
+ *
+ * Pass a function to receive an AbortSignal: it is aborted when the timeout expires, so the underlying request is
+ * cancelled instead of continuing in the background while the next poll starts another one.
+ */
+export function withTvTimeout<T>(
+  work: PromiseLike<T> | ((signal: AbortSignal) => PromiseLike<T>),
+  ms: number = TV_REQUEST_TIMEOUT_MS,
+): Promise<T> {
   return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new TvRequestTimeoutError(ms)), ms);
-    Promise.resolve(work).then(
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      // Reject first so the timeout, not the abort error it triggers, is what the caller sees.
+      reject(new TvRequestTimeoutError(ms));
+      controller.abort();
+    }, ms);
+    let started: PromiseLike<T>;
+    try {
+      started = typeof work === "function" ? work(controller.signal) : work;
+    } catch (error) {
+      clearTimeout(timer);
+      reject(error);
+      return;
+    }
+    Promise.resolve(started).then(
       (value) => {
         clearTimeout(timer);
         resolve(value);
@@ -78,13 +103,21 @@ export function withTvTimeout<T>(work: PromiseLike<T>, ms: number = TV_REQUEST_T
   });
 }
 
+/** One bounded RPC: aborted (when the client supports it) and rejected if it outlives the timeout. */
+function callTvRpc(client: TvRpcClient, fn: string, args: Record<string, unknown> | undefined, ms: number) {
+  return withTvTimeout<TvRpcResult>((signal) => {
+    const call = args === undefined ? client.rpc(fn) : client.rpc(fn, args);
+    return typeof call.abortSignal === "function" ? call.abortSignal(signal) : call;
+  }, ms);
+}
+
 export async function fetchTvDeviceStatus(
   client: TvRpcClient,
   group: TvGroup,
   timeoutMs: number = TV_REQUEST_TIMEOUT_MS,
 ): Promise<TvDeviceStatusResult> {
   try {
-    const { data, error } = await withTvTimeout(client.rpc("tv_device_status", { p_expected_group: group }), timeoutMs);
+    const { data, error } = await callTvRpc(client, "tv_device_status", { p_expected_group: group }, timeoutMs);
     if (error) return "UNAVAILABLE";
     return parseTvDeviceStatus(data);
   } catch {
@@ -115,8 +148,17 @@ export interface TvStockBalanceRow {
   available_qty: number | null;
 }
 
-function asRows<T>(data: unknown): T[] {
-  return Array.isArray(data) ? (data as T[]) : [];
+export class TvResponseFormatError extends Error {
+  constructor(what: string) {
+    super(`${what} returned an unexpected response (expected a list of rows)`);
+    this.name = "TvResponseFormatError";
+  }
+}
+
+/** Core returns a list of rows ([] is valid). Anything else must fail closed, never read as "no rows". */
+function asRows<T>(data: unknown, what: string): T[] {
+  if (!Array.isArray(data)) throw new TvResponseFormatError(what);
+  return data as T[];
 }
 
 /** Core's department queue with each job's product name and SKU (a TV identity cannot read `products` itself). */
@@ -143,14 +185,14 @@ export async function fetchTvDepartmentProductionQueue(
   client: TvRpcClient,
   timeoutMs: number = TV_REQUEST_TIMEOUT_MS,
 ): Promise<TvProductionJobRow[]> {
-  const named = await withTvTimeout(client.rpc(TV_QUEUE_NAMED_RPC), timeoutMs);
-  if (!named.error) return asRows<TvProductionJobRow>(named.data);
+  const named = await callTvRpc(client, TV_QUEUE_NAMED_RPC, undefined, timeoutMs);
+  if (!named.error) return asRows<TvProductionJobRow>(named.data, "TV production queue");
   if (!isMissingRpcError(named.error)) {
     throw new Error(named.error.message || "TV production queue unavailable");
   }
-  const { data, error } = await withTvTimeout(client.rpc(TV_QUEUE_LEGACY_RPC), timeoutMs);
+  const { data, error } = await callTvRpc(client, TV_QUEUE_LEGACY_RPC, undefined, timeoutMs);
   if (error) throw new Error(error.message || "TV production queue unavailable");
-  return asRows<TvProductionJobRow>(data);
+  return asRows<TvProductionJobRow>(data, "TV production queue");
 }
 
 /** FINISHED_GOODS balances; Core returns rows only for an enabled RGS device. */
@@ -158,9 +200,9 @@ export async function fetchTvRgsStockSnapshot(
   client: TvRpcClient,
   timeoutMs: number = TV_REQUEST_TIMEOUT_MS,
 ): Promise<TvStockBalanceRow[]> {
-  const { data, error } = await withTvTimeout(client.rpc("tv_rgs_stock_snapshot"), timeoutMs);
+  const { data, error } = await callTvRpc(client, "tv_rgs_stock_snapshot", undefined, timeoutMs);
   if (error) throw new Error(error.message || "TV stock snapshot unavailable");
-  return asRows<TvStockBalanceRow>(data);
+  return asRows<TvStockBalanceRow>(data, "TV stock snapshot");
 }
 
 /**

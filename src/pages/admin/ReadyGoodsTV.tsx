@@ -183,9 +183,26 @@ export default function ReadyGoodsTV() {
 
       {/* TOP: 3+1 Column Board */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 h-auto xl:h-[45vh] overflow-hidden">
-        <Column title="Ready for Dispatch" icon={CheckCircle2} items={readyItems} color="bg-emerald-600" blink />
-        <Column title="Partial Orders" icon={Package} items={partialItems} color="bg-purple-600" />
-        <Column title="Pending Production" icon={Clock} items={pendingItems} color="bg-amber-600" />
+        {deviceSession ? (
+          // A device identity cannot read order demand (RLS), so these panels would read "Empty" / "0 SKUs" for data that
+          // simply is not available here. Say so instead of presenting it as zero demand.
+          <div
+            className="md:col-span-1 xl:col-span-3 flex flex-col items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 p-6 text-center"
+            data-testid="rgs-tv-demand-unavailable"
+          >
+            <Package size={36} className="text-white/40" />
+            <p className="text-xl font-bold">Order demand is not available on this display</p>
+            <p className="text-sm text-white/50">
+              This screen shows finished-goods stock only. Ready, partial and pending orders and the SKU demand summary need a staff view.
+            </p>
+          </div>
+        ) : (
+          <>
+            <Column title="Ready for Dispatch" icon={CheckCircle2} items={readyItems} color="bg-emerald-600" blink />
+            <Column title="Partial Orders" icon={Package} items={partialItems} color="bg-purple-600" />
+            <Column title="Pending Production" icon={Clock} items={pendingItems} color="bg-amber-600" />
+          </>
+        )}
 
         {/* LOW STOCK ALERTS */}
         <div className="flex flex-col h-full">
@@ -209,7 +226,8 @@ export default function ReadyGoodsTV() {
         </div>
       </div>
 
-      {/* BOTTOM: SKU-wise Demand Summary Table */}
+      {/* BOTTOM: SKU-wise Demand Summary Table (staff only; a device session cannot read order demand) */}
+      {!deviceSession && (
       <div className="mt-4 bg-white/5 rounded-xl border border-white/10 overflow-hidden">
         <div className="px-4 py-3 bg-blue-900/60 flex items-center gap-2">
           <Package size={20} />
@@ -246,6 +264,7 @@ export default function ReadyGoodsTV() {
           </table>
         </div>
       </div>
+      )}
     </div>
   );
 }
