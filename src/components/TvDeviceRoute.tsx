@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AlertTriangle, Loader2, MonitorOff } from "lucide-react";
 import RoleProtectedRoute from "@/components/RoleProtectedRoute";
 import { useAuth } from "@/hooks/useAuth";
@@ -34,14 +34,28 @@ const BLOCK_COPY: Record<Exclude<TvDeviceStatusResult, "ACTIVE">, string> = {
 };
 
 function TvDeviceStatusGate({ group, children, client }: Pick<Props, "group" | "children" | "client">) {
-  const [status, setStatus] = useState<TvDeviceStatusResult | "CHECKING">("CHECKING");
+  // The status is stored WITH the group it was checked for. If the route's group changes, an earlier ACTIVE answer for
+  // another department can never authorise this one: until a check for THIS group resolves, the gate is CHECKING.
+  const [checked, setChecked] = useState<{ group: TvGroup; status: TvDeviceStatusResult } | null>(null);
   const rpcClient = client ?? (supabase as unknown as TvRpcClient);
+  const status: TvDeviceStatusResult | "CHECKING" = checked && checked.group === group ? checked.status : "CHECKING";
+  const inFlight = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
+    inFlight.current = false;
+    // Drop any authorisation held for a previous group immediately, before the first check for this one.
+    setChecked((prev) => (prev && prev.group !== group ? null : prev));
     const check = async () => {
-      const next = await fetchTvDeviceStatus(rpcClient, group);
-      if (!cancelled) setStatus(next);
+      // A check that is still pending (bounded by the request timeout) is never stacked under a new one.
+      if (inFlight.current) return;
+      inFlight.current = true;
+      try {
+        const next = await fetchTvDeviceStatus(rpcClient, group);
+        if (!cancelled) setChecked({ group, status: next });
+      } finally {
+        inFlight.current = false;
+      }
     };
     void check();
     const timer = window.setInterval(() => void check(), POLL_MS);

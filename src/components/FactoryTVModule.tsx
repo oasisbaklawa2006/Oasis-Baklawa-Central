@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useContext } from "react";
+import { useEffect, useState, useCallback, useContext, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { Loader2, RefreshCw, Clock, Package, AlertTriangle, Zap } from "lucide-react";
@@ -55,8 +55,10 @@ type ProductionJobRow = Pick<
   | "created_at"
 > & {
   product: ProductionJobProduct;
-  // Present on device-session rows (tv_department_production_queue); a device may not read `products`.
+  // Present on device-session rows; a device may not read `products`, so Core's named queue supplies these.
   product_id?: string | null;
+  device_product_name?: string | null;
+  device_sku?: string | null;
 };
 
 interface OrderLookup {
@@ -82,12 +84,20 @@ const FactoryTVModule = ({ category, departmentFilter, title }: FactoryTVModuleP
 
   const tvGroup = tvGroupOf(departmentFilter);
   // True only under TvDeviceRoute's ACTIVE device branch. A dedicated TV identity is denied every table by RLS, so it
-  // reads only Core's group-scoped tv_department_production_queue() and shows product identifiers, never names.
+  // reads only Core's group-scoped department queue, which supplies the product name and SKU. If Core has not deployed
+  // that RPC yet the board shows a short product reference, never an invented name.
   const deviceSession = useContext(TvDeviceSessionContext);
   const jobLabel = (job: ProductionJobRow, fallback: string) =>
-    job.product?.name || (deviceSession ? tvProductLabel(job.product_id) : fallback);
+    job.product?.name ||
+    (deviceSession ? tvProductLabel(job.product_id, job.device_sku, job.device_product_name) : fallback);
+
+  // Only the newest refresh may update the board: a slow older response must not overwrite a newer one, nor
+  // re-stamp lastRefresh as fresh.
+  const latestRequest = useRef(0);
 
   const fetchJobs = useCallback(async () => {
+    const requestId = ++latestRequest.current;
+    const isLatest = () => requestId === latestRequest.current;
     if (!tvGroup) {
       setError(`Unrecognised department filter: ${departmentFilter}`);
       setLoading(false);
@@ -97,6 +107,7 @@ const FactoryTVModule = ({ category, departmentFilter, title }: FactoryTVModuleP
     if (deviceSession) {
       try {
         const queue = await fetchTvDepartmentProductionQueue(supabase as unknown as TvRpcClient);
+        if (!isLatest()) return;
         setJobs(
           queue.map((row) => ({
             id: row.id,
@@ -108,6 +119,8 @@ const FactoryTVModule = ({ category, departmentFilter, title }: FactoryTVModuleP
             department: row.department ?? "",
             created_at: row.created_at ?? "",
             product_id: row.product_id,
+            device_product_name: row.product_name ?? null,
+            device_sku: row.sku ?? null,
             product: null,
           })) as unknown as ProductionJobRow[],
         );
@@ -115,6 +128,7 @@ const FactoryTVModule = ({ category, departmentFilter, title }: FactoryTVModuleP
         setError(null);
         setLastRefresh(new Date());
       } catch (queueError) {
+        if (!isLatest()) return;
         console.error("TV device queue error:", queueError);
         setError(queueError instanceof Error ? queueError.message : "TV production queue unavailable");
       }
@@ -131,6 +145,7 @@ const FactoryTVModule = ({ category, departmentFilter, title }: FactoryTVModuleP
       .in("status", OPEN_STATUSES)
       .order("created_at", { ascending: true });
 
+    if (!isLatest()) return;
     if (jobsError) {
       console.error("TV fetch error:", jobsError);
       setError(jobsError.message);
@@ -148,6 +163,7 @@ const FactoryTVModule = ({ category, departmentFilter, title }: FactoryTVModuleP
         .from("orders")
         .select("id, company:companies(business_name)")
         .in("id", orderIds);
+      if (!isLatest()) return;
       if (!orderErr && orderRows) {
         setOrderLookup(new Map((orderRows as unknown as OrderLookup[]).map((o) => [o.id, o])));
       }

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import TvDeviceRoute from "../TvDeviceRoute";
-import type { TvRpcClient } from "@/lib/tvDevice";
+import { TV_REQUEST_TIMEOUT_MS, type TvRpcClient } from "@/lib/tvDevice";
 
 let currentRole: string | null = null;
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ role: currentRole }) }));
@@ -117,5 +117,97 @@ describe("TvDeviceRoute", () => {
     await flush();
     expect(rpc).not.toHaveBeenCalled();
     expect(screen.queryByTestId("tv-content")).toBeNull();
+  });
+
+  it("drops an earlier ACTIVE the moment the group changes, so another department's authorisation never leaks", async () => {
+    currentRole = "TV_DISPLAY";
+    const answers = new Map<string, (v: { data: unknown; error: null }) => void>();
+    rpc = vi.fn((_fn: string, args?: Record<string, unknown>) => {
+      const group = String(args?.p_expected_group);
+      if (group === "ARABIC_SWEETS") return Promise.resolve({ data: "ACTIVE", error: null });
+      return new Promise((resolve) => answers.set(group, resolve));
+    });
+    const view = render(
+      <TvDeviceRoute group="ARABIC_SWEETS" staffRoles={STAFF} client={client()}>
+        <div data-testid="tv-content">board</div>
+      </TvDeviceRoute>,
+    );
+    await flush();
+    expect(screen.getByTestId("tv-content")).toBeTruthy();
+
+    // Same mounted route, now pointed at BAKERY whose check has not answered yet.
+    view.rerender(
+      <TvDeviceRoute group="BAKERY" staffRoles={STAFF} client={client()}>
+        <div data-testid="tv-content">board</div>
+      </TvDeviceRoute>,
+    );
+    expect(screen.queryByTestId("tv-content")).toBeNull();
+    expect(screen.getByTestId("tv-device-checking")).toBeTruthy();
+    expect(rpc).toHaveBeenCalledWith("tv_device_status", { p_expected_group: "BAKERY" });
+
+    // Only Core's answer for BAKERY can authorise it.
+    await act(async () => {
+      answers.get("BAKERY")?.({ data: "ACTIVE", error: null });
+      await Promise.resolve();
+    });
+    expect(screen.getByTestId("tv-content")).toBeTruthy();
+  });
+
+  it("blocks the new group if Core says it is not this device's group, rather than keeping the old ACTIVE", async () => {
+    currentRole = "TV_ASSEMBLY";
+    rpc = vi.fn(async (_fn: string, args?: Record<string, unknown>) => ({
+      data: args?.p_expected_group === "ARABIC_SWEETS" ? "ACTIVE" : "GROUP_MISMATCH",
+      error: null,
+    }));
+    const view = render(
+      <TvDeviceRoute group="ARABIC_SWEETS" staffRoles={STAFF} client={client()}>
+        <div data-testid="tv-content">board</div>
+      </TvDeviceRoute>,
+    );
+    await flush();
+    expect(screen.getByTestId("tv-content")).toBeTruthy();
+    view.rerender(
+      <TvDeviceRoute group="FUSION_SWEETS" staffRoles={STAFF} client={client()}>
+        <div data-testid="tv-content">board</div>
+      </TvDeviceRoute>,
+    );
+    await flush();
+    expect(screen.queryByTestId("tv-content")).toBeNull();
+    expect(screen.getByTestId("tv-device-blocked").getAttribute("data-tv-device-status")).toBe("GROUP_MISMATCH");
+  });
+
+  it("times out a hung status request (fails closed) and keeps polling so the kiosk recovers", async () => {
+    currentRole = "TV_READY";
+    let call = 0;
+    rpc = vi.fn(() => {
+      call += 1;
+      return call === 1 ? new Promise<never>(() => {}) : Promise.resolve({ data: "ACTIVE", error: null });
+    });
+    renderRoute("RGS");
+    expect(screen.getByTestId("tv-device-checking")).toBeTruthy();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(TV_REQUEST_TIMEOUT_MS);
+    });
+    expect(screen.queryByTestId("tv-content")).toBeNull();
+    expect(screen.getByTestId("tv-device-blocked").getAttribute("data-tv-device-status")).toBe("UNAVAILABLE");
+
+    // The next one-minute poll is not stalled behind the hung call and restores the board.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000 - TV_REQUEST_TIMEOUT_MS);
+    });
+    expect(rpc).toHaveBeenCalledTimes(2);
+    expect(screen.getByTestId("tv-content")).toBeTruthy();
+  });
+
+  it("does not stack overlapping checks while one is still pending", async () => {
+    currentRole = "TV_DISPLAY";
+    rpc = vi.fn(() => new Promise<never>(() => {}));
+    renderRoute();
+    // 3 ticks of the interval, but each hung call is abandoned after the timeout, so calls stay bounded.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_000);
+    });
+    expect(rpc).toHaveBeenCalledTimes(1);
   });
 });

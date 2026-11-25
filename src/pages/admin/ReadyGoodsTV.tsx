@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useContext } from "react";
+import { useEffect, useState, useCallback, useContext, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   TvDeviceSessionContext,
@@ -46,10 +46,17 @@ export default function ReadyGoodsTV() {
   // by RLS and reads only Core's tv_rgs_stock_snapshot(); order demand is not available to a device session.
   const deviceSession = useContext(TvDeviceSessionContext);
 
+  // Only the newest refresh may update the board: an older response that finishes late must not clear a newer error or
+  // replace newer stock data (the board would then read as healthy while the latest snapshot failed).
+  const latestRequest = useRef(0);
+
   const fetchData = useCallback(async () => {
+    const requestId = ++latestRequest.current;
+    const isLatest = () => requestId === latestRequest.current;
     if (deviceSession) {
       try {
         const balances = await fetchTvRgsStockSnapshot(supabase as unknown as TvRpcClient);
+        if (!isLatest()) return;
         setDeviceError(null);
         setItems([]);
         setLowStock(
@@ -57,12 +64,13 @@ export default function ReadyGoodsTV() {
             .filter((b) => (b.available_qty ?? 0) < 10)
             .map((b) => ({
               id: b.product_id,
-              name: tvProductLabel(b.product_id),
-              sku: null,
+              name: tvProductLabel(b.product_id, b.sku),
+              sku: b.sku ?? null,
               computed_stock: b.available_qty ?? 0,
             })),
         );
       } catch (snapshotError) {
+        if (!isLatest()) return;
         console.error("TV device stock snapshot error:", snapshotError);
         // Never show an empty board as "all good" when the snapshot could not be read.
         setItems([]);
@@ -79,6 +87,7 @@ export default function ReadyGoodsTV() {
       .neq("department", "3PCS")
       .in("production_status", ["pending", "in_progress", "partial_ready", "completed"])
       .order("production_status", { ascending: true });
+    if (!isLatest()) return;
     setItems((orderItems ?? []) as TVItem[]);
 
     // Governed stock-on-hand (inventory_stock_balances), not the legacy
@@ -92,6 +101,7 @@ export default function ReadyGoodsTV() {
       .select("product_id, available_qty, product:products(name, sku)")
       .eq("location_code", "FINISHED_GOODS")
       .lt("available_qty", 10);
+    if (!isLatest()) return;
     setLowStock((invData ?? []).map((i) => ({
       id: i.product_id,
       name: i.product?.name || "?",
