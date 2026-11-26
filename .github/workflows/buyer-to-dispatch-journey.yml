@@ -31,7 +31,7 @@ concurrency:
 
 env:
   # Exact Core main commit under test (full 40-hex SHA). Changing it is an owner decision.
-  JOURNEY_CORE_SHA: 4e821518089ada8fa60cc0b7e115a291f856c68d
+  JOURNEY_CORE_SHA: f6f5036fae9689ca341ee8376503e7f1d5fefdf9
 
 jobs:
   static-guards:
@@ -58,7 +58,7 @@ jobs:
           bash -n scripts/integration-certification/start-ephemeral.sh
           for f in scripts/integration-certification/*.mjs scripts/point100-certification/*.mjs; do node --check "$f"; done
           [[ "${JOURNEY_CORE_SHA}" =~ ^[0-9a-f]{40}$ ]]
-          test "${JOURNEY_CORE_SHA}" = "4e821518089ada8fa60cc0b7e115a291f856c68d"
+          test "${JOURNEY_CORE_SHA}" = "f6f5036fae9689ca341ee8376503e7f1d5fefdf9"
 
       - name: Unit tests (Point100 harness and journey authority guards)
         run: npm run test -- src/lib/point100 src/lib/order-authority/__tests__/financeExitSurfaceGuard.test.ts
@@ -72,7 +72,7 @@ jobs:
       POINT100_CORE_REPO: ${{ github.workspace }}/oasis-supabase-core
       POINT100_ALLOW_LOCAL_RESET: "true"
       POINT100_ALLOW_DISPOSABLE_BOOTSTRAP: "false"
-      POINT100_CORE_VERIFIED_SHA: 4e821518089ada8fa60cc0b7e115a291f856c68d
+      POINT100_CORE_VERIFIED_SHA: f6f5036fae9689ca341ee8376503e7f1d5fefdf9
       FACTORY_CERT_CORE_REPO: ${{ github.workspace }}/oasis-supabase-core
       FACTORY_CERT_ALLOW_LOCAL_RESET: "true"
       FACTORY_CERT_CREDENTIAL_FILE: /tmp/oasis-factory-certification.env

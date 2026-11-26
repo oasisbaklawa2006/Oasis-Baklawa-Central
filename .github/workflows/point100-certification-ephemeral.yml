@@ -31,7 +31,7 @@ jobs:
       POINT100_ALLOW_LOCAL_RESET: "true"
       POINT100_ALLOW_DISPOSABLE_BOOTSTRAP: "false"
       POINT100_DISPATCH_PRODUCTION_VERIFIED: "true"
-      POINT100_CORE_VERIFIED_SHA: 4e821518089ada8fa60cc0b7e115a291f856c68d
+      POINT100_CORE_VERIFIED_SHA: f6f5036fae9689ca341ee8376503e7f1d5fefdf9
       FACTORY_CERT_CORE_REPO: ${{ github.workspace }}/oasis-supabase-core
       FACTORY_CERT_ALLOW_LOCAL_RESET: "true"
       FACTORY_CERT_CREDENTIAL_FILE: /tmp/oasis-factory-certification.env
@@ -142,7 +142,7 @@ jobs:
           bash -n scripts/point100-certification/stop-ephemeral.sh
           bash -n scripts/point100-certification/run-dress-rehearsal.sh
           bash -n scripts/point100-certification/recert-after-core-260.sh
-          test "${POINT100_CORE_VERIFIED_SHA}" = "4e821518089ada8fa60cc0b7e115a291f856c68d"
+          test "${POINT100_CORE_VERIFIED_SHA}" = "f6f5036fae9689ca341ee8376503e7f1d5fefdf9"
           [[ "${POINT100_PRODUCTION_MIGRATION_RUN_ID}" =~ ^[0-9]+$ ]]
           test "${POINT100_RECERT_AFTER_CORE_MIGRATION_RUN_ID}" = "${POINT100_PRODUCTION_MIGRATION_RUN_ID}"
           test "${POINT100_ALLOW_DISPOSABLE_BOOTSTRAP}" = "false"

@@ -24,13 +24,14 @@ export type Point100UpstreamDependency = {
 };
 
 /**
- * Declared Core pin (owner-directed, Run 3): Core main 4e821518, which carries the governed B2B Gate scan authority
- * (record_b2b_dispatch_gate_scan_v1) and the Gate/Dispatch role separation (20261001220000). Declaring the pin is NOT
+ * Declared Core pin (owner-directed, Phase 1 closeout): Core main f6f5036f, the certified and protectedly deployed Core SHA
+ * (Production Migration Release run 45696846847) and a descendant of the former pin 4e821518. It carries the governed B2B Gate
+ * scan authority (record_b2b_dispatch_gate_scan_v1) and the Gate/Dispatch role separation (20261001220000). Declaring the pin is NOT
  * production certification: the lane's own gate re-derives, at run time, a successful protected deploy=true Production
  * Migration Release for exactly this SHA and fails closed if none exists. The release run id is therefore never
  * hard-coded here; it is bound from that evidence in CI (POINT100_PRODUCTION_MIGRATION_RUN_ID).
  */
-export const POINT100_CORE_PRODUCTION_VERIFIED_SHA = "4e821518089ada8fa60cc0b7e115a291f856c68d";
+export const POINT100_CORE_PRODUCTION_VERIFIED_SHA = "f6f5036fae9689ca341ee8376503e7f1d5fefdf9";
 
 /** Placeholder until CI binds the protected release run for the pinned SHA; never a real run id. */
 export const POINT100_PRODUCTION_RELEASE_PENDING = "pending-protected-release";
