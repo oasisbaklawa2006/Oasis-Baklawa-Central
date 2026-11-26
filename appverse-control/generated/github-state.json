@@ -1,7 +1,7 @@
 {
   "authority": "OBJECTIVE_GITHUB_EVIDENCE_ONLY",
   "clearance_warning": "This file MUST NOT autonomously mark ASM stages CLEARED.",
-  "generated_at": "2026-11-25T22:30:09Z",
+  "generated_at": "2026-11-26T05:01:14Z",
   "repositories": {
     "oasisbaklawa2006/Oasis-Baklawa-Central": {
       "access_status": "readable",
@@ -772,7 +772,7 @@
           "combined_status": "SUCCESS",
           "draft": true,
           "head": "c69610bc49f9964d3723106697a8c2dd6c39948b",
-          "mergeable": "UNKNOWN",
+          "mergeable": "MERGEABLE",
           "number": 586,
           "status_checks": [
             {
@@ -883,7 +883,7 @@
           "combined_status": "SUCCESS",
           "draft": false,
           "head": "12dd8410a386e4f586151164f33bbf43a86bd117",
-          "mergeable": "UNKNOWN",
+          "mergeable": "MERGEABLE",
           "number": 498,
           "status_checks": [
             {
