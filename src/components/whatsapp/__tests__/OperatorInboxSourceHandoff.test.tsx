@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { supabase } from "@/integrations/supabase/client";
@@ -132,9 +132,23 @@ describe("governed Operator Inbox source handoff", () => {
     fireEvent.click(screen.getByRole("button", { name: "Find packets" }));
     await waitFor(() => expect(query.limit).toHaveBeenCalledOnce());
     fireEvent.change(sourceInput, { target: { value: "wamid.source-b" } });
-    resolveLookup?.({ data: [{ packet_id: PACKET }], error: null });
+    vi.mocked(fetchPacketById).mockResolvedValue({
+      id: PACKET,
+      contact_id: "contact-1",
+      fragment_count: 1,
+      status: "open",
+      first_message_at: "2026-11-18T08:00:00Z",
+      last_message_at: "2026-11-18T09:00:00Z",
+      stitched_content: null,
+      customer_name: "Example Bakery",
+    });
+    await act(async () => {
+      resolveLookup?.({ data: [{ packet_id: PACKET }], error: null });
+    });
 
-    await waitFor(() => expect(fetchPacketById).toHaveBeenCalledWith(PACKET));
+    expect(fetchPacketById).toHaveBeenCalledWith(PACKET);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Review this packet" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Find packets" })).toBeEnabled();
   });
