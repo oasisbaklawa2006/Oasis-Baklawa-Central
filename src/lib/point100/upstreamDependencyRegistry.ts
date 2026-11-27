@@ -105,7 +105,7 @@ export const POINT100_UPSTREAM_DEPENDENCIES: readonly Point100UpstreamDependency
     pr: "#260",
     state: "merged",
     affectedStageIds: ["dispatch_consignment", "order_complete"],
-    blockerDetail: "Core #260 release_order_to_dispatched_v1, role-separated by 20261001220000 (Dispatch finalizes; the independent Security Gate only releases), present on the declared Core pin 4e821518 (production release evidence is verified at run time, not asserted here).",
+    blockerDetail: "Core #260 release_order_to_dispatched_v1, role-separated by 20261001220000 (Dispatch finalizes; the independent Security Gate only releases), present on the declared Core pin f6f5036f (production release evidence is verified at run time, not asserted here).",
     failClosedStatus: "implemented",
   },
   {
@@ -211,7 +211,7 @@ export const POINT100_UPSTREAM_DEPENDENCIES: readonly Point100UpstreamDependency
       "customer_dispatch_proof",
       "order_complete",
     ],
-    blockerDetail: "Declared Core pin 4e821518 (Gate/Dispatch role separation 20261001220000 and governed Gate scan included). Production release evidence for this exact SHA is verified at run time by the lane gate and is not asserted here.",
+    blockerDetail: "Declared Core pin f6f5036f (Gate/Dispatch role separation 20261001220000 and governed Gate scan included). Production release evidence for this exact SHA is verified at run time by the lane gate and is not asserted here.",
     failClosedStatus: "implemented",
   },
   {

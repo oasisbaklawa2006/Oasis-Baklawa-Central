@@ -110,7 +110,7 @@ describe("certification lane dispatch-authority guard", () => {
   });
 
   describe("Buyer-to-Dispatch journey is governed-only: no business-table bypass, no synthetic evidence, no fallback", () => {
-    const JOURNEY_SHA = "4e821518089ada8fa60cc0b7e115a291f856c68d";
+    const JOURNEY_SHA = "f6f5036fae9689ca341ee8376503e7f1d5fefdf9";
     const journeyFiles = [
       "scripts/integration-certification/buyer-order-journey.mjs",
       "scripts/integration-certification/governed-production-leg.mjs",
