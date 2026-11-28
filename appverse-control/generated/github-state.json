@@ -1,7 +1,7 @@
 {
   "authority": "OBJECTIVE_GITHUB_EVIDENCE_ONLY",
   "clearance_warning": "This file MUST NOT autonomously mark ASM stages CLEARED.",
-  "generated_at": "2026-11-28T01:57:53Z",
+  "generated_at": "2026-11-28T12:20:54Z",
   "repositories": {
     "oasisbaklawa2006/Oasis-Baklawa-Central": {
       "access_status": "readable",
@@ -585,121 +585,22 @@
       "open_prs": [
         {
           "base": "main",
-          "combined_status": "SUCCESS",
+          "combined_status": "PENDING",
           "draft": true,
-          "head": "7e7971433756fb304209f4a87b4a3cf0daf16262",
+          "head": "705eae9fa931ccc1a922b8fd175b0b92c157bf8e",
           "mergeable": "MERGEABLE",
           "number": 276,
           "status_checks": [
             {
-              "conclusion": "SKIPPED",
-              "context": "SonarQube (requires configured server)",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/actions/runs/45420618008/job/138538789825",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Enforce oasis-supabase-core backend authority",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/actions/runs/45420617817/job/138538783823",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "quality",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/actions/runs/45420618023/job/138538784990",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Enforce oasis-ai-studio repo ownership boundaries",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/actions/runs/45420617991/job/138538787201",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "CodeQL",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/actions/runs/45420617881/job/138538786701",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "lint",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/actions/runs/45420617894/job/138538784352",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Semgrep Community",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/actions/runs/45420617881/job/138538786634",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Trivy filesystem",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/actions/runs/45420617881/job/138538786414",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Reviewdog ESLint",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/actions/runs/45420617881/job/138538787199",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Coverage, build and boundaries",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/actions/runs/45420617881/job/138538786237",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Biome changed files",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/actions/runs/45420617881/job/138538786464",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Knip debt inventory",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/actions/runs/45420617881/job/138538786662",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Codacy Static Code Analysis",
-              "status": "COMPLETED",
-              "target_url": "https://app.codacy.com/gh/oasisbaklawa2006/oasis-ai-studio/pull-requests/276",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "CodeQL",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/runs/138539458295",
-              "type": "check_run"
-            },
-            {
-              "conclusion": "SUCCESS",
-              "context": "Trivy",
-              "status": "COMPLETED",
-              "target_url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/runs/138538946122",
-              "type": "check_run"
-            },
-            {
               "context": "Vercel",
-              "state": "SUCCESS",
-              "target_url": "https://vercel.com/oasisbaklawa2006-6222s-projects/oasis-ai-studio/5CRinEnsJp2s7zHrc1SftqmsCoAE",
+              "state": "PENDING",
+              "target_url": "https://vercel.com/oasisbaklawa2006-6222s-projects/oasis-ai-studio/BxbueMcST4sRuUVMnvyRZMpkmwVc",
+              "type": "status_context"
+            },
+            {
+              "context": "security/snyk (oasisbaklawa2006)",
+              "state": "PENDING",
+              "target_url": "https://app.snyk.io/org/oasisbaklawa2006/pr-checks/7678a321-479d-4de1-bee3-2e02ea514ff5",
               "type": "status_context"
             },
             {
@@ -708,16 +609,10 @@
               "status": "COMPLETED",
               "target_url": "https://vercel.com/github",
               "type": "check_run"
-            },
-            {
-              "context": "security/snyk (oasisbaklawa2006)",
-              "state": "SUCCESS",
-              "target_url": "https://app.snyk.io/org/oasisbaklawa2006/pr-checks/d502db3c-5b5a-4aa5-af29-4ab47f211196",
-              "type": "status_context"
             }
           ],
           "title": "feat(point33): connect Product Editor pallet metadata to protected Core authority",
-          "updated_at": "2026-11-24T15:03:15Z",
+          "updated_at": "2026-11-28T12:20:48Z",
           "url": "https://github.com/oasisbaklawa2006/oasis-ai-studio/pull/276"
         }
       ],
@@ -728,7 +623,7 @@
       "archived": null,
       "default_branch": null,
       "detail": "GitHub returned NOT_FOUND or FORBIDDEN for the configured token. The repository may be private, renamed or deleted; this file makes no claim about its state.",
-      "error_class": "NOT_FOUND",
+      "error_class": "FORBIDDEN",
       "open_pr_count": null,
       "open_prs": null,
       "readable": false
