@@ -8,9 +8,11 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { canResolveCommercialComplaint, COMPLAINT_FINANCE_ROUTE } from "@/lib/support/complaintBridge";
 import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useApplicationBadge } from "@/hooks/useApplicationBadge";
+import { showsPendingApplicationBadge } from "@/components/adminNavBadges";
 import logoImg from "@/assets/logo-open.png";
 import PanicAlertBanner from "@/components/PanicAlertBanner";
 import AdminRouteGuard from "@/components/AdminRouteGuard";
@@ -96,6 +98,7 @@ const AdminLayout = () => {
       title: t("Governance"),
       items: [
         { to: "/admin/clients", icon: UserCheck, label: t("Clients"), moduleKey: "clients" },
+        { to: "/admin/gifting-enquiries", icon: UserCheck, label: t("Gifting enquiries"), moduleKey: "clients" },
         { to: "/admin/products", icon: Package, label: t("Products"), moduleKey: "products" },
         { to: "/admin/merchandising", icon: Sparkles, label: t("Merchandising"), moduleKey: "products" },
         { to: "/admin/catalogue-sync", icon: Link2, label: "Catalogue sync", moduleKey: "products" },
@@ -104,6 +107,7 @@ const AdminLayout = () => {
         { to: "/admin/finance-governance", icon: Landmark, label: "Finance governance (audit)", moduleKey: "finance_audit" },
         { to: "/admin/finance-board", icon: Receipt, label: "Finance release board", moduleKey: "finance" },
         { to: "/admin/finance", icon: DollarSign, label: t("Finance"), moduleKey: "finance" },
+        { to: COMPLAINT_FINANCE_ROUTE, icon: Receipt, label: "Commercial complaints", moduleKey: "finance" },
         { to: "/admin/users", icon: Users, label: t("Users"), moduleKey: "users" },
         { to: "/sales/dashboard", icon: BarChart3, label: t("Sales Console"), moduleKey: "clients" },
       ],
@@ -142,6 +146,7 @@ const AdminLayout = () => {
     .map((section) => ({
       ...section,
       items: section.items.filter((item) => {
+        if (item.to === COMPLAINT_FINANCE_ROUTE && !canResolveCommercialComplaint(role)) return false;
         if (item.to === "/admin/central-pool") {
           if (!canAccessCentralOrderPool(role)) return false;
         } else if (item.to === "/admin/golden-chain-operator") {
@@ -194,7 +199,7 @@ const AdminLayout = () => {
                         <NavLink key={item.to} to={item.to} end={item.end} onClick={() => setSidebarOpen(false)} className={({ isActive }) => `flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-ui font-medium transition-colors ${isActive ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}>
                           <item.icon size={16} />
                           <span className="flex-1">{item.label}</span>
-                          {item.moduleKey === "clients" && pendingApplications > 0 && (
+                          {showsPendingApplicationBadge(item.to, pendingApplications) && (
                             <span className="ml-auto bg-destructive text-destructive-foreground text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">{pendingApplications}</span>
                           )}
                         </NavLink>

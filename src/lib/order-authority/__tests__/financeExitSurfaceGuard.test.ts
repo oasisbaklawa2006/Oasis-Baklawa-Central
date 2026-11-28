@@ -114,13 +114,19 @@ describe("Finance Exit surface authority guard", () => {
     expect(release).toBeGreaterThan(scan);
     expect(script).toContain("p_idempotency_key: gateScanCorrelation");
     expect(script).toContain("gateScan?.carton_id !== cartonId");
-    expect(script).toContain('process.env.POINT100_CORE_VERIFIED_SHA === "645899439fe0a84806238b9114649eb2c3785a75"');
-    expect(script).toContain('process.env.POINT100_DISPATCH_PRODUCTION_VERIFIED === "true"');
-    expect(script).toContain("POINT100_PRE507_LEGACY_FIXTURE_ONLY");
-    const governedBlock = script.slice(script.indexOf("  } else {\n    // Replays"), script.indexOf("  // Finance stays independent"));
-    expect(governedBlock).toContain('gateRole.client.rpc("record_b2b_dispatch_gate_scan_v1"');
-    expect(governedBlock).not.toContain('.from("operational_scan_records")');
-    expect(governedBlock).not.toContain('.update({ verification_status: "verified" })');
+    // Zero synthetic fallbacks: no pinned legacy fixture, no direct evidence insert/update by the harness.
+    expect(script).not.toContain("POINT100_PRE507_LEGACY_FIXTURE_ONLY");
+    expect(script).not.toContain("legacyPinnedSyntheticGateFixture");
+    expect(script).not.toContain("POINT100_DISPATCH_PRODUCTION_VERIFIED");
+    expect(script).not.toContain('.update({ verification_status: "verified" })');
+    // The only operational_scan_records access is the negative probe proving a direct insert is REJECTED.
+    // Exactly ONE table access may exist, and it must be that probe; a second insert earlier in the file must not be able
+    // to hide inside the probe's exemption window.
+    const tableAccesses = script.match(/\.from\("operational_scan_records"\)/g) ?? [];
+    expect(tableAccesses).toHaveLength(1);
+    const probe = /gateRole\.client\.from\("operational_scan_records"\)\.insert\(\{[\s\S]*?\}\), "B2B_GATE_SCAN_DIRECT_INSERT_FORBIDDEN"\)/.exec(script);
+    expect(probe).not.toBeNull();
+    expect(script.replace(probe![0], "")).not.toContain('.from("operational_scan_records")');
   });
 
   it("Point100 Playwright dispatch tail enforces carton-ready and governed Gate scan after Core #507", () => {
@@ -131,12 +137,13 @@ describe("Finance Exit surface authority guard", () => {
     expect(ready).toBeGreaterThan(-1);
     expect(governed).toBeGreaterThan(ready);
     expect(release).toBeGreaterThan(governed);
-    expect(tail).toContain('process.env.POINT100_CORE_VERIFIED_SHA === "645899439fe0a84806238b9114649eb2c3785a75"');
-    expect(tail).toContain('process.env.POINT100_DISPATCH_PRODUCTION_VERIFIED === "true"');
-    expect(tail).toContain("POINT100_PRE507_LEGACY_FIXTURE_ONLY");
-    const newCorePath = tail.slice(tail.indexOf('  } else {\n    const { data: authoritativeScan'), release);
-    expect(newCorePath).toContain('gate.rpc("record_b2b_dispatch_gate_scan_v1"');
-    expect(newCorePath).not.toContain('.from("operational_scan_records")');
+    expect(tail).not.toContain("POINT100_PRE507_LEGACY_FIXTURE_ONLY");
+    expect(tail).not.toContain("legacyPinnedSyntheticGateFixture");
+    expect(tail).not.toContain("POINT100_DISPATCH_PRODUCTION_VERIFIED");
+    expect(tail).not.toContain('.from("operational_scan_records")');
+    expect(tail).not.toContain('.update({ verification_status: "verified" })');
+    const governedPath = tail.slice(governed, release);
+    expect(governedPath).toContain('gate.rpc("record_b2b_dispatch_gate_scan_v1"');
   });
 
   it("Finance DPL receipt client accepts no browser DPL snapshot, lines or carton IDs", () => {
@@ -157,4 +164,31 @@ describe("Finance Exit surface authority guard", () => {
     expect(client).toContain('complaintClockBasis !== "FINAL_INVOICE_DATE"');
     expect(client).toContain("not anchored to final invoice date");
   });
+  it("Gate dispatch proof and customer communication catch missing or mismatched scan-order preflight errors", () => {
+    const page = source("src/pages/admin/AdminB2bSecurityGate.tsx");
+    const proofStart = page.indexOf("const freezeDispatchProof = async");
+    const proofEnd = page.indexOf("const visual =", proofStart);
+    const customerStart = page.indexOf("const sendCustomerDispatchCommunication = async");
+    const customerEnd = page.indexOf("const communicationEligibility =", customerStart);
+    expect(proofStart).toBeGreaterThan(-1);
+    expect(proofEnd).toBeGreaterThan(proofStart);
+    expect(customerStart).toBeGreaterThan(-1);
+    expect(customerEnd).toBeGreaterThan(customerStart);
+    const proof = page.slice(proofStart, proofEnd);
+    const communication = page.slice(customerStart, customerEnd);
+    for (const [label, handler] of [["dispatch proof", proof], ["customer communication", communication]] as const) {
+      const startTry = handler.indexOf("try {");
+      const preflight = handler.indexOf("const orderId = evidenceOrder();");
+      const catchError = handler.indexOf("} catch (error)");
+      const endFinally = handler.indexOf("} finally {");
+      expect(startTry, label).toBeGreaterThan(-1);
+      expect(preflight, label).toBeGreaterThan(startTry);
+      expect(catchError, label).toBeGreaterThan(preflight);
+      expect(endFinally, label).toBeGreaterThan(catchError);
+      expect(handler, label).toContain("toast.error(");
+    }
+    expect(proof).not.toContain('.from("orders")');
+    expect(communication).not.toContain('.from("operational_scan_records")');
+  });
+
 });

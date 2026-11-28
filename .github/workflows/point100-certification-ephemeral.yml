@@ -31,7 +31,7 @@ jobs:
       POINT100_ALLOW_LOCAL_RESET: "true"
       POINT100_ALLOW_DISPOSABLE_BOOTSTRAP: "false"
       POINT100_DISPATCH_PRODUCTION_VERIFIED: "true"
-      POINT100_CORE_VERIFIED_SHA: 645899439fe0a84806238b9114649eb2c3785a75
+      POINT100_CORE_VERIFIED_SHA: f6f5036fae9689ca341ee8376503e7f1d5fefdf9
       FACTORY_CERT_CORE_REPO: ${{ github.workspace }}/oasis-supabase-core
       FACTORY_CERT_ALLOW_LOCAL_RESET: "true"
       FACTORY_CERT_CREDENTIAL_FILE: /tmp/oasis-factory-certification.env
@@ -123,9 +123,9 @@ jobs:
           path: oasis-supabase-core
 
       - name: Set up pinned Supabase CLI
-        uses: supabase/setup-cli@ab058987d8d6c725971f6cf9d0b5c98467e30bd1 # v1.7.1
+        uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520
         with:
-          version: 2.101.0
+          version: 2.110.0
 
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -142,7 +142,7 @@ jobs:
           bash -n scripts/point100-certification/stop-ephemeral.sh
           bash -n scripts/point100-certification/run-dress-rehearsal.sh
           bash -n scripts/point100-certification/recert-after-core-260.sh
-          test "${POINT100_CORE_VERIFIED_SHA}" = "645899439fe0a84806238b9114649eb2c3785a75"
+          test "${POINT100_CORE_VERIFIED_SHA}" = "f6f5036fae9689ca341ee8376503e7f1d5fefdf9"
           [[ "${POINT100_PRODUCTION_MIGRATION_RUN_ID}" =~ ^[0-9]+$ ]]
           test "${POINT100_RECERT_AFTER_CORE_MIGRATION_RUN_ID}" = "${POINT100_PRODUCTION_MIGRATION_RUN_ID}"
           test "${POINT100_ALLOW_DISPOSABLE_BOOTSTRAP}" = "false"

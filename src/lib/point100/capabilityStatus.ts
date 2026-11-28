@@ -3,7 +3,7 @@
  * Distinct from programme CLEARED status; describes executable harness state only.
  */
 
-import { POINT100_CORE_PRODUCTION_VERIFIED_SHA, POINT100_PRODUCTION_MIGRATION_GATE, POINT100_PRODUCTION_MIGRATION_RUN_ID, POINT100_CORE_PENDING_DISPATCH_PR, POINT100_UPSTREAM_DEPENDENCIES, isCoreDispatchProductionVerified, isCoreInventoryProductionVerified, isProductionCertificationPermitted, resolveCoreVerifiedSha, resolveProductionMigrationRunId } from "./upstreamDependencies";
+import { POINT100_CORE_PRODUCTION_VERIFIED_SHA, POINT100_PRODUCTION_MIGRATION_RUN_ID, POINT100_CORE_PENDING_DISPATCH_PR, POINT100_UPSTREAM_DEPENDENCIES, isCoreDispatchProductionVerified, isCoreInventoryProductionVerified, isProductionCertificationPermitted, resolveCoreVerifiedSha, resolveProductionMigrationGate, resolveProductionMigrationRunId } from "./upstreamDependencies";
 
 export type Point100CapabilityStatus =
   | "implemented"
@@ -84,7 +84,7 @@ export function buildCapabilityMatrix(
     fail_closed: true,
     certification_mode: isProductionCertificationPermitted() ? "production" : "disposable_synthetic",
     production_certification_permitted: isProductionCertificationPermitted(),
-    production_migration_gate: isCoreInventoryProductionVerified() ? POINT100_PRODUCTION_MIGRATION_GATE : null,
+    production_migration_gate: isCoreInventoryProductionVerified() ? resolveProductionMigrationGate() : null,
     core_verified_sha: resolveCoreVerifiedSha(),
     inventory_production_verified: isCoreInventoryProductionVerified(),
     dispatch_production_verified: isCoreDispatchProductionVerified(),

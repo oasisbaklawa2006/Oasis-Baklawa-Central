@@ -26,6 +26,7 @@ import {
   readCredential,
   requireBootstrapEnv,
 } from "./point38-bootstrap-common.mjs";
+import { recordPhase } from "../integration-certification/journey-ledger.mjs";
 
 const LOCAL_LABEL = "POINT100_POINT38";
 const BATCH_LOT = "POINT100-P38-LOT-001";
@@ -163,8 +164,9 @@ async function loadOperationsClearanceFacts(finance, piId, commercialVersionId, 
   return facts;
 }
 
+/** Returns true only when this run actually executed the payment-proof and verification RPCs. */
 async function ensureRequiredAdvanceVerified(finance, financeActorId, piId, commercialVersionId, requiredAdvance) {
-  if (requiredAdvance <= 0.01) return;
+  if (requiredAdvance <= 0.01) return false;
   await recordAndVerifyPayment(
     finance,
     financeActorId,
@@ -184,6 +186,7 @@ async function ensureRequiredAdvanceVerified(finance, financeActorId, piId, comm
       missingPaymentIdError: "POINT100_POINT38_ADVANCE_PAYMENT_ID_MISSING",
     },
   );
+  return true;
 }
 
 async function grantOperationsClearanceDecision(finance, financeActorId, piId, commercialVersionId) {
@@ -206,8 +209,10 @@ async function grantOperationsClearanceDecision(finance, financeActorId, piId, c
 
 async function ensureOperationsClearance(finance, financeActorId, piId, commercialVersionId) {
   let facts = await loadOperationsClearanceFacts(finance, piId, commercialVersionId, "Point38 finance operations facts");
+  let advanceProofExecuted = false;
+  let clearanceDecisionExecuted = false;
   if (facts.eligible_for_operations_clearance !== true) {
-    await ensureRequiredAdvanceVerified(
+    advanceProofExecuted = await ensureRequiredAdvanceVerified(
       finance,
       financeActorId,
       piId,
@@ -223,6 +228,7 @@ async function ensureOperationsClearance(finance, financeActorId, piId, commerci
   }
   if (facts.latest_clearance_decision !== "GRANTED") {
     await grantOperationsClearanceDecision(finance, financeActorId, piId, commercialVersionId);
+    clearanceDecisionExecuted = true;
   }
   const finalRow = await loadOperationsClearanceFacts(
     finance,
@@ -233,6 +239,7 @@ async function ensureOperationsClearance(finance, financeActorId, piId, commerci
   if (finalRow.eligible_for_operations_clearance !== true || finalRow.latest_clearance_decision !== "GRANTED") {
     throw new Error(`POINT100_POINT38_OPERATIONS_CLEARANCE_NOT_ACTIVE: ${JSON.stringify(finalRow)}`);
   }
+  return { advanceProofExecuted, clearanceDecisionExecuted, requiredAdvance: Number(finalRow.required_advance ?? facts.required_advance ?? 0) };
 }
 
 async function issueFinalPaymentRequest(
@@ -506,6 +513,37 @@ async function submitPoint38DispatchCustodyToFinance(dispatchRole, adminRole, fi
   return financeDplReceiptId;
 }
 
+
+/**
+ * Buyer-to-Dispatch journey only (POINT38_JOURNEY_GOVERNED_STATUS_PATH=true). The historical Factory fixture forces
+ * orders.status to cleared_for_dispatch with SQL; the journey must instead reach it through Core's own status
+ * authorities: release_order_to_manufacturing_v1 -> release_order_to_in_production_v1 -> governed production completion
+ * (complete_order_item_from_production_v1 from accepted production) -> release_order_to_packed_ready_v1 ->
+ * (dispatch custody, Finance clearance) -> clear_order_for_dispatch_v1.
+ */
+const JOURNEY_STATUS_PATH = process.env.POINT38_JOURNEY_GOVERNED_STATUS_PATH === "true";
+
+async function journeyTransition(role, roleLabel, rpcName, orderId) {
+  const result = await role.client.rpc(rpcName, { p_order_id: orderId });
+  assertNoError(result.error, `Journey ${rpcName}`);
+  const payload = firstRow(result.data);
+  if (!payload || payload.ok !== true) {
+    throw new Error(`JOURNEY_TRANSITION_BLOCKED: ${rpcName} -> ${JSON.stringify(payload)}`);
+  }
+  recordPhase(`Order transition ${rpcName}`, roleLabel, rpcName, { newStatus: payload.new_status ?? null, alreadyApplied: payload.already_applied ?? null });
+}
+
+async function journeyReleaseAndProduction(financeRole, adminRole, dispatchRole, orderId, orderItem) {
+  await journeyTransition(financeRole, "FINANCE_HEAD", "release_order_to_manufacturing_v1", orderId);
+  await journeyTransition(financeRole, "FINANCE_HEAD", "release_order_to_in_production_v1", orderId);
+  // Core derives completion from real production jobs accepted by RGS receiving (record_production_output and the
+  // production -> RGS pipeline); no business table is written here. If the pipeline cannot supply accepted evidence the
+  // journey FAILS with a JOURNEY_PRODUCTION_* error. There is deliberately no alternative completion path.
+  const { runGovernedProductionLeg } = await import("../integration-certification/governed-production-leg.mjs");
+  await runGovernedProductionLeg({ orderId, orderItem, adminClient: adminRole.client, dispatchClient: dispatchRole.client });
+  await journeyTransition(dispatchRole, "DISPATCH_MANAGER", "release_order_to_packed_ready_v1", orderId);
+}
+
 const financeRole = await authenticatedRole("FINANCE_HEAD", { aal2: true });
 const adminRole = await authenticatedRole("ADMIN");
 const dispatchRole = await authenticatedRole("DISPATCH_MANAGER");
@@ -522,7 +560,20 @@ try {
   const piId = String(bindings[0].id);
   const commercialVersionId = String(bindings[0].commercial_version_id);
 
-  await ensureOperationsClearance(financeRole.client, financeRole.actorId, piId, commercialVersionId);
+  const clearance = await ensureOperationsClearance(financeRole.client, financeRole.actorId, piId, commercialVersionId);
+  if (JOURNEY_STATUS_PATH) {
+    // Credit only what this run executed; verified end-state facts are recorded separately from executed RPCs.
+    const executed = [
+      clearance.advanceProofExecuted ? "record_order_payment_proof_v1 + verify_order_payment_v1" : null,
+      clearance.clearanceDecisionExecuted ? "decide_finance_operations_clearance_v1" : null,
+    ].filter(Boolean);
+    recordPhase(
+      "Operations clearance is active and GRANTED (verified from Core facts)",
+      "FINANCE_HEAD",
+      executed.length ? executed.join(" + ") : "get operations clearance facts (read-only; no payment or decision RPC was needed)",
+      { piId, advanceProofExecutedThisRun: clearance.advanceProofExecuted, clearanceDecisionExecutedThisRun: clearance.clearanceDecisionExecuted, requiredAdvance: clearance.requiredAdvance },
+    );
+  }
 
   const { data: orderItem, error: orderItemError } = await dispatchRole.client
     .from("order_items")
@@ -535,6 +586,9 @@ try {
     throw new Error(`POINT100_POINT38_ORDER_ITEM_INVALID: ${JSON.stringify(orderItem)}`);
   }
   const quantity = Number(orderItem.quantity);
+  if (JOURNEY_STATUS_PATH) {
+    await journeyReleaseAndProduction(financeRole, adminRole, dispatchRole, point38OrderId, orderItem);
+  }
   const financeDplReceiptId = await submitPoint38DispatchCustodyToFinance(
     dispatchRole,
     adminRole,
@@ -543,6 +597,12 @@ try {
     quantity,
   );
 
+  if (JOURNEY_STATUS_PATH) {
+    recordPhase("Dispatch custody: consignment, source handoff (synthetic PRODUCTION source), carton scan, lock, DPL, Finance DPL receipt", "DISPATCH_MANAGER+ADMIN+FINANCE_HEAD", "create_b2b_dispatch_consignment ... receive_submitted_b2b_dispatch_dpls_v1", {
+      financeDplReceiptId,
+      syntheticInput: "source handoff declared from POINT100_SYNTHETIC_READY; no real production/stock movement",
+    });
+  }
   const invoiceDate = await ensureFinalPaymentCoverage(
     financeRole.client,
     financeRole.actorId,
@@ -569,6 +629,9 @@ try {
   if (!finalInvoiceId) throw new Error("POINT100_POINT38_FINAL_INVOICE_ID_MISSING");
 
   await ensureFinalSettlement(financeRole.client, financeRole.actorId, piId, commercialVersionId, finalInvoiceId);
+  if (JOURNEY_STATUS_PATH) {
+    recordPhase("Final payment request, settlement and final invoice issued by Finance", "FINANCE_HEAD", "issue_sales_order_pi_final_payment_request_v1 + issue_final_invoice_v1 + get_final_settlement_facts_v1", { finalInvoiceId });
+  }
 
   const ewayResult = await financeRole.client.rpc("record_eway_bill_evidence_v1", {
     p_final_invoice_id: finalInvoiceId,
@@ -594,6 +657,10 @@ try {
     p_actor_id: financeRole.actorId,
   });
   assertNoError(clearanceResult.error, "Point38 Finance Dispatch Clearance");
+  if (JOURNEY_STATUS_PATH) {
+    recordPhase("Finance grants dispatch clearance", "FINANCE_HEAD", "decide_finance_dispatch_clearance_v1", { finalInvoiceId });
+    await journeyTransition(dispatchRole, "DISPATCH_MANAGER", "clear_order_for_dispatch_v1", point38OrderId);
+  }
 
   const exitFactsResult = await dispatchRole.client.rpc("get_finance_exit_facts_v1", { p_order_id: point38OrderId });
   assertNoError(exitFactsResult.error, "Point38 finance exit verification");

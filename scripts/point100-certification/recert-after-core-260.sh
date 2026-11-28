@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Point100 software recertification boundary on current Core (Gate/Dispatch role separation 20261001220000):
-#   - Core main exact SHA 645899439fe0a84806238b9114649eb2c3785a75
+#   - Core main exact SHA f6f5036fae9689ca341ee8376503e7f1d5fefdf9
 #   - protected Production Migration Release deploy job SUCCESS for that exact SHA
 #   - semantic parity + production contract smoke SUCCESS
 #
@@ -13,14 +13,14 @@ set -euo pipefail
 
 : "${POINT100_CORE_REPO:?Set POINT100_CORE_REPO to oasis-supabase-core checkout}"
 
-export POINT100_CORE_VERIFIED_SHA="${POINT100_CORE_VERIFIED_SHA:-645899439fe0a84806238b9114649eb2c3785a75}"
+export POINT100_CORE_VERIFIED_SHA="${POINT100_CORE_VERIFIED_SHA:-f6f5036fae9689ca341ee8376503e7f1d5fefdf9}"
 : "${POINT100_RECERT_AFTER_CORE_MIGRATION_RUN_ID:?Set POINT100_RECERT_AFTER_CORE_MIGRATION_RUN_ID to the successful protected deploy=true Production Migration Release run}"
 export POINT100_PRODUCTION_MIGRATION_RUN_ID="${POINT100_RECERT_AFTER_CORE_MIGRATION_RUN_ID}"
 export POINT100_DISPATCH_PRODUCTION_VERIFIED=true
 export POINT100_ALLOW_LOCAL_RESET="${POINT100_ALLOW_LOCAL_RESET:-true}"
 export POINT100_ALLOW_DISPOSABLE_BOOTSTRAP=false
 
-if [[ "${POINT100_CORE_VERIFIED_SHA}" != "645899439fe0a84806238b9114649eb2c3785a75" ]]; then
+if [[ "${POINT100_CORE_VERIFIED_SHA}" != "f6f5036fae9689ca341ee8376503e7f1d5fefdf9" ]]; then
   echo "Refusing Point100 final recert: unexpected Core SHA ${POINT100_CORE_VERIFIED_SHA}" >&2
   exit 1
 fi

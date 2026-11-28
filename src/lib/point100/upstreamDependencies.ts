@@ -23,13 +23,23 @@ export type Point100UpstreamDependency = {
   disposableRehearsalBypass?: boolean;
 };
 
-/** Production-certified Core boundary — Core main 64589943, released to production by protected Production Migration Release run 41361801135 (includes Gate/Dispatch role separation 20261001220000). */
-export const POINT100_CORE_PRODUCTION_VERIFIED_SHA = "645899439fe0a84806238b9114649eb2c3785a75";
+/**
+ * Declared Core pin (owner-directed, Phase 1 closeout): Core main f6f5036f, the certified and protectedly deployed Core SHA
+ * (Production Migration Release run 45696846847) and a descendant of the former pin 4e821518. It carries the governed B2B Gate
+ * scan authority (record_b2b_dispatch_gate_scan_v1) and the Gate/Dispatch role separation (20261001220000). Declaring the pin is NOT
+ * production certification: the lane's own gate re-derives, at run time, a successful protected deploy=true Production
+ * Migration Release for exactly this SHA and fails closed if none exists. The release run id is therefore never
+ * hard-coded here; it is bound from that evidence in CI (POINT100_PRODUCTION_MIGRATION_RUN_ID).
+ */
+export const POINT100_CORE_PRODUCTION_VERIFIED_SHA = "f6f5036fae9689ca341ee8376503e7f1d5fefdf9";
 
-export const POINT100_PRODUCTION_MIGRATION_GATE = "oasis-supabase-core:production-migration-release:41361801135";
+/** Placeholder until CI binds the protected release run for the pinned SHA; never a real run id. */
+export const POINT100_PRODUCTION_RELEASE_PENDING = "pending-protected-release";
 
-/** GitHub Actions run certifying exact-SHA deploy, semantic parity and production contract smoke for the current protected release. */
-export const POINT100_PRODUCTION_MIGRATION_RUN_ID = "41361801135";
+export const POINT100_PRODUCTION_MIGRATION_GATE = `oasis-supabase-core:production-migration-release:${POINT100_PRODUCTION_RELEASE_PENDING}`;
+
+/** Bound from the verified protected release run by the workflow; this default is deliberately not a run id. */
+export const POINT100_PRODUCTION_MIGRATION_RUN_ID = POINT100_PRODUCTION_RELEASE_PENDING;
 
 /** Governed Trace software contracts shipped on Core #259 and consumed by merged Trace #37. */
 export const POINT100_TRACE_SOFTWARE_RPCS = [
@@ -62,6 +72,16 @@ export function resolveCoreVerifiedSha(): string | null {
 
 export function resolveProductionMigrationRunId(): string | null {
   return process.env.POINT100_PRODUCTION_MIGRATION_RUN_ID?.trim() ?? POINT100_PRODUCTION_MIGRATION_RUN_ID;
+}
+
+/**
+ * The migration gate published with certification evidence, built from the RESOLVED protected-release run id.
+ * The `pending-protected-release` placeholder is used only when CI has not bound a release run, so a verified run is
+ * never published against a pending gate.
+ */
+export function resolveProductionMigrationGate(): string {
+  const runId = resolveProductionMigrationRunId();
+  return `oasis-supabase-core:production-migration-release:${runId ? runId : POINT100_PRODUCTION_RELEASE_PENDING}`;
 }
 
 export function isCoreProductionVerified(): boolean {
